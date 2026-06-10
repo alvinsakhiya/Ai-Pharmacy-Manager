@@ -17,8 +17,15 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from .api_views import dashboard_stats
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from patients.api_views import PatientViewSet
+
+router = DefaultRouter()
+router.register(r"patients", PatientViewSet, basename="patients")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/dashboard/", dashboard_stats, name="dashboard_stats"),
+    path("api/", include(router.urls)),
 ]

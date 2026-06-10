@@ -1,7 +1,7 @@
-import Dashboard from "./pages/Dashboard";
+import Patients from "./pages/Patients";
 
 function App() {
-  return <Dashboard />;
+  return <Patients />;
 }
 
 export default App;
