@@ -1,3 +1,5 @@
+from datetime import timedelta
+from django.utils import timezone
 from .models import StockBatch
 
 
@@ -33,4 +35,33 @@ def allocate_stock_fefo(medication, required_quantity):
         "required_quantity": required_quantity,
         "allocated": allocation,
         "shortfall": remaining_quantity,
+    }
+
+
+def get_expiry_alerts():
+    today = timezone.now().date()
+
+    return {
+        "expired": StockBatch.objects.filter(
+            expiry_date__lt=today,
+            quantity__gt=0
+        ).order_by("expiry_date"),
+
+        "one_month": StockBatch.objects.filter(
+            expiry_date__gte=today,
+            expiry_date__lte=today + timedelta(days=30),
+            quantity__gt=0
+        ).order_by("expiry_date"),
+
+        "three_months": StockBatch.objects.filter(
+            expiry_date__gt=today + timedelta(days=30),
+            expiry_date__lte=today + timedelta(days=90),
+            quantity__gt=0
+        ).order_by("expiry_date"),
+
+        "six_months": StockBatch.objects.filter(
+            expiry_date__gt=today + timedelta(days=90),
+            expiry_date__lte=today + timedelta(days=180),
+            quantity__gt=0
+        ).order_by("expiry_date"),
     }
