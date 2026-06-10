@@ -16,7 +16,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from .api_views import dashboard_stats
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path("api/dashboard/", dashboard_stats, name="dashboard_stats"),
 ]

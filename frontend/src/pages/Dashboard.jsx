@@ -1,8 +1,29 @@
 import { Users, Pill, Package, AlertTriangle } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import StatCard from "../components/StatCard";
+import { useEffect, useState } from "react";
+import api from "../services/api";
 
 function Dashboard() {
+  const [stats, setStats] = useState(null);
+
+useEffect(() => {
+  api.get("/dashboard/")
+    .then((response) => {
+      setStats(response.data);
+    })
+    .catch((error) => {
+      console.error("Dashboard API error:", error);
+    });
+}, []);
+
+if (!stats) {
+  return (
+    <MainLayout>
+      <p className="text-slate-500">Loading dashboard...</p>
+    </MainLayout>
+  );
+}
   return (
     <MainLayout>
       <div className="mb-8">
@@ -15,28 +36,33 @@ function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <StatCard
           title="Total Patients"
-          value="205"
+          value={stats.total_patients}
           subtitle="Active dosette patients"
           icon={<Users className="text-slate-700" />}
         />
 
         <StatCard
           title="Medications"
-          value="60"
+          value={stats.total_medications}
           subtitle="Medication master records"
           icon={<Pill className="text-slate-700" />}
         />
 
         <StatCard
           title="Stock Batches"
-          value="180"
+          value={stats.total_batches}
           subtitle="Tracked batch records"
           icon={<Package className="text-slate-700" />}
         />
 
         <StatCard
           title="Expiry Alerts"
-          value="8"
+          value={
+            stats.expiry_alerts.expired +
+            stats.expiry_alerts.one_month +
+            stats.expiry_alerts.three_months +
+            stats.expiry_alerts.six_months
+          }
           subtitle="Require pharmacist review"
           icon={<AlertTriangle className="text-slate-700" />}
         />
@@ -50,22 +76,22 @@ function Dashboard() {
           <div className="mt-6 space-y-4">
             <div className="flex justify-between p-4 rounded-2xl bg-red-50">
               <span className="font-medium text-red-700">Expired Stock</span>
-              <span className="font-bold text-red-700">0</span>
+              <span className="font-bold text-red-700">{stats.expiry_alerts.expired}</span>
             </div>
 
             <div className="flex justify-between p-4 rounded-2xl bg-amber-50">
               <span className="font-medium text-amber-700">Expires within 1 month</span>
-              <span className="font-bold text-amber-700">2</span>
+              <span className="font-bold text-amber-700">{stats.expiry_alerts.one_month}</span>
             </div>
 
             <div className="flex justify-between p-4 rounded-2xl bg-blue-50">
               <span className="font-medium text-blue-700">Expires within 3 months</span>
-              <span className="font-bold text-blue-700">3</span>
+              <span className="font-bold text-blue-700">{stats.expiry_alerts.three_months}</span>
             </div>
 
             <div className="flex justify-between p-4 rounded-2xl bg-emerald-50">
               <span className="font-medium text-emerald-700">Expires within 6 months</span>
-              <span className="font-bold text-emerald-700">3</span>
+              <span className="font-bold text-emerald-700">{stats.expiry_alerts.six_months}</span>
             </div>
           </div>
         </section>
