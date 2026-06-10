@@ -1,3 +1,6 @@
+from inventory.utils import allocate_stock_fefo
+
+
 def calculate_weekly_quantity(record):
     total_daily_dose = 0
 
@@ -23,6 +26,7 @@ def generate_patient_picking_list(patient):
 
     for record in active_records:
         weekly_quantity = calculate_weekly_quantity(record)
+        fefo_allocation = allocate_stock_fefo(record.medication, weekly_quantity)
 
         picking_list.append({
             "patient": patient,
@@ -33,6 +37,7 @@ def generate_patient_picking_list(patient):
             "bedtime_dose": record.bedtime_dose,
             "weekly_quantity": weekly_quantity,
             "instructions": record.instructions,
+            "fefo_allocation": fefo_allocation,
         })
 
     return picking_list
