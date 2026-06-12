@@ -1,18 +1,11 @@
-import { createContext, useEffect, useState } from "react";
+import { useState } from "react";
 import api from "../services/api";
-
-export const AuthContext = createContext(null);
+import AuthContext from "./auth-context";
 
 export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(
     localStorage.getItem("accessToken")
   );
-
-  const [isAuthenticated, setIsAuthenticated] = useState(!!accessToken);
-
-  useEffect(() => {
-    setIsAuthenticated(!!accessToken);
-  }, [accessToken]);
 
   const login = async (username, password) => {
     const response = await api.post("/auth/login/", {
@@ -40,7 +33,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider
       value={{
         accessToken,
-        isAuthenticated,
+        isAuthenticated: Boolean(accessToken),
         login,
         logout,
       }}
