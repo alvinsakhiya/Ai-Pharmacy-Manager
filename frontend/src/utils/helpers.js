@@ -36,6 +36,26 @@ export function getExpiryStatus(expiryDate) {
   return { label: "In date", tone: "success", daysRemaining };
 }
 
+export function describeExpiry(daysRemaining) {
+  if (daysRemaining < -1) {
+    return `Expired ${Math.abs(daysRemaining)} days ago`;
+  }
+
+  if (daysRemaining === -1) {
+    return "Expired yesterday";
+  }
+
+  if (daysRemaining === 0) {
+    return "Expires today";
+  }
+
+  if (daysRemaining === 1) {
+    return "Expires tomorrow";
+  }
+
+  return `Expires in ${daysRemaining} days`;
+}
+
 export function getQuantityStatus(quantity) {
   if (quantity === 0) {
     return { label: "Out of stock", tone: "danger" };

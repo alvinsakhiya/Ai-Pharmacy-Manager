@@ -116,44 +116,43 @@ function Forecasts() {
       />
 
       {!isLoading && !error && (
-        <section className="relative mb-6 overflow-hidden rounded-[1.5rem] bg-linear-to-r from-violet-950 via-indigo-950 to-slate-950 p-5 text-white shadow-xl shadow-indigo-950/10 sm:p-6">
-          <div className="subtle-grid absolute inset-0 opacity-50" />
-          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-violet-500/20 blur-3xl" />
+        <section className="liquid-hero relative mb-6 overflow-hidden rounded-[1.5rem] p-5 sm:p-6">
+          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-violet-300/30 blur-3xl" />
           <div className="relative grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-400/15 text-violet-200 ring-1 ring-violet-300/20">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100/75 text-violet-700 ring-1 ring-violet-200/70">
                 <Sparkles size={23} />
               </div>
               <div>
-                <h2 className="text-lg font-bold tracking-tight">
+                <h2 className="text-lg font-bold tracking-tight text-slate-950">
                   Forecast intelligence summary
                 </h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
                   Recommendations are derived from current batch stock and weekly
                   demand across active dosette schedules.
                 </p>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-2xl bg-white/8 px-3 py-3 text-center ring-1 ring-white/10">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="rounded-2xl border border-white/75 bg-white/48 px-3 py-3 text-center shadow-sm backdrop-blur-xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   High risk
                 </p>
-                <p className="mt-1 text-xl font-black text-red-300">{highRiskCount}</p>
+                <p className="mt-1 text-xl font-black text-red-600">{highRiskCount}</p>
               </div>
-              <div className="rounded-2xl bg-white/8 px-3 py-3 text-center ring-1 ring-white/10">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="rounded-2xl border border-white/75 bg-white/48 px-3 py-3 text-center shadow-sm backdrop-blur-xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Medium
                 </p>
-                <p className="mt-1 text-xl font-black text-amber-300">
+                <p className="mt-1 text-xl font-black text-amber-600">
                   {mediumRiskCount}
                 </p>
               </div>
-              <div className="rounded-2xl bg-white/8 px-3 py-3 text-center ring-1 ring-white/10">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="rounded-2xl border border-white/75 bg-white/48 px-3 py-3 text-center shadow-sm backdrop-blur-xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Weekly demand
                 </p>
-                <p className="mt-1 text-xl font-black text-teal-300">
+                <p className="mt-1 text-xl font-black text-blue-600">
                   {totalWeeklyDemand}
                 </p>
               </div>
@@ -176,7 +175,7 @@ function Forecasts() {
           </label>
           <select
             id="risk-filter"
-            className="field-control w-full font-semibold lg:w-48"
+            className="field-control w-full font-semibold lg:max-w-48"
             value={riskFilter}
             onChange={(event) => setRiskFilter(event.target.value)}
           >

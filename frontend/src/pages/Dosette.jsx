@@ -142,7 +142,7 @@ function Dosette() {
                     <tr key={record.id}>
                       <td>
                         <div className="flex items-center gap-2.5">
-                          <UserRound className="text-teal-600" size={18} />
+                          <UserRound className="text-blue-600" size={18} />
                           <span className="font-bold text-slate-900">
                             {record.patient_name}
                           </span>
@@ -187,7 +187,7 @@ function Dosette() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 text-sm font-bold text-slate-950">
-                        <UserRound className="shrink-0 text-teal-600" size={17} />
+                        <UserRound className="shrink-0 text-blue-600" size={17} />
                         <span className="truncate">{record.patient_name}</span>
                       </p>
                     </div>

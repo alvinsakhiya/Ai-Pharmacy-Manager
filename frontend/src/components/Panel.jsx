@@ -14,16 +14,16 @@ export function PanelHeader({
   title,
 }) {
   return (
-    <div className="flex flex-col gap-4 border-b border-slate-200/80 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <div className="flex flex-col gap-4 border-b border-white/75 px-5 py-4.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div className="flex min-w-0 items-start gap-3">
         {Icon && (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100/70 bg-blue-50/70 text-blue-600 shadow-sm">
             <Icon aria-hidden="true" size={20} />
           </div>
         )}
         <div className="min-w-0">
           {eyebrow && (
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
               {eyebrow}
             </p>
           )}

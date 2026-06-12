@@ -20,7 +20,7 @@ import { formatDate, getInitials } from "../utils/helpers";
 function PatientIdentity({ patient }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-teal-100 to-cyan-100 text-xs font-black text-teal-800 ring-1 ring-teal-200">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-100/80 to-violet-100/80 text-xs font-black text-blue-700 ring-1 ring-blue-200/70">
         {getInitials(patient.first_name, patient.last_name)}
       </div>
       <div className="min-w-0">

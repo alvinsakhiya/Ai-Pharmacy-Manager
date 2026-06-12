@@ -12,7 +12,11 @@ export function AuthProvider({ children }) {
   );
 
   useEffect(() => {
-    const handleSessionExpired = () => setAccessToken(null);
+    const handleSessionExpired = () => {
+      // Lets the login page explain why the user was signed out.
+      sessionStorage.setItem("sessionExpired", "true");
+      setAccessToken(null);
+    };
     const handleTokenRefreshed = (event) => setAccessToken(event.detail);
 
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);

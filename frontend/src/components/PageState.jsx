@@ -11,8 +11,8 @@ export function LoadingState({
       role="status"
       aria-live="polite"
     >
-      <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-teal-200 bg-teal-50 text-teal-700">
-        <span className="absolute inset-0 animate-ping rounded-2xl bg-teal-100 opacity-50" />
+      <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-200/70 bg-blue-50/70 text-blue-600 shadow-sm backdrop-blur-xl">
+        <span className="absolute inset-0 animate-ping rounded-2xl bg-blue-100 opacity-50" />
         <LoaderCircle className="relative animate-spin" size={25} />
       </div>
       <p className="mt-4 text-sm font-bold text-slate-800">{label}</p>
