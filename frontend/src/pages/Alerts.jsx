@@ -20,6 +20,7 @@ import { formatDate } from "../utils/helpers";
 const alertGroups = [
   {
     key: "expired",
+    priority: "STOP",
     title: "Expired stock",
     description: "Do not allocate. Quarantine and follow the pharmacy disposal process.",
     icon: ShieldAlert,
@@ -27,9 +28,11 @@ const alertGroups = [
     iconStyle: "border-red-200 bg-red-50 text-red-700",
     panelStyle: "border-red-200/80",
     bannerStyle: "bg-red-50/70",
+    pattern: "signal-pattern-critical",
   },
   {
     key: "one_month",
+    priority: "REVIEW",
     title: "Expires within 1 month",
     description: "Prioritise review and use through the FEFO workflow where appropriate.",
     icon: AlarmClock,
@@ -37,9 +40,11 @@ const alertGroups = [
     iconStyle: "border-amber-200 bg-amber-50 text-amber-700",
     panelStyle: "border-amber-200/80",
     bannerStyle: "bg-amber-50/70",
+    pattern: "signal-pattern-attention",
   },
   {
     key: "three_months",
+    priority: "MONITOR",
     title: "Expires within 3 months",
     description: "Monitor demand and avoid unnecessary replenishment.",
     icon: CalendarClock,
@@ -47,9 +52,11 @@ const alertGroups = [
     iconStyle: "border-blue-200 bg-blue-50 text-blue-700",
     panelStyle: "border-blue-200/80",
     bannerStyle: "bg-blue-50/70",
+    pattern: "signal-pattern-info",
   },
   {
     key: "six_months",
+    priority: "PLAN",
     title: "Expires within 6 months",
     description: "Include in routine stock planning and FEFO preparation.",
     icon: CalendarRange,
@@ -57,6 +64,7 @@ const alertGroups = [
     iconStyle: "border-emerald-200 bg-emerald-50 text-emerald-700",
     panelStyle: "border-emerald-200/80",
     bannerStyle: "bg-emerald-50/70",
+    pattern: "signal-pattern-ready",
   },
 ];
 
@@ -118,6 +126,8 @@ function Alerts() {
             ? "border-amber-200 bg-linear-to-r from-amber-50 to-white"
             : "border-emerald-200 bg-linear-to-r from-emerald-50 to-white"
         }`}
+        aria-labelledby="expiry-safety-summary"
+        aria-live="polite"
       >
         <div className="flex items-start gap-4">
           <div
@@ -130,7 +140,10 @@ function Alerts() {
             {urgentCount > 0 ? <ShieldAlert size={24} /> : <ShieldCheck size={24} />}
           </div>
           <div>
-            <h2 className="text-lg font-bold tracking-tight text-slate-950">
+            <h2
+              id="expiry-safety-summary"
+              className="text-lg font-bold tracking-tight text-slate-950"
+            >
               {urgentCount > 0
                 ? `${urgentCount} batch${urgentCount === 1 ? "" : "es"} need priority review`
                 : "No urgent expiry risk detected"}
@@ -141,8 +154,11 @@ function Alerts() {
             </p>
           </div>
         </div>
-        <Badge tone={urgentCount > 0 ? "warning" : "success"}>
-          {totalAlerts} monitored batches
+        <Badge
+          icon={urgentCount > 0 ? ShieldAlert : ShieldCheck}
+          tone={urgentCount > 0 ? "warning" : "success"}
+        >
+          {urgentCount > 0 ? "REVIEW" : "CLEAR"} · {totalAlerts} monitored batches
         </Badge>
       </section>
 
@@ -154,7 +170,8 @@ function Alerts() {
           return (
             <section
               key={group.key}
-              className={`surface-card overflow-hidden ${group.panelStyle}`}
+              className={`surface-card overflow-hidden ${group.panelStyle} ${group.pattern}`}
+              aria-labelledby={`${group.key}-alert-heading`}
             >
               <div
                 className={`flex items-start justify-between gap-4 border-b border-inherit p-5 sm:p-6 ${group.bannerStyle}`}
@@ -166,15 +183,20 @@ function Alerts() {
                     <Icon size={21} />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold tracking-tight text-slate-950">
-                      {group.title}
+                    <h2
+                      id={`${group.key}-alert-heading`}
+                      className="text-lg font-bold tracking-tight text-slate-950"
+                    >
+                      {group.priority} · {group.title}
                     </h2>
                     <p className="mt-1 max-w-md text-xs leading-5 text-slate-600">
                       {group.description}
                     </p>
                   </div>
                 </div>
-                <Badge tone={group.tone}>{batches.length}</Badge>
+                <Badge icon={Icon} tone={group.tone}>
+                  {group.priority} · {batches.length}
+                </Badge>
               </div>
 
               {batches.length === 0 ? (
@@ -190,7 +212,8 @@ function Alerts() {
                   {batches.map((batch) => (
                     <article
                       key={batch.id}
-                      className="p-5 transition hover:bg-slate-50/80 sm:p-6"
+                      className="safety-rail p-5 pl-7 text-slate-700 transition hover:bg-white/55 sm:p-6 sm:pl-8"
+                      aria-label={`${group.priority}: ${batch.medication}, batch ${batch.batch_number}, expires ${formatDate(batch.expiry_date)}`}
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
@@ -198,6 +221,9 @@ function Alerts() {
                           <p className="mt-1 font-mono text-xs font-bold text-slate-400">
                             Batch {batch.batch_number}
                           </p>
+                          <Badge className="mt-2" icon={Icon} tone={group.tone}>
+                            {group.priority} · {group.title}
+                          </Badge>
                         </div>
                         <div className="sm:text-right">
                           <p className="text-sm font-black text-slate-900">

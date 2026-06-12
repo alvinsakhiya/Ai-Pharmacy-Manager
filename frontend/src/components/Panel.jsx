@@ -1,6 +1,6 @@
 export function Panel({ children, className = "" }) {
   return (
-    <section className={`surface-card ${className}`}>
+    <section className={`surface-card min-w-0 ${className}`}>
       {children}
     </section>
   );

@@ -15,26 +15,35 @@ import Button from "../components/Button";
 import SearchField from "../components/SearchField";
 import { Panel } from "../components/Panel";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
+import ClinicalMetric from "../components/ClinicalMetric";
+import ListToolbar from "../components/ListToolbar";
+import TableShell from "../components/TableShell";
 import useApiResource from "../hooks/useApiResource";
 
 const riskConfig = {
   High: {
+    code: "R3",
+    label: "Critical action",
     tone: "danger",
     icon: AlertTriangle,
     bar: "bg-red-500",
-    panel: "border-red-200 bg-red-50/60",
+    panel: "border-rose-300 bg-rose-50/70 signal-pattern-critical",
   },
   Medium: {
+    code: "R2",
+    label: "Review soon",
     tone: "warning",
     icon: TrendingUp,
     bar: "bg-amber-500",
-    panel: "border-amber-200 bg-amber-50/60",
+    panel: "border-amber-300 bg-amber-50/70 signal-pattern-attention",
   },
   Low: {
+    code: "R1",
+    label: "Stock stable",
     tone: "success",
     icon: CheckCircle2,
     bar: "bg-emerald-500",
-    panel: "border-emerald-200 bg-emerald-50/60",
+    panel: "border-cyan-300 bg-cyan-50/70 signal-pattern-ready",
   },
 };
 
@@ -43,7 +52,7 @@ function RiskBadge({ risk }) {
 
   return (
     <Badge icon={config.icon} tone={config.tone}>
-      {risk} risk
+      {config.code} · {risk} risk
     </Badge>
   );
 }
@@ -59,7 +68,15 @@ function CoverIndicator({ weeks, risk }) {
           {weeks == null ? "No demand" : `${weeks} weeks`}
         </span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <div
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"
+        role="progressbar"
+        aria-label={`Stock cover: ${config.label}`}
+        aria-valuemin="0"
+        aria-valuemax="8"
+        aria-valuenow={Math.min(weeks ?? 0, 8)}
+        aria-valuetext={weeks == null ? "No recorded demand" : `${weeks} weeks of stock cover`}
+      >
         <div
           className={`h-full rounded-full ${config.bar}`}
           style={{ width: `${width}%` }}
@@ -133,36 +150,54 @@ function Forecasts() {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-2xl border border-white/75 bg-white/48 px-3 py-3 text-center shadow-sm backdrop-blur-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  High risk
-                </p>
-                <p className="mt-1 text-xl font-black text-red-600">{highRiskCount}</p>
-              </div>
-              <div className="rounded-2xl border border-white/75 bg-white/48 px-3 py-3 text-center shadow-sm backdrop-blur-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Medium
-                </p>
-                <p className="mt-1 text-xl font-black text-amber-600">
-                  {mediumRiskCount}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/75 bg-white/48 px-3 py-3 text-center shadow-sm backdrop-blur-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Weekly demand
-                </p>
-                <p className="mt-1 text-xl font-black text-blue-600">
-                  {totalWeeklyDemand}
-                </p>
-              </div>
+            <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
+              <ClinicalMetric
+                icon={AlertTriangle}
+                label="R3 high risk"
+                tone="critical"
+                value={highRiskCount}
+              />
+              <ClinicalMetric
+                icon={TrendingUp}
+                label="R2 review"
+                tone="attention"
+                value={mediumRiskCount}
+              />
+              <ClinicalMetric
+                icon={BrainCircuit}
+                label="Weekly demand"
+                tone="info"
+                value={totalWeeklyDemand}
+              />
             </div>
           </div>
         </section>
       )}
 
       <Panel className="overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-200/80 p-4 sm:p-5 lg:flex-row">
+        <ListToolbar
+          shown={!isLoading && !error ? filteredForecasts.length : null}
+          total={!isLoading && !error ? forecasts.length : null}
+          unit="forecasts shown"
+          filters={
+            <>
+              <label className="sr-only" htmlFor="risk-filter">
+                Filter by risk
+              </label>
+              <select
+                id="risk-filter"
+                className="field-control w-full font-semibold lg:max-w-48"
+                value={riskFilter}
+                onChange={(event) => setRiskFilter(event.target.value)}
+              >
+                <option value="All">All risk levels</option>
+                <option value="High">R3 · High risk</option>
+                <option value="Medium">R2 · Medium risk</option>
+                <option value="Low">R1 · Low risk</option>
+              </select>
+            </>
+          }
+        >
           <SearchField
             id="forecast-search"
             label="Search forecasts"
@@ -170,21 +205,7 @@ function Forecasts() {
             value={searchQuery}
             onChange={setSearchQuery}
           />
-          <label className="sr-only" htmlFor="risk-filter">
-            Filter by risk
-          </label>
-          <select
-            id="risk-filter"
-            className="field-control w-full font-semibold lg:max-w-48"
-            value={riskFilter}
-            onChange={(event) => setRiskFilter(event.target.value)}
-          >
-            <option value="All">All risk levels</option>
-            <option value="High">High risk</option>
-            <option value="Medium">Medium risk</option>
-            <option value="Low">Low risk</option>
-          </select>
-        </div>
+        </ListToolbar>
 
         {isLoading ? (
           <LoadingState label="Generating demand forecast..." />
@@ -198,8 +219,11 @@ function Forecasts() {
           />
         ) : (
           <>
-            <div className="scrollbar-thin hidden overflow-x-auto lg:block">
-              <table className="data-table min-w-[1120px]">
+            <TableShell
+              className="hidden lg:block"
+              label="AI medication demand forecasts and reorder risk"
+              minWidth="1120px"
+            >
                 <thead>
                   <tr>
                     <th>Medication</th>
@@ -256,8 +280,7 @@ function Forecasts() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </TableShell>
 
             <div className="grid gap-4 p-4 sm:grid-cols-2 lg:hidden">
               {filteredForecasts.map((item) => {

@@ -176,6 +176,11 @@ input[type="search"]::-webkit-search-cancel-button {
   border-bottom: 0;
 }
 
+.data-table tbody tr:focus-within {
+  background: rgba(219, 234, 254, 0.48);
+  box-shadow: inset 4px 0 0 #2563eb;
+}
+
 .micro-label {
   color: #64748b;
   font-size: 0.6875rem;
@@ -373,6 +378,125 @@ input[type="search"]::-webkit-search-cancel-button {
   backdrop-filter: blur(24px) saturate(165%);
 }
 
+.clinical-metric {
+  position: relative;
+  min-width: 8.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 1rem;
+  background-color: rgba(255, 255, 255, 0.62);
+  padding: 0.85rem 1rem 0.8rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 24px rgba(51, 65, 85, 0.065);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  backdrop-filter: blur(18px) saturate(145%);
+}
+
+.clinical-metric-accent {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.24rem;
+}
+
+.signal-pattern-neutral {
+  background-image: linear-gradient(
+    135deg,
+    transparent 0 47%,
+    rgba(71, 85, 105, 0.045) 47% 53%,
+    transparent 53% 100%
+  );
+  background-size: 12px 12px;
+}
+
+.signal-pattern-info {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0 78%,
+    rgba(30, 64, 175, 0.055) 78% 84%,
+    transparent 84% 100%
+  );
+  background-size: 10px 10px;
+}
+
+.signal-pattern-purple {
+  background-image: radial-gradient(rgba(91, 33, 182, 0.08) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+.signal-pattern-attention {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 7px,
+    rgba(146, 64, 14, 0.06) 7px 9px
+  );
+}
+
+.signal-pattern-critical {
+  background-image:
+    linear-gradient(45deg, rgba(136, 19, 55, 0.055) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(136, 19, 55, 0.055) 25%, transparent 25%);
+  background-position:
+    0 0,
+    0 6px;
+  background-size: 12px 12px;
+}
+
+.signal-pattern-ready {
+  background-image: radial-gradient(rgba(21, 94, 117, 0.07) 1px, transparent 1px);
+  background-size: 9px 9px;
+}
+
+.dose-slot {
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.dose-slot::after {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  content: "";
+  opacity: 0.72;
+}
+
+.dose-morning::after {
+  background: repeating-linear-gradient(90deg, #92400e 0 5px, transparent 5px 8px);
+}
+
+.dose-afternoon::after {
+  background: #075985;
+}
+
+.dose-evening::after {
+  background: repeating-linear-gradient(135deg, #5b21b6 0 4px, transparent 4px 7px);
+}
+
+.dose-bedtime::after {
+  background: repeating-linear-gradient(90deg, #1e293b 0 2px, transparent 2px 5px);
+}
+
+.safety-rail {
+  position: relative;
+}
+
+.safety-rail::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.32rem;
+  border-radius: 999px;
+  content: "";
+  background: currentColor;
+}
+
+.clinical-grid {
+  background-image:
+    linear-gradient(rgba(30, 64, 175, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 64, 175, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
 .brand-orb {
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.48),
@@ -438,6 +562,58 @@ input[type="search"]::-webkit-search-cancel-button {
     background-color: #fff;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :focus-visible {
+    outline-color: #1e3a8a;
+    outline-width: 4px;
+  }
+
+  .surface-card,
+  .clinical-metric,
+  .field-control,
+  .liquid-popover,
+  .liquid-search,
+  .glass-icon-button {
+    border-color: #64748b;
+    background-color: #fff;
+    box-shadow: none;
+  }
+
+  .data-table th,
+  .data-table td {
+    border-color: #94a3b8;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 3px solid Highlight;
+  }
+
+  .surface-card,
+  .clinical-metric,
+  .field-control,
+  .liquid-sidebar,
+  .liquid-toolbar,
+  .liquid-popover,
+  .liquid-search,
+  .glass-icon-button,
+  .liquid-hero,
+  .dose-slot {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+    forced-color-adjust: auto;
+  }
+
+  .clinical-metric-accent,
+  .safety-rail::before,
+  .dose-slot::after {
+    background: CanvasText;
   }
 }
 

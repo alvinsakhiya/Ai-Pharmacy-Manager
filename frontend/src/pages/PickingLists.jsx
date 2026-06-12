@@ -14,6 +14,7 @@ import Badge from "../components/Badge";
 import DoseSchedule from "../components/DoseSchedule";
 import { Panel } from "../components/Panel";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
+import ClinicalMetric from "../components/ClinicalMetric";
 import api from "../services/api";
 import { formatDate } from "../utils/helpers";
 
@@ -100,7 +101,9 @@ function PickingLists() {
         actions={
           selectedPatientRecord && (
             <Badge dot tone={totalShortfall > 0 ? "danger" : "success"}>
-              {totalShortfall > 0 ? "Stock action required" : "Allocation ready"}
+              {totalShortfall > 0
+                ? "SHORTFALL · Stock action required"
+                : "READY · Allocation complete"}
             </Badge>
           )
         }
@@ -147,36 +150,19 @@ function PickingLists() {
 
           {selectedPatientRecord && listStatus === "success" && (
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Weekly units
-                </p>
-                <p className="mt-1 text-xl font-black text-slate-950">
-                  {totalRequired}
-                </p>
-              </div>
-              <div
-                className={`rounded-2xl border px-4 py-3 text-center ${
-                  totalShortfall > 0
-                    ? "border-red-200 bg-red-50"
-                    : "border-emerald-200 bg-emerald-50"
-                }`}
-              >
-                <p
-                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                    totalShortfall > 0 ? "text-red-500" : "text-emerald-600"
-                  }`}
-                >
-                  Shortfall
-                </p>
-                <p
-                  className={`mt-1 text-xl font-black ${
-                    totalShortfall > 0 ? "text-red-800" : "text-emerald-800"
-                  }`}
-                >
-                  {totalShortfall}
-                </p>
-              </div>
+              <ClinicalMetric
+                icon={PackageCheck}
+                label="Weekly units"
+                tone="info"
+                value={totalRequired}
+              />
+              <ClinicalMetric
+                description={totalShortfall > 0 ? "Stock action required" : "Fully covered"}
+                icon={totalShortfall > 0 ? AlertTriangle : CheckCircle2}
+                label="Shortfall"
+                tone={totalShortfall > 0 ? "critical" : "ready"}
+                value={totalShortfall}
+              />
             </div>
           )}
         </div>
@@ -235,6 +221,7 @@ function PickingLists() {
             <article
               key={`${item.medication}-${index}`}
               className="surface-card overflow-hidden"
+              aria-labelledby={`picking-medication-${index}`}
             >
               <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)]">
                 <div className="p-5 sm:p-6">
@@ -247,7 +234,10 @@ function PickingLists() {
                         <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600">
                           Weekly medication requirement
                         </p>
-                        <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
+                        <h2
+                          id={`picking-medication-${index}`}
+                          className="mt-1 text-xl font-bold tracking-tight text-slate-950"
+                        >
                           {item.medication}
                         </h2>
                         <p className="mt-1 text-sm text-slate-500">
@@ -285,8 +275,8 @@ function PickingLists() {
                 <div
                   className={`border-t p-5 sm:p-6 xl:border-l xl:border-t-0 ${
                     item.shortfall > 0
-                      ? "border-red-200 bg-red-50/60"
-                      : "border-emerald-200 bg-emerald-50/55"
+                      ? "signal-pattern-critical border-rose-300 bg-rose-50/65"
+                      : "signal-pattern-ready border-cyan-300 bg-cyan-50/60"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -297,37 +287,38 @@ function PickingLists() {
                         }`}
                       >
                         <PackageCheck size={19} />
-                        FEFO batch allocation
+                        FEFO allocation recommendation
                       </p>
                       <p
                         className={`mt-1 text-xs leading-5 ${
                           item.shortfall > 0 ? "text-red-700" : "text-emerald-700"
                         }`}
                       >
-                        Earliest eligible expiry dates are recommended first.
+                        Ordered by earliest eligible expiry. Expired and zero-stock
+                        batches are excluded.
                       </p>
                     </div>
                     {item.shortfall > 0 ? (
                       <Badge icon={AlertTriangle} tone="danger">
-                        Short {item.shortfall}
+                        SHORTFALL · {item.shortfall} units
                       </Badge>
                     ) : (
                       <Badge icon={CheckCircle2} tone="success">
-                        Fully allocated
+                        READY · Fully allocated
                       </Badge>
                     )}
                   </div>
 
-                  <div className="mt-5 space-y-3">
+                  <ol className="mt-5 space-y-3" aria-label="FEFO batch picking order">
                     {item.allocations.map((allocation, allocationIndex) => (
-                      <div
+                      <li
                         key={`${allocation.batch_number}-${allocationIndex}`}
                         className="rounded-2xl border border-white/80 bg-white/85 p-4 shadow-sm"
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div>
                             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                              Batch
+                              FEFO {allocationIndex + 1} · Batch
                             </p>
                             <p className="mt-1 font-mono text-sm font-black text-slate-900">
                               {allocation.batch_number}
@@ -345,15 +336,22 @@ function PickingLists() {
                         <p className="mt-3 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500">
                           Expires {formatDate(allocation.expiry_date)}
                         </p>
-                      </div>
+                      </li>
                     ))}
 
                     {item.allocations.length === 0 && (
-                      <div className="rounded-2xl border border-red-200 bg-white/80 p-4 text-sm font-semibold text-red-800">
-                        No eligible positive-quantity stock batch is available.
-                      </div>
+                      <li
+                        className="flex items-start gap-3 rounded-2xl border border-rose-300 bg-white/80 p-4 text-sm font-semibold text-rose-950"
+                        role="alert"
+                      >
+                        <AlertTriangle aria-hidden="true" className="mt-0.5 shrink-0" size={18} />
+                        <span>
+                          SHORTFALL: no eligible in-date, positive-quantity stock
+                          batch is available.
+                        </span>
+                      </li>
                     )}
-                  </div>
+                  </ol>
                 </div>
               </div>
             </article>

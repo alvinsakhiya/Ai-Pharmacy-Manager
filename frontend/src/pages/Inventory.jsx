@@ -1,8 +1,10 @@
 import { useState } from "react";
 import {
+  AlertOctagon,
   CalendarCheck,
   Factory,
   Hash,
+  PackageMinus,
   PackageOpen,
   RotateCw,
 } from "lucide-react";
@@ -13,6 +15,9 @@ import Button from "../components/Button";
 import SearchField from "../components/SearchField";
 import { Panel } from "../components/Panel";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
+import ClinicalMetric from "../components/ClinicalMetric";
+import ListToolbar from "../components/ListToolbar";
+import TableShell from "../components/TableShell";
 import useApiResource from "../hooks/useApiResource";
 import {
   formatDate,
@@ -84,29 +89,36 @@ function Inventory() {
 
       {!isLoading && !error && (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-          <div className="surface-card px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Total batches
-            </p>
-            <p className="mt-1 text-xl font-black text-slate-950">{batches.length}</p>
-          </div>
-          <div className="surface-card px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Low / no stock
-            </p>
-            <p className="mt-1 text-xl font-black text-amber-700">{lowStockCount}</p>
-          </div>
-          <div className="surface-card col-span-2 px-4 py-3 sm:col-span-1">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Expired batches
-            </p>
-            <p className="mt-1 text-xl font-black text-red-700">{expiredCount}</p>
-          </div>
+          <ClinicalMetric
+            description="Tracked stock records"
+            icon={PackageOpen}
+            label="Total batches"
+            tone="info"
+            value={batches.length}
+          />
+          <ClinicalMetric
+            description="Replenishment review"
+            icon={PackageMinus}
+            label="Low / no stock"
+            tone="attention"
+            value={lowStockCount}
+          />
+          <ClinicalMetric
+            description="Quarantine required"
+            icon={AlertOctagon}
+            label="Expired batches"
+            tone="critical"
+            value={expiredCount}
+          />
         </div>
       )}
 
       <Panel className="overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:p-5 lg:flex-row lg:items-center">
+        <ListToolbar
+          shown={!isLoading && !error ? filteredBatches.length : null}
+          total={!isLoading && !error ? batches.length : null}
+          unit="batches shown"
+        >
           <SearchField
             id="inventory-search"
             label="Search inventory"
@@ -114,17 +126,7 @@ function Inventory() {
             value={searchQuery}
             onChange={setSearchQuery}
           />
-          {!isLoading && !error && (
-            <div className="flex items-center justify-between gap-3 lg:justify-end">
-              <Badge dot tone="blue">
-                {filteredBatches.length} shown
-              </Badge>
-              <span className="text-xs font-semibold text-slate-400">
-                {batches.length} total
-              </span>
-            </div>
-          )}
-        </div>
+        </ListToolbar>
 
         {isLoading ? (
           <LoadingState label="Loading stock batches..." />
@@ -142,8 +144,11 @@ function Inventory() {
           />
         ) : (
           <>
-            <div className="scrollbar-thin hidden overflow-x-auto md:block">
-              <table className="data-table min-w-[1040px]">
+            <TableShell
+              className="hidden md:block"
+              label="Medication stock batches and safety status"
+              minWidth="1040px"
+            >
                 <thead>
                   <tr>
                     <th>Medication</th>
@@ -159,11 +164,16 @@ function Inventory() {
                     const expiry = getExpiryStatus(batch.expiry_date);
                     const quantity =
                       expiry.tone === "danger"
-                        ? { label: "Quarantine", tone: "danger" }
+                        ? { code: "STOP", label: "Quarantine", tone: "danger" }
                         : getQuantityStatus(batch.quantity);
 
                     return (
-                      <tr key={batch.id}>
+                      <tr
+                        key={batch.id}
+                        className={
+                          expiry.tone === "danger" ? "signal-pattern-critical" : undefined
+                        }
+                      >
                         <td>
                           <MedicationIdentity batch={batch} />
                         </td>
@@ -177,9 +187,14 @@ function Inventory() {
                         </td>
                         <td>
                           <div className="flex flex-col gap-1.5">
-                            <Badge tone={expiry.tone}>{expiry.label}</Badge>
+                            <Badge tone={expiry.tone}>
+                              {expiry.code} · {expiry.label}
+                            </Badge>
                             <span className="text-xs font-medium text-slate-400">
                               {formatDate(batch.expiry_date)}
+                            </span>
+                            <span className="text-xs font-bold text-slate-600">
+                              {expiry.action}
                             </span>
                           </div>
                         </td>
@@ -188,7 +203,9 @@ function Inventory() {
                             <span className="text-base font-black text-slate-900">
                               {batch.quantity}
                             </span>
-                            <Badge tone={quantity.tone}>{quantity.label}</Badge>
+                            <Badge tone={quantity.tone}>
+                              {quantity.code || "STOP"} · {quantity.label}
+                            </Badge>
                           </div>
                         </td>
                         <td className="text-sm font-semibold text-slate-600">
@@ -204,15 +221,14 @@ function Inventory() {
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
+            </TableShell>
 
             <div className="divide-y divide-slate-100 md:hidden">
               {filteredBatches.map((batch) => {
                 const expiry = getExpiryStatus(batch.expiry_date);
                 const quantity =
                   expiry.tone === "danger"
-                    ? { label: "Quarantine", tone: "danger" }
+                    ? { code: "STOP", label: "Quarantine", tone: "danger" }
                     : getQuantityStatus(batch.quantity);
 
                 return (
@@ -220,9 +236,11 @@ function Inventory() {
                     <MedicationIdentity batch={batch} />
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Badge tone={expiry.tone}>{expiry.label}</Badge>
+                      <Badge tone={expiry.tone}>
+                        {expiry.code} · {expiry.label}
+                      </Badge>
                       <Badge tone={quantity.tone}>
-                        {batch.quantity} units / {quantity.label}
+                        {quantity.code || "STOP"} · {batch.quantity} units / {quantity.label}
                       </Badge>
                     </div>
 

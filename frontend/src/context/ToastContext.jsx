@@ -7,18 +7,21 @@ const TOAST_DURATION = 4500;
 const toneStyles = {
   success: {
     icon: CheckCircle2,
-    iconStyle: "bg-emerald-50 text-emerald-700",
-    barStyle: "bg-emerald-500",
+    iconStyle: "border border-cyan-200 bg-cyan-50 text-cyan-900",
+    barStyle: "bg-cyan-800",
+    pattern: "signal-pattern-ready",
   },
   error: {
     icon: AlertCircle,
-    iconStyle: "bg-red-50 text-red-700",
-    barStyle: "bg-red-500",
+    iconStyle: "border border-rose-200 bg-rose-50 text-rose-900",
+    barStyle: "bg-rose-700",
+    pattern: "signal-pattern-critical",
   },
   info: {
     icon: Info,
-    iconStyle: "bg-teal-50 text-teal-700",
-    barStyle: "bg-teal-500",
+    iconStyle: "border border-blue-200 bg-blue-50 text-blue-900",
+    barStyle: "bg-blue-700",
+    pattern: "signal-pattern-info",
   },
 };
 
@@ -27,7 +30,12 @@ function Toast({ toast, onDismiss }) {
   const Icon = tone.icon;
 
   return (
-    <div className="toast-enter surface-card pointer-events-auto relative flex w-full max-w-sm items-start gap-3 overflow-hidden p-4 pr-12">
+    <div
+      className={`toast-enter surface-card pointer-events-auto relative flex w-full max-w-sm items-start gap-3 overflow-hidden p-4 pr-12 ${tone.pattern}`}
+      role={toast.tone === "error" ? "alert" : "status"}
+      aria-live={toast.tone === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
+    >
       <span className={`absolute inset-y-0 left-0 w-1 ${tone.barStyle}`} />
       <span
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tone.iconStyle}`}
@@ -44,7 +52,7 @@ function Toast({ toast, onDismiss }) {
         type="button"
         aria-label="Dismiss notification"
         onClick={() => onDismiss(toast.id)}
-        className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-500/20"
+        className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/70 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
       >
         <X aria-hidden="true" size={15} />
       </button>
@@ -94,8 +102,6 @@ export function ToastProvider({ children }) {
       {children}
 
       <div
-        aria-live="polite"
-        role="status"
         className="print-hidden pointer-events-none fixed inset-x-4 bottom-4 z-[70] flex flex-col items-center gap-3 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:items-end"
       >
         {toasts.map((toast) => (

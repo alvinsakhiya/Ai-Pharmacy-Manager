@@ -22,18 +22,42 @@ export function getExpiryStatus(expiryDate) {
   const daysRemaining = Math.round((expiry - today) / 86400000);
 
   if (daysRemaining < 0) {
-    return { label: "Expired", tone: "danger", daysRemaining };
+    return {
+      action: "Quarantine",
+      code: "STOP",
+      label: "Expired",
+      tone: "danger",
+      daysRemaining,
+    };
   }
 
   if (daysRemaining <= 30) {
-    return { label: "Within 1 month", tone: "warning", daysRemaining };
+    return {
+      action: "Priority review",
+      code: "REVIEW",
+      label: "Within 1 month",
+      tone: "warning",
+      daysRemaining,
+    };
   }
 
   if (daysRemaining <= 90) {
-    return { label: "Within 3 months", tone: "blue", daysRemaining };
+    return {
+      action: "Monitor FEFO use",
+      code: "MONITOR",
+      label: "Within 3 months",
+      tone: "blue",
+      daysRemaining,
+    };
   }
 
-  return { label: "In date", tone: "success", daysRemaining };
+  return {
+    action: "Available for allocation",
+    code: "READY",
+    label: "In date",
+    tone: "success",
+    daysRemaining,
+  };
 }
 
 export function describeExpiry(daysRemaining) {
@@ -58,12 +82,12 @@ export function describeExpiry(daysRemaining) {
 
 export function getQuantityStatus(quantity) {
   if (quantity === 0) {
-    return { label: "Out of stock", tone: "danger" };
+    return { code: "STOP", label: "Out of stock", tone: "danger" };
   }
 
   if (quantity < 20) {
-    return { label: "Low stock", tone: "warning" };
+    return { code: "LOW", label: "Low stock", tone: "warning" };
   }
 
-  return { label: "Available", tone: "success" };
+  return { code: "READY", label: "Available", tone: "success" };
 }

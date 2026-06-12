@@ -4,26 +4,30 @@ const dosePeriods = [
   {
     key: "morning",
     label: "Morning",
+    code: "AM",
     icon: Sun,
-    style: "border-amber-200 bg-amber-50 text-amber-800",
+    style: "dose-morning border-amber-300 bg-amber-50 text-amber-950",
   },
   {
     key: "afternoon",
     label: "Afternoon",
+    code: "PM",
     icon: CloudSun,
-    style: "border-sky-200 bg-sky-50 text-sky-800",
+    style: "dose-afternoon border-sky-300 bg-sky-50 text-sky-950",
   },
   {
     key: "evening",
     label: "Evening",
+    code: "EVE",
     icon: Sunset,
-    style: "border-orange-200 bg-orange-50 text-orange-800",
+    style: "dose-evening border-violet-300 bg-violet-50 text-violet-950",
   },
   {
     key: "bedtime",
     label: "Bedtime",
+    code: "HS",
     icon: Moon,
-    style: "border-indigo-200 bg-indigo-50 text-indigo-800",
+    style: "dose-bedtime border-slate-400 bg-slate-100 text-slate-950",
   },
 ];
 

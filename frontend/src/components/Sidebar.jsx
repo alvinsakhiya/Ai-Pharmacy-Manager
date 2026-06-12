@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   BrainCircuit,
@@ -28,6 +29,13 @@ const menuItems = [
 function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const closeButtonRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen && !window.matchMedia("(min-width: 1024px)").matches) {
+      window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    }
+  }, [isOpen]);
 
   const handleLogout = () => {
     logout();
@@ -66,6 +74,7 @@ function Sidebar({ isOpen, onClose }) {
           <div className="flex items-center justify-between">
             <BrandMark compact />
             <button
+              ref={closeButtonRef}
               type="button"
               aria-label="Close navigation"
               className="rounded-xl p-2 text-slate-400 transition hover:bg-white/60 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20 lg:hidden"
@@ -127,14 +136,14 @@ function Sidebar({ isOpen, onClose }) {
         <div className="relative border-t border-slate-200/55 p-4">
           <div className="mb-3 rounded-2xl border border-white/75 bg-white/42 p-3.5 shadow-sm backdrop-blur-xl">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-50 text-cyan-900">
                 <ShieldCheck size={18} />
               </div>
               <div className="min-w-0">
                 <p className="truncate text-xs font-bold text-slate-800">Protected staff session</p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  JWT authentication active
+                  <ShieldCheck aria-hidden="true" size={12} />
+                  Secure JWT session active
                 </p>
               </div>
             </div>

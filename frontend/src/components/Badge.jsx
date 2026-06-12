@@ -1,21 +1,31 @@
+import {
+  AlertOctagon,
+  AlertTriangle,
+  CheckCircle2,
+  CircleDot,
+  Info,
+  MinusCircle,
+  Sparkles,
+} from "lucide-react";
+
 const toneStyles = {
-  slate: "border-slate-200/70 bg-slate-100/65 text-slate-700",
-  teal: "border-blue-200/70 bg-blue-50/70 text-blue-700",
-  blue: "border-blue-200/70 bg-blue-50/70 text-blue-700",
-  purple: "border-violet-200/70 bg-violet-50/70 text-violet-700",
-  success: "border-emerald-200/70 bg-emerald-50/70 text-emerald-700",
-  warning: "border-amber-200/70 bg-amber-50/75 text-amber-800",
-  danger: "border-red-200/70 bg-red-50/75 text-red-700",
+  slate: "border-slate-300/80 bg-slate-100/80 text-slate-800 signal-pattern-neutral",
+  teal: "border-cyan-300/80 bg-cyan-50/80 text-cyan-950 signal-pattern-ready",
+  blue: "border-blue-300/80 bg-blue-50/80 text-blue-950 signal-pattern-info",
+  purple: "border-violet-300/80 bg-violet-50/80 text-violet-950 signal-pattern-purple",
+  success: "border-cyan-300/80 bg-cyan-50/80 text-cyan-950 signal-pattern-ready",
+  warning: "border-amber-300/80 bg-amber-50/85 text-amber-950 signal-pattern-attention",
+  danger: "border-rose-300/80 bg-rose-50/85 text-rose-950 signal-pattern-critical",
 };
 
-const dotStyles = {
-  slate: "bg-slate-400",
-  teal: "bg-blue-500",
-  blue: "bg-blue-500",
-  purple: "bg-violet-500",
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  danger: "bg-red-500",
+const toneIcons = {
+  slate: MinusCircle,
+  teal: CircleDot,
+  blue: Info,
+  purple: Sparkles,
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  danger: AlertOctagon,
 };
 
 function Badge({
@@ -23,14 +33,19 @@ function Badge({
   className = "",
   dot = false,
   icon: Icon,
+  showIcon = true,
   tone = "slate",
 }) {
+  const StatusIcon = Icon || toneIcons[tone] || Info;
+
   return (
     <span
-      className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-lg ${toneStyles[tone]} ${className}`}
+      className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-lg ${toneStyles[tone]} ${className}`}
     >
-      {dot && <span className={`h-1.5 w-1.5 rounded-full ${dotStyles[tone]}`} />}
-      {Icon && <Icon aria-hidden="true" size={13} strokeWidth={2.4} />}
+      {showIcon && (
+        <StatusIcon aria-hidden="true" className="shrink-0" size={13} strokeWidth={2.5} />
+      )}
+      {dot && <span className="sr-only">Status: </span>}
       {children}
     </span>
   );

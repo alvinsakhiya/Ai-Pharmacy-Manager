@@ -1,8 +1,13 @@
 import { Link } from "react-router-dom";
 import {
   Activity,
+  AlarmClock,
+  AlertOctagon,
   ArrowRight,
   BrainCircuit,
+  CalendarClock,
+  CalendarRange,
+  CheckCircle2,
   ClipboardCheck,
   Pill,
   RotateCw,
@@ -26,31 +31,43 @@ import { buttonClassName } from "../utils/styles";
 const expiryGroups = [
   {
     key: "expired",
+    code: "STOP",
     label: "Expired stock",
     detail: "Remove from active allocation",
     bar: "bg-red-500",
     badgeTone: "danger",
+    icon: AlertOctagon,
+    pattern: "signal-pattern-critical",
   },
   {
     key: "one_month",
+    code: "REVIEW",
     label: "Within 1 month",
     detail: "Priority pharmacist review",
     bar: "bg-amber-500",
     badgeTone: "warning",
+    icon: AlarmClock,
+    pattern: "signal-pattern-attention",
   },
   {
     key: "three_months",
+    code: "MONITOR",
     label: "Within 3 months",
     detail: "Monitor usage velocity",
     bar: "bg-blue-500",
     badgeTone: "blue",
+    icon: CalendarClock,
+    pattern: "signal-pattern-info",
   },
   {
     key: "six_months",
+    code: "PLAN",
     label: "Within 6 months",
     detail: "Routine stock planning",
     bar: "bg-slate-400",
     badgeTone: "slate",
+    icon: CalendarRange,
+    pattern: "signal-pattern-neutral",
   },
 ];
 
@@ -73,6 +90,12 @@ const fefoSteps = [
 ];
 
 const riskBadgeTones = { High: "danger", Medium: "warning", Low: "success" };
+const riskBadgeIcons = {
+  High: AlertOctagon,
+  Medium: AlarmClock,
+  Low: CheckCircle2,
+};
+const riskCodes = { High: "R3", Medium: "R2", Low: "R1" };
 const riskBarStyles = { High: "bg-red-500", Medium: "bg-amber-500", Low: "bg-emerald-500" };
 
 function ForecastRiskRow({ forecast }) {
@@ -82,25 +105,40 @@ function ForecastRiskRow({ forecast }) {
       : Math.min((forecast.weeks_of_cover / 8) * 100, 100);
 
   return (
-    <li className="flex items-center justify-between gap-4 rounded-2xl p-3 transition hover:bg-slate-50">
+    <li className="flex flex-col items-stretch gap-3 rounded-2xl p-3 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <div className="min-w-0">
         <p className="truncate text-sm font-bold text-slate-900">
           {forecast.medication}
         </p>
         <p className="mt-0.5 text-xs text-slate-500">{forecast.recommendation}</p>
       </div>
-      <div className="w-28 shrink-0">
+      <div className="w-full shrink-0 sm:w-28">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-bold text-slate-700">
             {forecast.weeks_of_cover == null
               ? "No demand"
               : `${forecast.weeks_of_cover} wks`}
           </span>
-          <Badge tone={riskBadgeTones[forecast.risk_level] || "slate"}>
-            {forecast.risk_level}
+          <Badge
+            icon={riskBadgeIcons[forecast.risk_level]}
+            tone={riskBadgeTones[forecast.risk_level] || "slate"}
+          >
+            {riskCodes[forecast.risk_level] || "R0"} · {forecast.risk_level}
           </Badge>
         </div>
-        <div aria-hidden="true" className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"
+          role="progressbar"
+          aria-label={`${forecast.medication} stock cover`}
+          aria-valuemin="0"
+          aria-valuemax="8"
+          aria-valuenow={Math.min(forecast.weeks_of_cover ?? 0, 8)}
+          aria-valuetext={
+            forecast.weeks_of_cover == null
+              ? "No recorded demand"
+              : `${forecast.weeks_of_cover} weeks of cover`
+          }
+        >
           <div
             className={`h-full rounded-full ${riskBarStyles[forecast.risk_level] || "bg-slate-300"}`}
             style={{ width: `${coverWidth}%` }}
@@ -198,42 +236,50 @@ function Dashboard() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Registered patients"
-          value={stats.total_patients}
-          subtitle="Patient records available for care workflows"
-          icon={Users}
-          tone="teal"
-          to="/patients"
-        />
-        <StatCard
-          title="Medication catalogue"
-          value={stats.total_medications}
-          subtitle="Medicines maintained in the stock catalogue"
-          icon={Pill}
-          tone="blue"
-          to="/inventory"
-        />
-        <StatCard
-          title="Active dosette schedules"
-          value={stats.active_dosette_records}
-          subtitle="Live medication schedules driving weekly demand"
-          icon={ClipboardCheck}
-          tone="purple"
-          to="/dosette"
-        />
-        <StatCard
-          title="Urgent expiry attention"
-          value={urgentCount}
-          subtitle={`${alertCounts.expired} expired · ${alertCounts.one_month} within 1 month`}
-          icon={TriangleAlert}
-          tone="amber"
-          to="/alerts"
-        />
-      </div>
+      <section aria-labelledby="command-metrics-title">
+        <h2 id="command-metrics-title" className="sr-only">
+          Pharmacy command centre metrics
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            title="Registered patients"
+            value={stats.total_patients}
+            subtitle="Patient records available for care workflows"
+            icon={Users}
+            tone="teal"
+            to="/patients"
+          />
+          <StatCard
+            title="Medication catalogue"
+            value={stats.total_medications}
+            subtitle="Medicines maintained in the stock catalogue"
+            icon={Pill}
+            tone="blue"
+            to="/inventory"
+          />
+          <StatCard
+            title="Active dosette schedules"
+            value={stats.active_dosette_records}
+            subtitle="Live medication schedules driving weekly demand"
+            icon={ClipboardCheck}
+            tone="purple"
+            to="/dosette"
+          />
+          <StatCard
+            title="Urgent expiry attention"
+            value={urgentCount}
+            subtitle={`${alertCounts.expired} expired · ${alertCounts.one_month} within 1 month`}
+            icon={TriangleAlert}
+            tone="amber"
+            to="/alerts"
+          />
+        </div>
+      </section>
 
-      <section className="liquid-hero relative mt-6 overflow-hidden rounded-[1.5rem] p-5 sm:p-6">
+      <section
+        className="liquid-hero clinical-grid relative mt-6 overflow-hidden rounded-[1.5rem] p-5 sm:p-6"
+        aria-labelledby="operational-safety-title"
+      >
         <div className="absolute -right-20 -top-28 h-72 w-72 rounded-full bg-blue-300/30 blur-3xl" />
         <div className="relative grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="flex items-start gap-4">
@@ -250,7 +296,10 @@ function Dashboard() {
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
                 {currentDate}
               </p>
-              <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+              <h2
+                id="operational-safety-title"
+                className="mt-2 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl"
+              >
                 {urgentCount > 0
                   ? `${urgentCount} ${urgentCount === 1 ? "batch needs" : "batches need"} priority expiry review.`
                   : "No urgent expiry risk across tracked stock."}
@@ -307,14 +356,26 @@ function Dashboard() {
               const count = alertCounts[group.key];
               const width = Math.max((count / highestAlertCount) * 100, count ? 8 : 0);
 
+              const GroupIcon = group.icon;
+
               return (
-                <li key={group.key}>
+                <li
+                  key={group.key}
+                  className={`rounded-2xl border border-slate-200/65 p-3 ${group.pattern}`}
+                >
                   <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">{group.label}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{group.detail}</p>
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/70 text-slate-700">
+                        <GroupIcon aria-hidden="true" size={17} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">
+                          {group.code} · {group.label}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">{group.detail}</p>
+                      </div>
                     </div>
-                    <Badge tone={group.badgeTone}>
+                    <Badge icon={GroupIcon} tone={group.badgeTone}>
                       {count} {count === 1 ? "batch" : "batches"}
                     </Badge>
                   </div>

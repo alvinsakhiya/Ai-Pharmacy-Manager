@@ -1,8 +1,10 @@
 import { useState } from "react";
 import {
+  CheckCircle2,
   ClipboardList,
   FileText,
   Grid2X2,
+  PauseCircle,
   Pill,
   RotateCw,
   UserRound,
@@ -15,6 +17,9 @@ import DoseSchedule, { DoseSlot } from "../components/DoseSchedule";
 import SearchField from "../components/SearchField";
 import { Panel } from "../components/Panel";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
+import ClinicalMetric from "../components/ClinicalMetric";
+import ListToolbar from "../components/ListToolbar";
+import TableShell from "../components/TableShell";
 import useApiResource from "../hooks/useApiResource";
 import dosePeriods from "../utils/dosePeriods";
 
@@ -76,25 +81,29 @@ function Dosette() {
 
       {!isLoading && !error && (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:flex">
-          <div className="surface-card px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Active schedules
-            </p>
-            <p className="mt-1 text-xl font-black text-emerald-700">{activeCount}</p>
-          </div>
-          <div className="surface-card px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Inactive schedules
-            </p>
-            <p className="mt-1 text-xl font-black text-slate-600">
-              {records.length - activeCount}
-            </p>
-          </div>
+          <ClinicalMetric
+            description="Included in weekly demand"
+            icon={CheckCircle2}
+            label="Active schedules"
+            tone="ready"
+            value={activeCount}
+          />
+          <ClinicalMetric
+            description="Excluded from current picking"
+            icon={PauseCircle}
+            label="Inactive schedules"
+            tone="neutral"
+            value={records.length - activeCount}
+          />
         </div>
       )}
 
       <Panel className="overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:p-5 lg:flex-row lg:items-center">
+        <ListToolbar
+          shown={!isLoading && !error ? filteredRecords.length : null}
+          total={!isLoading && !error ? records.length : null}
+          unit="schedules shown"
+        >
           <SearchField
             id="dosette-search"
             label="Search dosette schedules"
@@ -102,12 +111,7 @@ function Dosette() {
             value={searchQuery}
             onChange={setSearchQuery}
           />
-          {!isLoading && !error && (
-            <Badge dot tone="purple">
-              {filteredRecords.length} schedules shown
-            </Badge>
-          )}
-        </div>
+        </ListToolbar>
 
         {isLoading ? (
           <LoadingState label="Loading dosette schedules..." />
@@ -125,14 +129,19 @@ function Dosette() {
           />
         ) : (
           <>
-            <div className="scrollbar-thin hidden overflow-x-auto lg:block">
-              <table className="data-table min-w-[1260px]">
+            <TableShell
+              className="hidden lg:block"
+              label="Patient dosette medication schedules"
+              minWidth="1260px"
+            >
                 <thead>
                   <tr>
                     <th>Patient</th>
                     <th>Medication</th>
                     {dosePeriods.map((period) => (
-                      <th key={period.key}>{period.label}</th>
+                      <th key={period.key}>
+                        {period.label} ({period.code})
+                      </th>
                     ))}
                     <th>Status</th>
                   </tr>
@@ -160,6 +169,7 @@ function Dosette() {
                         <td key={period.key}>
                           <DoseSlot
                             compact
+                            code={period.code}
                             icon={period.icon}
                             label={period.label}
                             style={period.style}
@@ -175,8 +185,7 @@ function Dosette() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </TableShell>
 
             <div className="grid gap-4 p-4 sm:grid-cols-2 lg:hidden">
               {filteredRecords.map((record) => (

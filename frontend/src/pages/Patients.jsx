@@ -9,11 +9,12 @@ import {
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import PageHeader from "../components/Header";
-import Badge from "../components/Badge";
 import Button from "../components/Button";
 import SearchField from "../components/SearchField";
 import { Panel } from "../components/Panel";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
+import ListToolbar from "../components/ListToolbar";
+import TableShell from "../components/TableShell";
 import useApiResource from "../hooks/useApiResource";
 import { formatDate, getInitials } from "../utils/helpers";
 
@@ -75,7 +76,11 @@ function Patients() {
       />
 
       <Panel className="overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:p-5 lg:flex-row lg:items-center">
+        <ListToolbar
+          shown={!isLoading && !error ? filteredPatients.length : null}
+          total={!isLoading && !error ? patients.length : null}
+          unit="patients shown"
+        >
           <SearchField
             id="patient-search"
             label="Search patients"
@@ -83,17 +88,7 @@ function Patients() {
             value={searchQuery}
             onChange={setSearchQuery}
           />
-          {!isLoading && !error && (
-            <div className="flex items-center justify-between gap-3 lg:justify-end">
-              <Badge dot tone="teal">
-                {filteredPatients.length} shown
-              </Badge>
-              <span className="text-xs font-semibold text-slate-400">
-                {patients.length} total
-              </span>
-            </div>
-          )}
-        </div>
+        </ListToolbar>
 
         {isLoading ? (
           <LoadingState label="Loading patient registry..." />
@@ -111,8 +106,11 @@ function Patients() {
           />
         ) : (
           <>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="data-table">
+            <TableShell
+              className="hidden md:block"
+              label="Patient registry"
+              minWidth="760px"
+            >
                 <thead>
                   <tr>
                     <th>Patient</th>
@@ -147,8 +145,7 @@ function Patients() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </TableShell>
 
             <div className="divide-y divide-slate-100 md:hidden">
               {filteredPatients.map((patient) => (

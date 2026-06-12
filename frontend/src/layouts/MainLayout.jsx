@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronRight, Menu, ShieldCheck } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
@@ -19,9 +19,10 @@ const pageNames = {
 function MainLayout({ children }) {
   const location = useLocation();
   const pageName = pageNames[location.pathname] || "Clinical Operations";
-  const [isNavigationOpen, setIsNavigationOpen] = useState(() =>
-    window.matchMedia(desktopNavigationQuery).matches
-  );
+  const initialDesktopState = window.matchMedia(desktopNavigationQuery).matches;
+  const [isDesktop, setIsDesktop] = useState(initialDesktopState);
+  const [isNavigationOpen, setIsNavigationOpen] = useState(initialDesktopState);
+  const navigationButtonRef = useRef(null);
 
   useEffect(() => {
     document.title = `${pageName} · PharmaCare`;
@@ -29,15 +30,16 @@ function MainLayout({ children }) {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(desktopNavigationQuery);
-    const handleViewportChange = (event) => setIsNavigationOpen(event.matches);
+    const handleViewportChange = (event) => {
+      setIsDesktop(event.matches);
+      setIsNavigationOpen(event.matches);
+    };
 
     mediaQuery.addEventListener("change", handleViewportChange);
     return () => mediaQuery.removeEventListener("change", handleViewportChange);
   }, []);
 
   useEffect(() => {
-    const isDesktop = window.matchMedia(desktopNavigationQuery).matches;
-
     if (!isDesktop && isNavigationOpen) {
       document.body.style.overflow = "hidden";
     }
@@ -45,6 +47,7 @@ function MainLayout({ children }) {
     const handleEscape = (event) => {
       if (event.key === "Escape" && !isDesktop) {
         setIsNavigationOpen(false);
+        window.requestAnimationFrame(() => navigationButtonRef.current?.focus());
       }
     };
 
@@ -54,11 +57,12 @@ function MainLayout({ children }) {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [isNavigationOpen]);
+  }, [isDesktop, isNavigationOpen]);
 
   const closeNavigation = () => {
-    if (!window.matchMedia(desktopNavigationQuery).matches) {
+    if (!isDesktop) {
       setIsNavigationOpen(false);
+      window.requestAnimationFrame(() => navigationButtonRef.current?.focus());
     }
   };
 
@@ -76,9 +80,13 @@ function MainLayout({ children }) {
         onClose={closeNavigation}
       />
 
-      <div className="min-w-0 flex-1">
+      <div
+        className="min-w-0 flex-1"
+        inert={!isDesktop && isNavigationOpen ? true : undefined}
+      >
         <header className="liquid-toolbar print-hidden sticky top-0 z-20 flex h-16 items-center justify-between px-4 sm:px-6 lg:hidden">
           <button
+            ref={navigationButtonRef}
             type="button"
             aria-label="Open navigation"
             aria-controls="primary-navigation"
@@ -118,13 +126,13 @@ function MainLayout({ children }) {
           </div>
 
           <div className="flex min-w-48 items-center justify-end gap-2">
-            <button
-              type="button"
+            <div
               aria-label="Notifications, none unread"
+              role="status"
               className="glass-icon-button"
             >
-              <Bell size={18} />
-            </button>
+              <Bell aria-hidden="true" size={18} />
+            </div>
             <div className="flex items-center gap-2.5 rounded-xl border border-white/70 bg-white/45 py-1.5 pl-2 pr-3 shadow-sm backdrop-blur-xl">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-blue-500 to-violet-500 text-white shadow-sm">
                 <ShieldCheck size={16} />

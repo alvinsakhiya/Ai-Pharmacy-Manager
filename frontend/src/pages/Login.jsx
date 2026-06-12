@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -36,6 +36,13 @@ function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(readSessionExpiredFlag);
+  const usernameRef = useRef(null);
+
+  useEffect(() => {
+    if (error) {
+      usernameRef.current?.focus();
+    }
+  }, [error]);
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -89,17 +96,17 @@ function Login() {
               preparation, FEFO allocation and proactive demand planning.
             </p>
 
-            <div className="mt-9 grid gap-3">
+            <ul className="mt-9 grid gap-3" aria-label="Platform capabilities">
               {platformHighlights.map((highlight) => (
-                <div
+                <li
                   key={highlight}
                   className="flex items-center gap-3 text-sm font-semibold text-blue-50/90"
                 >
                   <CheckCircle2 aria-hidden="true" className="text-cyan-200" size={18} />
                   {highlight}
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
           <div className="relative flex items-center justify-between border-t border-white/20 pt-6 text-xs text-blue-50/70">
@@ -141,7 +148,12 @@ function Login() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-5"
+              aria-busy={isSubmitting}
+              noValidate={false}
+            >
               <div>
                 <label
                   className="text-sm font-bold text-slate-700"
@@ -156,13 +168,14 @@ function Login() {
                     size={18}
                   />
                   <input
+                    ref={usernameRef}
                     id="username"
                     name="username"
                     autoComplete="username"
                     required
                     value={username}
                     aria-invalid={error ? true : undefined}
-                    aria-describedby={error ? "login-error" : undefined}
+                    aria-describedby={error ? "username-hint login-error" : "username-hint"}
                     onChange={(event) => {
                       clearFeedback();
                       setUsername(event.target.value);
@@ -171,6 +184,9 @@ function Login() {
                     placeholder="Enter your username"
                   />
                 </div>
+                <p id="username-hint" className="mt-2 text-xs text-slate-500">
+                  Use the username assigned to your authorised pharmacy staff account.
+                </p>
               </div>
 
               <div>
@@ -194,7 +210,7 @@ function Login() {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     aria-invalid={error ? true : undefined}
-                    aria-describedby={error ? "login-error" : undefined}
+                    aria-describedby={error ? "password-hint login-error" : "password-hint"}
                     onChange={(event) => {
                       clearFeedback();
                       setPassword(event.target.value);
@@ -205,12 +221,16 @@ function Login() {
                   <button
                     type="button"
                     aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
                     onClick={() => setShowPassword((current) => !current)}
                     className="absolute right-2.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/70 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                <p id="password-hint" className="mt-2 text-xs text-slate-500">
+                  Passwords are case-sensitive.
+                </p>
               </div>
 
               {error && (
@@ -218,6 +238,8 @@ function Login() {
                   id="login-error"
                   className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
                   role="alert"
+                  aria-live="assertive"
+                  aria-atomic="true"
                 >
                   <AlertCircle aria-hidden="true" className="mt-0.5 shrink-0" size={18} />
                   <span>{error}</span>

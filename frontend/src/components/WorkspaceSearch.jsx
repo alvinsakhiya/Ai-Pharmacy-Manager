@@ -58,6 +58,7 @@ function WorkspaceSearch() {
         aria-label="Search workspace navigation"
         aria-expanded={isOpen}
         aria-controls="workspace-search-results"
+        aria-autocomplete="list"
         autoComplete="off"
         placeholder="Search workspace..."
         className="liquid-search h-10 w-full rounded-xl py-2 pl-10 pr-16 text-sm text-slate-700 placeholder:text-slate-400"
@@ -87,14 +88,14 @@ function WorkspaceSearch() {
         <div
           id="workspace-search-results"
           className="liquid-popover absolute inset-x-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-2xl p-1.5"
-          role="listbox"
+          role="group"
+          aria-label="Workspace search suggestions"
         >
           {matches.length ? (
             matches.slice(0, 6).map((destination) => (
               <button
                 key={destination.path}
                 type="button"
-                role="option"
                 className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-blue-500/10 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => openDestination(destination)}
