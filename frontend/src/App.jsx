@@ -10,6 +10,7 @@ import Inventory from "./pages/Inventory";
 import Dosette from "./pages/Dosette";
 import PickingLists from "./pages/PickingLists";
 import Alerts from "./pages/Alerts";
+import Forecasts from "./pages/Forecasts";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -77,6 +78,15 @@ function AppRoutes() {
           <ProtectedRoute>
             <Alerts />
           </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/forecasts"
+        element={
+            <ProtectedRoute>
+            <Forecasts />
+            </ProtectedRoute>
         }
       />
     </Routes>

@@ -5,7 +5,12 @@ from patients.models import Patient
 from inventory.models import Medication, StockBatch
 from dosette.models import DosetteRecord
 from inventory.utils import get_expiry_alerts
+from inventory.forecasting import generate_medication_forecast
 
+
+@api_view(["GET"])
+def medication_forecasts(request):
+    return Response(generate_medication_forecast())
 
 @api_view(["GET"])
 def dashboard_stats(request):

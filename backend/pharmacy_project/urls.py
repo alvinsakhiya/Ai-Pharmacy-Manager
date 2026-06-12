@@ -25,6 +25,7 @@ from dosette.api_views import DosetteRecordViewSet
 from dosette.picking_api_views import patient_picking_list
 from .api_views import dashboard_stats, expiry_alerts
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .api_views import dashboard_stats, expiry_alerts, medication_forecasts
 
 router = DefaultRouter()
 router.register(r"patients", PatientViewSet, basename="patients")
@@ -40,4 +41,5 @@ urlpatterns = [
     path("api/expiry-alerts/", expiry_alerts, name="expiry_alerts"),
     path("api/auth/login/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/forecasts/", medication_forecasts, name="medication_forecasts"),
 ]

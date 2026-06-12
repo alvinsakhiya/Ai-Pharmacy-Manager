@@ -6,6 +6,7 @@ import {
   ClipboardList,
   AlertTriangle,
   Settings,
+  Brain,
 } from "lucide-react";
 
 const menuItems = [
@@ -16,6 +17,7 @@ const menuItems = [
   { name: "Picking Lists", icon: ClipboardList, path: "/picking-lists" },
   { name: "Alerts", icon: AlertTriangle, path: "/alerts" },
   { name: "Settings", icon: Settings, path: "/settings" },
+  { name: "AI Forecasting", icon: Brain, path: "/forecasts" },
 ];
 
 function Sidebar() {
