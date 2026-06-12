@@ -20,9 +20,12 @@ from .api_views import dashboard_stats
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from patients.api_views import PatientViewSet
+from inventory.api_views import MedicationViewSet, StockBatchViewSet
 
 router = DefaultRouter()
 router.register(r"patients", PatientViewSet, basename="patients")
+router.register(r"medications", MedicationViewSet, basename="medications")
+router.register(r"stock-batches", StockBatchViewSet, basename="stock-batches")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
