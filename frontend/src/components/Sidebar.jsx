@@ -1,12 +1,20 @@
-import { LayoutDashboard, Users, Package, ClipboardList, AlertTriangle, Settings } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import {
+  LayoutDashboard,
+  Users,
+  Package,
+  ClipboardList,
+  AlertTriangle,
+  Settings,
+} from "lucide-react";
 
 const menuItems = [
-  { name: "Dashboard", icon: LayoutDashboard },
-  { name: "Patients", icon: Users },
-  { name: "Inventory", icon: Package },
-  { name: "Picking Lists", icon: ClipboardList },
-  { name: "Alerts", icon: AlertTriangle },
-  { name: "Settings", icon: Settings },
+  { name: "Dashboard", icon: LayoutDashboard, path: "/" },
+  { name: "Patients", icon: Users, path: "/patients" },
+  { name: "Inventory", icon: Package, path: "/inventory" },
+  { name: "Picking Lists", icon: ClipboardList, path: "/picking-lists" },
+  { name: "Alerts", icon: AlertTriangle, path: "/alerts" },
+  { name: "Settings", icon: Settings, path: "/settings" },
 ];
 
 function Sidebar() {
@@ -20,14 +28,22 @@ function Sidebar() {
       <nav className="space-y-2">
         {menuItems.map((item) => {
           const Icon = item.icon;
+
           return (
-            <button
+            <NavLink
               key={item.name}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-300 hover:bg-slate-800 hover:text-white transition"
+              to={item.path}
+              className={({ isActive }) =>
+                `w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition ${
+                  isActive
+                    ? "bg-white text-slate-950"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                }`
+              }
             >
               <Icon size={20} />
               <span>{item.name}</span>
-            </button>
+            </NavLink>
           );
         })}
       </nav>
