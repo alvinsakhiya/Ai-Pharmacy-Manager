@@ -4,4 +4,8 @@ __pycache__/
 .DS_Store
 backend/db.sqlite3
 .idea/
-backend/.env
+backend/staticfiles/
+
+.env
+.env.*
+!.env.example
