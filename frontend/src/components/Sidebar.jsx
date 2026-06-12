@@ -12,6 +12,7 @@ const menuItems = [
   { name: "Dashboard", icon: LayoutDashboard, path: "/" },
   { name: "Patients", icon: Users, path: "/patients" },
   { name: "Inventory", icon: Package, path: "/inventory" },
+  { name: "Dosette", icon: ClipboardList, path: "/dosette" },
   { name: "Picking Lists", icon: ClipboardList, path: "/picking-lists" },
   { name: "Alerts", icon: AlertTriangle, path: "/alerts" },
   { name: "Settings", icon: Settings, path: "/settings" },
