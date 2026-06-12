@@ -25,3 +25,24 @@ def dashboard_stats(request):
     }
 
     return Response(data)
+
+@api_view(["GET"])
+def expiry_alerts(request):
+    alerts = get_expiry_alerts()
+
+    def serialize_batch(batch):
+        return {
+            "id": batch.id,
+            "medication": str(batch.medication),
+            "batch_number": batch.batch_number,
+            "expiry_date": batch.expiry_date,
+            "quantity": batch.quantity,
+            "supplier": batch.supplier,
+        }
+
+    return Response({
+        "expired": [serialize_batch(batch) for batch in alerts["expired"]],
+        "one_month": [serialize_batch(batch) for batch in alerts["one_month"]],
+        "three_months": [serialize_batch(batch) for batch in alerts["three_months"]],
+        "six_months": [serialize_batch(batch) for batch in alerts["six_months"]],
+    })

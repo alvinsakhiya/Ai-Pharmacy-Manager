@@ -23,6 +23,7 @@ from patients.api_views import PatientViewSet
 from inventory.api_views import MedicationViewSet, StockBatchViewSet
 from dosette.api_views import DosetteRecordViewSet
 from dosette.picking_api_views import patient_picking_list
+from .api_views import dashboard_stats, expiry_alerts
 
 router = DefaultRouter()
 router.register(r"patients", PatientViewSet, basename="patients")
@@ -35,4 +36,5 @@ urlpatterns = [
     path("api/dashboard/", dashboard_stats, name="dashboard_stats"),
     path("api/", include(router.urls)),
     path("api/picking-list/<int:patient_id>/", patient_picking_list, name="patient_picking_list"),
+    path("api/expiry-alerts/", expiry_alerts, name="expiry_alerts"),
 ]

@@ -4,6 +4,7 @@ import Patients from "./pages/Patients";
 import Inventory from "./pages/Inventory";
 import Dosette from "./pages/Dosette";
 import PickingLists from "./pages/PickingLists";
+import Alerts from "./pages/Alerts";
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/dosette" element={<Dosette />} />
         <Route path="/picking-lists" element={<PickingLists />} />
+        <Route path="/alerts" element={<Alerts />} />
       </Routes>
     </BrowserRouter>
   );
