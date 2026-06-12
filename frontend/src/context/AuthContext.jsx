@@ -1,11 +1,28 @@
-import { useState } from "react";
-import api from "../services/api";
+import { useEffect, useState } from "react";
+import api, {
+  AUTH_SESSION_EXPIRED_EVENT,
+  AUTH_TOKEN_REFRESHED_EVENT,
+  clearStoredAuthTokens,
+} from "../services/api";
 import AuthContext from "./auth-context";
 
 export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(
     localStorage.getItem("accessToken")
   );
+
+  useEffect(() => {
+    const handleSessionExpired = () => setAccessToken(null);
+    const handleTokenRefreshed = (event) => setAccessToken(event.detail);
+
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    window.addEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
+
+    return () => {
+      window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+      window.removeEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
+    };
+  }, []);
 
   const login = async (username, password) => {
     const response = await api.post("/auth/login/", {
@@ -24,8 +41,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
+    clearStoredAuthTokens();
     setAccessToken(null);
   };
 

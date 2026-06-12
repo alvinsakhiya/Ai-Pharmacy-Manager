@@ -15,16 +15,15 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
-from .api_views import dashboard_stats
 from django.urls import path, include
+from rest_framework.permissions import AllowAny
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
 from patients.api_views import PatientViewSet
 from inventory.api_views import MedicationViewSet, StockBatchViewSet
 from dosette.api_views import DosetteRecordViewSet
 from dosette.picking_api_views import patient_picking_list
-from .api_views import dashboard_stats, expiry_alerts
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .api_views import dashboard_stats, expiry_alerts, medication_forecasts
 
 router = DefaultRouter()
@@ -39,7 +38,15 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/picking-list/<int:patient_id>/", patient_picking_list, name="patient_picking_list"),
     path("api/expiry-alerts/", expiry_alerts, name="expiry_alerts"),
-    path("api/auth/login/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path(
+        "api/auth/login/",
+        TokenObtainPairView.as_view(permission_classes=[AllowAny]),
+        name="token_obtain_pair",
+    ),
+    path(
+        "api/auth/refresh/",
+        TokenRefreshView.as_view(permission_classes=[AllowAny]),
+        name="token_refresh",
+    ),
     path("api/forecasts/", medication_forecasts, name="medication_forecasts"),
 ]
