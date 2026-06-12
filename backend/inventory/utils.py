@@ -3,14 +3,18 @@ from django.utils import timezone
 from .models import StockBatch
 
 
-def get_fefo_batches_for_medication(medication):
+def get_usable_stock_batches_for_medication(medication):
     today = timezone.now().date()
 
     return StockBatch.objects.filter(
         medication=medication,
         quantity__gt=0,
         expiry_date__gte=today,
-    ).order_by("expiry_date")
+    )
+
+
+def get_fefo_batches_for_medication(medication):
+    return get_usable_stock_batches_for_medication(medication).order_by("expiry_date")
 
 
 def allocate_stock_fefo(medication, required_quantity):

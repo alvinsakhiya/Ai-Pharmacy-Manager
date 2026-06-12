@@ -1,14 +1,22 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
 
 from patients.models import Patient
-from dosette.utils import generate_patient_picking_list
+from dosette.utils import InvalidDoseValue, generate_patient_picking_list
 
 
 @api_view(["GET"])
 def patient_picking_list(request, patient_id):
     patient = Patient.objects.get(id=patient_id)
-    picking_list = generate_patient_picking_list(patient)
+
+    try:
+        picking_list = generate_patient_picking_list(patient)
+    except InvalidDoseValue as exc:
+        return Response(
+            {"detail": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     data = []
 

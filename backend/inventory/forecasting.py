@@ -1,22 +1,16 @@
-from inventory.models import Medication, StockBatch
+from django.db.models import Sum
+
+from inventory.models import Medication
 from dosette.models import DosetteRecord
 from dosette.utils import calculate_weekly_quantity
+from inventory.utils import get_usable_stock_batches_for_medication
 
 
 def get_total_stock_for_medication(medication):
-    return StockBatch.objects.filter(
-        medication=medication,
-        quantity__gt=0
-    ).aggregate_total()
-
-
-def calculate_total_stock(medication):
-    batches = StockBatch.objects.filter(
-        medication=medication,
-        quantity__gt=0
+    result = get_usable_stock_batches_for_medication(medication).aggregate(
+        total=Sum("quantity")
     )
-
-    return sum(batch.quantity for batch in batches)
+    return result["total"] or 0
 
 
 def calculate_weekly_demand_from_dosette(medication):
@@ -37,7 +31,7 @@ def generate_medication_forecast():
     forecasts = []
 
     for medication in Medication.objects.all():
-        current_stock = calculate_total_stock(medication)
+        current_stock = get_total_stock_for_medication(medication)
         predicted_weekly_demand = calculate_weekly_demand_from_dosette(medication)
 
         if predicted_weekly_demand == 0:

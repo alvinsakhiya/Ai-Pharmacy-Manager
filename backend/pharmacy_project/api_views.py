@@ -1,16 +1,26 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
 
 from patients.models import Patient
 from inventory.models import Medication, StockBatch
 from dosette.models import DosetteRecord
+from dosette.utils import InvalidDoseValue
 from inventory.utils import get_expiry_alerts
 from inventory.forecasting import generate_medication_forecast
 
 
 @api_view(["GET"])
 def medication_forecasts(request):
-    return Response(generate_medication_forecast())
+    try:
+        forecasts = generate_medication_forecast()
+    except InvalidDoseValue as exc:
+        return Response(
+            {"detail": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return Response(forecasts)
 
 @api_view(["GET"])
 def dashboard_stats(request):
