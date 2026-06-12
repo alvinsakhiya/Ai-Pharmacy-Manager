@@ -1,8 +1,39 @@
 import { useState } from "react";
+import {
+  CalendarDays,
+  FileText,
+  Phone,
+  RotateCw,
+  UserRound,
+  Users,
+} from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
-import { Search, UserPlus } from "lucide-react";
+import PageHeader from "../components/Header";
+import Badge from "../components/Badge";
+import Button from "../components/Button";
+import SearchField from "../components/SearchField";
+import { Panel } from "../components/Panel";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
 import useApiResource from "../hooks/useApiResource";
+import { formatDate, getInitials } from "../utils/helpers";
+
+function PatientIdentity({ patient }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-teal-100 to-cyan-100 text-xs font-black text-teal-800 ring-1 ring-teal-200">
+        {getInitials(patient.first_name, patient.last_name)}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate font-bold text-slate-900">
+          {patient.first_name} {patient.last_name}
+        </p>
+        <p className="mt-0.5 text-xs font-medium text-slate-400">
+          Patient ID #{String(patient.id).padStart(4, "0")}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function Patients() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -23,6 +54,7 @@ function Patients() {
       patient.last_name,
       patient.contact_number,
       patient.notes,
+      patient.date_of_birth,
     ]
       .filter(Boolean)
       .some((value) => value.toLowerCase().includes(normalizedQuery))
@@ -30,94 +62,139 @@ function Patients() {
 
   return (
     <MainLayout>
-      <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-slate-900">Patients</h1>
-          <p className="text-slate-500 mt-2">
-            Manage patient records and dosette profiles.
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Patient care"
+        title="Patient management"
+        description="Search patient records and review the profiles supporting dosette medication workflows."
+        icon={Users}
+        actions={
+          <Button icon={RotateCw} variant="secondary" onClick={reload}>
+            Refresh records
+          </Button>
+        }
+      />
 
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-white transition hover:bg-slate-800"
-        >
-          <UserPlus size={20} />
-          Add Patient
-        </button>
-      </div>
-
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-200 p-5 sm:p-6">
-          <Search className="text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search patients..."
-            aria-label="Search patients"
+      <Panel className="overflow-hidden">
+        <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 sm:p-5 lg:flex-row lg:items-center">
+          <SearchField
+            id="patient-search"
+            label="Search patients"
+            placeholder="Search by patient name, contact, date of birth or notes..."
             value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="w-full text-slate-700 outline-none placeholder:text-slate-400"
+            onChange={setSearchQuery}
           />
           {!isLoading && !error && (
-            <span
-              className="whitespace-nowrap text-xs font-medium text-slate-400"
-              aria-live="polite"
-            >
-              {filteredPatients.length} result(s)
-            </span>
+            <div className="flex items-center justify-between gap-3 lg:justify-end">
+              <Badge dot tone="teal">
+                {filteredPatients.length} shown
+              </Badge>
+              <span className="text-xs font-semibold text-slate-400">
+                {patients.length} total
+              </span>
+            </div>
           )}
         </div>
 
         {isLoading ? (
-          <LoadingState label="Loading patient records..." />
+          <LoadingState label="Loading patient registry..." />
         ) : error ? (
           <ErrorState message={error} onRetry={reload} />
         ) : filteredPatients.length === 0 ? (
           <EmptyState
+            icon={UserRound}
             title={normalizedQuery ? "No matching patients" : "No patient records"}
             message={
               normalizedQuery
-                ? "Try a different name, contact number or note."
+                ? "Try a different name, contact number, date of birth or note."
                 : "Patient records will appear here when they are available."
             }
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 text-sm text-slate-500">
-                <tr>
-                  <th className="px-6 py-4">Patient</th>
-                  <th className="px-6 py-4">Date of Birth</th>
-                  <th className="px-6 py-4">Contact</th>
-                  <th className="px-6 py-4">Notes</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredPatients.map((patient) => (
-                  <tr
-                    key={patient.id}
-                    className="border-t border-slate-100 hover:bg-slate-50"
-                  >
-                    <td className="px-6 py-4 font-semibold text-slate-900">
-                      {patient.first_name} {patient.last_name}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {patient.date_of_birth}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {patient.contact_number || "—"}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500">
-                      {patient.notes || "—"}
-                    </td>
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Patient</th>
+                    <th>Date of birth</th>
+                    <th>Contact</th>
+                    <th>Clinical notes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredPatients.map((patient) => (
+                    <tr key={patient.id}>
+                      <td>
+                        <PatientIdentity patient={patient} />
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                          <CalendarDays className="text-slate-400" size={16} />
+                          {formatDate(patient.date_of_birth)}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <Phone className="text-slate-400" size={16} />
+                          {patient.contact_number || "Not provided"}
+                        </div>
+                      </td>
+                      <td className="max-w-md">
+                        <p className="line-clamp-2 text-sm leading-6 text-slate-500">
+                          {patient.notes || "No clinical notes recorded."}
+                        </p>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="divide-y divide-slate-100 md:hidden">
+              {filteredPatients.map((patient) => (
+                <article key={patient.id} className="p-4 sm:p-5">
+                  <PatientIdentity patient={patient} />
+                  <dl className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4">
+                    <div className="flex items-start gap-3">
+                      <CalendarDays className="mt-0.5 text-slate-400" size={17} />
+                      <div>
+                        <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Date of birth
+                        </dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-700">
+                          {formatDate(patient.date_of_birth)}
+                        </dd>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Phone className="mt-0.5 text-slate-400" size={17} />
+                      <div>
+                        <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Contact
+                        </dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-700">
+                          {patient.contact_number || "Not provided"}
+                        </dd>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <FileText className="mt-0.5 text-slate-400" size={17} />
+                      <div>
+                        <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Notes
+                        </dt>
+                        <dd className="mt-1 text-sm leading-6 text-slate-600">
+                          {patient.notes || "No clinical notes recorded."}
+                        </dd>
+                      </div>
+                    </div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </>
         )}
-      </div>
+      </Panel>
     </MainLayout>
   );
 }

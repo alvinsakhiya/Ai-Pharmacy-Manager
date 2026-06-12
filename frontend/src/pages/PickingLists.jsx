@@ -1,138 +1,365 @@
 import { useEffect, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardCheck,
+  FileText,
+  PackageCheck,
+  PackageX,
+  UserRound,
+} from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
+import PageHeader from "../components/Header";
+import Badge from "../components/Badge";
+import DoseSchedule from "../components/DoseSchedule";
+import { Panel } from "../components/Panel";
+import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
 import api from "../services/api";
-import { ClipboardList, PackageCheck } from "lucide-react";
+import { formatDate } from "../utils/helpers";
 
 function PickingLists() {
   const [patients, setPatients] = useState([]);
+  const [patientsStatus, setPatientsStatus] = useState("loading");
   const [selectedPatient, setSelectedPatient] = useState("");
   const [pickingList, setPickingList] = useState([]);
+  const [listStatus, setListStatus] = useState("idle");
+
+  const loadPatients = () => {
+    setPatientsStatus("loading");
+
+    api
+      .get("/patients/")
+      .then((response) => {
+        setPatients(response.data);
+        setPatientsStatus("success");
+      })
+      .catch(() => setPatientsStatus("error"));
+  };
 
   useEffect(() => {
-    api.get("/patients/")
-      .then((response) => setPatients(response.data))
-      .catch((error) => console.error("Patients API error:", error));
+    let isCurrentRequest = true;
+
+    api
+      .get("/patients/")
+      .then((response) => {
+        if (isCurrentRequest) {
+          setPatients(response.data);
+          setPatientsStatus("success");
+        }
+      })
+      .catch(() => {
+        if (isCurrentRequest) {
+          setPatientsStatus("error");
+        }
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
   }, []);
 
-  const loadPickingList = (patientId) => {
+  const loadPickingList = async (patientId) => {
     setSelectedPatient(patientId);
+    setPickingList([]);
 
     if (!patientId) {
-      setPickingList([]);
+      setListStatus("idle");
       return;
     }
 
-    api.get(`/picking-list/${patientId}/`)
-      .then((response) => setPickingList(response.data))
-      .catch((error) => console.error("Picking list API error:", error));
+    setListStatus("loading");
+
+    try {
+      const response = await api.get(`/picking-list/${patientId}/`);
+      setPickingList(response.data);
+      setListStatus("success");
+    } catch {
+      setListStatus("error");
+    }
   };
+
+  const selectedPatientRecord = patients.find(
+    (patient) => String(patient.id) === selectedPatient
+  );
+  const totalRequired = pickingList.reduce(
+    (total, item) => total + item.weekly_quantity,
+    0
+  );
+  const totalShortfall = pickingList.reduce(
+    (total, item) => total + item.shortfall,
+    0
+  );
 
   return (
     <MainLayout>
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-slate-900">Picking Lists</h1>
-        <p className="text-slate-500 mt-2">
-          Generate patient picking lists with weekly quantities and FEFO batch allocation.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Dispensing workflow"
+        title="Patient picking lists"
+        description="Calculate weekly medication requirements and review safe FEFO batch allocation before assembly."
+        icon={ClipboardCheck}
+        actions={
+          selectedPatientRecord && (
+            <Badge dot tone={totalShortfall > 0 ? "danger" : "success"}>
+              {totalShortfall > 0 ? "Stock action required" : "Allocation ready"}
+            </Badge>
+          )
+        }
+      />
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 mb-8">
-        <label className="block text-sm font-semibold text-slate-700 mb-2">
-          Select Patient
-        </label>
+      <Panel className="mb-6 overflow-hidden">
+        <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <label
+              className="text-sm font-bold text-slate-800"
+              htmlFor="patient-selector"
+            >
+              Select a patient
+            </label>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              The list uses active dosette schedules and current FEFO-safe stock.
+            </p>
+            <div className="relative mt-3 max-w-xl">
+              <UserRound
+                aria-hidden="true"
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                size={18}
+              />
+              <select
+                id="patient-selector"
+                value={selectedPatient}
+                disabled={patientsStatus === "loading" || patientsStatus === "error"}
+                onChange={(event) => loadPickingList(event.target.value)}
+                className="field-control field-with-leading-icon min-h-12 appearance-none font-semibold"
+              >
+                <option value="">
+                  {patientsStatus === "loading"
+                    ? "Loading patients..."
+                    : "Choose a patient..."}
+                </option>
+                {patients.map((patient) => (
+                  <option key={patient.id} value={patient.id}>
+                    {patient.first_name} {patient.last_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-        <select
-          value={selectedPatient}
-          onChange={(e) => loadPickingList(e.target.value)}
-          className="w-full md:w-96 border border-slate-300 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-slate-900"
-        >
-          <option value="">Choose a patient...</option>
-
-          {patients.map((patient) => (
-            <option key={patient.id} value={patient.id}>
-              {patient.first_name} {patient.last_name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="space-y-5">
-        {pickingList.map((item, index) => (
-          <div
-            key={index}
-            className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6"
-          >
-            <div className="flex items-start justify-between gap-6">
-              <div>
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-2xl bg-blue-50">
-                    <ClipboardList className="text-blue-600" size={22} />
-                  </div>
-
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900">
-                      {item.medication}
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Weekly quantity required: {item.weekly_quantity}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-3 mt-5 text-center">
-                  <div className="bg-slate-50 rounded-2xl p-3">
-                    <p className="text-xs text-slate-500">Morning</p>
-                    <p className="font-bold text-slate-900">{item.morning_dose || "—"}</p>
-                  </div>
-
-                  <div className="bg-slate-50 rounded-2xl p-3">
-                    <p className="text-xs text-slate-500">Afternoon</p>
-                    <p className="font-bold text-slate-900">{item.afternoon_dose || "—"}</p>
-                  </div>
-
-                  <div className="bg-slate-50 rounded-2xl p-3">
-                    <p className="text-xs text-slate-500">Evening</p>
-                    <p className="font-bold text-slate-900">{item.evening_dose || "—"}</p>
-                  </div>
-
-                  <div className="bg-slate-50 rounded-2xl p-3">
-                    <p className="text-xs text-slate-500">Bedtime</p>
-                    <p className="font-bold text-slate-900">{item.bedtime_dose || "—"}</p>
-                  </div>
-                </div>
+          {selectedPatientRecord && listStatus === "success" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Weekly units
+                </p>
+                <p className="mt-1 text-xl font-black text-slate-950">
+                  {totalRequired}
+                </p>
               </div>
+              <div
+                className={`rounded-2xl border px-4 py-3 text-center ${
+                  totalShortfall > 0
+                    ? "border-red-200 bg-red-50"
+                    : "border-emerald-200 bg-emerald-50"
+                }`}
+              >
+                <p
+                  className={`text-[10px] font-bold uppercase tracking-wider ${
+                    totalShortfall > 0 ? "text-red-500" : "text-emerald-600"
+                  }`}
+                >
+                  Shortfall
+                </p>
+                <p
+                  className={`mt-1 text-xl font-black ${
+                    totalShortfall > 0 ? "text-red-800" : "text-emerald-800"
+                  }`}
+                >
+                  {totalShortfall}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
 
-              <div className="min-w-72">
-                <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                  <PackageCheck size={18} />
-                  FEFO Allocation
-                </h3>
+        {patientsStatus === "error" && (
+          <div className="border-t border-slate-200">
+            <ErrorState
+              message="The patient list could not be loaded. Check the API connection and try again."
+              onRetry={loadPatients}
+            />
+          </div>
+        )}
+      </Panel>
 
-                <div className="mt-3 space-y-3">
-                  {item.allocations.map((allocation, idx) => (
-                    <div key={idx} className="rounded-2xl bg-emerald-50 p-3">
-                      <p className="font-semibold text-emerald-800">
-                        Batch {allocation.batch_number}
-                      </p>
-                      <p className="text-sm text-emerald-700">
-                        Qty {allocation.quantity} · Exp {allocation.expiry_date}
-                      </p>
+      {patientsStatus !== "error" && listStatus === "idle" && (
+        <Panel>
+          <EmptyState
+            icon={ClipboardCheck}
+            title="Choose a patient to begin"
+            message="Their active dosette medicines, weekly quantities and recommended FEFO batches will appear here."
+          />
+        </Panel>
+      )}
+
+      {listStatus === "loading" && (
+        <Panel>
+          <LoadingState
+            label="Generating patient picking list..."
+            message="Calculating weekly doses and checking eligible stock batches."
+          />
+        </Panel>
+      )}
+
+      {listStatus === "error" && (
+        <Panel>
+          <ErrorState
+            message="The picking list could not be generated. Check the API connection and try again."
+            onRetry={() => loadPickingList(selectedPatient)}
+          />
+        </Panel>
+      )}
+
+      {listStatus === "success" && pickingList.length === 0 && (
+        <Panel>
+          <EmptyState
+            icon={PackageX}
+            title="No active dosette medicines"
+            message="This patient does not currently have an active medication schedule to pick."
+          />
+        </Panel>
+      )}
+
+      {listStatus === "success" && pickingList.length > 0 && (
+        <div className="space-y-5">
+          {pickingList.map((item, index) => (
+            <article
+              key={`${item.medication}-${index}`}
+              className="surface-card overflow-hidden"
+            >
+              <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)]">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 text-blue-700">
+                        <ClipboardCheck size={21} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600">
+                          Weekly medication requirement
+                        </p>
+                        <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">
+                          {item.medication}
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {item.patient}
+                        </p>
+                      </div>
                     </div>
-                  ))}
+                    <Badge tone="blue">{item.weekly_quantity} units required</Badge>
+                  </div>
 
-                  {item.shortfall > 0 && (
-                    <div className="rounded-2xl bg-red-50 p-3">
-                      <p className="font-semibold text-red-700">
-                        Shortfall: {item.shortfall}
-                      </p>
+                  <div className="mt-6">
+                    <DoseSchedule
+                      doses={{
+                        morning: item.morning_dose,
+                        afternoon: item.afternoon_dose,
+                        evening: item.evening_dose,
+                        bedtime: item.bedtime_dose,
+                      }}
+                    />
+                  </div>
+
+                  {item.instructions && (
+                    <div className="mt-5 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                      <FileText className="mt-0.5 shrink-0 text-slate-400" size={17} />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Instructions
+                        </p>
+                        <p className="mt-1">{item.instructions}</p>
+                      </div>
                     </div>
                   )}
                 </div>
+
+                <div
+                  className={`border-t p-5 sm:p-6 xl:border-l xl:border-t-0 ${
+                    item.shortfall > 0
+                      ? "border-red-200 bg-red-50/60"
+                      : "border-emerald-200 bg-emerald-50/55"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p
+                        className={`flex items-center gap-2 text-sm font-black ${
+                          item.shortfall > 0 ? "text-red-900" : "text-emerald-900"
+                        }`}
+                      >
+                        <PackageCheck size={19} />
+                        FEFO batch allocation
+                      </p>
+                      <p
+                        className={`mt-1 text-xs leading-5 ${
+                          item.shortfall > 0 ? "text-red-700" : "text-emerald-700"
+                        }`}
+                      >
+                        Earliest eligible expiry dates are recommended first.
+                      </p>
+                    </div>
+                    {item.shortfall > 0 ? (
+                      <Badge icon={AlertTriangle} tone="danger">
+                        Short {item.shortfall}
+                      </Badge>
+                    ) : (
+                      <Badge icon={CheckCircle2} tone="success">
+                        Fully allocated
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {item.allocations.map((allocation, allocationIndex) => (
+                      <div
+                        key={`${allocation.batch_number}-${allocationIndex}`}
+                        className="rounded-2xl border border-white/80 bg-white/85 p-4 shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                              Batch
+                            </p>
+                            <p className="mt-1 font-mono text-sm font-black text-slate-900">
+                              {allocation.batch_number}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                              Pick quantity
+                            </p>
+                            <p className="mt-1 text-lg font-black text-emerald-800">
+                              {allocation.quantity}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-3 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500">
+                          Expires {formatDate(allocation.expiry_date)}
+                        </p>
+                      </div>
+                    ))}
+
+                    {item.allocations.length === 0 && (
+                      <div className="rounded-2xl border border-red-200 bg-white/80 p-4 text-sm font-semibold text-red-800">
+                        No eligible positive-quantity stock batch is available.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
+            </article>
+          ))}
+        </div>
+      )}
     </MainLayout>
   );
 }

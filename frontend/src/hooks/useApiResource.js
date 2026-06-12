@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
 
-export default function useApiResource(path, errorMessage) {
-  const [data, setData] = useState([]);
+export default function useApiResource(path, errorMessage, initialData = []) {
+  const [data, setData] = useState(initialData);
   const [status, setStatus] = useState("loading");
   const [reloadToken, setReloadToken] = useState(0);
 
