@@ -1,0 +1,38 @@
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
+from patients.models import Patient
+from dosette.utils import generate_patient_picking_list
+
+
+@api_view(["GET"])
+def patient_picking_list(request, patient_id):
+    patient = Patient.objects.get(id=patient_id)
+    picking_list = generate_patient_picking_list(patient)
+
+    data = []
+
+    for item in picking_list:
+        fefo = item["fefo_allocation"]
+
+        data.append({
+            "patient": f"{patient.first_name} {patient.last_name}",
+            "medication": str(item["medication"]),
+            "morning_dose": item["morning_dose"],
+            "afternoon_dose": item["afternoon_dose"],
+            "evening_dose": item["evening_dose"],
+            "bedtime_dose": item["bedtime_dose"],
+            "weekly_quantity": item["weekly_quantity"],
+            "instructions": item["instructions"],
+            "shortfall": fefo["shortfall"],
+            "allocations": [
+                {
+                    "batch_number": allocation["batch"].batch_number,
+                    "quantity": allocation["quantity"],
+                    "expiry_date": allocation["expiry_date"],
+                }
+                for allocation in fefo["allocated"]
+            ],
+        })
+
+    return Response(data)

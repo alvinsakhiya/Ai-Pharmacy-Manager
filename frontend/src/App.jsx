@@ -3,6 +3,7 @@ import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import Inventory from "./pages/Inventory";
 import Dosette from "./pages/Dosette";
+import PickingLists from "./pages/PickingLists";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/patients" element={<Patients />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/dosette" element={<Dosette />} />
+        <Route path="/picking-lists" element={<PickingLists />} />
       </Routes>
     </BrowserRouter>
   );
