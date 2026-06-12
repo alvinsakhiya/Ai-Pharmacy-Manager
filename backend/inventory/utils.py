@@ -4,9 +4,12 @@ from .models import StockBatch
 
 
 def get_fefo_batches_for_medication(medication):
+    today = timezone.now().date()
+
     return StockBatch.objects.filter(
         medication=medication,
-        quantity__gt=0
+        quantity__gt=0,
+        expiry_date__gte=today,
     ).order_by("expiry_date")
 
 
