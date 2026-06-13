@@ -1,0 +1,45 @@
+# Modern dependency set for running on the latest Python (3.13 / 3.14).
+#
+# Use this instead of requirements.txt if you are on Python 3.14:
+#     pip install -r requirements-py314.txt
+#
+# requirements.txt remains the pinned, reproducible set used by CI and Docker
+# (Python 3.11). This file uses minimum-version ranges so pip selects the latest
+# wheels that support your interpreter.
+
+# Core API (Django 5.2.8+ and 6.0 support Python 3.14)
+Django>=5.2.8,<6.0
+djangorestframework>=3.16
+djangorestframework-simplejwt>=5.4
+django-cors-headers>=4.6
+django-filter>=24.3
+drf-spectacular>=0.28
+
+# Config
+python-dotenv>=1.0
+dj-database-url>=2.2
+
+# Forecasting — numpy is required (3.14 wheels ship in 2.3+).
+numpy>=2.3
+
+# Reporting
+reportlab>=4.2
+
+# Production server
+gunicorn>=23
+whitenoise>=6.7
+
+# Testing
+pytest>=8.3
+pytest-django>=4.9
+factory-boy>=3.3
+
+# --- Optional extras (install separately if your Python has wheels) -----------
+# Advanced forecasting (Holt-Winters/seasonality). The engine falls back to a
+# NumPy least-squares trend when this is absent, so it is safe to omit on 3.14
+# until statsmodels publishes 3.14 wheels:
+#     pip install "statsmodels>=0.14.4"
+#
+# PostgreSQL driver — only needed when DATABASE_URL points at Postgres. Local
+# development uses SQLite and needs nothing here:
+#     pip install "psycopg2-binary>=2.9.10"
