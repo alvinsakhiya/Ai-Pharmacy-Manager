@@ -2,6 +2,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from auditlog.models import AuditEvent
 from auditlog.services import log_audit_event
+from .roles import user_access_payload
 
 
 class AuditedTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -15,4 +16,5 @@ class AuditedTokenObtainPairSerializer(TokenObtainPairSerializer):
             request=self.context.get("request"),
             actor=self.user,
         )
+        data["user"] = user_access_payload(self.user)
         return data

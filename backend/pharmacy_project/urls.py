@@ -20,7 +20,11 @@ from rest_framework.permissions import AllowAny
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from accounts.views import AuditedTokenObtainPairView, logout_view
+from accounts.views import (
+    AuditedTokenObtainPairView,
+    current_user_view,
+    logout_view,
+)
 from auditlog.api_views import AuditEventViewSet
 from patients.api_views import PatientViewSet
 from inventory.api_views import MedicationViewSet, StockBatchViewSet
@@ -51,6 +55,7 @@ urlpatterns = [
         TokenRefreshView.as_view(permission_classes=[AllowAny]),
         name="token_refresh",
     ),
+    path("api/auth/me/", current_user_view, name="current_user"),
     path("api/auth/logout/", logout_view, name="logout"),
     path("api/forecasts/", medication_forecasts, name="medication_forecasts"),
 ]

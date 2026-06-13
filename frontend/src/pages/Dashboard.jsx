@@ -25,7 +25,9 @@ import { Panel, PanelHeader } from "../components/Panel";
 import { DashboardSkeleton } from "../components/Skeleton";
 import { ErrorState } from "../components/PageState";
 import useApiResource from "../hooks/useApiResource";
+import useAuth from "../hooks/useAuth";
 import useToast from "../hooks/useToast";
+import { canAccessPath } from "../utils/access";
 import { buttonClassName } from "../utils/styles";
 
 const expiryGroups = [
@@ -151,6 +153,13 @@ function ForecastRiskRow({ forecast }) {
 
 function Dashboard() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canViewPatients = canAccessPath(user, "/patients");
+  const canViewInventory = canAccessPath(user, "/inventory");
+  const canViewDosette = canAccessPath(user, "/dosette");
+  const canGeneratePickingLists = canAccessPath(user, "/picking-lists");
+  const canViewAlerts = canAccessPath(user, "/alerts");
+  const canViewForecasts = canAccessPath(user, "/forecasts");
   const {
     data: stats,
     error,
@@ -163,12 +172,17 @@ function Dashboard() {
     null
   );
   const { data: forecasts, reload: reloadForecasts } = useApiResource(
-    "/forecasts/",
+    canViewForecasts ? "/forecasts/" : null,
     ""
   );
 
   const handleRefresh = () => {
-    Promise.all([reload(), reloadForecasts()])
+    const refreshRequests = [reload()];
+    if (canViewForecasts) {
+      refreshRequests.push(reloadForecasts());
+    }
+
+    Promise.all(refreshRequests)
       .then(() => toast.success("Dashboard refreshed", "Showing the latest operational data."))
       .catch(() =>
         toast.error("Refresh failed", "Showing the most recently loaded data instead.")
@@ -247,7 +261,7 @@ function Dashboard() {
             subtitle="Patient records available for care workflows"
             icon={Users}
             tone="teal"
-            to="/patients"
+            to={canViewPatients ? "/patients" : undefined}
           />
           <StatCard
             title="Medication catalogue"
@@ -255,7 +269,7 @@ function Dashboard() {
             subtitle="Medicines maintained in the stock catalogue"
             icon={Pill}
             tone="blue"
-            to="/inventory"
+            to={canViewInventory ? "/inventory" : undefined}
           />
           <StatCard
             title="Active dosette schedules"
@@ -263,7 +277,7 @@ function Dashboard() {
             subtitle="Live medication schedules driving weekly demand"
             icon={ClipboardCheck}
             tone="purple"
-            to="/dosette"
+            to={canViewDosette ? "/dosette" : undefined}
           />
           <StatCard
             title="Urgent expiry attention"
@@ -271,7 +285,7 @@ function Dashboard() {
             subtitle={`${alertCounts.expired} expired · ${alertCounts.one_month} within 1 month`}
             icon={TriangleAlert}
             tone="amber"
-            to="/alerts"
+            to={canViewAlerts ? "/alerts" : undefined}
           />
         </div>
       </section>
@@ -312,44 +326,52 @@ function Dashboard() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
-              to="/picking-lists"
-              className={buttonClassName(
-                "teal",
-                "border-blue-500/70 bg-blue-600 text-white shadow-lg shadow-blue-600/15 hover:bg-blue-500"
-              )}
-            >
-              Open picking lists
-              <ArrowRight aria-hidden="true" size={17} />
-            </Link>
-            <Link
-              to="/alerts"
-              className={buttonClassName(
-                "secondary",
-                "border-white/80 bg-white/55 text-slate-700 shadow-sm backdrop-blur-xl hover:bg-white/80"
-              )}
-            >
-              Review alerts
-            </Link>
+            {canGeneratePickingLists && (
+              <Link
+                to="/picking-lists"
+                className={buttonClassName(
+                  "teal",
+                  "border-blue-500/70 bg-blue-600 text-white shadow-lg shadow-blue-600/15 hover:bg-blue-500"
+                )}
+              >
+                Open picking lists
+                <ArrowRight aria-hidden="true" size={17} />
+              </Link>
+            )}
+            {canViewAlerts && (
+              <Link
+                to="/alerts"
+                className={buttonClassName(
+                  "secondary",
+                  "border-white/80 bg-white/55 text-slate-700 shadow-sm backdrop-blur-xl hover:bg-white/80"
+                )}
+              >
+                Review alerts
+              </Link>
+            )}
           </div>
         </div>
       </section>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <div
+        className={`mt-6 grid gap-6 ${
+          canViewForecasts ? "xl:grid-cols-2" : ""
+        }`}
+      >
         <Panel>
           <PanelHeader
             title="Expiry risk overview"
             description="Stock grouped by the urgency of pharmacist review."
             eyebrow="Safety monitoring"
             icon={TriangleAlert}
-            action={
+            action={canViewAlerts ? (
               <Link
                 to="/alerts"
                 className="text-sm font-bold text-blue-600 underline decoration-blue-300 underline-offset-4 transition hover:text-blue-800"
               >
                 View all alerts
               </Link>
-            }
+            ) : null}
           />
           <ul className="space-y-5 p-5 sm:p-6">
             {expiryGroups.map((group) => {
@@ -394,36 +416,38 @@ function Dashboard() {
           </ul>
         </Panel>
 
-        <Panel>
-          <PanelHeader
-            title="Forecast risk snapshot"
-            description="Medicines with the least stock cover against weekly dosette demand."
-            eyebrow="Decision support"
-            icon={BrainCircuit}
-            action={
-              <Link
-                to="/forecasts"
-                className="text-sm font-bold text-blue-600 underline decoration-blue-300 underline-offset-4 transition hover:text-blue-800"
-              >
-                Open forecasting
-              </Link>
-            }
-          />
-          {atRiskForecasts.length === 0 ? (
-            <div className="flex items-center gap-3 p-5 text-sm font-semibold text-slate-600 sm:p-6">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                <ShieldCheck aria-hidden="true" size={19} />
-              </span>
-              No medications are currently at forecast risk — stock cover is adequate.
-            </div>
-          ) : (
-            <ul className="space-y-1 p-3 sm:p-4">
-              {atRiskForecasts.map((forecast) => (
-                <ForecastRiskRow key={forecast.medication} forecast={forecast} />
-              ))}
-            </ul>
-          )}
-        </Panel>
+        {canViewForecasts && (
+          <Panel>
+            <PanelHeader
+              title="Forecast risk snapshot"
+              description="Medicines with the least stock cover against weekly dosette demand."
+              eyebrow="Decision support"
+              icon={BrainCircuit}
+              action={
+                <Link
+                  to="/forecasts"
+                  className="text-sm font-bold text-blue-600 underline decoration-blue-300 underline-offset-4 transition hover:text-blue-800"
+                >
+                  Open forecasting
+                </Link>
+              }
+            />
+            {atRiskForecasts.length === 0 ? (
+              <div className="flex items-center gap-3 p-5 text-sm font-semibold text-slate-600 sm:p-6">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  <ShieldCheck aria-hidden="true" size={19} />
+                </span>
+                No medications are currently at forecast risk — stock cover is adequate.
+              </div>
+            ) : (
+              <ul className="space-y-1 p-3 sm:p-4">
+                {atRiskForecasts.map((forecast) => (
+                  <ForecastRiskRow key={forecast.medication} forecast={forecast} />
+                ))}
+              </ul>
+            )}
+          </Panel>
+        )}
       </div>
 
       <Panel className="mt-6 overflow-hidden">
@@ -468,16 +492,18 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="border-t border-slate-200 bg-slate-50/70 px-5 py-4 sm:px-6">
-          <Link
-            to="/picking-lists"
-            className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 underline decoration-blue-300 underline-offset-4 transition hover:text-blue-800"
-          >
-            <ClipboardCheck aria-hidden="true" size={17} />
-            Generate a patient picking list
-            <ArrowRight aria-hidden="true" size={16} />
-          </Link>
-        </div>
+        {canGeneratePickingLists && (
+          <div className="border-t border-slate-200 bg-slate-50/70 px-5 py-4 sm:px-6">
+            <Link
+              to="/picking-lists"
+              className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 underline decoration-blue-300 underline-offset-4 transition hover:text-blue-800"
+            >
+              <ClipboardCheck aria-hidden="true" size={17} />
+              Generate a patient picking list
+              <ArrowRight aria-hidden="true" size={16} />
+            </Link>
+          </div>
+        )}
       </Panel>
     </MainLayout>
   );

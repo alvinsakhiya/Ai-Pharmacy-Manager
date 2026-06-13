@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from accounts.roles import PharmacyRole, assign_role
 from dosette.models import DosetteRecord
 from inventory.models import Medication, StockBatch
 from patients.models import Patient
@@ -21,6 +22,7 @@ class AuditEventTest(APITestCase):
             username="audit_pharmacist",
             password=self.password,
         )
+        assign_role(self.user, PharmacyRole.MANAGER)
         self.client.force_authenticate(self.user)
 
         self.patient = Patient.objects.create(

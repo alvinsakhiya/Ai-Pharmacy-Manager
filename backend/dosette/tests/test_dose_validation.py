@@ -6,6 +6,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from accounts.roles import PharmacyRole, assign_role
 from dosette.models import DosetteRecord
 from dosette.utils import (
     InvalidDoseValue,
@@ -22,6 +23,7 @@ class DoseValueTest(APITestCase):
             username="dose_safety_user",
             password="SecureDosePassword123!",
         )
+        assign_role(self.user, PharmacyRole.PHARMACIST)
         self.client.force_authenticate(self.user)
 
         self.patient = Patient.objects.create(

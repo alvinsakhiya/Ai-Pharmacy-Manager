@@ -1,14 +1,16 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 
 from auditlog.models import AuditEvent
 from auditlog.services import log_audit_event
+from accounts.permissions import PickingListRolePermission
 from patients.models import Patient
 from dosette.utils import InvalidDoseValue, generate_patient_picking_list
 
 
 @api_view(["GET"])
+@permission_classes([PickingListRolePermission])
 def patient_picking_list(request, patient_id):
     patient = Patient.objects.get(id=patient_id)
 

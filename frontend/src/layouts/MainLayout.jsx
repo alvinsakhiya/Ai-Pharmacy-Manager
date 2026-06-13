@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import BrandMark from "../components/BrandMark";
 import WorkspaceSearch from "../components/WorkspaceSearch";
+import useAuth from "../hooks/useAuth";
 
 const desktopNavigationQuery = "(min-width: 1024px)";
 const pageNames = {
@@ -19,6 +20,7 @@ const pageNames = {
 
 function MainLayout({ children }) {
   const location = useLocation();
+  const { user } = useAuth();
   const pageName = pageNames[location.pathname] || "Clinical Operations";
   const initialDesktopState = window.matchMedia(desktopNavigationQuery).matches;
   const [isDesktop, setIsDesktop] = useState(initialDesktopState);
@@ -139,8 +141,12 @@ function MainLayout({ children }) {
                 <ShieldCheck size={16} />
               </span>
               <div>
-                <p className="text-xs font-bold text-slate-800">Pharmacy Staff</p>
-                <p className="text-[10px] font-medium text-slate-400">Secure session</p>
+                <p className="max-w-32 truncate text-xs font-bold text-slate-800">
+                  {user?.display_name || "Pharmacy Staff"}
+                </p>
+                <p className="max-w-32 truncate text-[10px] font-medium text-slate-400">
+                  {user?.primary_role || "Secure session"}
+                </p>
               </div>
             </div>
           </div>

@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import useAuth from "../hooks/useAuth";
+import { canAccessPath } from "../utils/access";
 import BrandMark from "./BrandMark";
 
 const menuItems = [
@@ -30,8 +31,11 @@ const menuItems = [
 
 function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const closeButtonRef = useRef(null);
+  const authorisedMenuItems = menuItems.filter((item) =>
+    canAccessPath(user, item.path)
+  );
 
   useEffect(() => {
     if (isOpen && !window.matchMedia("(min-width: 1024px)").matches) {
@@ -97,7 +101,7 @@ function Sidebar({ isOpen, onClose }) {
           className="scrollbar-thin relative flex-1 space-y-1 overflow-y-auto px-3"
           aria-label="Primary navigation"
         >
-          {menuItems.map((item) => {
+          {authorisedMenuItems.map((item) => {
             const Icon = item.icon;
 
             return (
@@ -142,10 +146,12 @@ function Sidebar({ isOpen, onClose }) {
                 <ShieldCheck size={18} />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-xs font-bold text-slate-800">Protected staff session</p>
+                <p className="truncate text-xs font-bold text-slate-800">
+                  {user?.display_name || "Protected staff session"}
+                </p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
                   <ShieldCheck aria-hidden="true" size={12} />
-                  Secure JWT session active
+                  {user?.primary_role || "Secure JWT session"}
                 </p>
               </div>
             </div>

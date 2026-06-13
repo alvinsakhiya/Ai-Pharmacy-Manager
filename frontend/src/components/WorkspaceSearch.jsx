@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Command, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import useAuth from "../hooks/useAuth";
+import { canAccessPath } from "../utils/access";
 
 const workspaceDestinations = [
   { label: "Dashboard", keywords: "overview home metrics", path: "/" },
@@ -15,6 +17,7 @@ const workspaceDestinations = [
 
 function WorkspaceSearch() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const inputRef = useRef(null);
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -31,12 +34,15 @@ function WorkspaceSearch() {
     return () => window.removeEventListener("keydown", focusSearch);
   }, []);
 
+  const authorisedDestinations = workspaceDestinations.filter((destination) =>
+    canAccessPath(user, destination.path)
+  );
   const normalizedQuery = query.trim().toLowerCase();
   const matches = normalizedQuery
-    ? workspaceDestinations.filter(({ keywords, label }) =>
+    ? authorisedDestinations.filter(({ keywords, label }) =>
         `${label} ${keywords}`.toLowerCase().includes(normalizedQuery)
       )
-    : workspaceDestinations;
+    : authorisedDestinations;
 
   const openDestination = (destination) => {
     navigate(destination.path);

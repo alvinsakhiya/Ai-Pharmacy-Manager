@@ -5,6 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from accounts.roles import PharmacyRole, assign_role
 from patients.models import Patient
 
 
@@ -15,6 +16,7 @@ class ApiAuthenticationTest(APITestCase):
             username="test_pharmacist",
             password=self.password,
         )
+        assign_role(self.user, PharmacyRole.MANAGER)
         self.patient = Patient.objects.create(
             first_name="Test",
             last_name="Patient",
@@ -31,6 +33,7 @@ class ApiAuthenticationTest(APITestCase):
             reverse("expiry_alerts"),
             reverse("medication_forecasts"),
             reverse("audit-events-list"),
+            reverse("current_user"),
         ]
 
     def login(self):
@@ -49,6 +52,10 @@ class ApiAuthenticationTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
         self.assertIn("refresh", response.data)
+        self.assertEqual(
+            response.data["user"]["primary_role"],
+            PharmacyRole.MANAGER,
+        )
 
     def test_refresh_endpoint_is_public(self):
         login_response = self.login()

@@ -1,9 +1,14 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 
 from auditlog.models import AuditEvent
 from auditlog.services import log_audit_event
+from accounts.permissions import (
+    DashboardRolePermission,
+    ExpiryAlertRolePermission,
+    ForecastRolePermission,
+)
 from patients.models import Patient
 from inventory.models import Medication, StockBatch
 from dosette.models import DosetteRecord
@@ -13,6 +18,7 @@ from inventory.forecasting import generate_medication_forecast
 
 
 @api_view(["GET"])
+@permission_classes([ForecastRolePermission])
 def medication_forecasts(request):
     try:
         forecasts = generate_medication_forecast()
@@ -32,6 +38,7 @@ def medication_forecasts(request):
     return Response(forecasts)
 
 @api_view(["GET"])
+@permission_classes([DashboardRolePermission])
 def dashboard_stats(request):
     alerts = get_expiry_alerts()
 
@@ -51,6 +58,7 @@ def dashboard_stats(request):
     return Response(data)
 
 @api_view(["GET"])
+@permission_classes([ExpiryAlertRolePermission])
 def expiry_alerts(request):
     alerts = get_expiry_alerts()
 

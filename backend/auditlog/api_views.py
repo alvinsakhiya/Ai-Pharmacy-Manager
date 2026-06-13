@@ -1,6 +1,7 @@
 from django.db.models import Q
 from rest_framework import pagination, viewsets
 
+from accounts.permissions import AuditLogRolePermission
 from .models import AuditEvent
 from .serializers import AuditEventSerializer
 
@@ -15,6 +16,7 @@ class AuditEventViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AuditEventSerializer
     pagination_class = AuditEventPagination
     http_method_names = ["get", "head", "options"]
+    permission_classes = [AuditLogRolePermission]
 
     def get_queryset(self):
         queryset = AuditEvent.objects.select_related("actor").all()

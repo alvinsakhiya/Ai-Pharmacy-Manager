@@ -23,6 +23,7 @@ function isAuthenticationRequest(url = "") {
 export function clearStoredAuthTokens() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
+  localStorage.removeItem("authUser");
 }
 
 function expireSession() {

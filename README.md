@@ -22,3 +22,10 @@ The local frontend defaults to `http://localhost:5173` and the API defaults to
 Production deployment instructions for Render or Railway, Vercel, PostgreSQL,
 environment variables, migrations, and verification are in
 [docs/deployment.md](docs/deployment.md).
+
+## Staff Roles
+
+The system includes Django Group-based access for Managers, Pharmacists,
+Dispensers, Stock Assistants, and Read-only Users. The access matrix and account
+assignment steps are documented in
+[docs/access-control.md](docs/access-control.md).

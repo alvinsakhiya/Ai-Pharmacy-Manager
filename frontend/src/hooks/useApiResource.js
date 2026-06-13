@@ -3,7 +3,7 @@ import api from "../services/api";
 
 export default function useApiResource(path, errorMessage, initialData = []) {
   const [data, setData] = useState(initialData);
-  const [status, setStatus] = useState("loading");
+  const [status, setStatus] = useState(path ? "loading" : "success");
   const requestIdRef = useRef(0);
   const hasDataRef = useRef(false);
   const modeRef = useRef("loading");
@@ -33,22 +33,30 @@ export default function useApiResource(path, errorMessage, initialData = []) {
   }, [path]);
 
   useEffect(() => {
+    if (!path) {
+      return undefined;
+    }
+
     modeRef.current = "loading";
     fetchResource().catch(() => {});
 
     return () => {
       requestIdRef.current += 1;
     };
-  }, [fetchResource]);
+  }, [fetchResource, path]);
 
   const reload = useCallback(() => {
+    if (!path) {
+      return Promise.resolve();
+    }
+
     const mode = hasDataRef.current ? "reloading" : "loading";
 
     modeRef.current = mode;
     setStatus(mode);
 
     return fetchResource();
-  }, [fetchResource]);
+  }, [fetchResource, path]);
 
   return {
     data,
