@@ -29,19 +29,35 @@ export function DataTable({ columns, rows, rowKey = "id", onRowClick, dense, sor
             {columns.map((c) => (
               <th
                 key={c.key}
-                onClick={() => sortable && c.sortable !== false && toggle(c.key)}
+                aria-sort={
+                  sortable && c.sortable !== false && sort.key === c.key
+                    ? sort.dir === 1 ? "ascending" : "descending"
+                    : undefined
+                }
                 className={cx(
                   "sticky top-0 z-10 bg-surface px-3 py-2.5 text-left text-micro uppercase text-text-tertiary select-none",
                   c.align === "right" && "text-right",
-                  sortable && c.sortable !== false && "cursor-pointer hover:text-text-secondary",
                   c.className
                 )}
               >
-                <span className="inline-flex items-center gap-1">
-                  {c.header}
-                  {sort.key === c.key &&
-                    (sort.dir === 1 ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
-                </span>
+                {sortable && c.sortable !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => toggle(c.key)}
+                    className={cx(
+                      "inline-flex items-center gap-1 rounded-sm hover:text-text-secondary focus-visible:ring-2 focus-visible:ring-accent-ring",
+                      c.align === "right" && "ml-auto"
+                    )}
+                  >
+                    {c.header}
+                    {sort.key === c.key &&
+                      (sort.dir === 1
+                        ? <ChevronUp size={12} aria-hidden="true" />
+                        : <ChevronDown size={12} aria-hidden="true" />)}
+                  </button>
+                ) : (
+                  <span>{c.header}</span>
+                )}
               </th>
             ))}
           </tr>
@@ -51,9 +67,16 @@ export function DataTable({ columns, rows, rowKey = "id", onRowClick, dense, sor
             <tr
               key={row[rowKey]}
               onClick={() => onRowClick?.(row)}
+              onKeyDown={(event) => {
+                if (onRowClick && (event.key === "Enter" || event.key === " ")) {
+                  event.preventDefault();
+                  onRowClick(row);
+                }
+              }}
+              tabIndex={onRowClick ? 0 : undefined}
               className={cx(
                 "border-b border-border-subtle transition-colors duration-150 ease",
-                onRowClick && "cursor-pointer hover:bg-subtle"
+                onRowClick && "cursor-pointer hover:bg-subtle focus-visible:bg-accent-soft focus-visible:outline-none"
               )}
             >
               {columns.map((c) => (

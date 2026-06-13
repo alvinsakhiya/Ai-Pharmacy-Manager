@@ -1,8 +1,8 @@
 from django.contrib.auth import get_user_model
-from rest_framework import viewsets
+from rest_framework import generics, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from apps.core.audit import record
@@ -24,6 +24,8 @@ class LoginView(TokenObtainPairView):
 
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -35,11 +37,12 @@ class LoginView(TokenObtainPairView):
         return response
 
 
-class MeView(APIView):
+class MeView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
 
-    def get(self, request):
-        return Response(UserSerializer(request.user).data)
+    def get_object(self):
+        return self.request.user
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -52,6 +55,26 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         return UserWriteSerializer if self.action in {"create", "update", "partial_update"} else UserSerializer
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        record(
+            "create",
+            "accounts.User",
+            entity_id=user.id,
+            summary=f"Created staff account {user.username} ({user.role})",
+            actor=self.request.user,
+        )
+
+    def perform_update(self, serializer):
+        user = serializer.save()
+        record(
+            "update",
+            "accounts.User",
+            entity_id=user.id,
+            summary=f"Updated staff account {user.username}",
+            actor=self.request.user,
+        )
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):

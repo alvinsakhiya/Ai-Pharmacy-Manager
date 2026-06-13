@@ -30,8 +30,14 @@ def generate_picking_list(period_start: date, weeks: int = 1, *, created_by=None
             required[item.medicine_id] += weekly * weeks
             patients[item.medicine_id].add(plan.patient_id)
 
+    medicines = {
+        medicine.id: medicine
+        for medicine in Medicine.objects.with_stock_totals().filter(
+            pk__in=required
+        )
+    }
     for medicine_id, qty in required.items():
-        medicine = Medicine.objects.get(pk=medicine_id)
+        medicine = medicines[medicine_id]
         PickingItem.objects.create(
             picking_list=plist, medicine=medicine,
             quantity_required=qty,

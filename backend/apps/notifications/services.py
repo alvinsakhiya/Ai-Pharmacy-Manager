@@ -22,7 +22,7 @@ def generate_notifications() -> int:
     created = 0
 
     # Low stock
-    for medicine in Medicine.objects.filter(is_active=True):
+    for medicine in Medicine.objects.with_stock_totals().filter(is_active=True):
         if medicine.is_low_stock():
             _upsert(
                 f"low_stock:{medicine.id}",

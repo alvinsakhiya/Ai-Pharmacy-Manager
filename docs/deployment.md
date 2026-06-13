@@ -13,17 +13,24 @@ Services:
 | Service | Image | Port | Notes |
 |---|---|---|---|
 | `db` | postgres:18 | 5432 | volume `pgdata18` persists data |
+| `pgadmin` | dpage/pgadmin4:9.15 | 5050 | browser database dashboard; preloads the project server |
 | `redis` | redis:8 | internal | reserved for roadmap background jobs |
 | `backend` | built from `./backend` | 8000 | gunicorn; auto-migrates & seeds on first boot |
 | `frontend` | built from `./frontend` | 8080 | nginx serves the SPA and proxies `/api/` |
 
-Then open <http://localhost:8080>. To **disable auto-seeding**, set `SEED_ON_START=false` on the
-backend service.
+Then open <http://localhost:8080>. pgAdmin is available at <http://localhost:5050> and uses the
+`PGADMIN_EMAIL` and `PGADMIN_PASSWORD` values from `.env`. To **disable auto-seeding**, set
+`SEED_ON_START=false` on the backend service.
+
+The preloaded pgAdmin connection is under **AI Pharmacy Manager → AI Pharmacy PostgreSQL**. The
+PostgreSQL host port and pgAdmin are bound to `127.0.0.1` by default; containers use the internal
+Compose network and database host `db`.
 
 ### Day-to-day Docker commands
 
 ```bash
 docker compose logs -f backend
+docker compose logs -f pgadmin
 docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py seed
 docker compose exec backend python manage.py createsuperuser
@@ -89,8 +96,12 @@ config), or point the SPA at an absolute API origin.
 | `POSTGRES_DB` | `pharmacy` | Compose PostgreSQL database name |
 | `POSTGRES_USER` | `pharma` | Compose PostgreSQL user |
 | `POSTGRES_PASSWORD` | `pharma` | Compose PostgreSQL password; change outside local development |
-| `POSTGRES_PORT` | `5432` | host port exposed by the Compose database service |
+| `POSTGRES_PORT` | `5433` | localhost port exposed by Compose (`5432` remains the container port) |
+| `PGADMIN_EMAIL` | `admin@example.com` | local pgAdmin login email |
+| `PGADMIN_PASSWORD` | `PgAdmin123!` | local pgAdmin login password; change outside local development |
+| `PGADMIN_PORT` | `5050` | localhost-only pgAdmin dashboard port |
 | `CORS_ALLOWED_ORIGINS` | localhost dev origins | SPA origins |
 | `ACCESS_TOKEN_LIFETIME_MIN` | `30` | JWT access lifetime |
 | `REFRESH_TOKEN_LIFETIME_DAYS` | `1` | JWT refresh lifetime |
+| `LOGIN_THROTTLE_RATE` | `10/min` | per-client throttle for login attempts |
 | `SEED_ON_START` | `true` | seed demo data on container boot |

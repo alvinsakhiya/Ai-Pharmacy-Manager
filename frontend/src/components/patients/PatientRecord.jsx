@@ -6,7 +6,7 @@
  * colour never the only signal. Simulated data — academic demonstration, not
  * clinical advice, and no NHS data/branding.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   User, Stethoscope, Pill, History, StickyNote, CalendarClock, MapPin, ChevronDown,
 } from "lucide-react";
@@ -40,10 +40,12 @@ export default function PatientRecord({ patient, open, onClose }) {
   const [tab, setTab] = useState("patient");
   const [pid, setPid] = useState(patient?.id);
 
-  if (patient && patient.id !== pid) {
-    setPid(patient.id);
-    setTab("patient");
-  }
+  useEffect(() => {
+    if (patient && patient.id !== pid) {
+      setPid(patient.id);
+      setTab("patient");
+    }
+  }, [patient, pid]);
   if (!open || !patient) return null;
 
   return (
@@ -117,8 +119,8 @@ export default function PatientRecord({ patient, open, onClose }) {
           patient.notes.length === 0
             ? <EmptyState icon={StickyNote} title="No notes" hint="Clinical and operational notes for this patient appear here." />
             : <ul className="space-y-2">
-                {patient.notes.map((n, i) => (
-                  <li key={i} className="rounded-xl border border-border-subtle p-3">
+                {patient.notes.map((n) => (
+                  <li key={`${n.at}-${n.staff}-${n.category}`} className="rounded-xl border border-border-subtle p-3">
                     <div className="mb-1 flex items-center justify-between">
                       <StatusChip tone="neutral" icon={false}>{n.category}</StatusChip>
                       <span className="text-caption text-text-tertiary">{fmtDate(n.at)} · {n.staff}</span>
@@ -191,8 +193,8 @@ function Medication({ patient }) {
                 <div className="mt-3">
                   <div className="mb-1.5 text-micro uppercase text-text-tertiary">Audit history</div>
                   <ol className="space-y-1.5">
-                    {m.changes.slice().reverse().map((c, i) => (
-                      <li key={i} className="flex flex-wrap items-center gap-2 text-caption">
+                    {m.changes.slice().reverse().map((c) => (
+                      <li key={`${c.at}-${c.staff}-${c.type}-${c.detail}`} className="flex flex-wrap items-center gap-2 text-caption">
                         <StatusChip tone={CHANGE_TONE[c.type] || "neutral"} icon={false}>{c.type}</StatusChip>
                         <span className="text-text-secondary">{c.detail}</span>
                         <span className="text-text-tertiary tnum">· {fmtDate(c.at)} · {c.staff}{c.reason ? ` · ${c.reason}` : ""}</span>
@@ -215,8 +217,8 @@ function MedHistory({ patient }) {
   if (events.length === 0) return <EmptyState icon={History} title="No history" hint="Medication changes appear here." />;
   return (
     <ol className="space-y-2">
-      {events.map((e, i) => (
-        <li key={i} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3">
+      {events.map((e) => (
+        <li key={`${e.at}-${e.staff}-${e.type}-${e.medicine}`} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3">
           <span className={cx("mt-1 h-2.5 w-2.5 shrink-0 rounded-full",
             { success: "bg-success", warning: "bg-warning", info: "bg-info", danger: "bg-danger", neutral: "bg-text-tertiary" }[CHANGE_TONE[e.type] || "neutral"])} aria-hidden="true" />
           <div className="min-w-0 flex-1">

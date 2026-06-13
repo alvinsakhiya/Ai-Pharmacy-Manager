@@ -1,9 +1,9 @@
 /**
  * AI client — single surface the UI talks to.
  *
- * Each method tries the live backend first, then falls back to the local
- * explainable engine so the AI Suite is fully functional today. When you build
- * the server side, implement these endpoints and the UI upgrades automatically:
+ * Each method tries the backend first, then clearly labels the deterministic
+ * academic simulation used while the optional AI endpoints are unavailable.
+ * Implement these endpoints and the UI upgrades automatically:
  *
  *   POST /api/ai/copilot/          { query }            -> intent result
  *   POST /api/ai/safety-check/     { patient_id }       -> safety result
@@ -32,8 +32,12 @@ async function tryBackend(fn) {
   try {
     const res = await fn();
     return { ok: true, data: res.data, live: true };
-  } catch {
-    return { ok: false };
+  } catch (error) {
+    return {
+      ok: false,
+      status: error.response?.status,
+      reason: error.response?.data?.detail || error.message,
+    };
   }
 }
 

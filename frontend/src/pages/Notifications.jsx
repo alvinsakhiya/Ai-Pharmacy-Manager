@@ -49,7 +49,9 @@ export default function Notifications() {
 
       <Card className="p-2">
         {loading ? (
-          <div className="space-y-2 p-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
+          <div className="space-y-2 p-2">
+            {["one", "two", "three", "four", "five", "six"].map((key) => <Skeleton key={key} className="h-14" />)}
+          </div>
         ) : items.length === 0 ? (
           <EmptyState icon={Bell} title="You're all caught up" hint="No active notifications. Refresh to re-scan operational state." />
         ) : (

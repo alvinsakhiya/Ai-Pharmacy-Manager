@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Card, Button, StatusChip, EmptyState, cx } from "../../components/ui";
 import { safetyCheck, listPatients } from "../../services/aiClient";
+import AIDataNotice from "../../components/ai/AIDataNotice";
 
 const VERDICT = {
   pass: { tone: "success", Icon: CheckCircle2, label: "No flags — clear to proceed", bg: "bg-success-bg", fg: "text-success-fg" },
@@ -58,6 +59,8 @@ export default function ClinicalSafety() {
           Decision-support
         </StatusChip>
       </header>
+
+      <AIDataNotice live={result?.live} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
         {/* Patient picker */}
@@ -127,7 +130,7 @@ export default function ClinicalSafety() {
                   const tone = CHECK_TONE[c.severity] || "neutral";
                   const ToneIcon = { success: CheckCircle2, info: Info, warning: AlertTriangle, danger: XCircle }[tone] || Info;
                   return (
-                    <Card key={i} className="p-4 animate-slide-up" style={{ animationDelay: `${i * 40}ms` }}>
+                    <Card key={`${c.kind}-${c.title}`} className="p-4 animate-slide-up" style={{ animationDelay: `${i * 40}ms` }}>
                       <div className="flex items-start gap-3">
                         <span className={cx("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", VERDICT[c.severity]?.bg, VERDICT[c.severity]?.fg)}>
                           <ToneIcon size={16} />

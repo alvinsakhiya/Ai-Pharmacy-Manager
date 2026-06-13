@@ -10,7 +10,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Search, X, UserRound, CalendarClock, MapPin, IdCard, Stethoscope } from "lucide-react";
 import { StatusChip, cx } from "../ui";
-import { searchPatients, fmtDate, STATUS_TONE } from "../../services/patientData";
+import { searchPatients, fmtDate } from "../../services/patientData";
 import PatientRecord from "./PatientRecord";
 
 export default function PatientSearchBar() {

@@ -7,6 +7,7 @@ import {
   LineChart,
   ListChecks,
   LogOut,
+  Menu,
   Moon,
   PackageSearch,
   Pill,
@@ -18,9 +19,10 @@ import {
   Sun,
   TimerReset,
   Users,
+  X,
 } from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { usePreferences } from "../context/PreferencesContext";
 import api from "../api/client";
@@ -73,12 +75,77 @@ function Brand() {
   );
 }
 
+function Navigation({ can, unread, onNavigate }) {
+  return (
+    <>
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2" aria-label="Main navigation">
+        {NAV.filter((n) => !n.roles || can(...n.roles)).map((n) => (
+          <NavLink key={n.to} to={n.to} end={n.end} className={navClass} onClick={onNavigate}>
+            <n.icon size={18} className="flex-shrink-0" aria-hidden="true" />
+            <span className="flex-1">{n.label}</span>
+            {n.to === "/notifications" && unread > 0 && (
+              <span
+                className="rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white tnum"
+                aria-label={`${unread} unread notifications`}
+              >
+                {unread}
+              </span>
+            )}
+          </NavLink>
+        ))}
+
+        <div className="px-3 pb-1 pt-4 text-micro uppercase text-text-tertiary" role="presentation">
+          AI Suite
+        </div>
+        {AI_NAV.map((n) => (
+          <NavLink key={n.to} to={n.to} end={n.end} className={navClass} onClick={onNavigate}>
+            <n.icon size={18} className="flex-shrink-0" aria-hidden="true" />
+            <span className="flex-1">{n.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+      <div className="space-y-0.5 border-t border-border-subtle p-2">
+        <NavLink to="/settings" className={navClass} onClick={onNavigate}>
+          <SettingsIcon size={18} className="flex-shrink-0" aria-hidden="true" />
+          <span className="flex-1">Settings</span>
+        </NavLink>
+        <p className="px-3 pt-1 text-[11px] text-text-tertiary">Simulated data · Not for clinical use</p>
+      </div>
+    </>
+  );
+}
+
 export default function Layout() {
   const { user, logout, can } = useAuth();
   const { resolvedTheme, set } = usePreferences();
   const navigate = useNavigate();
+  const location = useLocation();
   const [unread, setUnread] = useState(0);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileMenuButtonRef = useRef(null);
+  const mobileCloseButtonRef = useRef(null);
+
+  useEffect(() => setMobileNavOpen(false), [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const menuButton = mobileMenuButtonRef.current;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => mobileCloseButtonRef.current?.focus(), 0);
+    const onKey = (event) => {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      menuButton?.focus();
+    };
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     api.get("/notifications/unread_count/").then((r) => setUnread(r.data.count)).catch(() => {});
@@ -124,45 +191,55 @@ export default function Layout() {
         <div className="flex h-14 items-center border-b border-border-subtle px-3">
           <Brand />
         </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto p-2" aria-label="Main navigation">
-          {NAV.filter((n) => !n.roles || can(...n.roles)).map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={navClass}>
-              <n.icon size={18} className="flex-shrink-0" aria-hidden="true" />
-              <span className="flex-1">{n.label}</span>
-              {n.to === "/notifications" && unread > 0 && (
-                <span
-                  className="rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white tnum"
-                  aria-label={`${unread} unread notifications`}
-                >
-                  {unread}
-                </span>
-              )}
-            </NavLink>
-          ))}
-
-          <div className="px-3 pb-1 pt-4 text-micro uppercase text-text-tertiary" role="presentation">
-            AI Suite
-          </div>
-          {AI_NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={navClass}>
-              <n.icon size={18} className="flex-shrink-0" aria-hidden="true" />
-              <span className="flex-1">{n.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <div className="space-y-0.5 border-t border-border-subtle p-2">
-          <NavLink to="/settings" className={navClass}>
-            <SettingsIcon size={18} className="flex-shrink-0" aria-hidden="true" />
-            <span className="flex-1">Settings</span>
-          </NavLink>
-          <p className="px-3 pt-1 text-[11px] text-text-tertiary">Simulated data · Not for clinical use</p>
-        </div>
+        <Navigation can={can} unread={unread} />
       </aside>
+
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="absolute inset-0 bg-text-primary/40"
+            onClick={() => setMobileNavOpen(false)}
+          />
+          <aside
+            id="mobile-navigation"
+            className="relative flex h-full w-[min(19rem,88vw)] flex-col border-r border-border-subtle bg-surface shadow-elev-3 animate-slide-in-right"
+            aria-label="Primary"
+          >
+            <div className="flex h-14 items-center justify-between border-b border-border-subtle px-3">
+              <Brand />
+              <button
+                ref={mobileCloseButtonRef}
+                type="button"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-md p-2 text-text-tertiary hover:bg-subtle focus-visible:ring-2 focus-visible:ring-accent-ring"
+                aria-label="Close navigation"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <Navigation can={can} unread={unread} onNavigate={() => setMobileNavOpen(false)} />
+          </aside>
+        </div>
+      )}
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-border-subtle bg-surface/80 px-4 backdrop-blur">
-          <div className="flex flex-1 items-center pr-3">
+        <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-border-subtle bg-surface/80 px-2 backdrop-blur sm:px-4">
+          <button
+            ref={mobileMenuButtonRef}
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            className="mr-1 rounded-md p-2 text-text-tertiary hover:bg-subtle focus-visible:ring-2 focus-visible:ring-accent-ring md:hidden"
+            aria-label="Open navigation"
+            aria-expanded={mobileNavOpen}
+            aria-controls="mobile-navigation"
+          >
+            <Menu size={20} aria-hidden="true" />
+          </button>
+          <div className="flex min-w-0 flex-1 items-center pr-2 sm:pr-3">
             <PatientSearchBar />
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -184,7 +261,7 @@ export default function Layout() {
             </button>
             <NavLink
               to="/settings"
-              className="rounded-md p-2 text-text-tertiary transition hover:bg-subtle hover:text-text-primary"
+              className="hidden rounded-md p-2 text-text-tertiary transition hover:bg-subtle hover:text-text-primary sm:block"
               aria-label="Settings"
               title="Settings"
             >
@@ -214,7 +291,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-5 outline-none lg:p-6">
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-3 outline-none sm:p-5 lg:p-6">
           <div className="mx-auto max-w-[1400px] animate-fade-in">
             <Outlet />
           </div>

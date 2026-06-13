@@ -74,6 +74,8 @@ function PackGrid({ items }) {
                             <span
                               key={it.id}
                               title={`${it.medicine_label} ×${it.dose_quantity}`}
+                              role="img"
+                              aria-label={`${it.medicine_label}, dose ${it.dose_quantity}`}
                               className="h-2.5 w-2.5 rounded-full transition-transform hover:scale-125"
                               style={{ background: colors[it.id] }}
                             />
@@ -92,7 +94,7 @@ function PackGrid({ items }) {
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
         {items.map((it) => (
           <span key={it.id} className="inline-flex items-center gap-1.5 text-caption text-text-secondary">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: colors[it.id] }} />
+            <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: colors[it.id] }} />
             {it.medicine_label}
             {it.dose_quantity > 1 && <span className="text-text-tertiary">×{it.dose_quantity}</span>}
           </span>

@@ -28,6 +28,18 @@ class DosettePlanViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         return DosettePlanDetailSerializer if self.action == "retrieve" else DosettePlanSerializer
 
+    def perform_create(self, serializer):
+        plan = serializer.save()
+        record("create", "dosette.DosettePlan", entity_id=plan.id,
+               summary=f"Created dosette plan for {plan.patient.patient_id}",
+               actor=self.request.user)
+
+    def perform_update(self, serializer):
+        plan = serializer.save()
+        record("update", "dosette.DosettePlan", entity_id=plan.id,
+               summary=f"Updated dosette plan for {plan.patient.patient_id}",
+               actor=self.request.user)
+
     @action(detail=True, methods=["post"], url_path="generate-cycle")
     def generate_cycle(self, request, pk=None):
         plan = self.get_object()
@@ -56,6 +68,18 @@ class DosetteItemViewSet(viewsets.ModelViewSet):
     permission_classes = [RolePermission]
     allowed_roles = ["administrator", "pharmacist"]
     filterset_fields = ["plan"]
+
+    def perform_create(self, serializer):
+        item = serializer.save()
+        record("create", "dosette.DosetteItem", entity_id=item.id,
+               summary=f"Added {item.medicine.label} to plan {item.plan_id}",
+               actor=self.request.user)
+
+    def perform_update(self, serializer):
+        item = serializer.save()
+        record("update", "dosette.DosetteItem", entity_id=item.id,
+               summary=f"Updated {item.medicine.label} on plan {item.plan_id}",
+               actor=self.request.user)
 
 
 class DosetteCycleViewSet(viewsets.ReadOnlyModelViewSet):

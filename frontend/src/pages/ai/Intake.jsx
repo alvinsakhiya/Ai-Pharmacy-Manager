@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ScanText, Sparkles, Check, AlertTriangle, FileText, Loader2, Upload } from "lucide-react";
 import { Card, Button, StatusChip, EmptyState, cx } from "../../components/ui";
 import { intakeParse } from "../../services/aiClient";
+import AIDataNotice from "../../components/ai/AIDataNotice";
 
 const SLOTS = ["Morning", "Noon", "Evening", "Night"];
 const SAMPLE = `Amlodipine 5mg tablets - once daily in the morning
@@ -55,6 +56,8 @@ export default function Intake() {
           Paste the prescription text and the Co-pilot structures it into slot-by-slot lines for pharmacist review.
         </p>
       </header>
+
+      <AIDataNotice live={result?.live} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Input */}
@@ -111,7 +114,7 @@ export default function Intake() {
             {result && !loading && (
               <div className="space-y-2.5 animate-fade-in">
                 {result.items.map((m, i) => (
-                  <div key={i} className="rounded-xl border border-border-subtle p-3 animate-slide-up" style={{ animationDelay: `${i * 50}ms` }}>
+                  <div key={`${m.medicine}-${m.strength}-${m.form}`} className="rounded-xl border border-border-subtle p-3 animate-slide-up" style={{ animationDelay: `${i * 50}ms` }}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="text-body font-semibold text-text-primary">
@@ -142,8 +145,8 @@ export default function Intake() {
 
                     {m.warnings?.length > 0 && (
                       <div className="mt-2 space-y-1">
-                        {m.warnings.map((w, j) => (
-                          <p key={j} className="flex items-start gap-1.5 text-caption text-warning-fg">
+                        {m.warnings.map((w) => (
+                          <p key={w} className="flex items-start gap-1.5 text-caption text-warning-fg">
                             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
                             {w}
                           </p>
@@ -156,8 +159,8 @@ export default function Intake() {
                 {result.unresolved?.length > 0 && (
                   <div className="rounded-xl border border-dashed border-border-strong bg-app p-3">
                     <p className="mb-1 text-caption font-medium text-text-secondary">Couldn&apos;t parse — review manually</p>
-                    {result.unresolved.map((u, i) => (
-                      <p key={i} className="truncate text-caption text-text-tertiary">
+                    {result.unresolved.map((u) => (
+                      <p key={u} className="truncate text-caption text-text-tertiary">
                         • {u}
                       </p>
                     ))}

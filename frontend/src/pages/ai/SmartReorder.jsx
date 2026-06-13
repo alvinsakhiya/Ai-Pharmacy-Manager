@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { PackageSearch, TimerReset, Check, TrendingDown, Plus } from "lucide-react";
 import { Card, Button, StatusChip, EmptyState, TableSkeleton, useToast, cx } from "../../components/ui";
 import { reorder } from "../../services/aiClient";
+import AIDataNotice from "../../components/ai/AIDataNotice";
 
 const URGENCY = {
   now: { tone: "danger", label: "Order now" },
@@ -54,6 +55,8 @@ export default function SmartReorder() {
           </Button>
         )}
       </header>
+
+      <AIDataNotice live={data?.live} />
 
       {/* Summary tiles */}
       {data && (

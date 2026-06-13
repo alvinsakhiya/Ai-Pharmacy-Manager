@@ -160,6 +160,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_RATES": {
+        "login": os.getenv("LOGIN_THROTTLE_RATE", "10/min"),
+    },
 }
 
 SIMPLE_JWT = {
@@ -178,6 +181,21 @@ SPECTACULAR_SETTINGS = {
                    "No integration with external healthcare systems.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "ENUM_NAME_OVERRIDES": {
+        "PatientStatusEnum": [("active", "Active"), ("inactive", "Inactive")],
+        "DosetteCycleStatusEnum": [
+            ("scheduled", "Scheduled"),
+            ("in_prep", "In preparation"),
+            ("assembled", "Assembled"),
+            ("checked", "Final-checked"),
+            ("sealed", "Sealed"),
+        ],
+        "PickingListStatusEnum": [
+            ("open", "Open"),
+            ("in_progress", "In progress"),
+            ("complete", "Complete"),
+        ],
+    },
 }
 
 # --- CORS -----------------------------------------------------------------

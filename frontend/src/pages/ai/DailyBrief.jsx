@@ -15,6 +15,7 @@ import {
 import { Card, Button, StatusChip, EmptyState, cx } from "../../components/ui";
 import { dailyBrief } from "../../services/aiClient";
 import { usePreferences } from "../../context/PreferencesContext";
+import AIDataNotice from "../../components/ai/AIDataNotice";
 
 const CAT_ICON = { Dosette: CalendarClock, Clinical: ShieldAlert, Stock: Boxes, Waste: TimerReset };
 
@@ -107,6 +108,8 @@ export default function DailyBrief() {
           </div>
         )}
       </header>
+
+      <AIDataNotice live={data?.live} />
 
       {loading && (
         <Card className="flex items-center gap-3 p-6 text-text-secondary">

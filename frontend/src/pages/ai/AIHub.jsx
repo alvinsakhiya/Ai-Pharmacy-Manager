@@ -14,6 +14,7 @@ import {
   Command,
 } from "lucide-react";
 import { Card, Button, StatusChip, Skeleton, cx } from "../../components/ui";
+import AIDataNotice from "../../components/ai/AIDataNotice";
 import { insights } from "../../services/aiClient";
 
 const openCopilot = () => window.dispatchEvent(new Event("copilot:open"));
@@ -46,7 +47,7 @@ const CAPS = [
   {
     icon: ShieldCheck,
     title: "Clinical Safety AI",
-    blurb: "Live interaction, duplicate-therapy and dose checks as a regimen is built — with explanations.",
+    blurb: "Explainable interaction, duplicate-therapy and dose checks for pharmacist review.",
     cta: "Run a check",
     to: "/ai/safety",
   },
@@ -106,6 +107,8 @@ export default function AIHub() {
           </Button>
         </div>
       </div>
+
+      <AIDataNotice live={data?.live} />
 
       {/* Live insight tiles */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

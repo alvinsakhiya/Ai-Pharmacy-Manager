@@ -1,8 +1,11 @@
 import csv
 from datetime import date, timedelta
 
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,13 +25,16 @@ class DashboardView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         today = date.today()
         d30 = today + timedelta(days=30)
         d90 = today + timedelta(days=90)
         d180 = today + timedelta(days=180)
 
-        medicines = Medicine.objects.filter(is_active=True)
+        medicines = list(
+            Medicine.objects.with_stock_totals().filter(is_active=True)
+        )
         low_stock = sum(1 for m in medicines if m.is_low_stock())
         total_value = sum(float(m.stock_value()) for m in medicines)
 
@@ -57,7 +63,7 @@ class DashboardView(APIView):
                 "dosette": Patient.objects.filter(is_dosette=True, status="active").count(),
             },
             "stock": {
-                "medicines": medicines.count(),
+                "medicines": len(medicines),
                 "low_stock": low_stock,
                 "total_value": round(total_value, 2),
                 "units_on_hand": batches.aggregate(t=Sum("quantity_on_hand"))["t"] or 0,
@@ -76,14 +82,24 @@ class DashboardView(APIView):
         })
 
 
+class StockTrendQuerySerializer(serializers.Serializer):
+    days = serializers.IntegerField(default=90, min_value=1, max_value=365)
+
+
 class StockTrendView(APIView):
     """Daily dispensed-units trend (last N days) for the dashboard chart."""
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        parameters=[StockTrendQuerySerializer],
+        responses=OpenApiTypes.OBJECT,
+    )
     def get(self, request):
         from apps.stock.models import MedicineUsage
-        days = int(request.query_params.get("days", 90))
+        query = StockTrendQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        days = query.validated_data["days"]
         start = date.today() - timedelta(days=days)
         rows = (MedicineUsage.objects.filter(date__gte=start)
                 .values("date").annotate(total=Sum("quantity")).order_by("date"))
@@ -95,6 +111,7 @@ class ReportView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(operation_id="report_detail", responses=OpenApiTypes.OBJECT)
     def get(self, request, key):
         builder = REPORTS.get(key)
         if not builder:
@@ -127,5 +144,6 @@ class ReportView(APIView):
 class ReportIndexView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(operation_id="report_index", responses=OpenApiTypes.OBJECT)
     def get(self, request):
         return Response({"reports": list(REPORTS.keys())})

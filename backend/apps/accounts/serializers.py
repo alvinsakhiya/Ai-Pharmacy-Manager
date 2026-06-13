@@ -20,7 +20,7 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "last_login", "date_joined"]
 
-    def get_full_name(self, obj):
+    def get_full_name(self, obj) -> str:
         return obj.get_full_name() or obj.username
 
 

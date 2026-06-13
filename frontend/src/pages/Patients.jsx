@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from "react";
 import { Search, UserRound, ShieldAlert, CalendarClock, MapPin, IdCard } from "lucide-react";
-import { Card, StatusChip, EmptyState, Input, cx } from "../components/ui";
+import { Card, StatusChip, EmptyState, Input } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { PATIENTS, searchPatients, fmtDate } from "../services/patientData";
 import PatientRecord from "../components/patients/PatientRecord";

@@ -1,6 +1,6 @@
 /** House component vocabulary — built once, reused everywhere for coherence.
  *  Apple-calm surfaces; Swiggy-alive motion (press-scale, slide/fade, toasts). */
-import { createContext, use, useCallback, useEffect, useState } from "react";
+import { createContext, use, useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle } from "lucide-react";
 
@@ -26,11 +26,11 @@ export function Button({ variant = "primary", size = "md", className, children, 
 }
 
 /* ------------------------------------------------------------------ Card */
-export function Card({ className, children, ...props }) {
+export function Card({ as: Component = "div", className, children, ...props }) {
   return (
-    <div className={cx("bg-surface rounded-xl border border-border-subtle shadow-elev-1", className)} {...props}>
+    <Component className={cx("bg-surface rounded-xl border border-border-subtle shadow-elev-1", className)} {...props}>
       {children}
-    </div>
+    </Component>
   );
 }
 
@@ -50,8 +50,8 @@ export function StatusChip({ tone = "neutral", icon = true, children, dot, style
       className={cx("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-caption font-medium", t.bg, t.fg)}
       style={style}
     >
-      {dot && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
-      {icon && Icon && <Icon size={13} />}
+      {dot && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
+      {icon && Icon && <Icon size={13} aria-hidden="true" />}
       {children}
     </span>
   );
@@ -63,7 +63,7 @@ export function EmptyState({ icon: Icon, title, hint, action }) {
     <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
       {Icon && (
         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-subtle text-text-tertiary">
-          <Icon size={22} />
+          <Icon size={22} aria-hidden="true" />
         </div>
       )}
       <p className="text-subtitle font-semibold text-text-primary">{title}</p>
@@ -87,19 +87,21 @@ export function ErrorState({ onRetry, message }) {
 /* -------------------------------------------------------------- Skeleton */
 export function Skeleton({ className }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-md bg-subtle", className)}>
+    <div aria-hidden="true" className={cx("relative overflow-hidden rounded-md bg-subtle", className)}>
       <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.4s_infinite] bg-gradient-to-r from-transparent via-white/60 to-transparent" />
     </div>
   );
 }
 
 export function TableSkeleton({ rows = 6, cols = 5 }) {
+  const rowKeys = Array.from({ length: rows }, (_, index) => `row-${index + 1}`);
+  const columnKeys = Array.from({ length: cols }, (_, index) => `column-${index + 1}`);
   return (
     <div className="space-y-2 p-4">
-      {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} className="flex gap-4">
-          {Array.from({ length: cols }).map((_, c) => (
-            <Skeleton key={c} className="h-5 flex-1" />
+      {rowKeys.map((rowKey) => (
+        <div key={rowKey} className="flex gap-4">
+          {columnKeys.map((columnKey) => (
+            <Skeleton key={`${rowKey}-${columnKey}`} className="h-5 flex-1" />
           ))}
         </div>
       ))}
@@ -125,18 +127,19 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext value={api}>
       {children}
-      <div className="pointer-events-none fixed bottom-5 right-5 z-50 flex flex-col gap-2">
+      <div className="pointer-events-none fixed bottom-5 right-5 z-50 flex flex-col gap-2" aria-live="polite">
         {toasts.map((t) => {
           const tone = TONES[t.tone] || TONES.info;
           const Icon = tone.Icon || Info;
           return (
             <div
               key={t.id}
+              role="status"
               className={cx(
                 "pointer-events-auto flex items-center gap-2.5 rounded-xl border border-border-subtle bg-surface px-4 py-3 shadow-elev-2 animate-slide-in-right"
               )}
             >
-              <Icon size={18} className={tone.fg} />
+              <Icon size={18} className={tone.fg} aria-hidden="true" />
               <span className="text-body text-text-primary">{t.message}</span>
             </div>
           );
@@ -149,30 +152,82 @@ export const useToast = () => use(ToastContext);
 
 /* ----------------------------------------------------------------- Modal */
 export function Modal({ open, onClose, title, children, footer, wide }) {
+  const dialogRef = useRef(null);
+  const previousFocusRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  const titleId = useId();
+
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose?.();
-    if (open) document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    previousFocusRef.current = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => {
+      dialogRef.current?.querySelector("[data-modal-close]")?.focus();
+    }, 0);
+
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current?.();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const focusable = [...dialogRef.current.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )];
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus?.();
+    };
+  }, [open]);
   if (!open) return null;
   // Portal to <body> so the fixed overlay is positioned relative to the viewport,
   // never trapped inside an ancestor with transform/filter/backdrop-filter
   // (e.g. the blurred header). Without this the modal renders pinned to the header.
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-text-primary/40 animate-fade-in" onClick={onClose} />
+      <div aria-hidden="true" className="absolute inset-0 bg-text-primary/40 animate-fade-in" onClick={onClose} />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={cx(
           "relative z-10 max-h-[90vh] w-full overflow-hidden rounded-2xl bg-surface shadow-elev-3 animate-slide-up",
           wide ? "max-w-3xl" : "max-w-lg"
         )}
       >
         <div className="flex items-center justify-between border-b border-border-subtle px-5 py-3.5">
-          <h3 className="text-subtitle font-semibold">{title}</h3>
-          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-text-tertiary hover:bg-subtle">
-            <X size={18} />
+          <h3 id={titleId} className="text-subtitle font-semibold">{title}</h3>
+          <button data-modal-close onClick={onClose} aria-label="Close dialog" className="rounded-md p-1 text-text-tertiary hover:bg-subtle focus-visible:ring-2 focus-visible:ring-accent-ring">
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
         <div className="max-h-[78vh] overflow-y-auto px-5 py-4">{children}</div>
@@ -220,8 +275,15 @@ export function Select({ className, children, ...props }) {
   );
 }
 
-export function Spinner({ className }) {
-  return <Loader2 className={cx("animate-spin", className)} />;
+export function Spinner({ className, label }) {
+  return (
+    <Loader2
+      className={cx("animate-spin", className)}
+      role={label ? "status" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : "true"}
+    />
+  );
 }
 
 export { cx };

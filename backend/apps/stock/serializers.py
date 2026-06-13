@@ -67,13 +67,13 @@ class MedicineSerializer(serializers.ModelSerializer):
             "quantity_on_hand", "is_low_stock", "stock_value",
         ]
 
-    def get_quantity_on_hand(self, obj):
+    def get_quantity_on_hand(self, obj) -> int:
         return obj.quantity_on_hand()
 
-    def get_is_low_stock(self, obj):
+    def get_is_low_stock(self, obj) -> bool:
         return obj.is_low_stock()
 
-    def get_stock_value(self, obj):
+    def get_stock_value(self, obj) -> float:
         return round(float(obj.stock_value()), 2)
 
 
@@ -83,7 +83,7 @@ class MedicineDetailSerializer(MedicineSerializer):
     class Meta(MedicineSerializer.Meta):
         fields = MedicineSerializer.Meta.fields + ["batches"]
 
-    def get_batches(self, obj):
+    def get_batches(self, obj) -> list[dict]:
         qs = obj.batches.filter(quantity_on_hand__gt=0).order_by("expiry_date")
         return StockBatchSerializer(qs, many=True).data
 

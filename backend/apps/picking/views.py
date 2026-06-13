@@ -68,4 +68,14 @@ class PickingItemViewSet(viewsets.ReadOnlyModelViewSet):
         item.picked_at = timezone.now() if item.is_picked else None
         item.save(update_fields=["is_picked", "picked_by", "picked_at", "updated_at"])
         item.picking_list.refresh_status()
+        record(
+            "update",
+            "picking.PickingItem",
+            entity_id=item.id,
+            summary=(
+                f"{'Picked' if item.is_picked else 'Unpicked'} "
+                f"{item.medicine.label} on {item.picking_list.name}"
+            ),
+            actor=request.user,
+        )
         return Response(self.get_serializer(item).data)

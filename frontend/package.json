@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --host",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "dependencies": {
     "axios": "1.17.0",
@@ -22,13 +23,17 @@
     "@eslint-react/eslint-plugin": "5.9.0",
     "@eslint/js": "10.0.1",
     "@tailwindcss/vite": "4.3.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
     "@vitejs/plugin-react": "6.0.2",
     "eslint": "10.5.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.2",
     "globals": "17.6.0",
+    "jsdom": "29.1.1",
     "tailwindcss": "4.3.1",
-    "vite": "8.0.16"
+    "vite": "8.0.16",
+    "vitest": "4.1.8"
   },
   "engines": {
     "node": ">=24.0.0"

@@ -37,12 +37,13 @@ A unified platform built around the real community-pharmacy dosette workflow, wi
 |---|---|
 | **Authentication & security** | JWT access/refresh tokens, role-based access control (Administrator / Pharmacist / Dispenser), PBKDF2 password hashing, protected routes, immutable **audit log** of every significant action. |
 | **Dashboard** | Headline KPIs, 90-day dispensing trend, expiry exposure, predicted shortages, recent activity — with professional charts. |
-| **Patient management** | Pseudo-anonymised records, demographics, allergy notes, simulated GP/prescriber info, special instructions, active/inactive status, search, filtering and patient history. |
+| **Patient management** | PostgreSQL-backed pseudo-anonymised demographics, notes, role-scoped list/search APIs and active/inactive status. The richer medication-history record shown from the top bar remains an explicitly simulated portfolio workflow pending API integration. |
 | **Dosette management** | Weekly & monthly compliance packs, day × time-slot schedules (Morning/Afternoon/Evening/Bedtime), cycle generation with proactive **due dates**, dosage review tracking, printable per-patient pack summaries, and the signature day × slot pack-grid visualisation. |
 | **Picking lists** | Auto-aggregated weekly requirements across all active plans, per-line completion tracking, shortfall flags and **PDF export**. |
 | **Stock management** | Medicines, pack sizes, manufacturers, suppliers, batches, expiry dates, **FEFO allocation**, stock adjustments, wastage recording and an append-only movement ledger. |
 | **Expiry management** | 1/3/6-month expiry windows, FEFO heat scale, expired-stock alerts. |
 | **AI forecasting** | Explainable time-series demand forecasting (Holt-Winters → Holt trend → moving-average, with graceful fallback), 95% confidence intervals, reorder recommendations with rationale. |
+| **AI decision support showcase** | Explainable safety prompts, intake parsing, daily priorities and reorder/waste suggestions. These screens clearly identify deterministic simulated data until dedicated `/api/ai/*` services are implemented; human review is always required. |
 | **Notification centre** | Low stock, approaching expiry, predicted shortages, overdue reviews and announcements — idempotently regenerated. |
 | **Reporting** | Stock valuation, expiry, low-stock, dosette workload, forecasting and patient-summary reports with **PDF & CSV export**. |
 
@@ -75,8 +76,8 @@ React (Vite + Tailwind)  ──HTTPS/JSON──▶  Django REST Framework API  �
 | Database | **PostgreSQL 18** | One database engine in development, testing and deployment prevents engine-specific behaviour from being missed; PostgreSQL provides strong relational integrity and indexing for FEFO and expiry queries. |
 | Forecasting | **numpy + statsmodels** (scikit-learn available) | Statistically defensible, explainable methods; **degrades gracefully** to a NumPy linear trend if statsmodels is unavailable. |
 | Reporting | **ReportLab** | Server-side PDF generation; CSV via the standard library. |
-| Packaging | **Docker + docker-compose** | One-command reproducible stack (db + redis + api + web). |
-| Testing | **pytest + pytest-django + DRF APIClient** | Unit + API tests across FEFO, RBAC, forecasting and dosette logic. |
+| Packaging | **Docker + Docker Compose + pgAdmin** | One-command reproducible stack with PostgreSQL-only persistence and a preconfigured database dashboard. |
+| Testing | **pytest + pytest-django + DRF APIClient + Vitest/Testing Library** | Backend business/API tests plus focused frontend keyboard and modal-accessibility tests. |
 
 Full reasoning, trade-offs and rejected alternatives are in
 [`docs/technical-justification.md`](docs/technical-justification.md).
@@ -100,7 +101,7 @@ project database.
 - Web app: <http://localhost:8080>
 - API docs (Swagger): <http://localhost:8000/api/docs/>
 - Django admin: <http://localhost:8000/admin/>
-- pgAdmin: <http://localhost:5050> (`admin@pharmacy.local` / `PgAdmin123!`)
+- pgAdmin: <http://localhost:5050> (`admin@example.com` / `PgAdmin123!`)
 
 In pgAdmin, expand **AI Pharmacy Manager → AI Pharmacy PostgreSQL → Databases → pharmacy**. The
 database password is supplied automatically from the same `.env` value used by PostgreSQL.
@@ -143,7 +144,7 @@ python manage.py runserver                            # http://localhost:8000
 
 > The supported backend runtime is Python **3.14** with Django **6.0**. `DATABASE_URL` is mandatory
 > and must point to PostgreSQL. For the command above it is
-> `postgresql://pharma:pharma@localhost:5432/pharmacy`.
+> `postgresql://pharma:pharma@localhost:5433/pharmacy`.
 
 ### Frontend
 
@@ -178,7 +179,12 @@ with a realistic expiry mix, weekly/monthly dosette plans, ~18 months of daily u
 
 ```bash
 cd backend
-pytest                 # FEFO, RBAC/auth, forecasting, dosette & picking
+pytest                 # FEFO, RBAC/auth, patient search, forecasting, dosette & picking
+
+cd ../frontend
+npm run lint
+npm test               # shared component accessibility/keyboard tests
+npm run build
 ```
 
 The test strategy is documented in [`docs/testing.md`](docs/testing.md).
@@ -219,6 +225,7 @@ Ai-Pharmacy-Manager/
 - [Testing strategy](docs/testing.md)
 - [UI previews](docs/ui-previews.md)
 - [Deployment guide](docs/deployment.md)
+- [Engineering audit (13 June 2026)](docs/audit-2026-06-13.md)
 - [Roadmap & future enhancements](docs/roadmap.md)
 
 ## Roadmap

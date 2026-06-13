@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 from django.db import transaction
+from django.db.models import F
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -36,6 +37,16 @@ class SupplierViewSet(viewsets.ModelViewSet):
     allowed_roles = ["administrator", "pharmacist"]
     search_fields = ["name", "account_ref"]
 
+    def perform_create(self, serializer):
+        supplier = serializer.save()
+        record("create", "stock.Supplier", entity_id=supplier.id,
+               summary=f"Created supplier {supplier.name}", actor=self.request.user)
+
+    def perform_update(self, serializer):
+        supplier = serializer.save()
+        record("update", "stock.Supplier", entity_id=supplier.id,
+               summary=f"Updated supplier {supplier.name}", actor=self.request.user)
+
 
 class ManufacturerViewSet(viewsets.ModelViewSet):
     queryset = Manufacturer.objects.all()
@@ -44,9 +55,22 @@ class ManufacturerViewSet(viewsets.ModelViewSet):
     allowed_roles = ["administrator", "pharmacist"]
     search_fields = ["name"]
 
+    def perform_create(self, serializer):
+        manufacturer = serializer.save()
+        record("create", "stock.Manufacturer", entity_id=manufacturer.id,
+               summary=f"Created manufacturer {manufacturer.name}", actor=self.request.user)
+
+    def perform_update(self, serializer):
+        manufacturer = serializer.save()
+        record("update", "stock.Manufacturer", entity_id=manufacturer.id,
+               summary=f"Updated manufacturer {manufacturer.name}", actor=self.request.user)
+
 
 class MedicineViewSet(viewsets.ModelViewSet):
-    queryset = Medicine.objects.select_related("manufacturer", "default_supplier")
+    queryset = (
+        Medicine.objects.with_stock_totals()
+        .select_related("manufacturer", "default_supplier")
+    )
     permission_classes = [RolePermission]
     allowed_roles = ["administrator", "pharmacist"]
     filterset_fields = ["form", "is_active", "manufacturer", "default_supplier"]
@@ -57,12 +81,24 @@ class MedicineViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         return MedicineDetailSerializer if self.action == "retrieve" else MedicineSerializer
 
+    def perform_create(self, serializer):
+        medicine = serializer.save()
+        record("create", "stock.Medicine", entity_id=medicine.id,
+               summary=f"Created medicine {medicine.label}", actor=self.request.user)
+
+    def perform_update(self, serializer):
+        medicine = serializer.save()
+        record("update", "stock.Medicine", entity_id=medicine.id,
+               summary=f"Updated medicine {medicine.label}", actor=self.request.user)
+
     @action(detail=False, methods=["get"])
     def low_stock(self, request):
         """Medicines at or below their reorder level."""
-        items = [m for m in self.get_queryset() if m.is_low_stock()]
+        items = self.get_queryset().filter(
+            _quantity_on_hand__lte=F("reorder_level")
+        )
         page = self.paginate_queryset(items)
-        data = MedicineSerializer(page or items, many=True).data
+        data = MedicineSerializer(page if page is not None else items, many=True).data
         return self.get_paginated_response(data) if page is not None else Response(data)
 
     @action(detail=True, methods=["post"], url_path="fefo-preview")
@@ -114,6 +150,12 @@ class StockBatchViewSet(viewsets.ModelViewSet):
         )
         record("create", "stock.StockBatch", entity_id=batch.id,
                summary=f"Received {batch.quantity_on_hand} of {batch.medicine.label} (batch {batch.batch_number})",
+               actor=self.request.user)
+
+    def perform_update(self, serializer):
+        batch = serializer.save()
+        record("update", "stock.StockBatch", entity_id=batch.id,
+               summary=f"Updated batch {batch.batch_number} for {batch.medicine.label}",
                actor=self.request.user)
 
 

@@ -3,11 +3,20 @@ from datetime import date, timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from apps.stock.models import Medicine, StockBatch, Supplier
 
 User = get_user_model()
+
+
+@pytest.fixture(autouse=True)
+def isolate_throttle_cache():
+    """Prevent request throttles from leaking state between test cases."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture

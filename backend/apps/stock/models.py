@@ -5,9 +5,11 @@ Quantities are tracked at the unit (tablet/capsule/ml) level on each batch, so
 FEFO allocation and expiry visibility are exact rather than pack-approximate.
 """
 from datetime import date, timedelta
+from decimal import Decimal
 
 from django.db import models, transaction
-from django.db.models import Sum
+from django.db.models import DecimalField, ExpressionWrapper, F, Sum, Value
+from django.db.models.functions import Coalesce
 
 from apps.core.models import TimeStampedModel
 
@@ -36,6 +38,22 @@ class Manufacturer(TimeStampedModel):
         return self.name
 
 
+class MedicineQuerySet(models.QuerySet):
+    def with_stock_totals(self):
+        stock_value = ExpressionWrapper(
+            F("batches__quantity_on_hand") * F("batches__unit_cost"),
+            output_field=DecimalField(max_digits=18, decimal_places=4),
+        )
+        return self.annotate(
+            _quantity_on_hand=Coalesce(Sum("batches__quantity_on_hand"), 0),
+            _stock_value=Coalesce(
+                Sum(stock_value),
+                Value(Decimal("0")),
+                output_field=DecimalField(max_digits=18, decimal_places=4),
+            ),
+        )
+
+
 class Medicine(TimeStampedModel):
     class Form(models.TextChoices):
         TABLET = "tablet", "Tablet"
@@ -58,6 +76,7 @@ class Medicine(TimeStampedModel):
     reorder_quantity = models.PositiveIntegerField(default=500)
     unit_cost = models.DecimalField(max_digits=8, decimal_places=4, default=0)
     is_active = models.BooleanField(default=True)
+    objects = MedicineQuerySet.as_manager()
 
     class Meta:
         ordering = ["name", "strength"]
@@ -69,9 +88,13 @@ class Medicine(TimeStampedModel):
 
     # --- Inventory aggregates ------------------------------------------------
     def quantity_on_hand(self) -> int:
+        if hasattr(self, "_quantity_on_hand"):
+            return self._quantity_on_hand
         return self.batches.aggregate(t=Sum("quantity_on_hand"))["t"] or 0
 
     def stock_value(self):
+        if hasattr(self, "_stock_value"):
+            return self._stock_value
         total = 0
         for b in self.batches.all():
             total += b.quantity_on_hand * b.unit_cost

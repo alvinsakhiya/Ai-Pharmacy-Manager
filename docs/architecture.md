@@ -106,6 +106,12 @@ components/DataTable.jsx → sortable, sticky-header, tabular-figure data tables
 Every data-backed view renders all four states (loading skeletons, empty, error-with-retry,
 populated), per the design-system requirement for a pro tool.
 
+The operational stock, dosette, picking, forecasting, reports and notification pages use the REST
+API. The rich top-bar patient record and the optional AI showcase currently use deterministic
+simulated fixtures and label that source in the interface. They are presentation prototypes, not a
+second source of truth; connecting medication history and `/api/ai/*` endpoints is documented as
+remaining work in the engineering audit.
+
 ## Deployment topology
 
 In production, `frontend` (nginx) serves the built SPA and reverse-proxies `/api/` to the

@@ -1,4 +1,6 @@
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -24,6 +26,7 @@ class MedicineForecastView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(parameters=[ForecastQuerySerializer], responses=OpenApiTypes.OBJECT)
     def get(self, request, medicine_id):
         medicine = get_object_or_404(Medicine, pk=medicine_id)
         horizon = validated_horizon(request)
@@ -38,10 +41,16 @@ class ShortageForecastView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(parameters=[ForecastQuerySerializer], responses=OpenApiTypes.OBJECT)
     def get(self, request):
         horizon = validated_horizon(request)
         rows = []
-        for medicine in Medicine.objects.filter(is_active=True).select_related("default_supplier"):
+        medicines = (
+            Medicine.objects.with_stock_totals()
+            .filter(is_active=True)
+            .select_related("default_supplier")
+        )
+        for medicine in medicines:
             result = forecast_medicine(medicine, horizon)
             if not result.points:
                 continue
@@ -67,9 +76,10 @@ class ForecastSummaryView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         total = predicted_shortages = rising = 0
-        for medicine in Medicine.objects.filter(is_active=True):
+        for medicine in Medicine.objects.with_stock_totals().filter(is_active=True):
             result = forecast_medicine(medicine, 4)
             if not result.points:
                 continue

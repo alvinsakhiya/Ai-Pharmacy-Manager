@@ -119,7 +119,13 @@ export default function Picking() {
             rows={detail.data.items || []}
             columns={[
               { key: "is_picked", header: "✓", sortable: false, render: (it) => (
-                  <input type="checkbox" checked={it.is_picked} onChange={() => toggle(it)} className="h-4 w-4 accent-[#4F46E5]" />
+                  <input
+                    type="checkbox"
+                    checked={it.is_picked}
+                    onChange={() => toggle(it)}
+                    aria-label={`Mark ${it.medicine_label} as ${it.is_picked ? "not picked" : "picked"}`}
+                    className="h-4 w-4 accent-[#4F46E5]"
+                  />
                 ) },
               { key: "medicine_label", header: "Medicine", render: (it) => <span className={it.is_picked ? "text-text-tertiary line-through" : "font-medium"}>{it.medicine_label}</span> },
               { key: "quantity_required", header: "Required", align: "right", render: (it) => num(it.quantity_required) },

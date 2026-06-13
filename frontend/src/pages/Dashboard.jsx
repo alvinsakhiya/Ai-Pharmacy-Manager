@@ -24,6 +24,7 @@ import { PageHeader } from "../components/PageHeader";
 import { Card, Skeleton, StatusChip } from "../components/ui";
 import { useFetch } from "../hooks/useFetch";
 import { gbp, num, dateTimeFmt } from "../lib/format";
+import { useAuth } from "../context/AuthContext";
 
 function StatCard({ icon: Icon, label, value, sub, tone = "accent", onClick }) {
   const tones = {
@@ -35,8 +36,10 @@ function StatCard({ icon: Icon, label, value, sub, tone = "accent", onClick }) {
   };
   return (
     <Card
+      as={onClick ? "button" : "div"}
+      type={onClick ? "button" : undefined}
       onClick={onClick}
-      className={`p-4 transition-all duration-150 ease ${onClick ? "cursor-pointer hover:shadow-elev-2 active:scale-[0.99]" : ""}`}
+      className={`w-full p-4 text-left transition-all duration-150 ease ${onClick ? "cursor-pointer hover:shadow-elev-2 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-accent-ring" : ""}`}
     >
       <div className="flex items-start justify-between">
         <div>
@@ -45,7 +48,7 @@ function StatCard({ icon: Icon, label, value, sub, tone = "accent", onClick }) {
           {sub && <p className="mt-0.5 text-caption text-text-tertiary">{sub}</p>}
         </div>
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${tones[tone]}`}>
-          <Icon size={18} />
+          <Icon size={18} aria-hidden="true" />
         </div>
       </div>
     </Card>
@@ -56,6 +59,7 @@ const EXPIRY_COLORS = { within_30: "#E8A100", within_90: "#C9A227", within_180: 
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { can } = useAuth();
   const { data, loading } = useFetch("/dashboard/");
   const { data: trend } = useFetch("/dashboard/stock-trend/", { params: { days: 90 } });
   const { data: fc } = useFetch("/forecast/summary/");
@@ -65,8 +69,8 @@ export default function Dashboard() {
       <>
         <PageHeader title="Dashboard" subtitle="Operational overview" />
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-24" />
+          {["patients", "dosette", "medicines", "value", "low-stock", "expiry", "shortages", "cycles"].map((key) => (
+            <Skeleton key={key} className="h-24" />
           ))}
         </div>
       </>
@@ -93,7 +97,8 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={Users} label="Total patients" value={num(data.patients.total)}
-          sub={`${num(data.patients.active)} active`} tone="info" onClick={() => navigate("/patients")} />
+          sub={`${num(data.patients.active)} active`} tone="info"
+          onClick={can("administrator") ? () => navigate("/patients") : undefined} />
         <StatCard icon={CalendarClock} label="Dosette patients" value={num(data.patients.dosette)}
           sub={`${data.dosette.active_plans} active plans`} tone="accent" onClick={() => navigate("/dosette")} />
         <StatCard icon={Boxes} label="Medicines in stock" value={num(data.stock.medicines)}
@@ -103,7 +108,7 @@ export default function Dashboard() {
           tone="warning" onClick={() => navigate("/stock")} />
         <StatCard icon={PackageX} label="Expiring ≤30 days" value={num(data.expiry.within_30)}
           sub={`${data.expiry.expired} expired`} tone="danger" onClick={() => navigate("/expiry")} />
-        <StatCard icon={TrendingUp} label="Predicted shortages" value={num(fc?.predicted_shortages ?? "—")}
+        <StatCard icon={TrendingUp} label="Predicted shortages" value={fc ? num(fc.predicted_shortages) : "—"}
           sub={fc ? `${fc.rising_demand} rising demand` : ""} tone="warning" onClick={() => navigate("/forecasting")} />
         <StatCard icon={CalendarClock} label="Cycles due (7d)" value={num(data.dosette.cycles_due_7d)}
           sub={`${data.dosette.reviews_overdue} reviews overdue`} tone="info" onClick={() => navigate("/dosette")} />

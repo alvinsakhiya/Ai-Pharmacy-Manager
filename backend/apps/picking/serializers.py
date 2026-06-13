@@ -36,7 +36,7 @@ class PickingListSerializer(serializers.ModelSerializer):
             "item_count", "created_by", "created_by_name", "created_at",
         ]
 
-    def get_item_count(self, obj):
+    def get_item_count(self, obj) -> int:
         return obj.items.count()
 
 

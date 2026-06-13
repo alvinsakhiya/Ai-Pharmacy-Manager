@@ -107,3 +107,57 @@ def test_picking_list_aggregates_demand(patient, medicine):
     item = plist.items.get(medicine=medicine)
     assert item.quantity_required == 7
     assert item.patient_count == 1
+
+
+@pytest.mark.django_db
+def test_dosette_item_rejects_invalid_schedule_and_zero_dose(
+    auth, patient, medicine
+):
+    plan = DosettePlan.objects.create(patient=patient)
+    client = auth("pharmacist")
+
+    invalid_slot = client.post(
+        "/api/dosette-items/",
+        {
+            "plan": plan.id,
+            "medicine": medicine.id,
+            "dose_quantity": 1,
+            "schedule": {"mon": ["night"]},
+        },
+        format="json",
+    )
+    assert invalid_slot.status_code == 400
+
+    zero_dose = client.post(
+        "/api/dosette-items/",
+        {
+            "plan": plan.id,
+            "medicine": medicine.id,
+            "dose_quantity": 0,
+            "schedule": {"mon": ["morning"]},
+        },
+        format="json",
+    )
+    assert zero_dose.status_code == 400
+
+
+@pytest.mark.django_db
+def test_dosette_plan_rejects_duplicate_medicine(auth, patient, medicine):
+    plan = DosettePlan.objects.create(patient=patient)
+    DosetteItem.objects.create(
+        plan=plan,
+        medicine=medicine,
+        schedule={"mon": ["morning"]},
+    )
+
+    response = auth("pharmacist").post(
+        "/api/dosette-items/",
+        {
+            "plan": plan.id,
+            "medicine": medicine.id,
+            "dose_quantity": 1,
+            "schedule": {"tue": ["morning"]},
+        },
+        format="json",
+    )
+    assert response.status_code == 400

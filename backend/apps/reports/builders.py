@@ -10,7 +10,7 @@ from apps.stock.models import Medicine, StockBatch
 
 def stock_valuation():
     rows, total = [], 0.0
-    for m in Medicine.objects.filter(is_active=True):
+    for m in Medicine.objects.with_stock_totals().filter(is_active=True):
         qty = m.quantity_on_hand()
         value = float(m.stock_value())
         total += value
@@ -34,7 +34,7 @@ def expiry_report(days=180):
 
 def low_stock_report():
     rows = []
-    for m in Medicine.objects.filter(is_active=True):
+    for m in Medicine.objects.with_stock_totals().filter(is_active=True):
         if m.is_low_stock():
             rows.append([m.label, m.quantity_on_hand(), m.reorder_level, m.reorder_quantity,
                          m.default_supplier.name if m.default_supplier else "-"])
@@ -72,7 +72,11 @@ def patient_summary():
 def forecasting_report(horizon=4):
     from apps.forecasting.engine import forecast_medicine
     rows = []
-    for m in Medicine.objects.filter(is_active=True).select_related("default_supplier"):
+    for m in (
+        Medicine.objects.with_stock_totals()
+        .filter(is_active=True)
+        .select_related("default_supplier")
+    ):
         r = forecast_medicine(m, horizon)
         if not r.points:
             continue

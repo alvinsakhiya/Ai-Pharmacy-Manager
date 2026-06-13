@@ -1,7 +1,7 @@
 /**
  * AI Co-pilot — global ⌘K command bar.
  *
- * Natural-language over the live workspace: ask "what's due Thursday?",
+ * Natural-language decision support: ask "what's due Thursday?",
  * "what's running short?", "any safety flags?" and get an interpreted intent,
  * ranked results, and one-tap actions that jump you to the right screen.
  *
@@ -132,8 +132,8 @@ export default function CommandBar({ open, onClose }) {
           {/* Thinking shimmer */}
           {loading && (
             <div className="space-y-2 p-4">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="relative overflow-hidden rounded-md bg-subtle" style={{ height: 44 }}>
+              {["first", "second", "third"].map((key) => (
+                <div key={key} className="relative overflow-hidden rounded-md bg-subtle" style={{ height: 44 }}>
                   <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.4s_infinite] bg-gradient-to-r from-transparent via-white/70 to-transparent" />
                 </div>
               ))}
@@ -150,13 +150,13 @@ export default function CommandBar({ open, onClose }) {
                   </StatusChip>
                   <span className="text-body font-medium text-text-primary">{result.summary}</span>
                 </div>
-                <span className="text-[11px] text-text-tertiary">{live ? "live" : "on-device"}</span>
+                <span className="text-[11px] text-text-tertiary">{live ? "Live API data" : "Simulated data"}</span>
               </div>
 
               <div className="p-2">
-                {result.items?.map((it, i) => (
+                {result.items?.map((it) => (
                   <button
-                    key={i}
+                    key={`${it.title}-${it.subtitle || it.prompt || it.to || ""}`}
                     onClick={() => (it.prompt ? ask(it.prompt) : go(it.to))}
                     className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-all duration-150 ease hover:bg-subtle active:scale-[0.99]"
                   >
@@ -189,9 +189,9 @@ export default function CommandBar({ open, onClose }) {
 
               {result.actions?.length > 0 && (
                 <div className="flex flex-wrap gap-2 border-t border-border-subtle px-3 py-3">
-                  {result.actions.map((a, i) => (
+                  {result.actions.map((a) => (
                     <button
-                      key={i}
+                      key={`${a.label}-${a.to}`}
                       onClick={() => go(a.to)}
                       className={cx(
                         "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-caption font-medium transition-all duration-150 ease active:scale-[0.98]",
