@@ -112,3 +112,5 @@ presents immutable history as accessible desktop and mobile safety evidence.
 Local operational appointments add validated pharmacy planning with optional
 patient context, staff assignment, guarded completion/cancellation, safe
 snapshots, and no calendar, messaging, NHS, or external booking integration.
+The responsive diary adds next-appointment context, metrics, filters, and
+patient-aware desktop and mobile agenda views.

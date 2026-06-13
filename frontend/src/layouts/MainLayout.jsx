@@ -23,6 +23,7 @@ const pageNames = {
   "/operations": "Pharmacy Operations",
   "/deliveries": "Local Deliveries",
   "/fridge-monitoring": "Fridge Monitoring",
+  "/appointments": "Operational Appointments",
   "/reports": "Reports",
   "/audit-log": "Audit History",
 };

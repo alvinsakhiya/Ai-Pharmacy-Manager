@@ -137,6 +137,11 @@ This module does not connect to calendars, booking providers, SMS/email
 services, NHS services, or live clinical systems. Audit summaries omit titles,
 patient names, notes, and outcomes.
 
+The `/appointments` workspace provides next-appointment context, today,
+upcoming, overdue, and completed metrics, patient-aware scheduling, assigned
+completion, cancellation reasons, search and type/status filters, a desktop
+register, and responsive mobile agenda cards.
+
 ## API
 
 Task endpoints:

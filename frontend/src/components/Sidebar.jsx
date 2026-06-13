@@ -59,6 +59,11 @@ const menuItems = [
     icon: ThermometerSnowflake,
     path: "/fridge-monitoring",
   },
+  {
+    name: "Appointments",
+    icon: CalendarDays,
+    path: "/appointments",
+  },
   { name: "Reports", icon: FileSpreadsheet, path: "/reports" },
   { name: "Audit History", icon: History, path: "/audit-log" },
 ];
