@@ -17,8 +17,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
-      - name: Run migrations check
-        run: python manage.py makemigrations --check --dry-run
+      - name: Generate migrations
+        # Migrations are generated at runtime (see entrypoint.sh), so they are
+        # not committed. Generate them here so the test database can be built.
+        run: python manage.py makemigrations --noinput
       - name: Tests
         run: pytest
 

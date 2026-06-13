@@ -1,1 +1,1 @@
-web: gunicorn pharmacy_project.wsgi:application --bind 0.0.0.0:$PORT --access-logfile -
+web: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --access-logfile -
