@@ -2,6 +2,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
+from auditlog.models import AuditEvent
+from auditlog.services import log_audit_event
 from patients.models import Patient
 from inventory.models import Medication, StockBatch
 from dosette.models import DosetteRecord
@@ -19,6 +21,13 @@ def medication_forecasts(request):
             {"detail": str(exc)},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+    log_audit_event(
+        action=AuditEvent.Action.ACCESS,
+        entity_type="MedicationForecast",
+        summary=f"Viewed medication forecast containing {len(forecasts)} records.",
+        request=request,
+    )
 
     return Response(forecasts)
 
@@ -55,9 +64,19 @@ def expiry_alerts(request):
             "supplier": batch.supplier,
         }
 
-    return Response({
+    response_data = {
         "expired": [serialize_batch(batch) for batch in alerts["expired"]],
         "one_month": [serialize_batch(batch) for batch in alerts["one_month"]],
         "three_months": [serialize_batch(batch) for batch in alerts["three_months"]],
         "six_months": [serialize_batch(batch) for batch in alerts["six_months"]],
-    })
+    }
+    total_alerts = sum(len(items) for items in response_data.values())
+
+    log_audit_event(
+        action=AuditEvent.Action.ACCESS,
+        entity_type="ExpiryAlert",
+        summary=f"Viewed expiry alerts containing {total_alerts} stock batches.",
+        request=request,
+    )
+
+    return Response(response_data)

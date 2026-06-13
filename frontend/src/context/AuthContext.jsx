@@ -45,6 +45,20 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    if (accessToken) {
+      void api
+        .post(
+          "/auth/logout/",
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        )
+        .catch(() => {});
+    }
+
     clearStoredAuthTokens();
     setAccessToken(null);
   };

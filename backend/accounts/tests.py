@@ -30,6 +30,7 @@ class ApiAuthenticationTest(APITestCase):
             reverse("patient_picking_list", args=[self.patient.id]),
             reverse("expiry_alerts"),
             reverse("medication_forecasts"),
+            reverse("audit-events-list"),
         ]
 
     def login(self):

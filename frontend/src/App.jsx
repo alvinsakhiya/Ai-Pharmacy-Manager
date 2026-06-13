@@ -12,6 +12,7 @@ import Dosette from "./pages/Dosette";
 import PickingLists from "./pages/PickingLists";
 import Alerts from "./pages/Alerts";
 import Forecasts from "./pages/Forecasts";
+import AuditLog from "./pages/AuditLog";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -88,6 +89,14 @@ function AppRoutes() {
             <ProtectedRoute>
             <Forecasts />
             </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/audit-log"
+        element={
+          <ProtectedRoute>
+            <AuditLog />
+          </ProtectedRoute>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />

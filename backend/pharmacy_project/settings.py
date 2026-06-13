@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'accounts',
+    'auditlog',
     'inventory',
     'patients',
     'dosette',

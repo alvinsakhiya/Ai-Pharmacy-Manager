@@ -2,6 +2,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
+from auditlog.models import AuditEvent
+from auditlog.services import log_audit_event
 from patients.models import Patient
 from dosette.utils import InvalidDoseValue, generate_patient_picking_list
 
@@ -42,5 +44,13 @@ def patient_picking_list(request, patient_id):
                 for allocation in fefo["allocated"]
             ],
         })
+
+    log_audit_event(
+        action=AuditEvent.Action.GENERATE,
+        entity_type="PatientPickingList",
+        entity_identifier=patient.id,
+        summary=f"Generated picking list containing {len(data)} medication lines.",
+        request=request,
+    )
 
     return Response(data)

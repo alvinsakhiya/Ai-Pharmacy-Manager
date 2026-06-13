@@ -10,6 +10,7 @@ const workspaceDestinations = [
   { label: "Picking Lists", keywords: "fefo allocation shortfall", path: "/picking-lists" },
   { label: "Expiry Alerts", keywords: "expired risk safety", path: "/alerts" },
   { label: "AI Forecasting", keywords: "forecast demand reorder risk", path: "/forecasts" },
+  { label: "Audit History", keywords: "governance activity trace staff actions", path: "/audit-log" },
 ];
 
 function WorkspaceSearch() {

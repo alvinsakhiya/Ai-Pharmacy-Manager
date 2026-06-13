@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   Grid2X2,
+  History,
   LayoutDashboard,
   PackageOpen,
   ShieldCheck,
@@ -24,6 +25,7 @@ const menuItems = [
   { name: "Picking Lists", icon: ClipboardCheck, path: "/picking-lists" },
   { name: "Expiry Alerts", icon: TriangleAlert, path: "/alerts" },
   { name: "AI Forecasting", icon: BrainCircuit, path: "/forecasts" },
+  { name: "Audit History", icon: History, path: "/audit-log" },
 ];
 
 function Sidebar({ isOpen, onClose }) {

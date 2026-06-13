@@ -18,8 +18,10 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.permissions import AllowAny
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
 
+from accounts.views import AuditedTokenObtainPairView, logout_view
+from auditlog.api_views import AuditEventViewSet
 from patients.api_views import PatientViewSet
 from inventory.api_views import MedicationViewSet, StockBatchViewSet
 from dosette.api_views import DosetteRecordViewSet
@@ -31,6 +33,7 @@ router.register(r"patients", PatientViewSet, basename="patients")
 router.register(r"medications", MedicationViewSet, basename="medications")
 router.register(r"stock-batches", StockBatchViewSet, basename="stock-batches")
 router.register(r"dosette-records", DosetteRecordViewSet, basename="dosette-records")
+router.register(r"audit-events", AuditEventViewSet, basename="audit-events")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -40,7 +43,7 @@ urlpatterns = [
     path("api/expiry-alerts/", expiry_alerts, name="expiry_alerts"),
     path(
         "api/auth/login/",
-        TokenObtainPairView.as_view(permission_classes=[AllowAny]),
+        AuditedTokenObtainPairView.as_view(permission_classes=[AllowAny]),
         name="token_obtain_pair",
     ),
     path(
@@ -48,5 +51,6 @@ urlpatterns = [
         TokenRefreshView.as_view(permission_classes=[AllowAny]),
         name="token_refresh",
     ),
+    path("api/auth/logout/", logout_view, name="logout"),
     path("api/forecasts/", medication_forecasts, name="medication_forecasts"),
 ]

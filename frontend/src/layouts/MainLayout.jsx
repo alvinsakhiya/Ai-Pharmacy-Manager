@@ -14,6 +14,7 @@ const pageNames = {
   "/picking-lists": "Picking Lists",
   "/alerts": "Expiry Alerts",
   "/forecasts": "AI Forecasting",
+  "/audit-log": "Audit History",
 };
 
 function MainLayout({ children }) {
