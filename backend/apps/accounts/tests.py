@@ -1,4 +1,6 @@
 """Auth, JWT and RBAC tests."""
+from datetime import date
+
 import pytest
 
 
@@ -46,3 +48,28 @@ def test_login_writes_audit_entry(api, users):
     from apps.core.models import AuditLog
     api.post("/api/auth/login/", {"username": "admin", "password": "Password123!"}, format="json")
     assert AuditLog.objects.filter(action="login").exists()
+
+
+@pytest.mark.django_db
+def test_patient_audit_entry_attributes_jwt_actor(auth, users):
+    from apps.core.models import AuditLog
+
+    response = auth("pharmacist").post(
+        "/api/patients/",
+        {
+            "patient_id": "PT-AUDIT",
+            "first_name": "Audit",
+            "last_name": "Test",
+            "date_of_birth": date(1950, 1, 1),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    entry = AuditLog.objects.get(
+        action="create",
+        entity="patients.Patient",
+        entity_id=str(response.data["id"]),
+    )
+    assert entry.actor == users["pharmacist"]
+    assert entry.actor_label == users["pharmacist"].username

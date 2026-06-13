@@ -155,7 +155,7 @@ export default function Intake() {
 
                 {result.unresolved?.length > 0 && (
                   <div className="rounded-xl border border-dashed border-border-strong bg-app p-3">
-                    <p className="mb-1 text-caption font-medium text-text-secondary">Couldn't parse — review manually</p>
+                    <p className="mb-1 text-caption font-medium text-text-secondary">Couldn&apos;t parse — review manually</p>
                     {result.unresolved.map((u, i) => (
                       <p key={i} className="truncate text-caption text-text-tertiary">
                         • {u}

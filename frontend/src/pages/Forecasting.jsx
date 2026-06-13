@@ -52,7 +52,9 @@ export default function Forecasting() {
       band: [f.lower, f.upper],
     }));
     // join: last actual also seeds the forecast line for continuity
-    if (hist.length && fore.length) fore[0].mean = fore[0].mean;
+    if (hist.length && fore.length) {
+      hist[hist.length - 1].mean = hist[hist.length - 1].actual;
+    }
     return [...hist, ...fore];
   }, [fc.data]);
 

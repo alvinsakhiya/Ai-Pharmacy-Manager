@@ -32,7 +32,6 @@ export default function ClinicalSafety() {
       setPatients(rows);
       if (rows[0]) run(rows[0]);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const run = async (patient) => {
@@ -52,7 +51,7 @@ export default function ClinicalSafety() {
         <div>
           <h1 className="text-display font-semibold tracking-tight">Clinical Safety AI</h1>
           <p className="mt-1 text-body text-text-secondary">
-            Interaction, duplicate-therapy and dose checks across a patient's regimen — each flag explained.
+            Interaction, duplicate-therapy and dose checks across a patient&apos;s regimen — each flag explained.
           </p>
         </div>
         <StatusChip tone="neutral" icon={false}>

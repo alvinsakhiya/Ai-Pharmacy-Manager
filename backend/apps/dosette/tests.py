@@ -44,6 +44,61 @@ def test_final_check_requires_pharmacist(auth, patient, medicine):
 
 
 @pytest.mark.django_db
+def test_cycle_status_cannot_be_patched_directly(auth, patient):
+    plan = DosettePlan.objects.create(patient=patient)
+    cycle = DosetteCycle.generate_for_plan(plan)
+
+    response = auth("dispenser").patch(
+        f"/api/dosette-cycles/{cycle.id}/",
+        {"status": DosetteCycle.Status.SEALED},
+        format="json",
+    )
+
+    assert response.status_code == 405
+    cycle.refresh_from_db()
+    assert cycle.status == DosetteCycle.Status.SCHEDULED
+    assert cycle.sealed_at is None
+
+
+@pytest.mark.django_db
+def test_cycle_cannot_be_reassembled_after_final_check(auth, patient):
+    plan = DosettePlan.objects.create(patient=patient)
+    cycle = DosetteCycle.generate_for_plan(plan)
+    cycle.status = DosetteCycle.Status.CHECKED
+    cycle.save(update_fields=["status"])
+
+    response = auth("dispenser").post(
+        f"/api/dosette-cycles/{cycle.id}/assemble/"
+    )
+
+    assert response.status_code == 400
+    cycle.refresh_from_db()
+    assert cycle.status == DosetteCycle.Status.CHECKED
+
+
+@pytest.mark.django_db
+def test_cycle_happy_path_records_staff_and_seal_time(auth, users, patient):
+    plan = DosettePlan.objects.create(patient=patient)
+    cycle = DosetteCycle.generate_for_plan(plan)
+
+    assert auth("dispenser").post(
+        f"/api/dosette-cycles/{cycle.id}/assemble/"
+    ).status_code == 200
+    assert auth("pharmacist").post(
+        f"/api/dosette-cycles/{cycle.id}/final_check/"
+    ).status_code == 200
+    assert auth("dispenser").post(
+        f"/api/dosette-cycles/{cycle.id}/seal/"
+    ).status_code == 200
+
+    cycle.refresh_from_db()
+    assert cycle.status == DosetteCycle.Status.SEALED
+    assert cycle.assembled_by == users["dispenser"]
+    assert cycle.checked_by == users["pharmacist"]
+    assert cycle.sealed_at is not None
+
+
+@pytest.mark.django_db
 def test_picking_list_aggregates_demand(patient, medicine):
     plan = DosettePlan.objects.create(patient=patient)
     DosetteItem.objects.create(plan=plan, medicine=medicine, dose_quantity=1,

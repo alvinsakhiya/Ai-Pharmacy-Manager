@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from django.db.models import F, Sum
+from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -19,6 +19,7 @@ from .models import (
 )
 from .serializers import (
     AdjustmentSerializer,
+    FefoPreviewSerializer,
     ManufacturerSerializer,
     MedicineDetailSerializer,
     MedicineSerializer,
@@ -51,6 +52,7 @@ class MedicineViewSet(viewsets.ModelViewSet):
     filterset_fields = ["form", "is_active", "manufacturer", "default_supplier"]
     search_fields = ["name", "strength"]
     ordering_fields = ["name", "reorder_level"]
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
 
     def get_serializer_class(self):
         return MedicineDetailSerializer if self.action == "retrieve" else MedicineSerializer
@@ -67,7 +69,9 @@ class MedicineViewSet(viewsets.ModelViewSet):
     def fefo_preview(self, request, pk=None):
         """Dry-run FEFO allocation for a requested quantity."""
         medicine = self.get_object()
-        qty = int(request.data.get("quantity", 0))
+        serializer = FefoPreviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        qty = serializer.validated_data["quantity"]
         try:
             plan = fefo_allocate(medicine, qty, commit=False)
         except InsufficientStock as exc:
@@ -87,6 +91,7 @@ class StockBatchViewSet(viewsets.ModelViewSet):
     filterset_fields = ["medicine", "supplier", "location"]
     search_fields = ["batch_number", "medicine__name", "location"]
     ordering_fields = ["expiry_date", "quantity_on_hand"]
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -99,15 +104,17 @@ class StockBatchViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        batch = serializer.save(quantity_on_hand=serializer.validated_data.get(
-            "quantity_on_hand") or serializer.validated_data.get("quantity_received", 0))
+        batch = serializer.save(
+            quantity_on_hand=serializer.validated_data.get("quantity_received", 0)
+        )
         StockMovement.objects.create(
             batch=batch, kind=StockMovement.Kind.RECEIPT,
             quantity=batch.quantity_on_hand, actor=self.request.user,
             reason="Goods received",
         )
         record("create", "stock.StockBatch", entity_id=batch.id,
-               summary=f"Received {batch.quantity_on_hand} of {batch.medicine.label} (batch {batch.batch_number})")
+               summary=f"Received {batch.quantity_on_hand} of {batch.medicine.label} (batch {batch.batch_number})",
+               actor=self.request.user)
 
 
 class StockMovementViewSet(viewsets.ReadOnlyModelViewSet):
@@ -118,11 +125,14 @@ class StockMovementViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ["reference", "reason", "batch__medicine__name"]
 
     @action(detail=False, methods=["post"])
+    @transaction.atomic
     def adjust(self, request):
         """Record a stock adjustment, wastage, or return against a batch."""
         ser = AdjustmentSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        batch = ser.validated_data["batch"]
+        batch = StockBatch.objects.select_for_update().get(
+            pk=ser.validated_data["batch"].pk
+        )
         qty = ser.validated_data["quantity"]
         kind = ser.validated_data["kind"]
         new_qty = batch.quantity_on_hand + qty
@@ -138,5 +148,6 @@ class StockMovementViewSet(viewsets.ReadOnlyModelViewSet):
         audit_action = "waste" if kind == "waste" else "adjust"
         record(audit_action, "stock.StockBatch", entity_id=batch.id,
                summary=f"{kind.title()} {qty} of {batch.medicine.label}",
-               detail={"reason": ser.validated_data["reason"]})
+               detail={"reason": ser.validated_data["reason"]},
+               actor=request.user)
         return Response(StockMovementSerializer(movement).data, status=status.HTTP_201_CREATED)

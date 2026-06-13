@@ -56,13 +56,13 @@ reproducibility. Safety stock uses a service-level (≈95%, z≈1.65) buffer ove
 requirement, sophistication would add opacity without academic value. A backtesting/MAPE harness is
 on the roadmap to *evaluate* the chosen methods quantitatively.
 
-## 6. Centralised RBAC + thread-local audit
+## 6. Centralised RBAC + explicit audit actors
 
 **Decision:** A reusable `RolePermission` reading `allowed_roles`/`read_roles` off each ViewSet, plus
-middleware-populated thread-local user for `audit.record()`.
+explicit authenticated actors passed to `audit.record()`.
 **Why:** Keeps authorisation declarative and consistent across ~30 endpoints, and lets the
-service/seed layers attribute audit entries without threading the request object everywhere.
-Safety-critical operations (pack final check) get a dedicated stricter permission.
+audit trail reliably attribute JWT-authenticated actions. Safety-critical operations (pack final
+check) get a dedicated stricter permission.
 
 ## 7. Design-token system in Tailwind
 

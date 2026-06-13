@@ -1,6 +1,6 @@
-from datetime import date, datetime
-
+from django.db import transaction
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -13,13 +13,14 @@ from apps.reports.pdf import picking_list_pdf
 from .models import PickingItem, PickingList
 from .serializers import (
     PickingItemSerializer,
+    PickingListGenerateSerializer,
     PickingListDetailSerializer,
     PickingListSerializer,
 )
 from .services import generate_picking_list
 
 
-class PickingListViewSet(viewsets.ModelViewSet):
+class PickingListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = PickingList.objects.prefetch_related("items__medicine")
     permission_classes = [RolePermission]
     allowed_roles = ["administrator", "pharmacist", "dispenser"]
@@ -30,12 +31,14 @@ class PickingListViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"])
     def generate(self, request):
-        start = request.data.get("period_start")
-        start = datetime.strptime(start, "%Y-%m-%d").date() if start else date.today()
-        weeks = int(request.data.get("weeks", 1))
+        serializer = PickingListGenerateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        start = serializer.validated_data["period_start"]
+        weeks = serializer.validated_data["weeks"]
         plist = generate_picking_list(start, weeks, created_by=request.user)
         record("create", "picking.PickingList", entity_id=plist.id,
-               summary=f"Generated {plist.name} with {plist.items.count()} lines")
+               summary=f"Generated {plist.name} with {plist.items.count()} lines",
+               actor=request.user)
         return Response(PickingListDetailSerializer(plist).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["get"], url_path="export-pdf")
@@ -47,7 +50,7 @@ class PickingListViewSet(viewsets.ModelViewSet):
         return resp
 
 
-class PickingItemViewSet(viewsets.ModelViewSet):
+class PickingItemViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = PickingItem.objects.select_related("medicine", "picking_list")
     serializer_class = PickingItemSerializer
     permission_classes = [RolePermission]
@@ -55,8 +58,11 @@ class PickingItemViewSet(viewsets.ModelViewSet):
     filterset_fields = ["picking_list", "is_picked"]
 
     @action(detail=True, methods=["post"], url_path="toggle-picked")
+    @transaction.atomic
     def toggle_picked(self, request, pk=None):
-        item = self.get_object()
+        queryset = self.filter_queryset(self.get_queryset()).select_for_update()
+        item = get_object_or_404(queryset, pk=pk)
+        self.check_object_permissions(request, item)
         item.is_picked = not item.is_picked
         item.picked_by = request.user if item.is_picked else None
         item.picked_at = timezone.now() if item.is_picked else None

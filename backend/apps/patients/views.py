@@ -26,12 +26,14 @@ class PatientViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         obj = serializer.save()
         record("create", "patients.Patient", entity_id=obj.id,
-               summary=f"Created patient {obj.patient_id}")
+               summary=f"Created patient {obj.patient_id}",
+               actor=self.request.user)
 
     def perform_update(self, serializer):
         obj = serializer.save()
         record("update", "patients.Patient", entity_id=obj.id,
-               summary=f"Updated patient {obj.patient_id}")
+               summary=f"Updated patient {obj.patient_id}",
+               actor=self.request.user)
 
 
 class PatientNoteViewSet(viewsets.ModelViewSet):

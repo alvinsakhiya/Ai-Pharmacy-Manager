@@ -1,6 +1,6 @@
 /** Smart Reorder + Waste AI — forecast-driven ordering and FEFO waste projection. */
 import { useEffect, useState } from "react";
-import { PackageSearch, TimerReset, Check, Loader2, TrendingDown, Plus } from "lucide-react";
+import { PackageSearch, TimerReset, Check, TrendingDown, Plus } from "lucide-react";
 import { Card, Button, StatusChip, EmptyState, TableSkeleton, useToast, cx } from "../../components/ui";
 import { reorder } from "../../services/aiClient";
 

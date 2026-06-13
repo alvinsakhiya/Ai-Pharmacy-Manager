@@ -25,7 +25,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Card, Button, Input, StatusChip, useToast, cx } from "../components/ui";
-import { usePreferences, DEFAULT_PREFS } from "../context/PreferencesContext";
+import { usePreferences } from "../context/PreferencesContext";
 import { useAuth } from "../context/AuthContext";
 
 /* -------------------------------------------------------- accessible controls */

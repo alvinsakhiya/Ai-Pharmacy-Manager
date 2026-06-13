@@ -70,9 +70,9 @@ the notification scanner and the reporting layer.
 
 ## Audit logging
 
-`CurrentUserMiddleware` stashes the request user in thread-local storage so `apps.core.audit.record()`
-can attribute an actor from anywhere — including service-layer calls that don't receive the request.
-Audit entries snapshot the actor label so the trail survives user deletion.
+Request-handling code passes the authenticated user explicitly to `apps.core.audit.record()`.
+This keeps JWT attribution reliable and makes service-layer actor ownership visible at each call
+site. Audit entries snapshot the actor label so the trail survives user deletion.
 
 ## Forecasting
 

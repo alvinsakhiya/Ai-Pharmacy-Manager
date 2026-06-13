@@ -65,8 +65,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # Captures the authenticated actor for audit logging.
-    "apps.core.middleware.CurrentUserMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

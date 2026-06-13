@@ -36,6 +36,18 @@ class StockBatchSerializer(serializers.ModelSerializer):
             "location", "received_date", "unit_cost",
             "days_to_expiry", "expiry_band", "is_expired",
         ]
+        read_only_fields = ["quantity_on_hand"]
+
+    def validate(self, attrs):
+        if self.instance:
+            controlled = {"quantity_received", "quantity_on_hand"}
+            attempted = controlled.intersection(self.initial_data)
+            if attempted:
+                raise serializers.ValidationError({
+                    field: "Stock quantities can only change through a stock movement."
+                    for field in attempted
+                })
+        return attrs
 
 
 class MedicineSerializer(serializers.ModelSerializer):
@@ -97,3 +109,22 @@ class AdjustmentSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(help_text="Signed change; negative reduces stock.")
     kind = serializers.ChoiceField(choices=["adjust", "waste", "return"])
     reason = serializers.CharField(max_length=200)
+
+    def validate(self, attrs):
+        quantity = attrs["quantity"]
+        kind = attrs["kind"]
+        if quantity == 0:
+            raise serializers.ValidationError({"quantity": "Quantity must not be zero."})
+        if kind == "waste" and quantity > 0:
+            raise serializers.ValidationError(
+                {"quantity": "Wastage must remove stock using a negative quantity."}
+            )
+        if kind == "return" and quantity < 0:
+            raise serializers.ValidationError(
+                {"quantity": "A return must add stock using a positive quantity."}
+            )
+        return attrs
+
+
+class FefoPreviewSerializer(serializers.Serializer):
+    quantity = serializers.IntegerField(min_value=1)

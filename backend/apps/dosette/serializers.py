@@ -60,3 +60,6 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
             "due_date", "days_to_due", "is_overdue", "status",
             "assembled_by", "checked_by", "sealed_at",
         ]
+        read_only_fields = [
+            "status", "assembled_by", "checked_by", "sealed_at",
+        ]

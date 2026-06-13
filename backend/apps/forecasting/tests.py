@@ -63,3 +63,17 @@ def test_forecast_api(auth, medicine):
     assert res.status_code == 200
     assert res.data["medicine_label"] == medicine.label
     assert len(res.data["forecast"]) == 4
+
+
+@pytest.mark.django_db
+def test_forecast_api_returns_404_for_unknown_medicine(auth):
+    response = auth("dispenser").get("/api/forecast/medicine/999999/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_forecast_api_rejects_invalid_horizon(auth, medicine):
+    response = auth("dispenser").get(
+        f"/api/forecast/medicine/{medicine.id}/?horizon=invalid"
+    )
+    assert response.status_code == 400

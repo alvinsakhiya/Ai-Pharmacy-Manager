@@ -6,7 +6,7 @@ FEFO allocation and expiry visibility are exact rather than pack-approximate.
 """
 from datetime import date, timedelta
 
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum
 
 from apps.core.models import TimeStampedModel
@@ -185,24 +185,35 @@ def fefo_allocate(medicine: Medicine, quantity: int, *, actor=None, reference=""
     commit=True the allocation is applied (quantities decremented + movements
     recorded); otherwise it's a dry-run preview.
     """
-    remaining = quantity
-    plan = []
-    batches = (medicine.batches
-               .filter(quantity_on_hand__gt=0, expiry_date__gte=date.today())
-               .order_by("expiry_date", "received_date"))
-    for batch in batches:
-        if remaining <= 0:
-            break
-        take = min(batch.quantity_on_hand, remaining)
-        plan.append({"batch": batch, "taken": take})
-        remaining -= take
+    if quantity <= 0:
+        raise ValueError("Quantity must be greater than zero.")
 
-    if remaining > 0:
-        raise InsufficientStock(
-            f"Need {quantity} of {medicine.label}; short by {remaining} units."
+    def allocate():
+        remaining = quantity
+        plan = []
+        batches = medicine.batches.filter(
+            quantity_on_hand__gt=0,
+            expiry_date__gte=date.today(),
         )
+        if commit:
+            batches = batches.select_for_update()
+        batches = batches.order_by("expiry_date", "received_date")
 
-    if commit:
+        for batch in batches:
+            if remaining <= 0:
+                break
+            take = min(batch.quantity_on_hand, remaining)
+            plan.append({"batch": batch, "taken": take})
+            remaining -= take
+
+        if remaining > 0:
+            raise InsufficientStock(
+                f"Need {quantity} of {medicine.label}; short by {remaining} units."
+            )
+
+        if not commit:
+            return plan
+
         for item in plan:
             batch = item["batch"]
             batch.quantity_on_hand -= item["taken"]
@@ -212,4 +223,9 @@ def fefo_allocate(medicine: Medicine, quantity: int, *, actor=None, reference=""
                 quantity=-item["taken"], actor=actor, reference=reference,
                 reason="FEFO allocation",
             )
-    return plan
+        return plan
+
+    if not commit:
+        return allocate()
+    with transaction.atomic():
+        return allocate()

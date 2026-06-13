@@ -3,7 +3,6 @@ import {
   Boxes,
   CalendarClock,
   Download,
-  FileBarChart,
   LineChart,
   PackageX,
   PoundSterling,

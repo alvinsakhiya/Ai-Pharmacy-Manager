@@ -1,3 +1,5 @@
+from django.shortcuts import get_object_or_404
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,15 +9,24 @@ from apps.stock.models import Medicine
 from .engine import forecast_medicine
 
 
+class ForecastQuerySerializer(serializers.Serializer):
+    horizon = serializers.IntegerField(required=False, default=4, min_value=1, max_value=12)
+
+
+def validated_horizon(request):
+    serializer = ForecastQuerySerializer(data=request.query_params)
+    serializer.is_valid(raise_exception=True)
+    return serializer.validated_data["horizon"]
+
+
 class MedicineForecastView(APIView):
     """GET /api/forecast/medicine/<id>/?horizon=4 -> full explainable forecast."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, medicine_id):
-        medicine = Medicine.objects.get(pk=medicine_id)
-        horizon = int(request.query_params.get("horizon", 4))
-        horizon = max(1, min(horizon, 12))
+        medicine = get_object_or_404(Medicine, pk=medicine_id)
+        horizon = validated_horizon(request)
         result = forecast_medicine(medicine, horizon)
         data = result.as_dict()
         data["medicine_label"] = medicine.label
@@ -28,7 +39,7 @@ class ShortageForecastView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        horizon = int(request.query_params.get("horizon", 4))
+        horizon = validated_horizon(request)
         rows = []
         for medicine in Medicine.objects.filter(is_active=True).select_related("default_supplier"):
             result = forecast_medicine(medicine, horizon)

@@ -1,6 +1,13 @@
+from datetime import date
+
 from rest_framework import serializers
 
 from .models import PickingItem, PickingList
+
+
+class PickingListGenerateSerializer(serializers.Serializer):
+    period_start = serializers.DateField(required=False, default=date.today)
+    weeks = serializers.IntegerField(required=False, default=1, min_value=1, max_value=52)
 
 
 class PickingItemSerializer(serializers.ModelSerializer):
