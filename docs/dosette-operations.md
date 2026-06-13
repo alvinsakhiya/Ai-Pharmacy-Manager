@@ -59,6 +59,24 @@ The history endpoint is read-only and uses the existing dosette role
 permissions. Managers, Pharmacists, Dispensers, and Read-only Users can review
 history; Stock Assistants cannot access patient dosette workflows.
 
+## React Workflow
+
+The Patients page provides a care-setting filter. Managers and Pharmacists can
+update the grouping through a labelled inline control; other permitted users
+see the grouping as a read-only badge.
+
+The Dosette page shows:
+
+- care setting alongside each patient schedule;
+- cycle start and cycle length;
+- review-date status, including overdue and next-30-day attention;
+- a narrow cycle editor for authorised update roles;
+- the latest 50 immutable schedule snapshots in responsive table and card
+  layouts.
+
+The cycle editor does not edit dose values or instruction text. This keeps the
+operational scheduling task separate from medication-detail changes.
+
 ## Assessment Value
 
 For AT3, cycle dates and history provide an understandable patient workflow:

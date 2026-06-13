@@ -76,3 +76,17 @@ export function canManageInventory(user) {
 export function canManageNotifications(user) {
   return user?.roles?.includes(PharmacyRole.MANAGER) || false;
 }
+
+export function canManagePatients(user) {
+  return [PharmacyRole.MANAGER, PharmacyRole.PHARMACIST].some((role) =>
+    user?.roles?.includes(role)
+  );
+}
+
+export function canManageDosette(user) {
+  return [
+    PharmacyRole.MANAGER,
+    PharmacyRole.PHARMACIST,
+    PharmacyRole.DISPENSER,
+  ].some((role) => user?.roles?.includes(role));
+}
