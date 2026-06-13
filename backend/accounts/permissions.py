@@ -267,3 +267,71 @@ class NotificationRolePermission(BasePermission):
 
 class NotificationReportRolePermission(MethodRolePermission):
     method_roles = {"GET": ALL_ROLES}
+
+
+class OperationalTaskRolePermission(BasePermission):
+    message = "Your pharmacy role does not permit this task action."
+    manager_actions = {
+        "create",
+        "update",
+        "partial_update",
+        "destroy",
+        "assignees",
+        "cancel",
+    }
+    read_actions = {"list", "retrieve", "summary"}
+    lifecycle_actions = {"claim", "start", "complete"}
+    lifecycle_roles = frozenset(
+        {
+            PharmacyRole.MANAGER,
+            PharmacyRole.PHARMACIST,
+            PharmacyRole.DISPENSER,
+            PharmacyRole.STOCK_ASSISTANT,
+        }
+    )
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.is_superuser:
+            return True
+
+        action = getattr(view, "action", None)
+        roles = set(get_user_roles(request.user))
+
+        if action in self.read_actions:
+            return bool(roles & set(ALL_ROLES))
+
+        if action in self.lifecycle_actions:
+            return bool(roles & set(self.lifecycle_roles))
+
+        if action in self.manager_actions:
+            return PharmacyRole.MANAGER in roles
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        roles = set(get_user_roles(request.user))
+
+        if PharmacyRole.MANAGER in roles:
+            return True
+
+        action = getattr(view, "action", None)
+        if action == "claim":
+            return obj.assigned_user_id is None and not obj.assigned_username
+
+        if action in {"start", "complete"}:
+            return obj.assigned_user_id == request.user.id
+
+        return True
+
+
+class OpeningHourRolePermission(MethodRolePermission):
+    method_roles = {
+        "GET": ALL_ROLES,
+        "POST": MANAGER_ONLY,
+        "PUT": MANAGER_ONLY,
+        "PATCH": MANAGER_ONLY,
+        "DELETE": MANAGER_ONLY,
+    }

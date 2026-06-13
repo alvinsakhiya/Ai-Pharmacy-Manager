@@ -90,6 +90,9 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("clinical-reviews-list"),
             reverse("notifications-list"),
             reverse("notifications-summary"),
+            reverse("operational-tasks-list"),
+            reverse("operational-tasks-summary"),
+            reverse("opening-hours-list"),
             reverse("stock_intelligence"),
             reverse("suppliers-list"),
             reverse("draft-purchase-orders-list"),
@@ -197,6 +200,16 @@ class PharmacyRolePermissionTest(APITestCase):
             status.HTTP_200_OK,
         )
         self.assert_status(
+            "get",
+            reverse("operational-tasks-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
+            "get",
+            reverse("opening-hours-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
             "post",
             reverse("clinical-reviews-list"),
             status.HTTP_201_CREATED,
@@ -282,6 +295,16 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("notifications-list"),
             status.HTTP_200_OK,
         )
+        self.assert_status(
+            "get",
+            reverse("operational-tasks-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
+            "get",
+            reverse("opening-hours-list"),
+            status.HTTP_200_OK,
+        )
     def test_stock_assistant_controls_inventory_and_expiry_workflows(self):
         self.authenticate_as(PharmacyRole.STOCK_ASSISTANT)
 
@@ -338,6 +361,16 @@ class PharmacyRolePermissionTest(APITestCase):
         )
         self.assert_status(
             "get",
+            reverse("operational-tasks-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
+            "get",
+            reverse("opening-hours-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
+            "get",
             reverse("stock_intelligence"),
             status.HTTP_200_OK,
         )
@@ -371,6 +404,9 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("medication_forecasts"),
             reverse("notifications-list"),
             reverse("notifications-summary"),
+            reverse("operational-tasks-list"),
+            reverse("operational-tasks-summary"),
+            reverse("opening-hours-list"),
         ]
         for url in readable_urls:
             with self.subTest(url=url):

@@ -40,6 +40,7 @@ from dosette.api_views import (
 )
 from dosette.picking_api_views import patient_picking_list
 from notifications.api_views import NotificationViewSet
+from operations.api_views import OpeningHourViewSet, OperationalTaskViewSet
 from .api_views import (
     dashboard_stats,
     expiry_alerts,
@@ -83,6 +84,16 @@ router.register(
 )
 router.register(r"audit-events", AuditEventViewSet, basename="audit-events")
 router.register(r"notifications", NotificationViewSet, basename="notifications")
+router.register(
+    r"operational-tasks",
+    OperationalTaskViewSet,
+    basename="operational-tasks",
+)
+router.register(
+    r"opening-hours",
+    OpeningHourViewSet,
+    basename="opening-hours",
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

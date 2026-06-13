@@ -85,3 +85,12 @@ stock, expiry alerts, forecasts, audit history, and notifications. Each export
 is audited with a safe summary and avoids proprietary templates or external NHS
 services. The reporting scope, endpoints, safety rules, and assessment value
 are documented in [docs/reports.md](docs/reports.md).
+
+## Pharmacy Operations
+
+The bounded operations module adds internal task assignment with a guarded
+claim, start, complete, and cancel lifecycle, plus validated pharmacy opening
+hours. Task visibility is scoped by assignment and role, and lifecycle changes
+are audited without copying task content into audit summaries. The API,
+permissions, validation, and assessment evidence are documented in
+[docs/pharmacy-operations.md](docs/pharmacy-operations.md).

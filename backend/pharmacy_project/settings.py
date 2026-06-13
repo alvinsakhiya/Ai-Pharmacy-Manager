@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'patients',
     'dosette',
     'notifications',
+    'operations',
     'rest_framework',
     'corsheaders',
 ]
