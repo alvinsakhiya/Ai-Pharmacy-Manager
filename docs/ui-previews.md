@@ -27,8 +27,8 @@ demographics, allergy/instruction boxes and a timestamped history list.
 
 ### Dosette (`/dosette`)
 Active-plans table beside an upcoming-cycles panel (colour-coded by days-to-due / overdue). The
-detail modal renders the **signature day × time-slot pack grid** (Mon–Sun × Morning/Noon/Evening/
-Night) with one colour per medicine and a legend — the product's centrepiece visualisation.
+detail modal renders the **signature day × time-slot pack grid** (Mon–Sun × Morning/Afternoon/Evening/
+Bedtime) with one colour per medicine and a legend, plus a printable PDF summary — the product's centrepiece visualisation.
 
 ### Picking lists (`/picking`)
 Lists with an animated progress bar and status chips; "Generate weekly list" aggregates all active

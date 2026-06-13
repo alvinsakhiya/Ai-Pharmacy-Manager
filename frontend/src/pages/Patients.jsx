@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, UserRound } from "lucide-react";
+import { Pencil, Plus, Search, UserRound } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
 import {
@@ -12,16 +12,22 @@ import {
   TableSkeleton,
   Button,
 } from "../components/ui";
+import { PatientForm } from "../components/PatientForm";
+import { useAuth } from "../context/AuthContext";
 import { useFetch } from "../hooks/useFetch";
 import { dateFmt } from "../lib/format";
 
 export default function Patients() {
+  const { can } = useAuth();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [dosette, setDosette] = useState("");
   const [selected, setSelected] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const canEdit = can("pharmacist", "administrator");
 
-  const { data, loading } = useFetch("/patients/", {
+  const { data, loading, refetch } = useFetch("/patients/", {
     params: {
       search: q || undefined,
       status: status || undefined,
@@ -30,6 +36,9 @@ export default function Patients() {
     },
   });
   const detail = useFetch(`/patients/${selected?.id}/`, { skip: !selected });
+
+  const openCreate = () => { setEditing(null); setFormOpen(true); };
+  const openEdit = (p) => { setEditing(p); setFormOpen(true); };
 
   const columns = [
     { key: "patient_id", header: "Patient ID", render: (r) => <span className="font-medium tnum">{r.patient_id}</span> },
@@ -45,7 +54,11 @@ export default function Patients() {
 
   return (
     <>
-      <PageHeader title="Patients" subtitle="Pseudo-anonymised patient records" />
+      <PageHeader
+        title="Patients"
+        subtitle="Pseudo-anonymised patient records"
+        actions={canEdit && <Button onClick={openCreate}><Plus size={16} /> New patient</Button>}
+      />
 
       <Card className="mb-4 flex flex-wrap items-center gap-3 p-3">
         <div className="flex flex-1 items-center gap-2 text-text-tertiary">
@@ -79,7 +92,16 @@ export default function Patients() {
         onClose={() => setSelected(null)}
         title={selected ? `${selected.full_name} · ${selected.patient_id}` : ""}
         wide
-        footer={<Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>}
+        footer={
+          <>
+            {canEdit && detail.data && (
+              <Button variant="secondary" onClick={() => openEdit(detail.data)}>
+                <Pencil size={15} /> Edit
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
+          </>
+        }
       >
         {detail.loading || !detail.data ? (
           <TableSkeleton rows={4} cols={2} />
@@ -118,6 +140,16 @@ export default function Patients() {
           </div>
         )}
       </Modal>
+
+      <PatientForm
+        open={formOpen}
+        patient={editing}
+        onClose={() => setFormOpen(false)}
+        onSaved={() => {
+          refetch();
+          if (selected) detail.refetch();
+        }}
+      />
     </>
   );
 }

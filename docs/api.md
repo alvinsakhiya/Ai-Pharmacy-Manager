@@ -51,6 +51,7 @@ and field filters where noted.
 | GET/POST | `/dosette-plans/` | filters `is_active`, `frequency`, `patient` |
 | GET | `/dosette-plans/{id}/` | includes items + per-cycle dose totals |
 | POST | `/dosette-plans/{id}/generate-cycle/` | create next cycle with proactive due date |
+| GET | `/dosette-plans/{id}/export-pdf/` | printable patient compliance-pack summary (day × slot grid) |
 | GET/POST | `/dosette-items/` | filter `plan` |
 | GET | `/dosette-cycles/` | filters `status`, `plan`; ordering `due_date` |
 | POST | `/dosette-cycles/{id}/assemble/` | mark assembled |

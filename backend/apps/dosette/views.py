@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -32,6 +33,18 @@ class DosettePlanViewSet(viewsets.ModelViewSet):
         record("create", "dosette.DosetteCycle", entity_id=cycle.id,
                summary=f"Generated cycle for {plan.patient.patient_id} due {cycle.due_date}")
         return Response(DosetteCycleSerializer(cycle).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"], url_path="export-pdf")
+    def export_pdf(self, request, pk=None):
+        """Printable patient-facing compliance-pack medication summary."""
+        from apps.reports.pdf import dosette_summary_pdf
+
+        plan = self.get_object()
+        pdf_bytes = dosette_summary_pdf(plan)
+        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+        resp["Content-Disposition"] = (
+            f'attachment; filename="dosette-{plan.patient.patient_id}.pdf"')
+        return resp
 
 
 class DosetteItemViewSet(viewsets.ModelViewSet):

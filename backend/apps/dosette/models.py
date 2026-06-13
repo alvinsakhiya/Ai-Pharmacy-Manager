@@ -11,7 +11,14 @@ from django.db import models
 from apps.core.models import TimeStampedModel
 
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-SLOTS = ["morning", "noon", "evening", "night"]
+# Dosage periods (brief): Morning, Afternoon, Evening, Bedtime.
+SLOTS = ["morning", "afternoon", "evening", "bedtime"]
+SLOT_LABELS = {
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "evening": "Evening",
+    "bedtime": "Bedtime",
+}
 
 
 class DosettePlan(TimeStampedModel):

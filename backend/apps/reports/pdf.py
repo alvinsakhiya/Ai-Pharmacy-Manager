@@ -80,6 +80,59 @@ def picking_list_pdf(picking_list) -> bytes:
     return _render(buf, doc, story)
 
 
+def dosette_summary_pdf(plan) -> bytes:
+    """Patient-facing compliance-pack medication summary: a day x time-slot grid
+    in plain language (Mon..Sun x Morning/Afternoon/Evening/Bedtime)."""
+    from apps.dosette.models import DAYS, SLOTS, SLOT_LABELS
+
+    day_labels = {"mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu",
+                  "fri": "Fri", "sat": "Sat", "sun": "Sun"}
+    patient = plan.patient
+    buf, doc, styles = _doc(f"Dosette summary — {patient.full_name}")
+    small = styles["Normal"].clone("small"); small.fontSize = 8; small.leading = 9
+
+    story = [
+        Paragraph("Compliance Pack — Medication Summary", styles["Title"]),
+        Paragraph(
+            f"<b>{patient.full_name}</b> &nbsp; · &nbsp; Patient ID {patient.patient_id} &nbsp; · &nbsp; "
+            f"{plan.get_frequency_display()}"
+            + (f" &nbsp; · &nbsp; Review due {plan.review_date}" if plan.review_date else ""),
+            styles["Normal"]),
+        Spacer(1, 6 * mm),
+    ]
+
+    items = list(plan.items.select_related("medicine").all())
+    header = ["Time"] + [day_labels[d] for d in DAYS]
+    rows = []
+    for slot in SLOTS:
+        row = [SLOT_LABELS[slot]]
+        for day in DAYS:
+            meds = [it for it in items if slot in (it.schedule.get(day) or [])]
+            cell = "<br/>".join(
+                f"{it.medicine.label}" + (f" ×{it.dose_quantity}" if it.dose_quantity > 1 else "")
+                for it in meds
+            )
+            row.append(Paragraph(cell, small) if cell else "")
+        rows.append(row)
+
+    col = [24 * mm] + [(178 / 7) * mm] * 7
+    story.append(_table(header, rows, col_widths=col))
+    story.append(Spacer(1, 6 * mm))
+
+    if items:
+        story.append(Paragraph("Medicines in this pack", styles["Heading4"]))
+        med_rows = [[it.medicine.label, f"×{it.dose_quantity} per dose", it.instructions or "—"]
+                    for it in items]
+        story.append(_table(["Medicine", "Dose", "Instructions"], med_rows,
+                            col_widths=[80 * mm, 35 * mm, 67 * mm]))
+
+    story.append(Spacer(1, 6 * mm))
+    story.append(Paragraph(
+        f"Generated {date.today():%d %b %Y} · Simulated data · Not for clinical use.",
+        styles["Italic"]))
+    return _render(buf, doc, story)
+
+
 def generic_report_pdf(title: str, subtitle: str, header, rows) -> bytes:
     buf, doc, styles = _doc(title)
     story = [Paragraph(title, styles["Title"])]

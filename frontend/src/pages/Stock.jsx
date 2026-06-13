@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Boxes, Search } from "lucide-react";
+import { Boxes, PackagePlus, Pencil, Plus, Search } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
 import {
@@ -12,8 +12,9 @@ import {
   StatusChip,
   TableSkeleton,
 } from "../components/ui";
+import { BatchForm, MedicineForm } from "../components/StockForms";
+import { useAuth } from "../context/AuthContext";
 import { useFetch } from "../hooks/useFetch";
-import api from "../api/client";
 import { gbp, num, dateFmt, expiryBand } from "../lib/format";
 
 function ExpiryChip({ days }) {
@@ -26,9 +27,14 @@ function ExpiryChip({ days }) {
 }
 
 export default function Stock() {
+  const { can } = useAuth();
+  const canEdit = can("pharmacist", "administrator");
   const [q, setQ] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [medFormOpen, setMedFormOpen] = useState(false);
+  const [editingMed, setEditingMed] = useState(null);
+  const [batchOpen, setBatchOpen] = useState(false);
   const { data, loading, error, refetch } = useFetch("/medicines/", {
     params: { search: q || undefined, page_size: 500 },
   });
@@ -69,12 +75,19 @@ export default function Stock() {
         title="Stock"
         subtitle="FEFO inventory — batch & expiry tracked"
         actions={
-          <Button
-            variant={lowOnly ? "primary" : "secondary"}
-            onClick={() => setLowOnly((v) => !v)}
-          >
-            {lowOnly ? "Showing low stock" : "Low stock only"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant={lowOnly ? "primary" : "secondary"}
+              onClick={() => setLowOnly((v) => !v)}
+            >
+              {lowOnly ? "Showing low stock" : "Low stock only"}
+            </Button>
+            {canEdit && (
+              <Button onClick={() => { setEditingMed(null); setMedFormOpen(true); }}>
+                <Plus size={16} /> New medicine
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -107,7 +120,21 @@ export default function Stock() {
         onClose={() => setSelected(null)}
         title={selected?.label}
         wide
-        footer={<Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>}
+        footer={
+          <>
+            {canEdit && (
+              <>
+                <Button variant="secondary" onClick={() => setBatchOpen(true)}>
+                  <PackagePlus size={15} /> Goods in
+                </Button>
+                <Button variant="secondary" onClick={() => { setEditingMed(detail.data || selected); setMedFormOpen(true); }}>
+                  <Pencil size={15} /> Edit
+                </Button>
+              </>
+            )}
+            <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
+          </>
+        }
       >
         {detail.loading || !detail.data ? (
           <TableSkeleton rows={4} cols={4} />
@@ -134,6 +161,19 @@ export default function Stock() {
           </>
         )}
       </Modal>
+
+      <MedicineForm
+        open={medFormOpen}
+        medicine={editingMed}
+        onClose={() => setMedFormOpen(false)}
+        onSaved={() => { refetch(); if (selected) detail.refetch(); }}
+      />
+      <BatchForm
+        open={batchOpen}
+        medicine={detail.data || selected}
+        onClose={() => setBatchOpen(false)}
+        onSaved={() => { refetch(); detail.refetch(); }}
+      />
     </>
   );
 }

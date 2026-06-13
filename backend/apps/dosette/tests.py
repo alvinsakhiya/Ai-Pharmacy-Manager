@@ -19,7 +19,7 @@ def test_doses_per_week_counts_slots(patient, medicine):
     plan = DosettePlan.objects.create(patient=patient)
     item = DosetteItem.objects.create(
         plan=plan, medicine=medicine, dose_quantity=1,
-        schedule={d: ["morning", "night"] for d in DAYS})  # 2/day x 7 days
+        schedule={d: ["morning", "bedtime"] for d in DAYS})  # 2/day x 7 days
     assert item.doses_per_week() == 14
 
 

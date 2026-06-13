@@ -38,7 +38,7 @@ A unified platform built around the real community-pharmacy dosette workflow, wi
 | **Authentication & security** | JWT access/refresh tokens, role-based access control (Administrator / Pharmacist / Dispenser), PBKDF2 password hashing, protected routes, immutable **audit log** of every significant action. |
 | **Dashboard** | Headline KPIs, 90-day dispensing trend, expiry exposure, predicted shortages, recent activity — with professional charts. |
 | **Patient management** | Pseudo-anonymised records, demographics, allergy notes, simulated GP/prescriber info, special instructions, active/inactive status, search, filtering and patient history. |
-| **Dosette management** | Weekly & monthly compliance packs, day × time-slot schedules (Morning/Noon/Evening/Night), cycle generation with proactive **due dates**, dosage review tracking, and the signature day × slot pack-grid visualisation. |
+| **Dosette management** | Weekly & monthly compliance packs, day × time-slot schedules (Morning/Afternoon/Evening/Bedtime), cycle generation with proactive **due dates**, dosage review tracking, printable per-patient pack summaries, and the signature day × slot pack-grid visualisation. |
 | **Picking lists** | Auto-aggregated weekly requirements across all active plans, per-line completion tracking, shortfall flags and **PDF export**. |
 | **Stock management** | Medicines, pack sizes, manufacturers, suppliers, batches, expiry dates, **FEFO allocation**, stock adjustments, wastage recording and an append-only movement ledger. |
 | **Expiry management** | 1/3/6-month expiry windows, FEFO heat scale, expired-stock alerts. |

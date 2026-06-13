@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarClock, Moon, Sun, Sunrise, Sunset } from "lucide-react";
+import { CalendarClock, Download, Moon, Sun, Sunrise, Sunset } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
 import {
@@ -10,15 +10,31 @@ import {
   TableSkeleton,
 } from "../components/ui";
 import { useFetch } from "../hooks/useFetch";
+import { tokenStore } from "../api/client";
 import { dateFmt } from "../lib/format";
+
+function exportDosettePdf(planId, ref) {
+  fetch(`/api/dosette-plans/${planId}/export-pdf/`, {
+    headers: { Authorization: `Bearer ${tokenStore.access}` },
+  })
+    .then((r) => r.blob())
+    .then((b) => {
+      const url = URL.createObjectURL(b);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dosette-${ref || planId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+}
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_LABEL = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
 const SLOTS = [
   { key: "morning", label: "Morning", Icon: Sunrise },
-  { key: "noon", label: "Noon", Icon: Sun },
+  { key: "afternoon", label: "Afternoon", Icon: Sun },
   { key: "evening", label: "Evening", Icon: Sunset },
-  { key: "night", label: "Night", Icon: Moon },
+  { key: "bedtime", label: "Bedtime", Icon: Moon },
 ];
 
 const PALETTE = ["#4F46E5", "#15A463", "#E8A100", "#2D74D6", "#B42318", "#7BA05B", "#9333EA"];
@@ -155,7 +171,17 @@ export default function Dosette() {
         onClose={() => setSelected(null)}
         title={selected ? `${selected.patient_name} · ${selected.patient_ref}` : ""}
         wide
-        footer={<Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => exportDosettePdf(selected.id, selected.patient_ref)}
+            >
+              <Download size={16} /> Print summary
+            </Button>
+            <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
+          </>
+        }
       >
         {detail.loading || !detail.data ? (
           <TableSkeleton rows={4} cols={7} />
