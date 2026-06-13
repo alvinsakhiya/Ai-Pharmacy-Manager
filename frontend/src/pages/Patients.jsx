@@ -1,325 +1,142 @@
 import { useState } from "react";
+import { Search, UserRound } from "lucide-react";
+import { PageHeader } from "../components/PageHeader";
+import { DataTable } from "../components/DataTable";
 import {
-  CalendarDays,
-  FileText,
-  Phone,
-  RotateCw,
-  UserRound,
-  Users,
-} from "lucide-react";
-import MainLayout from "../layouts/MainLayout";
-import PageHeader from "../components/Header";
-import Button from "../components/Button";
-import CareSettingBadge from "../components/CareSettingBadge";
-import SearchField from "../components/SearchField";
-import { Panel } from "../components/Panel";
-import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
-import ListToolbar from "../components/ListToolbar";
-import TableShell from "../components/TableShell";
-import useApiResource from "../hooks/useApiResource";
-import useAuth from "../hooks/useAuth";
-import useToast from "../hooks/useToast";
-import api from "../services/api";
-import { canManagePatients } from "../utils/access";
-import { careSettingOptions, getCareSettingLabel } from "../utils/careSettings";
-import { formatDate, getInitials } from "../utils/helpers";
+  Card,
+  EmptyState,
+  Input,
+  Modal,
+  Select,
+  StatusChip,
+  TableSkeleton,
+  Button,
+} from "../components/ui";
+import { useFetch } from "../hooks/useFetch";
+import { dateFmt } from "../lib/format";
 
-function PatientIdentity({ patient }) {
-  return (
-    <div className="flex min-w-0 items-center gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-100/80 to-violet-100/80 text-xs font-black text-blue-700 ring-1 ring-blue-200/70">
-        {getInitials(patient.first_name, patient.last_name)}
-      </div>
-      <div className="min-w-0">
-        <p className="truncate font-bold text-slate-900">
-          {patient.first_name} {patient.last_name}
-        </p>
-        <p className="mt-0.5 text-xs font-medium text-slate-400">
-          Patient ID #{String(patient.id).padStart(4, "0")}
-        </p>
-      </div>
-    </div>
-  );
-}
+export default function Patients() {
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const [dosette, setDosette] = useState("");
+  const [selected, setSelected] = useState(null);
 
-function CareSettingControl({
-  canManage,
-  controlId,
-  isSaving,
-  onChange,
-  patient,
-}) {
-  return (
-    <div className="flex min-w-44 flex-col gap-2">
-      <CareSettingBadge
-        label={patient.care_setting_label}
-        value={patient.care_setting}
-      />
-      {canManage && (
-        <>
-          <label className="sr-only" htmlFor={controlId}>
-            Update care setting for {patient.first_name} {patient.last_name}
-          </label>
-          <select
-            id={controlId}
-            className="field-control min-h-9 py-1.5 text-xs font-bold"
-            disabled={isSaving}
-            value={patient.care_setting}
-            onChange={(event) => onChange(patient, event.target.value)}
-          >
-            {careSettingOptions.map(([value, label]) => (
-              <option key={value} value={value}>
-                {isSaving && value === patient.care_setting
-                  ? "Saving..."
-                  : label}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-    </div>
-  );
-}
+  const { data, loading } = useFetch("/patients/", {
+    params: {
+      search: q || undefined,
+      status: status || undefined,
+      is_dosette: dosette || undefined,
+      page_size: 500,
+    },
+  });
+  const detail = useFetch(`/patients/${selected?.id}/`, { skip: !selected });
 
-function Patients() {
-  const { user } = useAuth();
-  const toast = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [careSettingFilter, setCareSettingFilter] = useState("");
-  const [savingPatientId, setSavingPatientId] = useState(null);
-  const {
-    data: patients,
-    error,
-    isLoading,
-    reload,
-  } = useApiResource(
-    "/patients/",
-    "Patient records could not be retrieved. Check the API connection and try again."
-  );
-
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredPatients = patients.filter(
-    (patient) =>
-      (!careSettingFilter || patient.care_setting === careSettingFilter)
-      && [
-        patient.first_name,
-        patient.last_name,
-        patient.contact_number,
-        patient.notes,
-        patient.date_of_birth,
-        patient.care_setting,
-        patient.care_setting_label,
-      ]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(normalizedQuery))
-  );
-  const canUpdateCareSetting = canManagePatients(user);
-
-  const updateCareSetting = async (patient, careSetting) => {
-    if (careSetting === patient.care_setting) {
-      return;
-    }
-
-    setSavingPatientId(patient.id);
-
-    try {
-      await api.patch(`/patients/${patient.id}/`, {
-        care_setting: careSetting,
-      });
-      toast.success(
-        "Care setting updated",
-        `${patient.first_name} ${patient.last_name} is now grouped under ${getCareSettingLabel(careSetting)}.`
-      );
-      await reload();
-    } catch {
-      toast.error(
-        "Care setting not updated",
-        "The patient grouping could not be saved. Check your role access and API connection."
-      );
-    } finally {
-      setSavingPatientId(null);
-    }
-  };
+  const columns = [
+    { key: "patient_id", header: "Patient ID", render: (r) => <span className="font-medium tnum">{r.patient_id}</span> },
+    { key: "full_name", header: "Name" },
+    { key: "age", header: "Age", align: "right" },
+    { key: "is_dosette", header: "Dosette", sortable: false, render: (r) =>
+        r.is_dosette ? <StatusChip tone="info" icon={false} dot>Dosette</StatusChip> : <span className="text-text-tertiary">—</span> },
+    { key: "allergies", header: "Allergies", sortable: false, render: (r) =>
+        r.allergies ? <StatusChip tone="warning">{r.allergies}</StatusChip> : <span className="text-text-tertiary">None recorded</span> },
+    { key: "status", header: "Status", render: (r) =>
+        r.status === "active" ? <StatusChip tone="success" icon={false} dot>Active</StatusChip> : <StatusChip tone="neutral" icon={false}>Inactive</StatusChip> },
+  ];
 
   return (
-    <MainLayout>
-      <PageHeader
-        eyebrow="Patient care"
-        title="Patient management"
-        description="Search patient records and review the profiles supporting dosette medication workflows."
-        icon={Users}
-        actions={
-          <Button icon={RotateCw} variant="secondary" onClick={reload}>
-            Refresh records
-          </Button>
-        }
-      />
+    <>
+      <PageHeader title="Patients" subtitle="Pseudo-anonymised patient records" />
 
-      <Panel className="overflow-hidden">
-        <ListToolbar
-          shown={!isLoading && !error ? filteredPatients.length : null}
-          total={!isLoading && !error ? patients.length : null}
-          unit="patients shown"
-          filters={
-            <>
-              <label className="sr-only" htmlFor="patient-care-setting-filter">
-                Filter patients by care setting
-              </label>
-              <select
-                id="patient-care-setting-filter"
-                className="field-control min-w-48 font-semibold"
-                value={careSettingFilter}
-                onChange={(event) => setCareSettingFilter(event.target.value)}
-              >
-                <option value="">All care settings</option>
-                {careSettingOptions.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </>
-          }
-        >
-          <SearchField
-            id="patient-search"
-            label="Search patients"
-            placeholder="Search by patient name, contact, date of birth or profile notes..."
-            value={searchQuery}
-            onChange={setSearchQuery}
-          />
-        </ListToolbar>
+      <Card className="mb-4 flex flex-wrap items-center gap-3 p-3">
+        <div className="flex flex-1 items-center gap-2 text-text-tertiary">
+          <Search size={16} />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, ID or postcode…" className="border-0 px-0 focus:ring-0" />
+        </div>
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-36">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </Select>
+        <Select value={dosette} onChange={(e) => setDosette(e.target.value)} className="w-40">
+          <option value="">All patients</option>
+          <option value="true">Dosette only</option>
+          <option value="false">Non-dosette</option>
+        </Select>
+      </Card>
 
-        {isLoading ? (
-          <LoadingState label="Loading patient registry..." />
-        ) : error ? (
-          <ErrorState message={error} onRetry={reload} />
-        ) : filteredPatients.length === 0 ? (
-          <EmptyState
-            icon={UserRound}
-            title={normalizedQuery ? "No matching patients" : "No patient records"}
-            message={
-              normalizedQuery
-                ? "Try a different name, contact number, date of birth or note."
-                : "Patient records will appear here when they are available."
-            }
-          />
+      <Card>
+        {loading ? (
+          <TableSkeleton />
+        ) : (data?.results || []).length === 0 ? (
+          <EmptyState icon={UserRound} title="No patients found" hint="Adjust your search or filters." />
         ) : (
-          <>
-            <TableShell
-              className="hidden md:block"
-              label="Patient registry"
-              minWidth="760px"
-            >
-                <thead>
-                  <tr>
-                    <th>Patient</th>
-                    <th>Care setting</th>
-                    <th>Date of birth</th>
-                    <th>Contact</th>
-                    <th>General profile notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPatients.map((patient) => (
-                    <tr key={patient.id}>
-                      <td>
-                        <PatientIdentity patient={patient} />
-                      </td>
-                      <td>
-                        <CareSettingControl
-                          canManage={canUpdateCareSetting}
-                          controlId={`patient-care-setting-desktop-${patient.id}`}
-                          isSaving={savingPatientId === patient.id}
-                          patient={patient}
-                          onChange={updateCareSetting}
-                        />
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                          <CalendarDays className="text-slate-400" size={16} />
-                          {formatDate(patient.date_of_birth)}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <Phone className="text-slate-400" size={16} />
-                          {patient.contact_number || "Not provided"}
-                        </div>
-                      </td>
-                      <td className="max-w-md">
-                        <p className="line-clamp-2 text-sm leading-6 text-slate-500">
-                          {patient.notes || "No general profile notes recorded."}
-                        </p>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-            </TableShell>
-
-            <div className="divide-y divide-slate-100 md:hidden">
-              {filteredPatients.map((patient) => (
-                <article key={patient.id} className="p-4 sm:p-5">
-                  <PatientIdentity patient={patient} />
-                  <dl className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Care setting
-                        </dt>
-                        <dd className="mt-2">
-                          <CareSettingControl
-                            canManage={canUpdateCareSetting}
-                            controlId={`patient-care-setting-mobile-${patient.id}`}
-                            isSaving={savingPatientId === patient.id}
-                            patient={patient}
-                            onChange={updateCareSetting}
-                          />
-                        </dd>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <CalendarDays className="mt-0.5 text-slate-400" size={17} />
-                      <div>
-                        <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Date of birth
-                        </dt>
-                        <dd className="mt-1 text-sm font-semibold text-slate-700">
-                          {formatDate(patient.date_of_birth)}
-                        </dd>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Phone className="mt-0.5 text-slate-400" size={17} />
-                      <div>
-                        <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Contact
-                        </dt>
-                        <dd className="mt-1 text-sm font-semibold text-slate-700">
-                          {patient.contact_number || "Not provided"}
-                        </dd>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <FileText className="mt-0.5 text-slate-400" size={17} />
-                      <div>
-                        <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          General profile notes
-                        </dt>
-                        <dd className="mt-1 text-sm leading-6 text-slate-600">
-                          {patient.notes || "No general profile notes recorded."}
-                        </dd>
-                      </div>
-                    </div>
-                  </dl>
-                </article>
-              ))}
-            </div>
-          </>
+          <DataTable columns={columns} rows={data.results} onRowClick={setSelected} />
         )}
-      </Panel>
-    </MainLayout>
+      </Card>
+
+      <Modal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected ? `${selected.full_name} · ${selected.patient_id}` : ""}
+        wide
+        footer={<Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>}
+      >
+        {detail.loading || !detail.data ? (
+          <TableSkeleton rows={4} cols={2} />
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <KV label="Date of birth" v={dateFmt(detail.data.date_of_birth)} />
+              <KV label="Age" v={detail.data.age} />
+              <KV label="Phone" v={detail.data.phone || "—"} />
+              <KV label="GP practice" v={detail.data.gp_practice || "—"} />
+              <KV label="Prescriber" v={detail.data.gp_name || "—"} />
+              <KV label="Postcode" v={detail.data.postcode || "—"} />
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Box title="Allergies" body={detail.data.allergies || "None recorded"} tone={detail.data.allergies ? "warning" : "neutral"} />
+              <Box title="Special instructions" body={detail.data.special_instructions || "None"} />
+            </div>
+            <div>
+              <h4 className="mb-2 text-micro uppercase text-text-tertiary">History</h4>
+              {(detail.data.notes || []).length === 0 ? (
+                <p className="text-body text-text-tertiary">No history entries.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {detail.data.notes.map((n) => (
+                    <li key={n.id} className="rounded-lg border border-border-subtle p-3">
+                      <div className="mb-1 flex items-center justify-between">
+                        <StatusChip tone="neutral" icon={false}>{n.category}</StatusChip>
+                        <span className="text-caption text-text-tertiary">{dateFmt(n.created_at)} · {n.author_name || "—"}</span>
+                      </div>
+                      <p className="text-body">{n.text}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+    </>
   );
 }
 
-export default Patients;
+function KV({ label, v }) {
+  return (
+    <div className="rounded-xl bg-subtle p-3">
+      <div className="text-caption text-text-secondary">{label}</div>
+      <div className="text-body font-semibold text-text-primary">{v}</div>
+    </div>
+  );
+}
+function Box({ title, body, tone }) {
+  const bg = tone === "warning" ? "bg-warning-bg" : "bg-subtle";
+  const fg = tone === "warning" ? "text-warning-fg" : "text-text-primary";
+  return (
+    <div className={`rounded-xl p-3 ${bg}`}>
+      <div className="mb-1 text-micro uppercase text-text-tertiary">{title}</div>
+      <div className={`text-body ${fg}`}>{body}</div>
+    </div>
+  );
+}

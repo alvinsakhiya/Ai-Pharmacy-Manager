@@ -1,118 +1,67 @@
 # Deployment Guide
 
-This project is structured as two deployable services:
-
-- `backend`: Django REST API on Railway or Render
-- `frontend`: React and Vite single-page application on Vercel
-
-Use a managed PostgreSQL database. Never commit `.env` files or paste secrets
-into source code.
-
-## Production Environment Variables
-
-Configure these variables on the backend hosting platform:
-
-| Variable | Example | Purpose |
-| --- | --- | --- |
-| `DEBUG` | `False` | Disables Django debug output in production. |
-| `SECRET_KEY` | generated value | Signs Django security data. Use a unique secret. |
-| `ALLOWED_HOSTS` | `api.example.com` | Comma-separated backend hostnames without schemes. |
-| `CORS_ALLOWED_ORIGINS` | `https://app.example.com` | Comma-separated frontend origins without trailing slashes. |
-| `CSRF_TRUSTED_ORIGINS` | `https://api.example.com,https://app.example.com` | Trusted HTTPS origins for Django admin and CSRF-protected requests. |
-| `DATABASE_URL` | platform-provided value | PostgreSQL connection URL supplied by Railway or Render. |
-| `DB_SSL_REQUIRE` | `False` | Set to `True` when the database provider requires SSL. |
-| `SECURE_SSL_REDIRECT` | `True` | Redirects HTTP requests to HTTPS. |
-
-Optional security variables are `SESSION_COOKIE_SECURE`,
-`CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`,
-`SECURE_HSTS_INCLUDE_SUBDOMAINS`, and `SECURE_HSTS_PRELOAD`. Their defaults are
-safe for local development and enable secure cookies plus a one-hour HSTS
-policy when `DEBUG=False`.
-
-Generate a production secret locally:
+## Option A — Docker Compose (recommended)
 
 ```bash
-python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+docker compose up --build -d
 ```
 
-For local development, use the individual `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
-`DB_HOST`, and `DB_PORT` variables shown in `backend/.env.example`.
-`DATABASE_URL` takes precedence when it is set.
+Services:
 
-## Backend on Render
+| Service | Image | Port | Notes |
+|---|---|---|---|
+| `db` | postgres:16 | internal | volume `pgdata` persists data |
+| `redis` | redis:7 | internal | reserved for roadmap background jobs |
+| `backend` | built from `./backend` | 8000 | gunicorn; auto-migrates & seeds on first boot |
+| `frontend` | built from `./frontend` | 8080 | nginx serves the SPA and proxies `/api/` |
 
-1. Create a PostgreSQL database and a Python web service from this repository.
-2. Set the service root directory to `backend`.
-3. Set the build command to `./build.sh`.
-4. Set the start command to
-   `gunicorn pharmacy_project.wsgi:application --bind 0.0.0.0:$PORT --access-logfile -`.
-5. Add the production environment variables above. Use Render's internal
-   database URL for `DATABASE_URL`.
-6. Deploy and create an administrator with `python manage.py createsuperuser`
-   from the Render shell.
+Then open <http://localhost:8080>. To **disable auto-seeding**, set `SEED_ON_START=false` on the
+backend service.
 
-The build script installs dependencies, collects WhiteNoise static files, and
-applies database migrations.
+### Production hardening checklist
 
-## Backend on Railway
+- Set a strong `DJANGO_SECRET_KEY` and `DJANGO_DEBUG=False` (security middleware, HSTS, secure
+  cookies and SSL redirect switch on automatically when DEBUG is false).
+- Set `DJANGO_ALLOWED_HOSTS` and `CORS_ALLOWED_ORIGINS` to your real domains.
+- Use managed PostgreSQL with backups; supply `DATABASE_URL`.
+- Terminate TLS at a load balancer / ingress and forward `X-Forwarded-Proto`.
+- Set `SEED_ON_START=false` for real deployments.
+- Run `python manage.py createsuperuser` for admin access.
 
-1. Create a Railway project from this GitHub repository and add PostgreSQL.
-2. Set the backend service root directory to `backend`.
-3. Set the build command to `./build.sh`.
-4. Railway can use the included `Procfile` for the start command. If needed,
-   set it explicitly to
-   `gunicorn pharmacy_project.wsgi:application --bind 0.0.0.0:$PORT --access-logfile -`.
-5. Map Railway's PostgreSQL connection URL to `DATABASE_URL`.
-6. Add the remaining production environment variables and generate a public
-   backend domain.
+## Option B — manual / PaaS
 
-## Frontend on Vercel
-
-1. Import the same GitHub repository into Vercel.
-2. Set the project root directory to `frontend`.
-3. Keep the detected Vite build command (`npm run build`) and output directory
-   (`dist`).
-4. Add `VITE_API_BASE_URL` with the deployed backend API URL, for example
-   `https://api.example.com/api`.
-5. Deploy the frontend.
-
-The included `frontend/vercel.json` routes deep links such as `/patients` back
-to the React application.
-
-After Vercel provides the production frontend URL, update
-`CORS_ALLOWED_ORIGINS` on the backend and redeploy it. Keep the origin exact,
-including `https://` and excluding a trailing slash.
-
-## Production Verification
-
-Run these commands before deployment:
+**Backend** (any WSGI host, e.g. Render, Railway, Fly, a VM):
 
 ```bash
-cd backend
-python manage.py test
-python manage.py check
-python manage.py makemigrations --check --dry-run
-python manage.py check --deploy
-
-cd ../frontend
-npm run lint
-npm run build
+pip install -r backend/requirements.txt
+export DATABASE_URL=postgres://…  DJANGO_DEBUG=False  DJANGO_SECRET_KEY=…
+python backend/manage.py migrate
+python backend/manage.py collectstatic --noinput
+gunicorn config.wsgi:application --chdir backend --bind 0.0.0.0:8000
 ```
 
-After deployment:
+WhiteNoise serves static files, so no separate static host is required for the API/admin.
 
-1. Confirm unauthenticated API requests return `401`.
-2. Log in through Vercel and verify dashboard, patients, inventory, dosette,
-   picking lists, expiry alerts, and forecasting.
-3. Confirm a direct browser visit to a frontend route such as `/patients`
-   loads correctly.
-4. Confirm Django admin static files load over HTTPS.
-5. Review hosting logs and create a database backup policy.
+**Frontend** (any static host / CDN):
 
-## Secret Rotation
+```bash
+cd frontend
+npm ci
+VITE_API_TARGET=https://api.example.com npm run build   # outputs dist/
+```
 
-If a real `.env` file was ever committed, removing it in a later commit does
-not erase it from Git history. Rotate every credential that appeared in that
-file before treating the deployment as secure. Rewriting repository history is
-a separate disruptive operation and should only be performed with coordinated
-approval.
+Serve `dist/` and reverse-proxy `/api/` to the backend (see `frontend/nginx.conf` for a reference
+config), or point the SPA at an absolute API origin.
+
+## Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | dev value | **Change in production** |
+| `DJANGO_DEBUG` | `True` | `False` enables security hardening |
+| `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | comma-separated hosts |
+| `DATABASE_URL` | SQLite file | Postgres URL in production |
+| `CORS_ALLOWED_ORIGINS` | localhost dev origins | SPA origins |
+| `ACCESS_TOKEN_LIFETIME_MIN` | `30` | JWT access lifetime |
+| `REFRESH_TOKEN_LIFETIME_DAYS` | `1` | JWT refresh lifetime |
+| `SEED_ON_START` | `true` | seed demo data on container boot |

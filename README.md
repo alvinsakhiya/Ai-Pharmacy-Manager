@@ -1,121 +1,202 @@
-# Pharmacy Stock and Dosette Management System
+# Pharmica — AI-Enhanced Pharmacy Stock Optimisation & Patient Dosette Management System
 
-AI-enhanced pharmacy stock optimisation and patient dosette management system
-built with React, Django REST Framework, JWT authentication, and PostgreSQL.
+> **Design and Evaluation of an AI-Enhanced Pharmacy Stock Optimisation and Patient Dosette Management System**
+> Final-year computing project — a production-quality prototype demonstrating how fragmented UK
+> community-pharmacy workflows (dosette/MDS preparation, stock control, forecasting and reporting)
+> can be unified within a single intelligent platform.
 
-## Local Development
+> ⚠️ **Academic prototype.** Uses **simulated, pseudo-anonymised data only**. It does **not** integrate
+> with any external healthcare system, prescription service, or real patient records. It is **not for
+> clinical use**.
 
-1. Copy `backend/.env.example` to `backend/.env` and enter your local PostgreSQL
-   credentials.
-2. Install backend dependencies with
-   `pip install -r backend/requirements.txt`.
-3. Run migrations from `backend` with `python manage.py migrate`.
-4. Start Django with `python manage.py runserver`.
-5. Install frontend dependencies with `npm install` from `frontend`.
-6. Start Vite with `npm run dev`.
+---
 
-The local frontend defaults to `http://localhost:5173` and the API defaults to
-`http://127.0.0.1:8000/api`.
+## Table of contents
 
-## Deployment
+- [What it does](#what-it-does)
+- [Screens](#screens)
+- [Architecture](#architecture)
+- [Tech stack & justification](#tech-stack--justification)
+- [Quick start (Docker)](#quick-start-docker)
+- [Local development](#local-development)
+- [Demo accounts](#demo-accounts)
+- [Seed data](#seed-data)
+- [Testing](#testing)
+- [API documentation](#api-documentation)
+- [Project structure](#project-structure)
+- [Documentation](#documentation)
+- [Roadmap](#roadmap)
 
-Production deployment instructions for Render or Railway, Vercel, PostgreSQL,
-environment variables, migrations, and verification are in
-[docs/deployment.md](docs/deployment.md).
+---
 
-## Staff Roles
+## What it does
 
-The system includes Django Group-based access for Managers, Pharmacists,
-Dispensers, Stock Assistants, and Read-only Users. The access matrix and account
-assignment steps are documented in
-[docs/access-control.md](docs/access-control.md).
+A unified platform built around the real community-pharmacy dosette workflow, with ten core modules:
 
-## Stock Governance
+| Module | Highlights |
+|---|---|
+| **Authentication & security** | JWT access/refresh tokens, role-based access control (Administrator / Pharmacist / Dispenser), PBKDF2 password hashing, protected routes, immutable **audit log** of every significant action. |
+| **Dashboard** | Headline KPIs, 90-day dispensing trend, expiry exposure, predicted shortages, recent activity — with professional charts. |
+| **Patient management** | Pseudo-anonymised records, demographics, allergy notes, simulated GP/prescriber info, special instructions, active/inactive status, search, filtering and patient history. |
+| **Dosette management** | Weekly & monthly compliance packs, day × time-slot schedules (Morning/Noon/Evening/Night), cycle generation with proactive **due dates**, dosage review tracking, and the signature day × slot pack-grid visualisation. |
+| **Picking lists** | Auto-aggregated weekly requirements across all active plans, per-line completion tracking, shortfall flags and **PDF export**. |
+| **Stock management** | Medicines, pack sizes, manufacturers, suppliers, batches, expiry dates, **FEFO allocation**, stock adjustments, wastage recording and an append-only movement ledger. |
+| **Expiry management** | 1/3/6-month expiry windows, FEFO heat scale, expired-stock alerts. |
+| **AI forecasting** | Explainable time-series demand forecasting (Holt-Winters → Holt trend → moving-average, with graceful fallback), 95% confidence intervals, reorder recommendations with rationale. |
+| **Notification centre** | Low stock, approaching expiry, predicted shortages, overdue reviews and announcements — idempotently regenerated. |
+| **Reporting** | Stock valuation, expiry, low-stock, dosette workload, forecasting and patient-summary reports with **PDF & CSV export**. |
 
-Quantity changes use a controlled, reason-based adjustment endpoint and an
-immutable stock movement ledger. The movement rules, API examples, migration
-behaviour, and picking-list trade-off are documented in
-[docs/stock-governance.md](docs/stock-governance.md).
+## Screens
 
-## Clinical Reviews
+The frontend is a modern healthcare-product UI — calm, dense, professional surfaces (the "Apple
+pro-tool" posture) with fluid motion and clear feedback. The design system (colour, type, spacing,
+motion, FEFO expiry heat scale) is encoded directly in [`frontend/tailwind.config.js`](frontend/tailwind.config.js).
 
-Managers and Pharmacists can record structured, authored patient reviews with
-follow-up dates and statuses. The data boundary, role restrictions, safe audit
-behaviour, API filters, and demonstration scope are documented in
-[docs/clinical-reviews.md](docs/clinical-reviews.md).
+A visual preview gallery is described in [`docs/ui-previews.md`](docs/ui-previews.md).
 
-## Dosette Operations
+## Architecture
 
-Patient records include a simple local care-setting group, while dosette
-schedules support cycle start dates, validated cycle lengths, review dates, and
-immutable medication-change history. Existing FEFO, picking, and forecast
-calculations remain unchanged. The compatibility defaults, API, privacy choices,
-and assessment evidence are documented in
-[docs/dosette-operations.md](docs/dosette-operations.md).
+A decoupled SPA + REST API. See [`docs/architecture.md`](docs/architecture.md) for the full diagram
+and component breakdown, and [`docs/er-diagram.md`](docs/er-diagram.md) for the data model.
 
-## Notification Centre
+```
+React (Vite + Tailwind)  ──HTTPS/JSON──▶  Django REST Framework API  ──▶  PostgreSQL
+        SPA                JWT auth            (8 domain apps)              (FEFO, audit,
+   nginx (prod)                            forecasting engine               usage history)
+                                            (numpy / statsmodels)
+```
 
-Managers can assign operational notifications while recipients follow an
-audited read, acknowledge, and resolve lifecycle. Visibility rules, transitions,
-API endpoints, dashboard integration, and assessment evidence are documented in
-[docs/notifications.md](docs/notifications.md).
+## Tech stack & justification
 
-## Stock Intelligence
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | **React + Vite + Tailwind + React Router + Recharts + Lucide** | Fast DX, a strict design-token system for a coherent clinical UI, route-based views, professional charting. |
+| Backend | **Django REST Framework** | Batteries-included auth, ORM, migrations and admin; RBAC and audit are natural; the forecasting engine lives in the same Python runtime as the data. |
+| Database | **PostgreSQL** (SQLite for zero-config local dev) | Relational integrity for batches/movements/schedules; indices for FEFO and expiry queries. |
+| Forecasting | **numpy + statsmodels** (scikit-learn available) | Statistically defensible, explainable methods; **degrades gracefully** to a NumPy linear trend if statsmodels is unavailable. |
+| Reporting | **ReportLab** | Server-side PDF generation; CSV via the standard library. |
+| Packaging | **Docker + docker-compose** | One-command reproducible stack (db + redis + api + web). |
+| Testing | **pytest + pytest-django + DRF APIClient** | Unit + API tests across FEFO, RBAC, forecasting and dosette logic. |
 
-Managers and Stock Assistants can configure medication minimum levels, reorder
-thresholds, and target weeks of cover. The system combines these controls with
-active dosette demand and usable, non-expired stock to identify shortages,
-excess, inactive, and dead-stock review candidates. The explainable calculation,
-API compatibility, role boundary, and demonstration flow are documented in
-[docs/stock-intelligence.md](docs/stock-intelligence.md).
+Full reasoning, trade-offs and rejected alternatives are in
+[`docs/technical-justification.md`](docs/technical-justification.md).
 
-## Supplier and Draft Ordering
+## Quick start (Docker)
 
-Managers and Stock Assistants can maintain an original local supplier
-directory, assign preferred suppliers to medications, and convert outstanding
-stock recommendations into internal draft purchase orders. Open drafts reduce
-subsequent suggestions to avoid duplicate planning. Nothing is transmitted to
-an external wholesaler or NHS service. The workflow and evidence are documented
-in [docs/supplier-ordering.md](docs/supplier-ordering.md).
+Prerequisites: Docker + Docker Compose.
 
-## Reports and Exports
+```bash
+git clone https://github.com/alvinsakhiya/Pharmacy-Project.git
+cd Pharmacy-Project
+docker compose up --build
+```
 
-Authenticated staff can generate role-aware CSV reports for picking lists,
-stock, expiry alerts, forecasts, audit history, and notifications. Each export
-is audited with a safe summary and avoids proprietary templates or external NHS
-services. The reporting scope, endpoints, safety rules, and assessment value
-are documented in [docs/reports.md](docs/reports.md).
+This starts PostgreSQL, Redis, the API and the web app. On first boot the backend automatically
+runs migrations and **seeds realistic demo data**.
 
-## Pharmacy Operations
+- Web app: <http://localhost:8080>
+- API docs (Swagger): <http://localhost:8000/api/docs/>
+- Django admin: <http://localhost:8000/admin/>
 
-The bounded operations module adds internal task assignment with a guarded
-claim, start, complete, and cancel lifecycle, plus validated pharmacy opening
-hours. Task visibility is scoped by assignment and role, and lifecycle changes
-are audited without copying task content into audit summaries. The responsive
-Operations workspace exposes the same guarded workflow with accessible
-feedback, filters, and manager-only configuration. The API, permissions,
-validation, and assessment evidence are documented in
-[docs/pharmacy-operations.md](docs/pharmacy-operations.md).
+## Local development
 
-The same bounded module also provides local-only patient delivery tracking with
-patient-care role restrictions, transactional lifecycle changes, safe audit
-summaries, and no courier, route, NHS, or external service integration. Its
-responsive delivery workspace provides scheduling, assignment, status
-progression, outcome recording, filters, and accessible mobile cards.
+### Backend
 
-Append-only fridge temperature logs add server-timestamped safety evidence,
-role-restricted recording, a visible 2-8 C range, and mandatory corrective
-action for out-of-range readings without hardware or external integrations.
-The responsive monitoring workspace reinforces the rule before submission and
-presents immutable history as accessible desktop and mobile safety evidence.
+```bash
+cd backend
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env                                  # SQLite by default — no DB setup needed
+python manage.py migrate
+python manage.py seed                                 # generate demo data
+python manage.py createsuperuser                      # optional, for /admin
+python manage.py runserver                            # http://localhost:8000
+```
 
-Local operational appointments add validated pharmacy planning with optional
-patient context, staff assignment, guarded completion/cancellation, safe
-snapshots, and no calendar, messaging, NHS, or external booking integration.
-The responsive diary adds next-appointment context, metrics, filters, and
-patient-aware desktop and mobile agenda views.
+### Frontend
 
-Managers can also maintain a curated HTTPS-only internal resource directory.
-All staff see active links, while inactive entries and editing remain
-manager-only; embedded credentials, uploads, vendor assets, and NHS links are
-outside the workflow.
+```bash
+cd frontend
+npm install
+npm run dev                                           # http://localhost:5173 (proxies /api to :8000)
+```
+
+## Demo accounts
+
+Seeded automatically. Password for all: **`Password123!`**
+
+| Role | Username | Can do |
+|---|---|---|
+| Administrator | `admin` | Everything, incl. user management & configuration |
+| Pharmacist | `pharmacist` | Clinical & final checks, full operational access, audit log |
+| Dispenser | `dispenser` | Picking, pack assembly, stock movements (read-only on records) |
+
+## Seed data
+
+```bash
+python manage.py seed              # ~220 patients, 65 medicines, batches, plans, 18 months usage
+python manage.py seed --flush      # wipe domain data first, then reseed
+```
+
+Generates 200+ pseudo-anonymised patients, 60+ medicines, suppliers/manufacturers, stock batches
+with a realistic expiry mix, weekly/monthly dosette plans, ~18 months of daily usage history
+(trend + seasonality + noise) for the forecasting engine, an initial picking list and notifications.
+
+## Testing
+
+```bash
+cd backend
+pytest                 # FEFO, RBAC/auth, forecasting, dosette & picking
+```
+
+The test strategy is documented in [`docs/testing.md`](docs/testing.md).
+
+## API documentation
+
+Interactive OpenAPI/Swagger UI is served at `/api/docs/` (ReDoc at `/api/redoc/`, raw schema at
+`/api/schema/`). A hand-written endpoint reference is in [`docs/api.md`](docs/api.md).
+
+## Project structure
+
+```
+Pharmacy-Project/
+├── backend/                 # Django REST Framework API
+│   ├── config/              # settings, urls, wsgi/asgi
+│   └── apps/
+│       ├── core/            # base models, audit log, RBAC, middleware, seed command
+│       ├── accounts/        # custom user, JWT auth, RBAC, audit API
+│       ├── patients/        # patient records & history
+│       ├── stock/           # medicines, suppliers, FEFO batches, movements, usage
+│       ├── dosette/         # plans, items, cycles, due dates
+│       ├── picking/         # picking lists & generation
+│       ├── forecasting/     # explainable forecasting engine
+│       ├── notifications/   # alert generation & centre
+│       └── reports/         # dashboard, PDF/CSV reports
+├── frontend/                # React + Vite + Tailwind SPA
+│   └── src/{api,components,context,hooks,pages,lib}
+├── docs/                    # architecture, ER diagram, API, justification, roadmap
+└── docker-compose.yml
+```
+
+## Documentation
+
+- [Architecture & component design](docs/architecture.md)
+- [ER diagram & data model](docs/er-diagram.md)
+- [API reference](docs/api.md)
+- [Technical justification](docs/technical-justification.md)
+- [Testing strategy](docs/testing.md)
+- [UI previews](docs/ui-previews.md)
+- [Deployment guide](docs/deployment.md)
+- [Roadmap & future enhancements](docs/roadmap.md)
+
+## Roadmap
+
+Highlights (full list in [`docs/roadmap.md`](docs/roadmap.md)): barcode/2D-scan accuracy checks,
+Celery/Redis background jobs for nightly forecasting & alerting, configurable safety-stock service
+levels, multi-site inventory, label printing, and a model-evaluation harness (MAPE/RMSE backtesting)
+for the forecasting module.
+
+---
+
+*Built as an original academic project. Not affiliated with, connected to, or endorsed by any
+healthcare authority. Simulated data only.*
