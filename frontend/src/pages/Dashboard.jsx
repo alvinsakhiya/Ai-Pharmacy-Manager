@@ -14,7 +14,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -74,10 +73,10 @@ export default function Dashboard() {
     );
 
   const expiryData = [
-    { name: "Expired", key: "expired", value: data.expiry.expired },
-    { name: "≤30d", key: "within_30", value: data.expiry.within_30 },
-    { name: "≤90d", key: "within_90", value: data.expiry.within_90 },
-    { name: "≤180d", key: "within_180", value: data.expiry.within_180 },
+    { name: "Expired", key: "expired", value: data.expiry.expired, fill: EXPIRY_COLORS.expired },
+    { name: "≤30d", key: "within_30", value: data.expiry.within_30, fill: EXPIRY_COLORS.within_30 },
+    { name: "≤90d", key: "within_90", value: data.expiry.within_90, fill: EXPIRY_COLORS.within_90 },
+    { name: "≤180d", key: "within_180", value: data.expiry.within_180, fill: EXPIRY_COLORS.within_180 },
   ];
 
   const trendData = (trend || []).map((d) => ({
@@ -141,11 +140,7 @@ export default function Dashboard() {
               <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#9099A4" }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#9099A4" }} tickLine={false} axisLine={false} width={36} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #E6E8EC", fontSize: 12 }} />
-              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                {expiryData.map((e) => (
-                  <Cell key={e.key} fill={EXPIRY_COLORS[e.key]} />
-                ))}
-              </Bar>
+              <Bar dataKey="value" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>

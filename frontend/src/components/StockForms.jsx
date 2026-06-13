@@ -10,6 +10,15 @@ const MED_BLANK = {
   reorder_level: 200, reorder_quantity: 400, unit_cost: "0.00", is_active: true,
 };
 
+function FieldError({ errors, name }) {
+  if (!errors[name]) return null;
+  return (
+    <span className="mt-1 block text-caption text-danger-fg">
+      {Array.isArray(errors[name]) ? errors[name][0] : String(errors[name])}
+    </span>
+  );
+}
+
 /** Create or edit a medicine. Pass `medicine` to edit. */
 export function MedicineForm({ open, medicine, onClose, onSaved }) {
   const toast = useToast();
@@ -48,9 +57,6 @@ export function MedicineForm({ open, medicine, onClose, onSaved }) {
     }
   }
 
-  const Err = ({ name }) =>
-    errors[name] ? <span className="mt-1 block text-caption text-danger-fg">{Array.isArray(errors[name]) ? errors[name][0] : String(errors[name])}</span> : null;
-
   return (
     <Modal
       open={open}
@@ -67,7 +73,7 @@ export function MedicineForm({ open, medicine, onClose, onSaved }) {
     >
       <form id="medicine-form" onSubmit={submit} className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <Field label="Name *"><Input value={form.name} onChange={set("name")} required /><Err name="name" /></Field>
+          <Field label="Name *"><Input value={form.name} onChange={set("name")} required /><FieldError errors={errors} name="name" /></Field>
         </div>
         <Field label="Strength"><Input value={form.strength} onChange={set("strength")} placeholder="5mg" /></Field>
         <Field label="Form">
@@ -84,7 +90,7 @@ export function MedicineForm({ open, medicine, onClose, onSaved }) {
           <input type="checkbox" checked={form.is_active} onChange={set("is_active")} className="h-4 w-4 accent-[#4F46E5]" />
           Active
         </label>
-        <Err name="non_field_errors" />
+        <FieldError errors={errors} name="non_field_errors" />
       </form>
     </Modal>
   );
@@ -140,9 +146,6 @@ export function BatchForm({ open, medicine, onClose, onSaved }) {
   }
 
   if (!form) return null;
-  const Err = ({ name }) =>
-    errors[name] ? <span className="mt-1 block text-caption text-danger-fg">{Array.isArray(errors[name]) ? errors[name][0] : String(errors[name])}</span> : null;
-
   return (
     <Modal
       open={open}
@@ -158,9 +161,9 @@ export function BatchForm({ open, medicine, onClose, onSaved }) {
       }
     >
       <form id="batch-form" onSubmit={submit} className="grid grid-cols-2 gap-3">
-        <Field label="Batch number *"><Input value={form.batch_number} onChange={set("batch_number")} required /><Err name="batch_number" /></Field>
-        <Field label="Expiry date *"><Input type="date" value={form.expiry_date} onChange={set("expiry_date")} required /><Err name="expiry_date" /></Field>
-        <Field label="Quantity received *"><Input type="number" min="1" value={form.quantity_received} onChange={set("quantity_received")} required /><Err name="quantity_received" /></Field>
+        <Field label="Batch number *"><Input value={form.batch_number} onChange={set("batch_number")} required /><FieldError errors={errors} name="batch_number" /></Field>
+        <Field label="Expiry date *"><Input type="date" value={form.expiry_date} onChange={set("expiry_date")} required /><FieldError errors={errors} name="expiry_date" /></Field>
+        <Field label="Quantity received *"><Input type="number" min="1" value={form.quantity_received} onChange={set("quantity_received")} required /><FieldError errors={errors} name="quantity_received" /></Field>
         <Field label="Location"><Input value={form.location} onChange={set("location")} placeholder="A3" /></Field>
         <Field label="Unit cost (£)"><Input type="number" step="0.0001" min="0" value={form.unit_cost} onChange={set("unit_cost")} /></Field>
         <Field label="Supplier">

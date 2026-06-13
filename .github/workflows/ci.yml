@@ -12,15 +12,16 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.14"
+          cache: pip
       - run: pip install -r requirements.txt
-      - name: Generate migrations
-        # Migrations are generated at runtime (see entrypoint.sh), so they are
-        # not committed. Generate them here so the test database can be built.
-        run: python manage.py makemigrations --noinput
+      - name: Dependency audit
+        run: pip install pip-audit && pip-audit -r requirements.txt
+      - name: Django checks
+        run: python manage.py check && python manage.py makemigrations --check --dry-run
       - name: Tests
         run: pytest
 
@@ -30,10 +31,13 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
-      - run: npm install
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
       - run: npm run lint
       - run: npm run build

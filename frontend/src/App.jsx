@@ -1,25 +1,34 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { Spinner } from "./components/ui";
 import Layout from "./components/Layout";
 
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Patients from "./pages/Patients";
-import Dosette from "./pages/Dosette";
-import Picking from "./pages/Picking";
-import Stock from "./pages/Stock";
-import Expiry from "./pages/Expiry";
-import Forecasting from "./pages/Forecasting";
-import Reports from "./pages/Reports";
-import Notifications from "./pages/Notifications";
-import AuditLog from "./pages/AuditLog";
-import AIHub from "./pages/ai/AIHub";
-import ClinicalSafety from "./pages/ai/ClinicalSafety";
-import SmartReorder from "./pages/ai/SmartReorder";
-import Intake from "./pages/ai/Intake";
-import DailyBrief from "./pages/ai/DailyBrief";
-import Settings from "./pages/Settings";
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Patients = lazy(() => import("./pages/Patients"));
+const Dosette = lazy(() => import("./pages/Dosette"));
+const Picking = lazy(() => import("./pages/Picking"));
+const Stock = lazy(() => import("./pages/Stock"));
+const Expiry = lazy(() => import("./pages/Expiry"));
+const Forecasting = lazy(() => import("./pages/Forecasting"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const AuditLog = lazy(() => import("./pages/AuditLog"));
+const AIHub = lazy(() => import("./pages/ai/AIHub"));
+const ClinicalSafety = lazy(() => import("./pages/ai/ClinicalSafety"));
+const SmartReorder = lazy(() => import("./pages/ai/SmartReorder"));
+const Intake = lazy(() => import("./pages/ai/Intake"));
+const DailyBrief = lazy(() => import("./pages/ai/DailyBrief"));
+const Settings = lazy(() => import("./pages/Settings"));
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-64 items-center justify-center text-accent">
+      <Spinner className="h-6 w-6" />
+    </div>
+  );
+}
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -34,34 +43,36 @@ function Protected({ children }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/"
-        element={
-          <Protected>
-            <Layout />
-          </Protected>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="patients" element={<Patients />} />
-        <Route path="dosette" element={<Dosette />} />
-        <Route path="picking" element={<Picking />} />
-        <Route path="stock" element={<Stock />} />
-        <Route path="expiry" element={<Expiry />} />
-        <Route path="forecasting" element={<Forecasting />} />
-        <Route path="ai" element={<AIHub />} />
-        <Route path="ai/brief" element={<DailyBrief />} />
-        <Route path="ai/safety" element={<ClinicalSafety />} />
-        <Route path="ai/reorder" element={<SmartReorder />} />
-        <Route path="ai/intake" element={<Intake />} />
-        <Route path="reports" element={<Reports />} />
-        <Route path="notifications" element={<Notifications />} />
-        <Route path="audit" element={<AuditLog />} />
-        <Route path="settings" element={<Settings />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<PageFallback />}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/"
+          element={
+            <Protected>
+              <Layout />
+            </Protected>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="patients" element={<Patients />} />
+          <Route path="dosette" element={<Dosette />} />
+          <Route path="picking" element={<Picking />} />
+          <Route path="stock" element={<Stock />} />
+          <Route path="expiry" element={<Expiry />} />
+          <Route path="forecasting" element={<Forecasting />} />
+          <Route path="ai" element={<AIHub />} />
+          <Route path="ai/brief" element={<DailyBrief />} />
+          <Route path="ai/safety" element={<ClinicalSafety />} />
+          <Route path="ai/reorder" element={<SmartReorder />} />
+          <Route path="ai/intake" element={<Intake />} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="audit" element={<AuditLog />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

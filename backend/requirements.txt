@@ -1,33 +1,33 @@
 # Core
-Django==5.0.6
-djangorestframework==3.15.1
-djangorestframework-simplejwt==5.3.1
-django-cors-headers==4.3.1
-django-filter==24.2
-drf-spectacular==0.27.2
+Django==6.0.6
+djangorestframework==3.17.1
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.9.0
+django-filter==25.2
+drf-spectacular==0.29.0
 
 # Database
-psycopg2-binary==2.9.9
+psycopg[binary]==3.3.4
 
 # Config
-python-dotenv==1.0.1
-dj-database-url==2.1.0
+python-dotenv==1.2.2
+dj-database-url==3.1.2
 
 # Forecasting / analytics
 # numpy is required by the forecasting engine; statsmodels is optional (the engine
 # degrades gracefully to a NumPy least-squares fit when it is unavailable).
 # pandas is pulled in transitively by statsmodels. scikit-learn was unused and removed.
-numpy==1.26.4
-statsmodels==0.14.2
+numpy==2.4.6
+statsmodels==0.14.6
 
 # Reporting
-reportlab==4.2.0
+reportlab==4.5.1
 
 # Production server
-gunicorn==22.0.0
-whitenoise==6.6.0
+gunicorn==26.0.0
+whitenoise==6.12.0
 
 # Testing
-pytest==8.2.0
-pytest-django==4.8.0
-factory-boy==3.3.0
+pytest==9.0.3
+pytest-django==4.12.0
+factory-boy==3.3.3

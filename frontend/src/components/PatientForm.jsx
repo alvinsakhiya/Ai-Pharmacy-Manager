@@ -18,6 +18,15 @@ const BLANK = {
   is_dosette: false,
 };
 
+function FieldError({ errors, name }) {
+  if (!errors[name]) return null;
+  return (
+    <span className="mt-1 block text-caption text-danger-fg">
+      {Array.isArray(errors[name]) ? errors[name][0] : String(errors[name])}
+    </span>
+  );
+}
+
 /** Create or edit a patient. Pass `patient` to edit, omit to create. */
 export function PatientForm({ open, patient, onClose, onSaved }) {
   const toast = useToast();
@@ -58,13 +67,6 @@ export function PatientForm({ open, patient, onClose, onSaved }) {
     }
   }
 
-  const Err = ({ name }) =>
-    errors[name] ? (
-      <span className="mt-1 block text-caption text-danger-fg">
-        {Array.isArray(errors[name]) ? errors[name][0] : String(errors[name])}
-      </span>
-    ) : null;
-
   return (
     <Modal
       open={open}
@@ -83,7 +85,7 @@ export function PatientForm({ open, patient, onClose, onSaved }) {
       <form id="patient-form" onSubmit={submit} className="grid grid-cols-2 gap-3">
         <Field label="Patient ID *">
           <Input value={form.patient_id} onChange={set("patient_id")} placeholder="PT-10500" required />
-          <Err name="patient_id" />
+          <FieldError errors={errors} name="patient_id" />
         </Field>
         <Field label="Status">
           <Select value={form.status} onChange={set("status")}>
@@ -93,15 +95,15 @@ export function PatientForm({ open, patient, onClose, onSaved }) {
         </Field>
         <Field label="First name *">
           <Input value={form.first_name} onChange={set("first_name")} required />
-          <Err name="first_name" />
+          <FieldError errors={errors} name="first_name" />
         </Field>
         <Field label="Last name *">
           <Input value={form.last_name} onChange={set("last_name")} required />
-          <Err name="last_name" />
+          <FieldError errors={errors} name="last_name" />
         </Field>
         <Field label="Date of birth *">
           <Input type="date" value={form.date_of_birth} onChange={set("date_of_birth")} required />
-          <Err name="date_of_birth" />
+          <FieldError errors={errors} name="date_of_birth" />
         </Field>
         <Field label="Phone">
           <Input value={form.phone} onChange={set("phone")} />

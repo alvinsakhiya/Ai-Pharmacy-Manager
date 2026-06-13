@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, use, useEffect, useState } from "react";
 import api, { tokenStore } from "../api/client";
 
 const AuthContext = createContext(null);
@@ -45,10 +45,10 @@ export function AuthProvider({ children }) {
     user && (user.role === "administrator" || roles.includes(user.role));
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, can }}>
+    <AuthContext value={{ user, loading, login, logout, can }}>
       {children}
-    </AuthContext.Provider>
+    </AuthContext>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => use(AuthContext);

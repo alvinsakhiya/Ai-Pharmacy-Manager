@@ -1,5 +1,5 @@
 /** Clinical Safety AI — explainable interaction / duplicate / dose checks. */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -27,21 +27,21 @@ export default function ClinicalSafety() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    listPatients().then((rows) => {
-      setPatients(rows);
-      if (rows[0]) run(rows[0]);
-    });
-  }, []);
-
-  const run = async (patient) => {
+  const run = useCallback(async (patient) => {
     setSelected(patient);
     setResult(null);
     setLoading(true);
     const r = await safetyCheck(patient.id);
     setResult(r);
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    listPatients().then((rows) => {
+      setPatients(rows);
+      if (rows[0]) run(rows[0]);
+    });
+  }, [run]);
 
   const verdict = result ? VERDICT[result.overall] || VERDICT.info : null;
 

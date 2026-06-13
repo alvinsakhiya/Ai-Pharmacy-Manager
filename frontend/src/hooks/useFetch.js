@@ -12,7 +12,7 @@ export function useFetch(url, { params, skip } = {}) {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get(url, { params });
+      const res = await api.get(url, { params: JSON.parse(key) });
       setData(res.data);
     } catch (e) {
       setError(e);

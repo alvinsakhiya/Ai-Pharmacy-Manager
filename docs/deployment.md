@@ -10,13 +10,17 @@ Services:
 
 | Service | Image | Port | Notes |
 |---|---|---|---|
-| `db` | postgres:16 | internal | volume `pgdata` persists data |
-| `redis` | redis:7 | internal | reserved for roadmap background jobs |
+| `db` | postgres:18 | internal | volume `pgdata18` persists data |
+| `redis` | redis:8 | internal | reserved for roadmap background jobs |
 | `backend` | built from `./backend` | 8000 | gunicorn; auto-migrates & seeds on first boot |
 | `frontend` | built from `./frontend` | 8080 | nginx serves the SPA and proxies `/api/` |
 
 Then open <http://localhost:8080>. To **disable auto-seeding**, set `SEED_ON_START=false` on the
 backend service.
+
+PostgreSQL 18 uses a new versioned data-directory layout. Back up and migrate any existing
+PostgreSQL 16 `pgdata` volume before starting this Compose stack; the new stack deliberately uses
+`pgdata18` so an older database is never overwritten or attached accidentally.
 
 ### Production hardening checklist
 

@@ -86,8 +86,8 @@ Full reasoning, trade-offs and rejected alternatives are in
 Prerequisites: Docker + Docker Compose.
 
 ```bash
-git clone https://github.com/alvinsakhiya/Pharmacy-Project.git
-cd Pharmacy-Project
+git clone https://github.com/alvinsakhiya/Ai-Pharmacy-Manager.git
+cd Ai-Pharmacy-Manager
 docker compose up --build
 ```
 
@@ -113,11 +113,13 @@ python manage.py createsuperuser                      # optional, for /admin
 python manage.py runserver                            # http://localhost:8000
 ```
 
+> The supported backend runtime is Python **3.14** with Django **6.0**.
+
 ### Frontend
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev                                           # http://localhost:5173 (proxies /api to :8000)
 ```
 
@@ -159,7 +161,7 @@ Interactive OpenAPI/Swagger UI is served at `/api/docs/` (ReDoc at `/api/redoc/`
 ## Project structure
 
 ```
-Pharmacy-Project/
+Ai-Pharmacy-Manager/
 ├── backend/                 # Django REST Framework API
 │   ├── config/              # settings, urls, wsgi/asgi
 │   └── apps/

@@ -1,6 +1,6 @@
 /** House component vocabulary — built once, reused everywhere for coherence.
  *  Apple-calm surfaces; Swiggy-alive motion (press-scale, slide/fade, toasts). */
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, use, useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle } from "lucide-react";
 
 const cx = (...c) => c.filter(Boolean).join(" ");
@@ -107,7 +107,7 @@ export function TableSkeleton({ rows = 6, cols = 5 }) {
 }
 
 /* ----------------------------------------------------------------- Toast */
-const ToastCtx = createContext(null);
+const ToastContext = createContext(null);
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const push = useCallback((toast) => {
@@ -122,7 +122,7 @@ export function ToastProvider({ children }) {
     info: (msg) => push({ tone: "info", message: msg }),
   };
   return (
-    <ToastCtx.Provider value={api}>
+    <ToastContext value={api}>
       {children}
       <div className="pointer-events-none fixed bottom-5 right-5 z-50 flex flex-col gap-2">
         {toasts.map((t) => {
@@ -141,10 +141,10 @@ export function ToastProvider({ children }) {
           );
         })}
       </div>
-    </ToastCtx.Provider>
+    </ToastContext>
   );
 }
-export const useToast = () => useContext(ToastCtx);
+export const useToast = () => use(ToastContext);
 
 /* ----------------------------------------------------------------- Modal */
 export function Modal({ open, onClose, title, children, footer, wide }) {

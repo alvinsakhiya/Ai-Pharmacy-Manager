@@ -44,12 +44,14 @@ export default function CommandBar({ open, onClose }) {
 
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 40);
+      const focusTimer = setTimeout(() => inputRef.current?.focus(), 40);
+      return () => clearTimeout(focusTimer);
     } else {
       setQuery("");
       setResult(null);
       setLoading(false);
     }
+    return undefined;
   }, [open]);
 
   useEffect(() => {

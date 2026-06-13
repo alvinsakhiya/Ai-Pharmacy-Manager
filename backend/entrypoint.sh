@@ -7,10 +7,10 @@ import os, time, sys
 import dj_database_url
 cfg = dj_database_url.parse(os.getenv("DATABASE_URL", ""))
 if cfg.get("ENGINE", "").endswith("postgresql"):
-    import psycopg2
+    import psycopg
     for _ in range(30):
         try:
-            psycopg2.connect(
+            psycopg.connect(
                 dbname=cfg["NAME"], user=cfg["USER"], password=cfg["PASSWORD"],
                 host=cfg["HOST"], port=cfg["PORT"] or 5432,
             ).close()
@@ -22,8 +22,6 @@ if cfg.get("ENGINE", "").endswith("postgresql"):
 print("Database ready.")
 PY
 
-echo "Generating migrations…"
-python manage.py makemigrations accounts core patients stock dosette picking notifications reports --noinput
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput || true
 

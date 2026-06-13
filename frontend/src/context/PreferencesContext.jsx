@@ -7,7 +7,7 @@
  * app instantly — light/dark, high-contrast, colour-blind palettes, font scaling,
  * dyslexia font, reduced motion, density and simplified mode — with no per-screen code.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, use, useCallback, useEffect, useMemo, useState } from "react";
 
 const STORAGE_KEY = "pm_prefs";
 
@@ -73,7 +73,7 @@ function apply(prefs) {
   el.style.setProperty("--fs", String(prefs.fontScale || 1));
 }
 
-const PreferencesCtx = createContext(null);
+const PreferencesContext = createContext(null);
 
 export function PreferencesProvider({ children }) {
   const [prefs, setPrefs] = useState(load);
@@ -109,11 +109,11 @@ export function PreferencesProvider({ children }) {
     [prefs, set, setGroup, reset]
   );
 
-  return <PreferencesCtx.Provider value={value}>{children}</PreferencesCtx.Provider>;
+  return <PreferencesContext value={value}>{children}</PreferencesContext>;
 }
 
 export function usePreferences() {
-  const ctx = useContext(PreferencesCtx);
+  const ctx = use(PreferencesContext);
   if (!ctx) throw new Error("usePreferences must be used within PreferencesProvider");
   return ctx;
 }
