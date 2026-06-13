@@ -7,11 +7,12 @@ increment includes:
 
 - operational task assignment and lifecycle;
 - pharmacy opening-hours configuration;
-- local delivery tracking.
+- local delivery tracking;
+- immutable fridge temperature monitoring.
 
 It does not send data to delivery providers, booking platforms, wholesalers, or
-public healthcare services. Later increments can add appointment,
-fridge-monitoring, and internal-resource workflows within the same bounded app.
+public healthcare services. Later increments can add appointment and
+internal-resource workflows within the same bounded app.
 
 ## Operational Tasks
 
@@ -96,6 +97,22 @@ Status is communicated with text, icons, and structure rather than colour
 alone. The UI does not request or display delivery addresses, maps, routes, or
 external provider information.
 
+## Fridge Temperature Monitoring
+
+Temperature logs are append-only, server-timestamped operational records. The
+module presents the commonly used 2-8 C operating range for local pharmacy
+fridge checks. Any reading outside that range requires a corrective-action
+statement before it can be stored.
+
+Managers, Pharmacists, and Stock Assistants can record readings. All
+authenticated roles can view the history, while normal API and UI workflows do
+not permit edits or deletion. Audit summaries record that a log was created
+without copying the temperature, notes, or corrective-action text.
+
+This is a manual local monitoring aid. It does not connect to fridge hardware,
+alarm services, manufacturers, wholesalers, NHS services, or clinical decision
+support.
+
 ## API
 
 Task endpoints:
@@ -132,13 +149,22 @@ Local-delivery endpoints:
 Delivery filters include `status`, `assigned`, `patient`, `date_from`,
 `date_to`, and `search`.
 
+Fridge-monitoring endpoints:
+
+- `GET/POST /api/fridge-temperature-logs/`
+- `GET /api/fridge-temperature-logs/{id}/`
+- `GET /api/fridge-temperature-logs/summary/`
+
+Fridge filters include `range_status`, `date_from`, and `date_to`.
+
 ## Assessment Value
 
 For AT3, the task lifecycle demonstrates clear internal accountability: create,
 claim, start, complete, and review the audit event. Opening hours demonstrate
 validated configuration and role-aware administration. Local delivery
 tracking demonstrates an original, non-NHS operational workflow with visible
-status progression and failure handling.
+status progression and failure handling. Fridge monitoring demonstrates
+append-only safety evidence and visible corrective-action validation.
 
 For AT4, the bounded Django app, service-layer transitions, transaction locks,
 visibility scoping, validation, audit assertions, authentication tests, and

@@ -102,3 +102,7 @@ patient-care role restrictions, transactional lifecycle changes, safe audit
 summaries, and no courier, route, NHS, or external service integration. Its
 responsive delivery workspace provides scheduling, assignment, status
 progression, outcome recording, filters, and accessible mobile cards.
+
+Append-only fridge temperature logs add server-timestamped safety evidence,
+role-restricted recording, a visible 2-8 C range, and mandatory corrective
+action for out-of-range readings without hardware or external integrations.

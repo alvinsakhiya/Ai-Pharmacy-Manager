@@ -417,3 +417,16 @@ class LocalDeliveryRolePermission(BasePermission):
             return obj.assigned_user_id == request.user.id
 
         return True
+
+
+class FridgeTemperatureRolePermission(MethodRolePermission):
+    method_roles = {
+        "GET": ALL_ROLES,
+        "POST": frozenset(
+            {
+                PharmacyRole.MANAGER,
+                PharmacyRole.PHARMACIST,
+                PharmacyRole.STOCK_ASSISTANT,
+            }
+        ),
+    }

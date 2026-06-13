@@ -1,6 +1,11 @@
 from django.contrib import admin
 
-from .models import LocalDelivery, OpeningHour, OperationalTask
+from .models import (
+    FridgeTemperatureLog,
+    LocalDelivery,
+    OpeningHour,
+    OperationalTask,
+)
 
 
 @admin.register(OperationalTask)
@@ -101,4 +106,34 @@ class LocalDeliveryAdmin(admin.ModelAdmin):
         obj.assigned_username = (
             obj.assigned_user.get_username() if obj.assigned_user else ""
         )
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(FridgeTemperatureLog)
+class FridgeTemperatureLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "temperature_celsius",
+        "recorded_by_username",
+        "recorded_at",
+    )
+    list_filter = ("recorded_at",)
+    search_fields = ("recorded_by_username",)
+    readonly_fields = (
+        "temperature_celsius",
+        "action_taken",
+        "notes",
+        "recorded_by",
+        "recorded_by_username",
+        "recorded_at",
+    )
+
+    def has_change_permission(self, request, obj=None):
+        return obj is None
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        obj.recorded_by = request.user
+        obj.recorded_by_username = request.user.get_username()
         super().save_model(request, obj, form, change)

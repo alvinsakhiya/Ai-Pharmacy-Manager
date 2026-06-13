@@ -1,13 +1,16 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.dateparse import parse_date
 from django.utils import timezone
-from rest_framework import pagination, status, viewsets
+from rest_framework import mixins, pagination, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from accounts.permissions import (
+    FridgeTemperatureRolePermission,
     LocalDeliveryRolePermission,
     OpeningHourRolePermission,
     OperationalTaskRolePermission,
@@ -16,9 +19,15 @@ from accounts.roles import PharmacyRole, get_user_roles
 from auditlog.models import AuditEvent
 from auditlog.services import AuditedModelViewSetMixin, log_audit_event
 
-from .models import LocalDelivery, OpeningHour, OperationalTask
+from .models import (
+    FridgeTemperatureLog,
+    LocalDelivery,
+    OpeningHour,
+    OperationalTask,
+)
 from .serializers import (
     DeliveryOutcomeSerializer,
+    FridgeTemperatureLogSerializer,
     LocalDeliverySerializer,
     OpeningHourSerializer,
     OperationalTaskSerializer,
@@ -503,4 +512,137 @@ class LocalDeliveryViewSet(
             cancel_delivery,
             delivery.pk,
             serializer.validated_data["reason"],
+        )
+
+
+class FridgeTemperaturePagination(pagination.PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
+
+class FridgeTemperatureLogViewSet(
+    AuditedModelViewSetMixin,
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = FridgeTemperatureLogSerializer
+    permission_classes = [FridgeTemperatureRolePermission]
+    pagination_class = FridgeTemperaturePagination
+    audit_entity_type = "FridgeTemperatureLog"
+
+    def get_queryset(self):
+        queryset = FridgeTemperatureLog.objects.select_related("recorded_by")
+        range_status = self.request.query_params.get(
+            "range_status",
+            "",
+        ).strip().upper()
+        date_from = self.request.query_params.get("date_from", "").strip()
+        date_to = self.request.query_params.get("date_to", "").strip()
+
+        if range_status:
+            if range_status == "WITHIN_RANGE":
+                queryset = queryset.filter(
+                    temperature_celsius__gte=(
+                        FridgeTemperatureLog.MIN_SAFE_TEMPERATURE
+                    ),
+                    temperature_celsius__lte=(
+                        FridgeTemperatureLog.MAX_SAFE_TEMPERATURE
+                    ),
+                )
+            elif range_status == "OUT_OF_RANGE":
+                queryset = queryset.filter(
+                    Q(
+                        temperature_celsius__lt=(
+                            FridgeTemperatureLog.MIN_SAFE_TEMPERATURE
+                        )
+                    )
+                    | Q(
+                        temperature_celsius__gt=(
+                            FridgeTemperatureLog.MAX_SAFE_TEMPERATURE
+                        )
+                    )
+                )
+            else:
+                raise ValidationError(
+                    {
+                        "range_status": (
+                            "Use WITHIN_RANGE or OUT_OF_RANGE."
+                        )
+                    }
+                )
+
+        parsed_date_from = None
+        if date_from:
+            parsed_date_from = parse_date(date_from)
+            if parsed_date_from is None:
+                raise ValidationError(
+                    {"date_from": "Use a valid date in YYYY-MM-DD format."}
+                )
+            queryset = queryset.filter(
+                recorded_at__date__gte=parsed_date_from
+            )
+
+        if date_to:
+            parsed_date_to = parse_date(date_to)
+            if parsed_date_to is None:
+                raise ValidationError(
+                    {"date_to": "Use a valid date in YYYY-MM-DD format."}
+                )
+            if parsed_date_from and parsed_date_to < parsed_date_from:
+                raise ValidationError(
+                    {"date_to": "End date cannot be before start date."}
+                )
+            queryset = queryset.filter(
+                recorded_at__date__lte=parsed_date_to
+            )
+
+        return queryset
+
+    def perform_create(self, serializer):
+        recorder = self.request.user
+        serializer.validated_data["recorded_by"] = recorder
+        serializer.validated_data["recorded_by_username"] = (
+            recorder.get_username()
+        )
+        super().perform_create(serializer)
+
+    @action(detail=False, methods=["get"])
+    def summary(self, request):
+        queryset = self.get_queryset()
+        today = timezone.localdate()
+        today_queryset = queryset.filter(recorded_at__date=today)
+        within_today = today_queryset.filter(
+            temperature_celsius__gte=(
+                FridgeTemperatureLog.MIN_SAFE_TEMPERATURE
+            ),
+            temperature_celsius__lte=(
+                FridgeTemperatureLog.MAX_SAFE_TEMPERATURE
+            ),
+        )
+        out_of_range_today = today_queryset.exclude(
+            temperature_celsius__gte=(
+                FridgeTemperatureLog.MIN_SAFE_TEMPERATURE
+            ),
+            temperature_celsius__lte=(
+                FridgeTemperatureLog.MAX_SAFE_TEMPERATURE
+            ),
+        )
+        latest = queryset.first()
+
+        return Response(
+            {
+                "latest": (
+                    self.get_serializer(latest).data if latest else None
+                ),
+                "readings_today": today_queryset.count(),
+                "within_range_today": within_today.count(),
+                "out_of_range_today": out_of_range_today.count(),
+                "has_reading_today": today_queryset.exists(),
+                "readings_last_7_days": queryset.filter(
+                    recorded_at__date__gte=today - timedelta(days=6)
+                ).count(),
+            }
         )

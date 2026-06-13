@@ -41,6 +41,7 @@ from dosette.api_views import (
 from dosette.picking_api_views import patient_picking_list
 from notifications.api_views import NotificationViewSet
 from operations.api_views import (
+    FridgeTemperatureLogViewSet,
     LocalDeliveryViewSet,
     OpeningHourViewSet,
     OperationalTaskViewSet,
@@ -102,6 +103,11 @@ router.register(
     r"local-deliveries",
     LocalDeliveryViewSet,
     basename="local-deliveries",
+)
+router.register(
+    r"fridge-temperature-logs",
+    FridgeTemperatureLogViewSet,
+    basename="fridge-temperature-logs",
 )
 
 urlpatterns = [

@@ -10,7 +10,12 @@ from accounts.roles import PharmacyRole, assign_role
 from auditlog.models import AuditEvent
 
 from patients.models import Patient
-from .models import LocalDelivery, OpeningHour, OperationalTask
+from .models import (
+    FridgeTemperatureLog,
+    LocalDelivery,
+    OpeningHour,
+    OperationalTask,
+)
 
 
 class OperationalTaskApiTest(APITestCase):
@@ -666,3 +671,186 @@ class LocalDeliveryApiTest(APITestCase):
         )
         self.assertIsNone(overdue.patient)
         self.assertEqual(overdue.patient_name, patient_name)
+
+
+class FridgeTemperatureLogApiTest(APITestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.manager = user_model.objects.create_user(
+            username="fridge_manager",
+            password="FridgeTest123!",
+        )
+        assign_role(self.manager, PharmacyRole.MANAGER)
+        self.pharmacist = user_model.objects.create_user(
+            username="fridge_pharmacist",
+            password="FridgeTest123!",
+        )
+        assign_role(self.pharmacist, PharmacyRole.PHARMACIST)
+        self.dispenser = user_model.objects.create_user(
+            username="fridge_dispenser",
+            password="FridgeTest123!",
+        )
+        assign_role(self.dispenser, PharmacyRole.DISPENSER)
+        self.stock_assistant = user_model.objects.create_user(
+            username="fridge_stock_assistant",
+            password="FridgeTest123!",
+        )
+        assign_role(
+            self.stock_assistant,
+            PharmacyRole.STOCK_ASSISTANT,
+        )
+        self.read_only = user_model.objects.create_user(
+            username="fridge_read_only",
+            password="FridgeTest123!",
+        )
+        assign_role(self.read_only, PharmacyRole.READ_ONLY)
+        self.url = reverse("fridge-temperature-logs-list")
+        self.client.force_authenticate(self.manager)
+
+    def create_reading(self, **overrides):
+        payload = {
+            "temperature_celsius": "4.5",
+            "action_taken": "",
+            "notes": "Routine internal fridge check.",
+        }
+        payload.update(overrides)
+        return self.client.post(self.url, payload, format="json")
+
+    def test_temperature_api_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_authorised_staff_records_safe_reading_with_audit(self):
+        self.client.force_authenticate(self.stock_assistant)
+
+        response = self.create_reading()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["is_within_range"])
+        self.assertEqual(response.data["range_status"], "WITHIN_RANGE")
+        reading = FridgeTemperatureLog.objects.get(pk=response.data["id"])
+        self.assertEqual(reading.recorded_by, self.stock_assistant)
+        self.assertEqual(
+            reading.recorded_by_username,
+            self.stock_assistant.username,
+        )
+
+        event = AuditEvent.objects.get(
+            action=AuditEvent.Action.CREATE,
+            entity_type="FridgeTemperatureLog",
+            entity_identifier=str(reading.id),
+        )
+        self.assertNotIn(str(reading.temperature_celsius), event.summary)
+        self.assertNotIn(reading.notes, event.summary)
+
+    def test_out_of_range_requires_corrective_action_and_boundaries_are_safe(self):
+        missing_action = self.create_reading(
+            temperature_celsius="9.0",
+        )
+        high = self.create_reading(
+            temperature_celsius="9.0",
+            action_taken="Quarantined affected stock and escalated locally.",
+        )
+        low_boundary = self.create_reading(temperature_celsius="2.0")
+        high_boundary = self.create_reading(temperature_celsius="8.0")
+        non_finite = self.create_reading(temperature_celsius="NaN")
+
+        self.assertEqual(
+            missing_action.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(high.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(high.data["is_within_range"])
+        self.assertTrue(low_boundary.data["is_within_range"])
+        self.assertTrue(high_boundary.data["is_within_range"])
+        self.assertEqual(
+            non_finite.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_role_access_and_immutable_history(self):
+        response = self.create_reading()
+        reading_id = response.data["id"]
+
+        self.client.force_authenticate(self.dispenser)
+        dispenser_read = self.client.get(self.url)
+        dispenser_write = self.create_reading()
+
+        self.client.force_authenticate(self.read_only)
+        read_only_read = self.client.get(self.url)
+
+        self.client.force_authenticate(self.manager)
+        patch_response = self.client.patch(
+            reverse("fridge-temperature-logs-detail", args=[reading_id]),
+            {"temperature_celsius": "6.0"},
+            format="json",
+        )
+        delete_response = self.client.delete(
+            reverse("fridge-temperature-logs-detail", args=[reading_id])
+        )
+
+        self.assertEqual(dispenser_read.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            dispenser_write.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(read_only_read.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            patch_response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(
+            delete_response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_summary_and_filters_report_range_status(self):
+        safe = self.create_reading(temperature_celsius="5.0")
+        unsafe = self.create_reading(
+            temperature_celsius="1.5",
+            action_taken="Moved stock to a validated backup fridge.",
+        )
+
+        summary = self.client.get(
+            reverse("fridge-temperature-logs-summary")
+        )
+        within = self.client.get(
+            self.url,
+            {"range_status": "WITHIN_RANGE"},
+        )
+        outside = self.client.get(
+            self.url,
+            {"range_status": "OUT_OF_RANGE"},
+        )
+        invalid = self.client.get(
+            self.url,
+            {"range_status": "UNKNOWN"},
+        )
+        invalid_date = self.client.get(
+            self.url,
+            {"date_from": "not-a-date"},
+        )
+
+        self.assertEqual(summary.status_code, status.HTTP_200_OK)
+        self.assertEqual(summary.data["readings_today"], 2)
+        self.assertEqual(summary.data["within_range_today"], 1)
+        self.assertEqual(summary.data["out_of_range_today"], 1)
+        self.assertTrue(summary.data["has_reading_today"])
+        self.assertEqual(summary.data["latest"]["id"], unsafe.data["id"])
+        self.assertEqual(within.data["count"], 1)
+        self.assertEqual(within.data["results"][0]["id"], safe.data["id"])
+        self.assertEqual(outside.data["count"], 1)
+        self.assertEqual(
+            invalid.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            invalid_date.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )

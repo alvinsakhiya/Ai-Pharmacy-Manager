@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -209,4 +211,46 @@ class LocalDelivery(models.Model):
         return (
             f"{self.patient_name} - {self.scheduled_date} "
             f"({self.get_status_display()})"
+        )
+
+
+class FridgeTemperatureLog(models.Model):
+    MIN_SAFE_TEMPERATURE = Decimal("2.0")
+    MAX_SAFE_TEMPERATURE = Decimal("8.0")
+
+    temperature_celsius = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+    )
+    action_taken = models.TextField(blank=True, max_length=2000)
+    notes = models.TextField(blank=True, max_length=1000)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="fridge_temperature_logs",
+    )
+    recorded_by_username = models.CharField(max_length=150, blank=True)
+    recorded_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-recorded_at", "-id"]
+
+    @property
+    def is_within_range(self):
+        return (
+            self.MIN_SAFE_TEMPERATURE
+            <= self.temperature_celsius
+            <= self.MAX_SAFE_TEMPERATURE
+        )
+
+    @property
+    def range_status(self):
+        return "WITHIN_RANGE" if self.is_within_range else "OUT_OF_RANGE"
+
+    def __str__(self):
+        return (
+            f"{self.temperature_celsius} C at "
+            f"{self.recorded_at:%Y-%m-%d %H:%M}"
         )

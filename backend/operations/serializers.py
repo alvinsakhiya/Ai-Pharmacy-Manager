@@ -3,7 +3,12 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from accounts.roles import PharmacyRole, get_user_roles
-from .models import LocalDelivery, OpeningHour, OperationalTask
+from .models import (
+    FridgeTemperatureLog,
+    LocalDelivery,
+    OpeningHour,
+    OperationalTask,
+)
 
 
 class OperationalTaskSerializer(serializers.ModelSerializer):
@@ -306,3 +311,64 @@ class DeliveryOutcomeSerializer(serializers.Serializer):
         trim_whitespace=True,
         allow_blank=False,
     )
+
+
+class FridgeTemperatureLogSerializer(serializers.ModelSerializer):
+    recorded_by_display = serializers.SerializerMethodField()
+    is_within_range = serializers.BooleanField(read_only=True)
+    range_status = serializers.CharField(read_only=True)
+    range_status_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FridgeTemperatureLog
+        fields = (
+            "id",
+            "temperature_celsius",
+            "is_within_range",
+            "range_status",
+            "range_status_label",
+            "action_taken",
+            "notes",
+            "recorded_by_display",
+            "recorded_at",
+        )
+        read_only_fields = (
+            "id",
+            "is_within_range",
+            "range_status",
+            "range_status_label",
+            "recorded_by_display",
+            "recorded_at",
+        )
+
+    def validate_action_taken(self, value):
+        return value.strip()
+
+    def validate_notes(self, value):
+        return value.strip()
+
+    def validate(self, attrs):
+        temperature = attrs.get("temperature_celsius")
+        action_taken = attrs.get("action_taken", "").strip()
+
+        if temperature is not None and not (
+            FridgeTemperatureLog.MIN_SAFE_TEMPERATURE
+            <= temperature
+            <= FridgeTemperatureLog.MAX_SAFE_TEMPERATURE
+        ) and not action_taken:
+            raise serializers.ValidationError(
+                {
+                    "action_taken": (
+                        "Corrective action is required for an out-of-range "
+                        "temperature."
+                    )
+                }
+            )
+
+        return attrs
+
+    def get_recorded_by_display(self, obj):
+        return obj.recorded_by_username or "Former staff member"
+
+    def get_range_status_label(self, obj):
+        return "Within 2-8 C" if obj.is_within_range else "Outside 2-8 C"
