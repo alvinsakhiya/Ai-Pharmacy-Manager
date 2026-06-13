@@ -196,3 +196,45 @@ class ClinicalReviewRolePermission(MethodRolePermission):
         "PATCH": clinical_roles,
         "DELETE": clinical_roles,
     }
+
+
+class NotificationRolePermission(BasePermission):
+    message = "Your pharmacy role does not permit this notification action."
+    manager_actions = {
+        "create",
+        "update",
+        "partial_update",
+        "destroy",
+        "assignees",
+    }
+    read_actions = {"list", "retrieve", "summary"}
+    lifecycle_actions = {"mark_read", "acknowledge", "resolve"}
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.is_superuser:
+            return True
+
+        action = getattr(view, "action", None)
+        roles = set(get_user_roles(request.user))
+
+        if action in self.read_actions or action in self.lifecycle_actions:
+            return bool(roles & set(ALL_ROLES))
+
+        if action in self.manager_actions:
+            return PharmacyRole.MANAGER in roles
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        roles = set(get_user_roles(request.user))
+
+        if PharmacyRole.MANAGER in roles:
+            return True
+
+        if getattr(view, "action", None) in self.lifecycle_actions:
+            return obj.assigned_user_id == request.user.id
+
+        return True

@@ -25,6 +25,7 @@ export const pageRoles = {
     PharmacyRole.MANAGER,
     PharmacyRole.PHARMACIST,
   ],
+  "/notifications": allRoles,
   "/dosette": [
     PharmacyRole.MANAGER,
     PharmacyRole.PHARMACIST,
@@ -61,4 +62,8 @@ export function canManageInventory(user) {
   return [PharmacyRole.MANAGER, PharmacyRole.STOCK_ASSISTANT].some((role) =>
     user?.roles?.includes(role)
   );
+}
+
+export function canManageNotifications(user) {
+  return user?.roles?.includes(PharmacyRole.MANAGER) || false;
 }

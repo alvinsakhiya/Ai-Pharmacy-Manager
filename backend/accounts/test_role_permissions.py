@@ -87,6 +87,8 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("medication_forecasts"),
             reverse("audit-events-list"),
             reverse("clinical-reviews-list"),
+            reverse("notifications-list"),
+            reverse("notifications-summary"),
         ]
         for url in readable_urls:
             with self.subTest(url=url):
@@ -160,6 +162,11 @@ class PharmacyRolePermissionTest(APITestCase):
             status.HTTP_403_FORBIDDEN,
         )
         self.assert_status(
+            "get",
+            reverse("notifications-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
             "post",
             reverse("clinical-reviews-list"),
             status.HTTP_201_CREATED,
@@ -220,6 +227,11 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("clinical-reviews-list"),
             status.HTTP_403_FORBIDDEN,
         )
+        self.assert_status(
+            "get",
+            reverse("notifications-list"),
+            status.HTTP_200_OK,
+        )
 
     def test_stock_assistant_controls_inventory_and_expiry_workflows(self):
         self.authenticate_as(PharmacyRole.STOCK_ASSISTANT)
@@ -265,6 +277,11 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("clinical-reviews-list"),
             status.HTTP_403_FORBIDDEN,
         )
+        self.assert_status(
+            "get",
+            reverse("notifications-list"),
+            status.HTTP_200_OK,
+        )
 
     def test_read_only_user_can_view_but_cannot_change_records(self):
         self.authenticate_as(PharmacyRole.READ_ONLY)
@@ -277,6 +294,8 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("dosette-records-list"),
             reverse("expiry_alerts"),
             reverse("medication_forecasts"),
+            reverse("notifications-list"),
+            reverse("notifications-summary"),
         ]
         for url in readable_urls:
             with self.subTest(url=url):

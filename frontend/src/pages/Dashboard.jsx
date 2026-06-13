@@ -5,6 +5,7 @@ import {
   AlertOctagon,
   ArrowRight,
   BrainCircuit,
+  BellRing,
   CalendarClock,
   CalendarRange,
   CheckCircle2,
@@ -175,9 +176,13 @@ function Dashboard() {
     canViewForecasts ? "/forecasts/" : null,
     ""
   );
+  const {
+    data: notificationSummary,
+    reload: reloadNotificationSummary,
+  } = useApiResource("/notifications/summary/", "", null);
 
   const handleRefresh = () => {
-    const refreshRequests = [reload()];
+    const refreshRequests = [reload(), reloadNotificationSummary()];
     if (canViewForecasts) {
       refreshRequests.push(reloadForecasts());
     }
@@ -352,6 +357,38 @@ function Dashboard() {
           </div>
         </div>
       </section>
+
+      {notificationSummary && (
+        <Panel className="mt-6 overflow-hidden">
+          <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex items-start gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 text-violet-700">
+                <BellRing aria-hidden="true" size={21} />
+              </span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-600">
+                  Operational coordination
+                </p>
+                <h2 className="mt-1 text-lg font-bold text-slate-950">
+                  {notificationSummary.unresolved} unresolved notification
+                  {notificationSummary.unresolved === 1 ? "" : "s"}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  {notificationSummary.new} new · {notificationSummary.critical} critical ·{" "}
+                  {notificationSummary.overdue} overdue
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/notifications"
+              className={buttonClassName("secondary")}
+            >
+              Open notification centre
+              <ArrowRight aria-hidden="true" size={17} />
+            </Link>
+          </div>
+        </Panel>
+      )}
 
       <div
         className={`mt-6 grid gap-6 ${

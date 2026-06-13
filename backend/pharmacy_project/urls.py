@@ -34,6 +34,7 @@ from inventory.api_views import (
 )
 from dosette.api_views import DosetteRecordViewSet
 from dosette.picking_api_views import patient_picking_list
+from notifications.api_views import NotificationViewSet
 from .api_views import dashboard_stats, expiry_alerts, medication_forecasts
 
 router = DefaultRouter()
@@ -52,6 +53,7 @@ router.register(
 )
 router.register(r"dosette-records", DosetteRecordViewSet, basename="dosette-records")
 router.register(r"audit-events", AuditEventViewSet, basename="audit-events")
+router.register(r"notifications", NotificationViewSet, basename="notifications")
 
 urlpatterns = [
     path('admin/', admin.site.urls),

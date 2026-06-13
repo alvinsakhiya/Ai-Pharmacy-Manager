@@ -43,3 +43,10 @@ Managers and Pharmacists can record structured, authored patient reviews with
 follow-up dates and statuses. The data boundary, role restrictions, safe audit
 behaviour, API filters, and demonstration scope are documented in
 [docs/clinical-reviews.md](docs/clinical-reviews.md).
+
+## Notification Centre
+
+Managers can assign operational notifications while recipients follow an
+audited read, acknowledge, and resolve lifecycle. Visibility rules, transitions,
+API endpoints, dashboard integration, and assessment evidence are documented in
+[docs/notifications.md](docs/notifications.md).

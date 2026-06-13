@@ -10,6 +10,7 @@ import Patients from "./pages/Patients";
 import Inventory from "./pages/Inventory";
 import StockMovements from "./pages/StockMovements";
 import ClinicalReviews from "./pages/ClinicalReviews";
+import NotificationCenter from "./pages/NotificationCenter";
 import Dosette from "./pages/Dosette";
 import PickingLists from "./pages/PickingLists";
 import Alerts from "./pages/Alerts";
@@ -114,6 +115,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute path="/clinical-reviews">
             <ClinicalReviews />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute path="/notifications">
+            <NotificationCenter />
           </ProtectedRoute>
         }
       />

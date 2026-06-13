@@ -23,6 +23,11 @@ Structured clinical reviews are restricted to Managers and Pharmacists because
 they may contain sensitive patient-care context. Dispensers, Stock Assistants,
 Read-only Users, and unassigned accounts cannot access the endpoint or page.
 
+All roles can view general notifications and notifications assigned to their
+own account. Only Managers create or edit notification content. A named
+recipient can mark, acknowledge, and resolve their assigned notification;
+general notices remain read-only for non-Managers.
+
 ## Account Assignment
 
 Run `python manage.py migrate` after deployment. The role migration creates all

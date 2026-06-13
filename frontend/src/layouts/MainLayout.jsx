@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronRight, Menu, ShieldCheck } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import BrandMark from "../components/BrandMark";
 import WorkspaceSearch from "../components/WorkspaceSearch";
@@ -13,6 +13,7 @@ const pageNames = {
   "/inventory": "Inventory",
   "/stock-movements": "Stock Movements",
   "/clinical-reviews": "Clinical Reviews",
+  "/notifications": "Notification Centre",
   "/dosette": "Dosette Management",
   "/picking-lists": "Picking Lists",
   "/alerts": "Expiry Alerts",
@@ -131,13 +132,13 @@ function MainLayout({ children }) {
           </div>
 
           <div className="flex min-w-48 items-center justify-end gap-2">
-            <div
-              aria-label="Notifications, none unread"
-              role="status"
+            <Link
+              to="/notifications"
+              aria-label="Open notification centre"
               className="glass-icon-button"
             >
               <Bell aria-hidden="true" size={18} />
-            </div>
+            </Link>
             <div className="flex items-center gap-2.5 rounded-xl border border-white/70 bg-white/45 py-1.5 pl-2 pr-3 shadow-sm backdrop-blur-xl">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-blue-500 to-violet-500 text-white shadow-sm">
                 <ShieldCheck size={16} />

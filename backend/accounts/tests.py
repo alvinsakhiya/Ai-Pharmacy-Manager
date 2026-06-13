@@ -35,6 +35,8 @@ class ApiAuthenticationTest(APITestCase):
             reverse("medication_forecasts"),
             reverse("audit-events-list"),
             reverse("clinical-reviews-list"),
+            reverse("notifications-list"),
+            reverse("notifications-summary"),
             reverse("current_user"),
         ]
 
