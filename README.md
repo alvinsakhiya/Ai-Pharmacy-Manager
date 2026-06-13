@@ -93,17 +93,23 @@ docker compose up --build -d
 docker compose ps
 ```
 
-This starts PostgreSQL, Redis, the API and the web app. On first boot the backend automatically
-runs migrations and **seeds realistic demo data**.
+This starts PostgreSQL, pgAdmin, Redis, the API and the web app. On first boot the backend
+automatically runs migrations and **seeds realistic demo data**. pgAdmin is preconfigured with the
+project database.
 
 - Web app: <http://localhost:8080>
 - API docs (Swagger): <http://localhost:8000/api/docs/>
 - Django admin: <http://localhost:8000/admin/>
+- pgAdmin: <http://localhost:5050> (`admin@pharmacy.local` / `PgAdmin123!`)
+
+In pgAdmin, expand **AI Pharmacy Manager → AI Pharmacy PostgreSQL → Databases → pharmacy**. The
+database password is supplied automatically from the same `.env` value used by PostgreSQL.
 
 Useful Docker commands:
 
 ```bash
 docker compose logs -f backend                         # follow backend startup/logs
+docker compose logs -f pgadmin                         # follow pgAdmin startup/logs
 docker compose exec backend python manage.py seed     # seed again (idempotent)
 docker compose exec backend python manage.py createsuperuser
 docker compose exec backend pytest                    # run backend tests on PostgreSQL
@@ -112,8 +118,9 @@ docker compose down                                   # remove containers; keep 
 docker compose down --volumes                         # destructive: also delete database data
 ```
 
-PostgreSQL data is stored in the named `pgdata18` volume and survives normal container restarts and
-`docker compose down`. The application intentionally has no SQLite fallback.
+PostgreSQL data is stored in the named `pgdata18` volume, while pgAdmin settings use the
+`pgadmin_data` volume. Both survive normal container restarts and `docker compose down`. The
+application intentionally has no SQLite fallback.
 
 ## Local development
 

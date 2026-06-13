@@ -315,3 +315,84 @@ html[data-motion="reduced"] *::after {
   background: rgb(var(--c-text-tertiary));
   background-clip: content-box;
 }
+
+/* ============================================================ PRINT LABEL ==
+   Patient-facing dosette tray label. When printing, everything is hidden except
+   #pm-print-root, which is laid out large and clean for sticking onto the tray.
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  /* Hide the whole app, reveal only the print root. */
+  body * {
+    visibility: hidden !important;
+  }
+  #pm-print-root,
+  #pm-print-root * {
+    visibility: visible !important;
+  }
+  #pm-print-root {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+  }
+}
+
+.pm-label {
+  font-family: var(--font-sans), Arial, sans-serif;
+  color: #000;
+  max-width: 180mm;
+}
+.pm-label-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 3px solid #000;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.pm-label-name {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.pm-label-sub {
+  font-size: 14px;
+  margin-top: 2px;
+}
+.pm-label-cycle {
+  font-size: 13px;
+  text-align: right;
+  line-height: 1.4;
+}
+.pm-label-period {
+  display: grid;
+  grid-template-columns: 34mm 1fr;
+  gap: 10px;
+  border-bottom: 1px solid #555;
+  padding: 9px 0;
+}
+.pm-label-period-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+.pm-label-med {
+  font-size: 16px;
+  line-height: 1.5;
+}
+.pm-label-none {
+  font-size: 15px;
+  color: #555;
+}
+.pm-label-foot {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #333;
+}
