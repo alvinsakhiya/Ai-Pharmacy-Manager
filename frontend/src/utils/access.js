@@ -63,6 +63,7 @@ export const pageRoles = {
     PharmacyRole.DISPENSER,
     PharmacyRole.READ_ONLY,
   ],
+  "/fridge-monitoring": allRoles,
   "/reports": allRoles,
   "/audit-log": [PharmacyRole.MANAGER],
 };
@@ -123,5 +124,13 @@ export function canActionDeliveries(user) {
     PharmacyRole.MANAGER,
     PharmacyRole.PHARMACIST,
     PharmacyRole.DISPENSER,
+  ].some((role) => user?.roles?.includes(role));
+}
+
+export function canRecordFridgeTemperature(user) {
+  return [
+    PharmacyRole.MANAGER,
+    PharmacyRole.PHARMACIST,
+    PharmacyRole.STOCK_ASSISTANT,
   ].some((role) => user?.roles?.includes(role));
 }

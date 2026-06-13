@@ -22,6 +22,7 @@ const pageNames = {
   "/ordering": "Suppliers & Draft Orders",
   "/operations": "Pharmacy Operations",
   "/deliveries": "Local Deliveries",
+  "/fridge-monitoring": "Fridge Monitoring",
   "/reports": "Reports",
   "/audit-log": "Audit History",
 };

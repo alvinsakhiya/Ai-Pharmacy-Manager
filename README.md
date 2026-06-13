@@ -106,3 +106,5 @@ progression, outcome recording, filters, and accessible mobile cards.
 Append-only fridge temperature logs add server-timestamped safety evidence,
 role-restricted recording, a visible 2-8 C range, and mandatory corrective
 action for out-of-range readings without hardware or external integrations.
+The responsive monitoring workspace reinforces the rule before submission and
+presents immutable history as accessible desktop and mobile safety evidence.

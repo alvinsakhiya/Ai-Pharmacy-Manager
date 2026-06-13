@@ -19,6 +19,7 @@ const workspaceDestinations = [
   { label: "Suppliers & Drafts", keywords: "supplier reorder purchasing internal draft order", path: "/ordering" },
   { label: "Operations", keywords: "tasks opening hours claim start complete workflow", path: "/operations" },
   { label: "Local Deliveries", keywords: "patient delivery planned ready dispatch failed local", path: "/deliveries" },
+  { label: "Fridge Monitoring", keywords: "temperature cold chain safety corrective action", path: "/fridge-monitoring" },
   { label: "Reports", keywords: "csv export evidence stock expiry forecast audit notifications picking", path: "/reports" },
   { label: "Audit History", keywords: "governance activity trace staff actions", path: "/audit-log" },
 ];

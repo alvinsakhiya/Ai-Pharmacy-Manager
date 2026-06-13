@@ -113,6 +113,12 @@ This is a manual local monitoring aid. It does not connect to fridge hardware,
 alarm services, manufacturers, wholesalers, NHS services, or clinical decision
 support.
 
+The `/fridge-monitoring` workspace adds current-status metrics, an explicit
+range explanation, conditional corrective-action validation, date and range
+filters, a desktop register, and mobile safety cards. Readings use text, icons,
+and structure as well as colour, and the interface offers no edit or delete
+controls.
+
 ## API
 
 Task endpoints:

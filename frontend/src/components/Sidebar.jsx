@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   TriangleAlert,
   Truck,
+  ThermometerSnowflake,
   Users,
   LogOut,
   X,
@@ -53,6 +54,11 @@ const menuItems = [
   { name: "Suppliers & Drafts", icon: Truck, path: "/ordering" },
   { name: "Operations", icon: ListTodo, path: "/operations" },
   { name: "Local Deliveries", icon: PackageCheck, path: "/deliveries" },
+  {
+    name: "Fridge Monitoring",
+    icon: ThermometerSnowflake,
+    path: "/fridge-monitoring",
+  },
   { name: "Reports", icon: FileSpreadsheet, path: "/reports" },
   { name: "Audit History", icon: History, path: "/audit-log" },
 ];

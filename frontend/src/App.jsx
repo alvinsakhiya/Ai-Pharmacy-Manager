@@ -19,6 +19,7 @@ import StockIntelligence from "./pages/StockIntelligence";
 import Ordering from "./pages/Ordering";
 import Operations from "./pages/Operations";
 import Deliveries from "./pages/Deliveries";
+import FridgeMonitoring from "./pages/FridgeMonitoring";
 import Reports from "./pages/Reports";
 import AuditLog from "./pages/AuditLog";
 import { canAccessPath } from "./utils/access";
@@ -197,6 +198,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute path="/deliveries">
             <Deliveries />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/fridge-monitoring"
+        element={
+          <ProtectedRoute path="/fridge-monitoring">
+            <FridgeMonitoring />
           </ProtectedRoute>
         }
       />
