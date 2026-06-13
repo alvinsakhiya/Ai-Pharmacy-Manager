@@ -44,6 +44,7 @@ from operations.api_views import (
     FridgeTemperatureLogViewSet,
     LocalDeliveryViewSet,
     OpeningHourViewSet,
+    OperationalAppointmentViewSet,
     OperationalTaskViewSet,
 )
 from .api_views import (
@@ -108,6 +109,11 @@ router.register(
     r"fridge-temperature-logs",
     FridgeTemperatureLogViewSet,
     basename="fridge-temperature-logs",
+)
+router.register(
+    r"operational-appointments",
+    OperationalAppointmentViewSet,
+    basename="operational-appointments",
 )
 
 urlpatterns = [

@@ -254,3 +254,86 @@ class FridgeTemperatureLog(models.Model):
             f"{self.temperature_celsius} C at "
             f"{self.recorded_at:%Y-%m-%d %H:%M}"
         )
+
+
+class OperationalAppointment(models.Model):
+    class AppointmentType(models.TextChoices):
+        GENERAL = "GENERAL", "General appointment"
+        PATIENT_REVIEW = "PATIENT_REVIEW", "Patient review"
+        DOSETTE_REVIEW = "DOSETTE_REVIEW", "Dosette review"
+        SUPPLIER = "SUPPLIER", "Supplier meeting"
+        STAFF = "STAFF", "Staff meeting"
+        OTHER = "OTHER", "Other"
+
+    class Status(models.TextChoices):
+        SCHEDULED = "SCHEDULED", "Scheduled"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    title = models.CharField(max_length=200)
+    appointment_type = models.CharField(
+        max_length=30,
+        choices=AppointmentType.choices,
+        default=AppointmentType.GENERAL,
+        db_index=True,
+    )
+    patient = models.ForeignKey(
+        "patients.Patient",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="operational_appointments",
+    )
+    patient_name = models.CharField(max_length=201, blank=True)
+    scheduled_start = models.DateTimeField(db_index=True)
+    scheduled_end = models.DateTimeField()
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SCHEDULED,
+        db_index=True,
+    )
+    assigned_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="operational_appointments",
+    )
+    assigned_username = models.CharField(max_length=150, blank=True)
+    notes = models.TextField(blank=True, max_length=2000)
+    outcome_notes = models.TextField(blank=True, max_length=2000)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_operational_appointments",
+    )
+    created_by_username = models.CharField(max_length=150, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["scheduled_start", "-created_at"]
+        indexes = [
+            models.Index(
+                fields=["status", "scheduled_start"],
+                name="ops_appt_status_start",
+            ),
+            models.Index(
+                fields=["assigned_user", "scheduled_start"],
+                name="ops_appt_user_start",
+            ),
+        ]
+
+    @property
+    def is_overdue(self):
+        return bool(
+            self.status == self.Status.SCHEDULED
+            and self.scheduled_end < timezone.now()
+        )
+
+    def __str__(self):
+        return f"{self.title} - {self.scheduled_start:%Y-%m-%d %H:%M}"

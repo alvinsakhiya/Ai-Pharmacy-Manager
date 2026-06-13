@@ -13,6 +13,7 @@ from accounts.permissions import (
     FridgeTemperatureRolePermission,
     LocalDeliveryRolePermission,
     OpeningHourRolePermission,
+    OperationalAppointmentRolePermission,
     OperationalTaskRolePermission,
 )
 from accounts.roles import PharmacyRole, get_user_roles
@@ -23,23 +24,30 @@ from .models import (
     FridgeTemperatureLog,
     LocalDelivery,
     OpeningHour,
+    OperationalAppointment,
     OperationalTask,
 )
 from .serializers import (
+    AppointmentCancellationSerializer,
+    AppointmentCompletionSerializer,
     DeliveryOutcomeSerializer,
     FridgeTemperatureLogSerializer,
     LocalDeliverySerializer,
     OpeningHourSerializer,
+    OperationalAppointmentSerializer,
     OperationalTaskSerializer,
     TaskCancellationSerializer,
 )
 from .services import (
+    AppointmentTransitionError,
     DeliveryTransitionError,
     TaskTransitionError,
+    cancel_appointment,
     cancel_delivery,
     cancel_task,
     claim_delivery,
     claim_task,
+    complete_appointment,
     complete_delivery,
     complete_task,
     dispatch_delivery,
@@ -645,4 +653,240 @@ class FridgeTemperatureLogViewSet(
                     recorded_at__date__gte=today - timedelta(days=6)
                 ).count(),
             }
+        )
+
+
+class OperationalAppointmentPagination(pagination.PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
+
+class OperationalAppointmentViewSet(
+    AuditedModelViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    serializer_class = OperationalAppointmentSerializer
+    permission_classes = [OperationalAppointmentRolePermission]
+    pagination_class = OperationalAppointmentPagination
+    audit_entity_type = "OperationalAppointment"
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        queryset = OperationalAppointment.objects.select_related(
+            "patient",
+            "assigned_user",
+            "created_by",
+        )
+        appointment_status = self.request.query_params.get(
+            "status",
+            "",
+        ).strip().upper()
+        appointment_type = self.request.query_params.get(
+            "appointment_type",
+            "",
+        ).strip().upper()
+        assigned = self.request.query_params.get("assigned", "").strip()
+        patient_id = self.request.query_params.get("patient", "").strip()
+        date_from = self.request.query_params.get("date_from", "").strip()
+        date_to = self.request.query_params.get("date_to", "").strip()
+        search = self.request.query_params.get("search", "").strip()
+
+        if appointment_status:
+            valid_statuses = {
+                choice.value for choice in OperationalAppointment.Status
+            }
+            if appointment_status not in valid_statuses:
+                raise ValidationError(
+                    {"status": "Unknown appointment status."}
+                )
+            queryset = queryset.filter(status=appointment_status)
+
+        if appointment_type:
+            valid_types = {
+                choice.value
+                for choice in OperationalAppointment.AppointmentType
+            }
+            if appointment_type not in valid_types:
+                raise ValidationError(
+                    {"appointment_type": "Unknown appointment type."}
+                )
+            queryset = queryset.filter(appointment_type=appointment_type)
+
+        if assigned:
+            if assigned.lower() == "me":
+                queryset = queryset.filter(assigned_user=self.request.user)
+            elif assigned.lower() == "unassigned":
+                queryset = queryset.filter(
+                    assigned_user__isnull=True,
+                    assigned_username="",
+                )
+            elif assigned.isdigit() and int(assigned) > 0:
+                queryset = queryset.filter(assigned_user_id=int(assigned))
+            else:
+                raise ValidationError(
+                    {"assigned": "Use me, unassigned, or a positive user id."}
+                )
+
+        if patient_id:
+            if not patient_id.isdigit() or int(patient_id) < 1:
+                raise ValidationError(
+                    {"patient": "Patient must be a positive integer."}
+                )
+            queryset = queryset.filter(patient_id=int(patient_id))
+
+        parsed_date_from = None
+        if date_from:
+            parsed_date_from = parse_date(date_from)
+            if parsed_date_from is None:
+                raise ValidationError(
+                    {"date_from": "Use a valid date in YYYY-MM-DD format."}
+                )
+            queryset = queryset.filter(
+                scheduled_start__date__gte=parsed_date_from
+            )
+
+        if date_to:
+            parsed_date_to = parse_date(date_to)
+            if parsed_date_to is None:
+                raise ValidationError(
+                    {"date_to": "Use a valid date in YYYY-MM-DD format."}
+                )
+            if parsed_date_from and parsed_date_to < parsed_date_from:
+                raise ValidationError(
+                    {"date_to": "End date cannot be before start date."}
+                )
+            queryset = queryset.filter(
+                scheduled_start__date__lte=parsed_date_to
+            )
+
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search)
+                | Q(patient_name__icontains=search)
+                | Q(assigned_username__icontains=search)
+                | Q(notes__icontains=search)
+            )
+
+        return queryset
+
+    def perform_create(self, serializer):
+        creator = self.request.user
+        serializer.validated_data["created_by"] = creator
+        serializer.validated_data["created_by_username"] = (
+            creator.get_username()
+        )
+        super().perform_create(serializer)
+
+    def _transition_response(self, transition, *args):
+        try:
+            appointment = transition(*args)
+        except AppointmentTransitionError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        log_audit_event(
+            action=AuditEvent.Action.UPDATE,
+            entity_type=self.audit_entity_type,
+            entity_identifier=appointment.pk,
+            summary=(
+                "Updated OperationalAppointment lifecycle status to "
+                f"{appointment.get_status_display()}."
+            ),
+            request=self.request,
+        )
+        return Response(self.get_serializer(appointment).data)
+
+    @action(detail=False, methods=["get"])
+    def summary(self, request):
+        queryset = self.get_queryset()
+        now = timezone.now()
+        today = timezone.localdate()
+        scheduled = queryset.filter(
+            status=OperationalAppointment.Status.SCHEDULED
+        )
+        next_appointment = scheduled.filter(
+            scheduled_end__gte=now
+        ).first()
+
+        return Response(
+            {
+                "total_visible": queryset.count(),
+                "scheduled_today": scheduled.filter(
+                    scheduled_start__date=today
+                ).count(),
+                "upcoming": scheduled.filter(
+                    scheduled_end__gte=now
+                ).count(),
+                "overdue": scheduled.filter(
+                    scheduled_end__lt=now
+                ).count(),
+                "completed_today": queryset.filter(
+                    status=OperationalAppointment.Status.COMPLETED,
+                    completed_at__date=today,
+                ).count(),
+                "unassigned": scheduled.filter(
+                    assigned_user__isnull=True,
+                    assigned_username="",
+                ).count(),
+                "next": (
+                    self.get_serializer(next_appointment).data
+                    if next_appointment
+                    else None
+                ),
+            }
+        )
+
+    @action(detail=False, methods=["get"])
+    def assignees(self, request):
+        users = (
+            get_user_model()
+            .objects.filter(
+                Q(is_superuser=True)
+                | Q(
+                    groups__name__in={
+                        PharmacyRole.MANAGER,
+                        PharmacyRole.PHARMACIST,
+                        PharmacyRole.DISPENSER,
+                    }
+                ),
+                is_active=True,
+            )
+            .distinct()
+            .order_by("username")
+        )
+        return Response(
+            [
+                {
+                    "id": user.pk,
+                    "username": user.get_username(),
+                    "display_name": user.get_full_name() or user.get_username(),
+                    "roles": get_user_roles(user),
+                }
+                for user in users
+            ]
+        )
+
+    @action(detail=True, methods=["post"])
+    def complete(self, request, pk=None):
+        appointment = self.get_object()
+        serializer = AppointmentCompletionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._transition_response(
+            complete_appointment,
+            appointment.pk,
+            serializer.validated_data["outcome"],
+        )
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        appointment = self.get_object()
+        serializer = AppointmentCancellationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._transition_response(
+            cancel_appointment,
+            appointment.pk,
+            serializer.validated_data["reason"],
         )

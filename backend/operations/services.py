@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.utils import timezone
 
-from .models import LocalDelivery, OperationalTask
+from .models import LocalDelivery, OperationalAppointment, OperationalTask
 
 
 class TaskTransitionError(ValueError):
@@ -213,3 +213,57 @@ def cancel_delivery(delivery_id, reason):
         update_fields=["status", "outcome_notes", "updated_at"]
     )
     return delivery
+
+
+class AppointmentTransitionError(ValueError):
+    """Raised when an operational appointment transition is invalid."""
+
+
+@transaction.atomic
+def complete_appointment(appointment_id, outcome=""):
+    appointment = OperationalAppointment.objects.select_for_update().get(
+        pk=appointment_id
+    )
+
+    if appointment.status != OperationalAppointment.Status.SCHEDULED:
+        raise AppointmentTransitionError(
+            "Only scheduled appointments can be completed."
+        )
+
+    appointment.status = OperationalAppointment.Status.COMPLETED
+    appointment.outcome_notes = str(outcome or "").strip()[:2000]
+    appointment.completed_at = timezone.now()
+    appointment.save(
+        update_fields=[
+            "status",
+            "outcome_notes",
+            "completed_at",
+            "updated_at",
+        ]
+    )
+    return appointment
+
+
+@transaction.atomic
+def cancel_appointment(appointment_id, reason):
+    appointment = OperationalAppointment.objects.select_for_update().get(
+        pk=appointment_id
+    )
+    reason = str(reason or "").strip()
+
+    if appointment.status != OperationalAppointment.Status.SCHEDULED:
+        raise AppointmentTransitionError(
+            "Only scheduled appointments can be cancelled."
+        )
+
+    if not reason:
+        raise AppointmentTransitionError(
+            "A cancellation reason is required."
+        )
+
+    appointment.status = OperationalAppointment.Status.CANCELLED
+    appointment.outcome_notes = reason[:2000]
+    appointment.save(
+        update_fields=["status", "outcome_notes", "updated_at"]
+    )
+    return appointment

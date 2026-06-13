@@ -7,6 +7,7 @@ from .models import (
     FridgeTemperatureLog,
     LocalDelivery,
     OpeningHour,
+    OperationalAppointment,
     OperationalTask,
 )
 
@@ -372,3 +373,199 @@ class FridgeTemperatureLogSerializer(serializers.ModelSerializer):
 
     def get_range_status_label(self, obj):
         return "Within 2-8 C" if obj.is_within_range else "Outside 2-8 C"
+
+
+class OperationalAppointmentSerializer(serializers.ModelSerializer):
+    assigned_user = serializers.PrimaryKeyRelatedField(
+        queryset=get_user_model().objects.filter(is_active=True),
+        allow_null=True,
+        required=False,
+    )
+    patient_display = serializers.CharField(
+        source="patient_name",
+        read_only=True,
+    )
+    assigned_user_display = serializers.SerializerMethodField()
+    created_by_display = serializers.SerializerMethodField()
+    appointment_type_label = serializers.CharField(
+        source="get_appointment_type_display",
+        read_only=True,
+    )
+    status_label = serializers.CharField(
+        source="get_status_display",
+        read_only=True,
+    )
+    is_overdue = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = OperationalAppointment
+        fields = (
+            "id",
+            "title",
+            "appointment_type",
+            "appointment_type_label",
+            "patient",
+            "patient_display",
+            "scheduled_start",
+            "scheduled_end",
+            "status",
+            "status_label",
+            "assigned_user",
+            "assigned_user_display",
+            "notes",
+            "outcome_notes",
+            "created_by_display",
+            "completed_at",
+            "created_at",
+            "updated_at",
+            "is_overdue",
+        )
+        read_only_fields = (
+            "id",
+            "appointment_type_label",
+            "patient_display",
+            "status",
+            "status_label",
+            "assigned_user_display",
+            "outcome_notes",
+            "created_by_display",
+            "completed_at",
+            "created_at",
+            "updated_at",
+            "is_overdue",
+        )
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError(
+                "Appointment title is required."
+            )
+        return value
+
+    def validate_assigned_user(self, value):
+        if value is None:
+            return value
+
+        allowed_roles = {
+            PharmacyRole.MANAGER,
+            PharmacyRole.PHARMACIST,
+            PharmacyRole.DISPENSER,
+        }
+        if not set(get_user_roles(value)) & allowed_roles:
+            raise serializers.ValidationError(
+                "Appointments can only be assigned to patient-care staff."
+            )
+        return value
+
+    def validate_notes(self, value):
+        return value.strip()
+
+    def validate(self, attrs):
+        if self.instance and self.instance.status in {
+            OperationalAppointment.Status.COMPLETED,
+            OperationalAppointment.Status.CANCELLED,
+        }:
+            raise serializers.ValidationError(
+                "Finished appointment records are read-only."
+            )
+
+        appointment_type = attrs.get(
+            "appointment_type",
+            getattr(
+                self.instance,
+                "appointment_type",
+                OperationalAppointment.AppointmentType.GENERAL,
+            ),
+        )
+        patient = attrs.get(
+            "patient",
+            getattr(self.instance, "patient", None),
+        )
+        scheduled_start = attrs.get(
+            "scheduled_start",
+            getattr(self.instance, "scheduled_start", None),
+        )
+        scheduled_end = attrs.get(
+            "scheduled_end",
+            getattr(self.instance, "scheduled_end", None),
+        )
+
+        if appointment_type in {
+            OperationalAppointment.AppointmentType.PATIENT_REVIEW,
+            OperationalAppointment.AppointmentType.DOSETTE_REVIEW,
+        } and not patient:
+            raise serializers.ValidationError(
+                {
+                    "patient": (
+                        "A patient is required for patient or dosette reviews."
+                    )
+                }
+            )
+
+        if scheduled_start and scheduled_end:
+            if scheduled_end <= scheduled_start:
+                raise serializers.ValidationError(
+                    {
+                        "scheduled_end": (
+                            "Appointment end must be after its start."
+                        )
+                    }
+                )
+            if not self.instance and scheduled_start < timezone.now():
+                raise serializers.ValidationError(
+                    {
+                        "scheduled_start": (
+                            "A new appointment cannot start in the past."
+                        )
+                    }
+                )
+
+        return attrs
+
+    def _snapshot_fields(self, validated_data):
+        if "patient" in validated_data:
+            patient = validated_data["patient"]
+            validated_data["patient_name"] = (
+                f"{patient.first_name} {patient.last_name}"
+                if patient
+                else ""
+            )
+
+        if "assigned_user" in validated_data:
+            assigned_user = validated_data["assigned_user"]
+            validated_data["assigned_username"] = (
+                assigned_user.get_username() if assigned_user else ""
+            )
+
+    def create(self, validated_data):
+        self._snapshot_fields(validated_data)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        self._snapshot_fields(validated_data)
+        return super().update(instance, validated_data)
+
+    def get_assigned_user_display(self, obj):
+        return obj.assigned_username or "Unassigned"
+
+    def get_created_by_display(self, obj):
+        return obj.created_by_username or "System"
+
+
+class AppointmentCompletionSerializer(serializers.Serializer):
+    outcome = serializers.CharField(
+        max_length=2000,
+        trim_whitespace=True,
+        allow_blank=True,
+        required=False,
+        default="",
+    )
+
+
+class AppointmentCancellationSerializer(serializers.Serializer):
+    reason = serializers.CharField(
+        max_length=2000,
+        trim_whitespace=True,
+        allow_blank=False,
+    )

@@ -8,11 +8,12 @@ increment includes:
 - operational task assignment and lifecycle;
 - pharmacy opening-hours configuration;
 - local delivery tracking;
-- immutable fridge temperature monitoring.
+- immutable fridge temperature monitoring;
+- local operational appointments.
 
 It does not send data to delivery providers, booking platforms, wholesalers, or
-public healthcare services. Later increments can add appointment and
-internal-resource workflows within the same bounded app.
+public healthcare services. A later increment can add internal-resource
+workflows within the same bounded app.
 
 ## Operational Tasks
 
@@ -119,6 +120,23 @@ filters, a desktop register, and mobile safety cards. Readings use text, icons,
 and structure as well as colour, and the interface offers no edit or delete
 controls.
 
+## Operational Appointments
+
+Appointments provide a local planning diary for pharmacy work. Records contain
+a title, type, optional patient, start/end time, assigned staff member, notes,
+status, and outcome. Patient and staff display snapshots preserve historical
+context if linked accounts or records are later removed.
+
+Patient and dosette review types require a patient. New appointments cannot
+start in the past, end times must follow start times, and assignments are
+limited to patient-care staff. Managers and Pharmacists schedule and cancel
+appointments; an assigned Dispenser can complete their appointment. Completed
+or cancelled records are read-only.
+
+This module does not connect to calendars, booking providers, SMS/email
+services, NHS services, or live clinical systems. Audit summaries omit titles,
+patient names, notes, and outcomes.
+
 ## API
 
 Task endpoints:
@@ -163,6 +181,18 @@ Fridge-monitoring endpoints:
 
 Fridge filters include `range_status`, `date_from`, and `date_to`.
 
+Operational-appointment endpoints:
+
+- `GET/POST /api/operational-appointments/`
+- `GET/PATCH /api/operational-appointments/{id}/`
+- `GET /api/operational-appointments/summary/`
+- `GET /api/operational-appointments/assignees/`
+- `POST /api/operational-appointments/{id}/complete/`
+- `POST /api/operational-appointments/{id}/cancel/`
+
+Appointment filters include `status`, `appointment_type`, `assigned`,
+`patient`, `date_from`, `date_to`, and `search`.
+
 ## Assessment Value
 
 For AT3, the task lifecycle demonstrates clear internal accountability: create,
@@ -171,6 +201,8 @@ validated configuration and role-aware administration. Local delivery
 tracking demonstrates an original, non-NHS operational workflow with visible
 status progression and failure handling. Fridge monitoring demonstrates
 append-only safety evidence and visible corrective-action validation.
+Operational appointments demonstrate validated local scheduling and
+role-owned outcome recording.
 
 For AT4, the bounded Django app, service-layer transitions, transaction locks,
 visibility scoping, validation, audit assertions, authentication tests, and

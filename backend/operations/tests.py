@@ -14,6 +14,7 @@ from .models import (
     FridgeTemperatureLog,
     LocalDelivery,
     OpeningHour,
+    OperationalAppointment,
     OperationalTask,
 )
 
@@ -854,3 +855,275 @@ class FridgeTemperatureLogApiTest(APITestCase):
             invalid_date.status_code,
             status.HTTP_400_BAD_REQUEST,
         )
+
+
+class OperationalAppointmentApiTest(APITestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.manager = user_model.objects.create_user(
+            username="appointment_manager",
+            password="AppointmentTest123!",
+        )
+        assign_role(self.manager, PharmacyRole.MANAGER)
+        self.pharmacist = user_model.objects.create_user(
+            username="appointment_pharmacist",
+            password="AppointmentTest123!",
+        )
+        assign_role(self.pharmacist, PharmacyRole.PHARMACIST)
+        self.dispenser = user_model.objects.create_user(
+            username="appointment_dispenser",
+            password="AppointmentTest123!",
+        )
+        assign_role(self.dispenser, PharmacyRole.DISPENSER)
+        self.other_dispenser = user_model.objects.create_user(
+            username="other_appointment_dispenser",
+            password="AppointmentTest123!",
+        )
+        assign_role(self.other_dispenser, PharmacyRole.DISPENSER)
+        self.stock_assistant = user_model.objects.create_user(
+            username="appointment_stock",
+            password="AppointmentTest123!",
+        )
+        assign_role(
+            self.stock_assistant,
+            PharmacyRole.STOCK_ASSISTANT,
+        )
+        self.read_only = user_model.objects.create_user(
+            username="appointment_read_only",
+            password="AppointmentTest123!",
+        )
+        assign_role(self.read_only, PharmacyRole.READ_ONLY)
+        self.patient = Patient.objects.create(
+            first_name="Morgan",
+            last_name="Appointment",
+            date_of_birth="1980-08-15",
+        )
+        self.url = reverse("operational-appointments-list")
+        self.client.force_authenticate(self.manager)
+
+    def create_appointment(self, **overrides):
+        start = timezone.now() + timedelta(days=1)
+        payload = {
+            "title": "Review local dosette workflow",
+            "appointment_type": (
+                OperationalAppointment.AppointmentType.DOSETTE_REVIEW
+            ),
+            "patient": self.patient.id,
+            "scheduled_start": start.isoformat(),
+            "scheduled_end": (start + timedelta(minutes=30)).isoformat(),
+            "assigned_user": self.dispenser.id,
+            "notes": "Private appointment detail must stay out of audit text.",
+        }
+        payload.update(overrides)
+        return self.client.post(self.url, payload, format="json")
+
+    def test_appointment_api_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_manager_creates_appointment_with_safe_snapshots_and_audit(self):
+        response = self.create_appointment()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        appointment = OperationalAppointment.objects.get(
+            pk=response.data["id"]
+        )
+        self.assertEqual(appointment.patient_name, "Morgan Appointment")
+        self.assertEqual(
+            appointment.assigned_username,
+            self.dispenser.username,
+        )
+        self.assertEqual(appointment.created_by, self.manager)
+
+        event = AuditEvent.objects.get(
+            action=AuditEvent.Action.CREATE,
+            entity_type="OperationalAppointment",
+            entity_identifier=str(appointment.id),
+        )
+        self.assertNotIn(appointment.title, event.summary)
+        self.assertNotIn(appointment.patient_name, event.summary)
+        self.assertNotIn(appointment.notes, event.summary)
+
+    def test_appointment_validation_rejects_unsafe_inputs(self):
+        start = timezone.now() + timedelta(days=1)
+        missing_patient = self.create_appointment(patient=None)
+        reversed_time = self.create_appointment(
+            scheduled_start=start.isoformat(),
+            scheduled_end=(start - timedelta(minutes=1)).isoformat(),
+        )
+        past_start = timezone.now() - timedelta(hours=2)
+        past = self.create_appointment(
+            appointment_type=OperationalAppointment.AppointmentType.GENERAL,
+            patient=None,
+            scheduled_start=past_start.isoformat(),
+            scheduled_end=(
+                past_start + timedelta(minutes=30)
+            ).isoformat(),
+        )
+        invalid_assignee = self.create_appointment(
+            assigned_user=self.stock_assistant.id
+        )
+
+        self.assertEqual(
+            missing_patient.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            reversed_time.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(past.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            invalid_assignee.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_patient_care_role_access_is_enforced(self):
+        self.client.force_authenticate(self.pharmacist)
+        pharmacist_create = self.create_appointment()
+
+        self.client.force_authenticate(self.read_only)
+        read_response = self.client.get(self.url)
+        denied_create = self.create_appointment()
+
+        self.client.force_authenticate(self.stock_assistant)
+        denied_read = self.client.get(self.url)
+
+        self.assertEqual(
+            pharmacist_create.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(read_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            denied_create.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(
+            denied_read.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_assigned_dispenser_completes_appointment_with_outcome(self):
+        appointment_id = self.create_appointment().data["id"]
+
+        self.client.force_authenticate(self.other_dispenser)
+        denied = self.client.post(
+            reverse(
+                "operational-appointments-complete",
+                args=[appointment_id],
+            ),
+            {"outcome": "Must not be accepted."},
+            format="json",
+        )
+
+        self.client.force_authenticate(self.dispenser)
+        completed = self.client.post(
+            reverse(
+                "operational-appointments-complete",
+                args=[appointment_id],
+            ),
+            {"outcome": "Local review completed; follow-up task recorded."},
+            format="json",
+        )
+
+        self.client.force_authenticate(self.manager)
+        edit_finished = self.client.patch(
+            reverse(
+                "operational-appointments-detail",
+                args=[appointment_id],
+            ),
+            {"title": "Must not change"},
+            format="json",
+        )
+
+        self.assertEqual(denied.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            completed.data["status"],
+            OperationalAppointment.Status.COMPLETED,
+        )
+        self.assertIsNotNone(completed.data["completed_at"])
+        self.assertEqual(
+            edit_finished.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_cancellation_requires_reason(self):
+        appointment_id = self.create_appointment().data["id"]
+
+        blank = self.client.post(
+            reverse(
+                "operational-appointments-cancel",
+                args=[appointment_id],
+            ),
+            {"reason": "   "},
+            format="json",
+        )
+        cancelled = self.client.post(
+            reverse(
+                "operational-appointments-cancel",
+                args=[appointment_id],
+            ),
+            {"reason": "Patient requested a later local review."},
+            format="json",
+        )
+
+        self.assertEqual(blank.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            cancelled.data["status"],
+            OperationalAppointment.Status.CANCELLED,
+        )
+
+    def test_summary_filters_assignees_and_deleted_patient_snapshot(self):
+        overdue = OperationalAppointment.objects.create(
+            title="Overdue local review",
+            appointment_type=(
+                OperationalAppointment.AppointmentType.PATIENT_REVIEW
+            ),
+            patient=self.patient,
+            patient_name=str(self.patient),
+            scheduled_start=timezone.now() - timedelta(hours=2),
+            scheduled_end=timezone.now() - timedelta(hours=1),
+        )
+        upcoming = self.create_appointment()
+
+        summary = self.client.get(
+            reverse("operational-appointments-summary")
+        )
+        filtered = self.client.get(
+            self.url,
+            {
+                "appointment_type": (
+                    OperationalAppointment.AppointmentType.DOSETTE_REVIEW
+                )
+            },
+        )
+        search = self.client.get(self.url, {"search": "Morgan"})
+        invalid = self.client.get(self.url, {"status": "UNKNOWN"})
+        assignees = self.client.get(
+            reverse("operational-appointments-assignees")
+        )
+
+        patient_name = overdue.patient_name
+        self.patient.delete()
+        overdue.refresh_from_db()
+
+        self.assertEqual(summary.status_code, status.HTTP_200_OK)
+        self.assertEqual(summary.data["overdue"], 1)
+        self.assertEqual(summary.data["upcoming"], 1)
+        self.assertEqual(summary.data["unassigned"], 1)
+        self.assertEqual(summary.data["next"]["id"], upcoming.data["id"])
+        self.assertEqual(filtered.data["count"], 1)
+        self.assertEqual(search.data["count"], 2)
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn(
+            self.stock_assistant.username,
+            {user["username"] for user in assignees.data},
+        )
+        self.assertIsNone(overdue.patient)
+        self.assertEqual(overdue.patient_name, patient_name)
