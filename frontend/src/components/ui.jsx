@@ -1,6 +1,7 @@
 /** House component vocabulary — built once, reused everywhere for coherence.
  *  Apple-calm surfaces; Swiggy-alive motion (press-scale, slide/fade, toasts). */
 import { createContext, use, useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, Loader2, X, XCircle } from "lucide-react";
 
 const cx = (...c) => c.filter(Boolean).join(" ");
@@ -154,25 +155,31 @@ export function Modal({ open, onClose, title, children, footer, wide }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-text-primary/30 animate-fade-in" onClick={onClose} />
+  // Portal to <body> so the fixed overlay is positioned relative to the viewport,
+  // never trapped inside an ancestor with transform/filter/backdrop-filter
+  // (e.g. the blurred header). Without this the modal renders pinned to the header.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-text-primary/40 animate-fade-in" onClick={onClose} />
       <div
+        role="dialog"
+        aria-modal="true"
         className={cx(
-          "relative z-10 w-full rounded-2xl bg-surface shadow-elev-3 animate-slide-up",
+          "relative z-10 max-h-[90vh] w-full overflow-hidden rounded-2xl bg-surface shadow-elev-3 animate-slide-up",
           wide ? "max-w-3xl" : "max-w-lg"
         )}
       >
         <div className="flex items-center justify-between border-b border-border-subtle px-5 py-3.5">
           <h3 className="text-subtitle font-semibold">{title}</h3>
-          <button onClick={onClose} className="rounded-md p-1 text-text-tertiary hover:bg-subtle">
+          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-text-tertiary hover:bg-subtle">
             <X size={18} />
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="max-h-[78vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
