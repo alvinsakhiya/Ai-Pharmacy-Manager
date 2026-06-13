@@ -114,3 +114,8 @@ patient context, staff assignment, guarded completion/cancellation, safe
 snapshots, and no calendar, messaging, NHS, or external booking integration.
 The responsive diary adds next-appointment context, metrics, filters, and
 patient-aware desktop and mobile agenda views.
+
+Managers can also maintain a curated HTTPS-only internal resource directory.
+All staff see active links, while inactive entries and editing remain
+manager-only; embedded credentials, uploads, vendor assets, and NHS links are
+outside the workflow.

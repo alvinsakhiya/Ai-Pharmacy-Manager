@@ -42,6 +42,7 @@ from dosette.picking_api_views import patient_picking_list
 from notifications.api_views import NotificationViewSet
 from operations.api_views import (
     FridgeTemperatureLogViewSet,
+    InternalResourceLinkViewSet,
     LocalDeliveryViewSet,
     OpeningHourViewSet,
     OperationalAppointmentViewSet,
@@ -114,6 +115,11 @@ router.register(
     r"operational-appointments",
     OperationalAppointmentViewSet,
     basename="operational-appointments",
+)
+router.register(
+    r"internal-resources",
+    InternalResourceLinkViewSet,
+    basename="internal-resources",
 )
 
 urlpatterns = [

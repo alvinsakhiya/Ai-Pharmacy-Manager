@@ -12,6 +12,7 @@ from auditlog.models import AuditEvent
 from patients.models import Patient
 from .models import (
     FridgeTemperatureLog,
+    InternalResourceLink,
     LocalDelivery,
     OpeningHour,
     OperationalAppointment,
@@ -1127,3 +1128,125 @@ class OperationalAppointmentApiTest(APITestCase):
         )
         self.assertIsNone(overdue.patient)
         self.assertEqual(overdue.patient_name, patient_name)
+
+
+class InternalResourceLinkApiTest(APITestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.manager = user_model.objects.create_user(
+            username="resource_manager",
+            password="ResourceTest123!",
+        )
+        assign_role(self.manager, PharmacyRole.MANAGER)
+        self.pharmacist = user_model.objects.create_user(
+            username="resource_pharmacist",
+            password="ResourceTest123!",
+        )
+        assign_role(self.pharmacist, PharmacyRole.PHARMACIST)
+        self.client.force_authenticate(self.manager)
+        self.url = reverse("internal-resources-list")
+
+    def create_resource(self, **overrides):
+        payload = {
+            "title": "Local operating procedure",
+            "description": "Original internal reference material.",
+            "url": "https://example.com/pharmacy-procedure",
+            "category": InternalResourceLink.Category.OPERATIONS,
+            "is_active": True,
+            "sort_order": 10,
+        }
+        payload.update(overrides)
+        return self.client.post(self.url, payload, format="json")
+
+    def test_resource_api_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_manager_creates_resource_with_safe_audit(self):
+        response = self.create_resource()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        resource = InternalResourceLink.objects.get(pk=response.data["id"])
+        self.assertEqual(resource.created_by, self.manager)
+        self.assertEqual(
+            resource.created_by_username,
+            self.manager.username,
+        )
+        event = AuditEvent.objects.get(
+            action=AuditEvent.Action.CREATE,
+            entity_type="InternalResourceLink",
+            entity_identifier=str(resource.id),
+        )
+        self.assertNotIn(resource.title, event.summary)
+        self.assertNotIn(resource.url, event.summary)
+
+    def test_resource_url_must_be_https_without_credentials(self):
+        insecure = self.create_resource(url="http://example.com/resource")
+        credentials = self.create_resource(
+            url="https://user:secret@example.com/resource"
+        )
+
+        self.assertEqual(
+            insecure.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            credentials.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_staff_only_see_active_resources_and_cannot_write(self):
+        active = self.create_resource().data["id"]
+        self.create_resource(
+            title="Inactive resource",
+            url="https://example.com/inactive",
+            is_active=False,
+        )
+        self.client.force_authenticate(self.pharmacist)
+
+        response = self.client.get(self.url)
+        denied = self.create_resource(
+            title="Must not create",
+            url="https://example.com/denied",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {item["id"] for item in response.data},
+            {active},
+        )
+        self.assertEqual(denied.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_manager_filters_and_updates_resource_state(self):
+        resource_id = self.create_resource(
+            category=InternalResourceLink.Category.TRAINING,
+        ).data["id"]
+        self.create_resource(
+            title="Policy reference",
+            url="https://example.com/policy",
+            category=InternalResourceLink.Category.POLICY,
+        )
+
+        filtered = self.client.get(
+            self.url,
+            {"category": InternalResourceLink.Category.TRAINING},
+        )
+        search = self.client.get(self.url, {"search": "Policy"})
+        invalid = self.client.get(self.url, {"category": "UNKNOWN"})
+        updated = self.client.patch(
+            reverse("internal-resources-detail", args=[resource_id]),
+            {"is_active": False},
+            format="json",
+        )
+
+        self.assertEqual(len(filtered.data), 1)
+        self.assertEqual(filtered.data[0]["id"], resource_id)
+        self.assertEqual(len(search.data), 1)
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(updated.data["is_active"])

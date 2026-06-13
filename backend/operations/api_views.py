@@ -11,6 +11,7 @@ from rest_framework.response import Response
 
 from accounts.permissions import (
     FridgeTemperatureRolePermission,
+    InternalResourceLinkRolePermission,
     LocalDeliveryRolePermission,
     OpeningHourRolePermission,
     OperationalAppointmentRolePermission,
@@ -22,6 +23,7 @@ from auditlog.services import AuditedModelViewSetMixin, log_audit_event
 
 from .models import (
     FridgeTemperatureLog,
+    InternalResourceLink,
     LocalDelivery,
     OpeningHour,
     OperationalAppointment,
@@ -32,6 +34,7 @@ from .serializers import (
     AppointmentCompletionSerializer,
     DeliveryOutcomeSerializer,
     FridgeTemperatureLogSerializer,
+    InternalResourceLinkSerializer,
     LocalDeliverySerializer,
     OpeningHourSerializer,
     OperationalAppointmentSerializer,
@@ -890,3 +893,53 @@ class OperationalAppointmentViewSet(
             appointment.pk,
             serializer.validated_data["reason"],
         )
+
+
+class InternalResourceLinkViewSet(
+    AuditedModelViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    serializer_class = InternalResourceLinkSerializer
+    permission_classes = [InternalResourceLinkRolePermission]
+    audit_entity_type = "InternalResourceLink"
+
+    def get_queryset(self):
+        queryset = InternalResourceLink.objects.select_related("created_by")
+        roles = set(get_user_roles(self.request.user))
+        if (
+            PharmacyRole.MANAGER not in roles
+            and not self.request.user.is_superuser
+        ):
+            queryset = queryset.filter(is_active=True)
+
+        category = self.request.query_params.get(
+            "category",
+            "",
+        ).strip().upper()
+        search = self.request.query_params.get("search", "").strip()
+
+        if category:
+            valid_categories = {
+                choice.value for choice in InternalResourceLink.Category
+            }
+            if category not in valid_categories:
+                raise ValidationError(
+                    {"category": "Unknown resource category."}
+                )
+            queryset = queryset.filter(category=category)
+
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search)
+                | Q(description__icontains=search)
+            )
+
+        return queryset
+
+    def perform_create(self, serializer):
+        creator = self.request.user
+        serializer.validated_data["created_by"] = creator
+        serializer.validated_data["created_by_username"] = (
+            creator.get_username()
+        )
+        super().perform_create(serializer)

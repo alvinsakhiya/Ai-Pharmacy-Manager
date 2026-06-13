@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import serializers
@@ -5,6 +7,7 @@ from rest_framework import serializers
 from accounts.roles import PharmacyRole, get_user_roles
 from .models import (
     FridgeTemperatureLog,
+    InternalResourceLink,
     LocalDelivery,
     OpeningHour,
     OperationalAppointment,
@@ -569,3 +572,58 @@ class AppointmentCancellationSerializer(serializers.Serializer):
         trim_whitespace=True,
         allow_blank=False,
     )
+
+
+class InternalResourceLinkSerializer(serializers.ModelSerializer):
+    category_label = serializers.CharField(
+        source="get_category_display",
+        read_only=True,
+    )
+    created_by_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InternalResourceLink
+        fields = (
+            "id",
+            "title",
+            "description",
+            "url",
+            "category",
+            "category_label",
+            "is_active",
+            "sort_order",
+            "created_by_display",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "category_label",
+            "created_by_display",
+            "created_at",
+            "updated_at",
+        )
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Resource title is required.")
+        return value
+
+    def validate_description(self, value):
+        return value.strip()
+
+    def validate_url(self, value):
+        parsed = urlparse(value)
+        if parsed.scheme != "https":
+            raise serializers.ValidationError(
+                "Internal resources must use an HTTPS URL."
+            )
+        if parsed.username or parsed.password:
+            raise serializers.ValidationError(
+                "URLs containing embedded credentials are not permitted."
+            )
+        return value
+
+    def get_created_by_display(self, obj):
+        return obj.created_by_username or "System"

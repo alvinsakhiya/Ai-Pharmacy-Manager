@@ -488,3 +488,13 @@ class OperationalAppointmentRolePermission(BasePermission):
             return obj.assigned_user_id == request.user.id
 
         return True
+
+
+class InternalResourceLinkRolePermission(MethodRolePermission):
+    method_roles = {
+        "GET": ALL_ROLES,
+        "POST": MANAGER_ONLY,
+        "PUT": MANAGER_ONLY,
+        "PATCH": MANAGER_ONLY,
+        "DELETE": MANAGER_ONLY,
+    }

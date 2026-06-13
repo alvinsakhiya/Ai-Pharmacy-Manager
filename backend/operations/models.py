@@ -337,3 +337,40 @@ class OperationalAppointment(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.scheduled_start:%Y-%m-%d %H:%M}"
+
+
+class InternalResourceLink(models.Model):
+    class Category(models.TextChoices):
+        OPERATIONS = "OPERATIONS", "Operations"
+        POLICY = "POLICY", "Policy"
+        TRAINING = "TRAINING", "Training"
+        REFERENCE = "REFERENCE", "Reference"
+        OTHER = "OTHER", "Other"
+
+    title = models.CharField(max_length=200)
+    description = models.CharField(max_length=500, blank=True)
+    url = models.URLField(max_length=500)
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+        default=Category.OPERATIONS,
+        db_index=True,
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_internal_resource_links",
+    )
+    created_by_username = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "category", "title"]
+
+    def __str__(self):
+        return self.title

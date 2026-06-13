@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     FridgeTemperatureLog,
+    InternalResourceLink,
     LocalDelivery,
     OpeningHour,
     OperationalAppointment,
@@ -184,4 +185,29 @@ class OperationalAppointmentAdmin(admin.ModelAdmin):
         obj.assigned_username = (
             obj.assigned_user.get_username() if obj.assigned_user else ""
         )
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(InternalResourceLink)
+class InternalResourceLinkAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "category",
+        "is_active",
+        "sort_order",
+        "updated_at",
+    )
+    list_filter = ("category", "is_active")
+    search_fields = ("title", "description", "url")
+    readonly_fields = (
+        "created_by",
+        "created_by_username",
+        "created_at",
+        "updated_at",
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+            obj.created_by_username = request.user.get_username()
         super().save_model(request, obj, form, change)

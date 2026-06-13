@@ -9,11 +9,11 @@ increment includes:
 - pharmacy opening-hours configuration;
 - local delivery tracking;
 - immutable fridge temperature monitoring;
-- local operational appointments.
+- local operational appointments;
+- curated internal resource links.
 
 It does not send data to delivery providers, booking platforms, wholesalers, or
-public healthcare services. A later increment can add internal-resource
-workflows within the same bounded app.
+public healthcare services.
 
 ## Operational Tasks
 
@@ -142,6 +142,16 @@ upcoming, overdue, and completed metrics, patient-aware scheduling, assigned
 completion, cancellation reasons, search and type/status filters, a desktop
 register, and responsive mobile agenda cards.
 
+## Internal Resources
+
+Managers can curate titled HTTPS links with descriptions, categories, ordering,
+and active status. All authenticated staff can read active links; inactive
+entries remain visible only to Managers. URLs with embedded credentials or
+non-HTTPS schemes are rejected.
+
+The directory stores links only. It does not upload documents, copy vendor
+assets, store secrets, bypass access controls, or connect to NHS services.
+
 ## API
 
 Task endpoints:
@@ -198,6 +208,13 @@ Operational-appointment endpoints:
 Appointment filters include `status`, `appointment_type`, `assigned`,
 `patient`, `date_from`, `date_to`, and `search`.
 
+Internal-resource endpoints:
+
+- `GET/POST /api/internal-resources/`
+- `GET/PATCH/DELETE /api/internal-resources/{id}/`
+
+Resource filters include `category` and `search`.
+
 ## Assessment Value
 
 For AT3, the task lifecycle demonstrates clear internal accountability: create,
@@ -207,7 +224,8 @@ tracking demonstrates an original, non-NHS operational workflow with visible
 status progression and failure handling. Fridge monitoring demonstrates
 append-only safety evidence and visible corrective-action validation.
 Operational appointments demonstrate validated local scheduling and
-role-owned outcome recording.
+role-owned outcome recording. Internal resources demonstrate safe URL
+validation and least-privilege content curation.
 
 For AT4, the bounded Django app, service-layer transitions, transaction locks,
 visibility scoping, validation, audit assertions, authentication tests, and
