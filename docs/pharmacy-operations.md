@@ -45,6 +45,22 @@ fields.
 All authenticated roles can read opening hours. Only Managers can create,
 update, or delete the configuration.
 
+## React Workspace
+
+The `/operations` workspace combines:
+
+- summary metrics for open, in-progress, critical, overdue, and completed work;
+- manager-only task creation and opening-hours controls;
+- guarded claim, start, complete, and cancel actions;
+- search and status, category, and priority filters;
+- a desktop task table and mobile task cards;
+- accessible labels, visible status text, loading states, empty states, errors,
+  and action feedback.
+
+Navigation and action controls follow the authenticated user's pharmacy role.
+The backend remains authoritative, so hiding a control in React is a usability
+improvement rather than the security boundary.
+
 ## API
 
 Task endpoints:

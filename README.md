@@ -91,6 +91,8 @@ are documented in [docs/reports.md](docs/reports.md).
 The bounded operations module adds internal task assignment with a guarded
 claim, start, complete, and cancel lifecycle, plus validated pharmacy opening
 hours. Task visibility is scoped by assignment and role, and lifecycle changes
-are audited without copying task content into audit summaries. The API,
-permissions, validation, and assessment evidence are documented in
+are audited without copying task content into audit summaries. The responsive
+Operations workspace exposes the same guarded workflow with accessible
+feedback, filters, and manager-only configuration. The API, permissions,
+validation, and assessment evidence are documented in
 [docs/pharmacy-operations.md](docs/pharmacy-operations.md).

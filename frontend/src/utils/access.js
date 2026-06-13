@@ -56,6 +56,7 @@ export const pageRoles = {
     PharmacyRole.MANAGER,
     PharmacyRole.STOCK_ASSISTANT,
   ],
+  "/operations": allRoles,
   "/reports": allRoles,
   "/audit-log": [PharmacyRole.MANAGER],
 };
@@ -88,5 +89,18 @@ export function canManageDosette(user) {
     PharmacyRole.MANAGER,
     PharmacyRole.PHARMACIST,
     PharmacyRole.DISPENSER,
+  ].some((role) => user?.roles?.includes(role));
+}
+
+export function canManageOperations(user) {
+  return user?.roles?.includes(PharmacyRole.MANAGER) || false;
+}
+
+export function canActionOperationalTasks(user) {
+  return [
+    PharmacyRole.MANAGER,
+    PharmacyRole.PHARMACIST,
+    PharmacyRole.DISPENSER,
+    PharmacyRole.STOCK_ASSISTANT,
   ].some((role) => user?.roles?.includes(role));
 }
