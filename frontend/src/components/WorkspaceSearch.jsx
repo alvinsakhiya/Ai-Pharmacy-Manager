@@ -18,6 +18,7 @@ const workspaceDestinations = [
   { label: "Stock Intelligence", keywords: "minimum threshold cover low excess inactive dead stock", path: "/stock-intelligence" },
   { label: "Suppliers & Drafts", keywords: "supplier reorder purchasing internal draft order", path: "/ordering" },
   { label: "Operations", keywords: "tasks opening hours claim start complete workflow", path: "/operations" },
+  { label: "Local Deliveries", keywords: "patient delivery planned ready dispatch failed local", path: "/deliveries" },
   { label: "Reports", keywords: "csv export evidence stock expiry forecast audit notifications picking", path: "/reports" },
   { label: "Audit History", keywords: "governance activity trace staff actions", path: "/audit-log" },
 ];

@@ -21,6 +21,7 @@ const pageNames = {
   "/stock-intelligence": "Stock Intelligence",
   "/ordering": "Suppliers & Draft Orders",
   "/operations": "Pharmacy Operations",
+  "/deliveries": "Local Deliveries",
   "/reports": "Reports",
   "/audit-log": "Audit History",
 };

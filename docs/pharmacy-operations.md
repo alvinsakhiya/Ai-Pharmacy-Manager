@@ -82,6 +82,20 @@ records but cannot change them. Stock Assistants cannot access patient delivery
 data. Finished records are read-only, transitions use database locks, and audit
 summaries omit patient names, instructions, and outcome details.
 
+The `/deliveries` React workspace provides:
+
+- patient and authorised staff selection for Managers and Pharmacists;
+- summary metrics for planned, ready, active, overdue, and completed work;
+- claim, ready, dispatch, delivered, failed, and cancelled controls;
+- mandatory failure and cancellation reason forms;
+- search and assignment/status filters;
+- a desktop delivery register and responsive mobile cards;
+- role-aware navigation, loading, empty, error, and action feedback states.
+
+Status is communicated with text, icons, and structure rather than colour
+alone. The UI does not request or display delivery addresses, maps, routes, or
+external provider information.
+
 ## API
 
 Task endpoints:

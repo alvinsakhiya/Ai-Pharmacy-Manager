@@ -99,4 +99,6 @@ validation, and assessment evidence are documented in
 
 The same bounded module also provides local-only patient delivery tracking with
 patient-care role restrictions, transactional lifecycle changes, safe audit
-summaries, and no courier, route, NHS, or external service integration.
+summaries, and no courier, route, NHS, or external service integration. Its
+responsive delivery workspace provides scheduling, assignment, status
+progression, outcome recording, filters, and accessible mobile cards.
