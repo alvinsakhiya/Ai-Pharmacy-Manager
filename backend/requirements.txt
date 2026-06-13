@@ -14,10 +14,11 @@ python-dotenv==1.0.1
 dj-database-url==2.1.0
 
 # Forecasting / analytics
+# numpy is required by the forecasting engine; statsmodels is optional (the engine
+# degrades gracefully to a NumPy least-squares fit when it is unavailable).
+# pandas is pulled in transitively by statsmodels. scikit-learn was unused and removed.
 numpy==1.26.4
-pandas==2.2.2
 statsmodels==0.14.2
-scikit-learn==1.4.2
 
 # Reporting
 reportlab==4.2.0
