@@ -263,3 +263,7 @@ class NotificationRolePermission(BasePermission):
             return obj.assigned_user_id == request.user.id
 
         return True
+
+
+class NotificationReportRolePermission(MethodRolePermission):
+    method_roles = {"GET": ALL_ROLES}

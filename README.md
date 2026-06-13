@@ -68,3 +68,11 @@ stock recommendations into internal draft purchase orders. Open drafts reduce
 subsequent suggestions to avoid duplicate planning. Nothing is transmitted to
 an external wholesaler or NHS service. The workflow and evidence are documented
 in [docs/supplier-ordering.md](docs/supplier-ordering.md).
+
+## Reports and Exports
+
+Authenticated staff can generate role-aware CSV reports for picking lists,
+stock, expiry alerts, forecasts, audit history, and notifications. Each export
+is audited with a safe summary and avoids proprietary templates or external NHS
+services. The reporting scope, endpoints, safety rules, and assessment value
+are documented in [docs/reports.md](docs/reports.md).

@@ -30,6 +30,13 @@ own account. Only Managers create or edit notification content. A named
 recipient can mark, acknowledge, and resolve their assigned notification;
 general notices remain read-only for non-Managers.
 
+The Reports page is visible to authenticated staff, but individual CSV exports
+reuse the source workflow permissions. For example, audit exports are
+Manager-only, picking-list exports are available to Managers, Pharmacists and
+Dispensers, and forecast exports are available to Managers, Pharmacists and
+Read-only Users. Notification exports preserve the same assigned/unassigned
+visibility rule as the notification centre.
+
 ## Account Assignment
 
 Run `python manage.py migrate` after deployment. The role migration creates all

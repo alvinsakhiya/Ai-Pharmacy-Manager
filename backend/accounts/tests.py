@@ -41,6 +41,12 @@ class ApiAuthenticationTest(APITestCase):
             reverse("suppliers-list"),
             reverse("draft-purchase-orders-list"),
             reverse("draft-purchase-orders-suggestions"),
+            reverse("report_picking_list_csv", args=[self.patient.id]),
+            reverse("report_stock_csv"),
+            reverse("report_expiry_csv"),
+            reverse("report_forecast_csv"),
+            reverse("report_audit_csv"),
+            reverse("report_notification_csv"),
             reverse("current_user"),
         ]
 

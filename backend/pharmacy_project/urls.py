@@ -43,6 +43,14 @@ from .api_views import (
     medication_forecasts,
     stock_intelligence,
 )
+from .report_views import (
+    audit_report_csv,
+    expiry_report_csv,
+    forecast_report_csv,
+    notification_report_csv,
+    picking_list_report_csv,
+    stock_report_csv,
+)
 
 router = DefaultRouter()
 router.register(r"patients", PatientViewSet, basename="patients")
@@ -92,4 +100,22 @@ urlpatterns = [
     path("api/auth/me/", current_user_view, name="current_user"),
     path("api/auth/logout/", logout_view, name="logout"),
     path("api/forecasts/", medication_forecasts, name="medication_forecasts"),
+    path(
+        "api/reports/picking-list/<int:patient_id>.csv",
+        picking_list_report_csv,
+        name="report_picking_list_csv",
+    ),
+    path("api/reports/stock.csv", stock_report_csv, name="report_stock_csv"),
+    path("api/reports/expiry.csv", expiry_report_csv, name="report_expiry_csv"),
+    path(
+        "api/reports/forecast.csv",
+        forecast_report_csv,
+        name="report_forecast_csv",
+    ),
+    path("api/reports/audit.csv", audit_report_csv, name="report_audit_csv"),
+    path(
+        "api/reports/notifications.csv",
+        notification_report_csv,
+        name="report_notification_csv",
+    ),
 ]

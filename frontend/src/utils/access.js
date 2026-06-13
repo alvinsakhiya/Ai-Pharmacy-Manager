@@ -56,6 +56,7 @@ export const pageRoles = {
     PharmacyRole.MANAGER,
     PharmacyRole.STOCK_ASSISTANT,
   ],
+  "/reports": allRoles,
   "/audit-log": [PharmacyRole.MANAGER],
 };
 

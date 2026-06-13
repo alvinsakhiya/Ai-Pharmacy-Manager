@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ChartSpline,
   ClipboardCheck,
+  FileSpreadsheet,
   Grid2X2,
   History,
   LayoutDashboard,
@@ -48,6 +49,7 @@ const menuItems = [
     path: "/stock-intelligence",
   },
   { name: "Suppliers & Drafts", icon: Truck, path: "/ordering" },
+  { name: "Reports", icon: FileSpreadsheet, path: "/reports" },
   { name: "Audit History", icon: History, path: "/audit-log" },
 ];
 
