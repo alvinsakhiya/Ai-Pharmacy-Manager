@@ -2,13 +2,14 @@
 Django settings for the AI-Enhanced Pharmacy Stock Optimisation &
 Patient Dosette Management System.
 
-Configuration is environment-driven (12-factor). Defaults are safe for local
-SQLite development; production values come from environment variables / .env.
+Configuration is environment-driven (12-factor). PostgreSQL is required in
+every environment; values come from environment variables / .env.
 """
 from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 import os
 
@@ -92,12 +93,29 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 # --- Database -------------------------------------------------------------
-# Uses DATABASE_URL (PostgreSQL) when set, else local SQLite for zero-config dev.
-DATABASES = {
-    "default": dj_database_url.parse(
-        os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
-        conn_max_age=600,
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    raise ImproperlyConfigured(
+        "DATABASE_URL is required. Configure a PostgreSQL URL, for example "
+        "'postgresql://pharma:pharma@localhost:5432/pharmacy'."
     )
+
+try:
+    database_config = dj_database_url.parse(
+        database_url,
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
+except ValueError as exc:
+    raise ImproperlyConfigured("DATABASE_URL is not a valid database URL.") from exc
+
+if database_config["ENGINE"] != "django.db.backends.postgresql":
+    raise ImproperlyConfigured(
+        "PostgreSQL is required; SQLite and other database engines are not supported."
+    )
+
+DATABASES = {
+    "default": database_config,
 }
 
 AUTH_USER_MODEL = "accounts.User"

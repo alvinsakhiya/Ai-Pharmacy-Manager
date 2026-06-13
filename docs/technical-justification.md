@@ -25,13 +25,14 @@ migrations from parts. Node/NestJS gives shared TS types but pushes forecasting 
 Python service or weaker JS libraries. DRF was the lowest-risk, highest-leverage choice for the
 breadth of modules required.
 
-## 3. PostgreSQL with SQLite for local dev
+## 3. PostgreSQL in every environment
 
-**Decision:** PostgreSQL in Docker/production; SQLite as the zero-config local default via
-`DATABASE_URL`.
-**Why:** Postgres gives the relational integrity and indexing the FEFO/expiry queries need. Allowing
-SQLite locally means a marker/reviewer can run `migrate` + `seed` + `runserver` with no database
-setup, lowering the barrier to evaluating the project.
+**Decision:** PostgreSQL is required for Docker, local development, CI and production.
+**Why:** PostgreSQL gives the relational integrity and indexing the FEFO/expiry queries need.
+Running the same database engine everywhere also prevents SQLite/PostgreSQL differences in
+constraints, transactions, data types and query behaviour from escaping local tests. Docker
+Compose still keeps setup to one command, so this consistency does not add manual database
+installation work.
 
 ## 4. Batch-level inventory & FEFO as a service
 

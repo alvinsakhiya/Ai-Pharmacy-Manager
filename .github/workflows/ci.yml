@@ -8,6 +8,23 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: pharmacy
+          POSTGRES_USER: pharma
+          POSTGRES_PASSWORD: pharma
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pharma -d pharmacy"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://pharma:pharma@localhost:5432/pharmacy
+      DJANGO_SECRET_KEY: ci-only-secret-key-at-least-32-bytes-long
     defaults:
       run:
         working-directory: backend

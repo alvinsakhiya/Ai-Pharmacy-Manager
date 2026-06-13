@@ -1,25 +1,34 @@
 #!/usr/bin/env bash
 set -e
 
-echo "Waiting for database…"
+echo "Waiting for PostgreSQL..."
 python - <<'PY'
-import os, time, sys
+import os
+import sys
+import time
+
 import dj_database_url
-cfg = dj_database_url.parse(os.getenv("DATABASE_URL", ""))
-if cfg.get("ENGINE", "").endswith("postgresql"):
-    import psycopg
-    for _ in range(30):
-        try:
-            psycopg.connect(
-                dbname=cfg["NAME"], user=cfg["USER"], password=cfg["PASSWORD"],
-                host=cfg["HOST"], port=cfg["PORT"] or 5432,
-            ).close()
-            break
-        except Exception:
-            time.sleep(1)
-    else:
-        sys.exit("Database not reachable")
-print("Database ready.")
+import psycopg
+
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    sys.exit("DATABASE_URL is required")
+
+config = dj_database_url.parse(database_url)
+if config.get("ENGINE") != "django.db.backends.postgresql":
+    sys.exit("PostgreSQL is required")
+
+last_error = None
+for _ in range(30):
+    try:
+        psycopg.connect(database_url, connect_timeout=3).close()
+        print("PostgreSQL ready.")
+        break
+    except psycopg.Error as exc:
+        last_error = exc
+        time.sleep(1)
+else:
+    sys.exit(f"PostgreSQL not reachable: {last_error}")
 PY
 
 python manage.py migrate --noinput

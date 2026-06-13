@@ -72,7 +72,7 @@ React (Vite + Tailwind)  ──HTTPS/JSON──▶  Django REST Framework API  �
 |---|---|---|
 | Frontend | **React + Vite + Tailwind + React Router + Recharts + Lucide** | Fast DX, a strict design-token system for a coherent clinical UI, route-based views, professional charting. |
 | Backend | **Django REST Framework** | Batteries-included auth, ORM, migrations and admin; RBAC and audit are natural; the forecasting engine lives in the same Python runtime as the data. |
-| Database | **PostgreSQL** (SQLite for zero-config local dev) | Relational integrity for batches/movements/schedules; indices for FEFO and expiry queries. |
+| Database | **PostgreSQL 18** | One database engine in development, testing and deployment prevents engine-specific behaviour from being missed; PostgreSQL provides strong relational integrity and indexing for FEFO and expiry queries. |
 | Forecasting | **numpy + statsmodels** (scikit-learn available) | Statistically defensible, explainable methods; **degrades gracefully** to a NumPy linear trend if statsmodels is unavailable. |
 | Reporting | **ReportLab** | Server-side PDF generation; CSV via the standard library. |
 | Packaging | **Docker + docker-compose** | One-command reproducible stack (db + redis + api + web). |
@@ -88,7 +88,9 @@ Prerequisites: Docker + Docker Compose.
 ```bash
 git clone https://github.com/alvinsakhiya/Ai-Pharmacy-Manager.git
 cd Ai-Pharmacy-Manager
-docker compose up --build
+cp .env.example .env
+docker compose up --build -d
+docker compose ps
 ```
 
 This starts PostgreSQL, Redis, the API and the web app. On first boot the backend automatically
@@ -98,22 +100,43 @@ runs migrations and **seeds realistic demo data**.
 - API docs (Swagger): <http://localhost:8000/api/docs/>
 - Django admin: <http://localhost:8000/admin/>
 
+Useful Docker commands:
+
+```bash
+docker compose logs -f backend                         # follow backend startup/logs
+docker compose exec backend python manage.py seed     # seed again (idempotent)
+docker compose exec backend python manage.py createsuperuser
+docker compose exec backend pytest                    # run backend tests on PostgreSQL
+docker compose stop                                   # stop without deleting data
+docker compose down                                   # remove containers; keep database volume
+docker compose down --volumes                         # destructive: also delete database data
+```
+
+PostgreSQL data is stored in the named `pgdata18` volume and survives normal container restarts and
+`docker compose down`. The application intentionally has no SQLite fallback.
+
 ## Local development
 
 ### Backend
 
+Start only PostgreSQL in Docker, then run Django on the host:
+
 ```bash
+cp .env.example .env                                  # from the repository root
+docker compose up -d db
 cd backend
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env                                  # SQLite by default — no DB setup needed
+cp .env.example .env
 python manage.py migrate
 python manage.py seed                                 # generate demo data
 python manage.py createsuperuser                      # optional, for /admin
 python manage.py runserver                            # http://localhost:8000
 ```
 
-> The supported backend runtime is Python **3.14** with Django **6.0**.
+> The supported backend runtime is Python **3.14** with Django **6.0**. `DATABASE_URL` is mandatory
+> and must point to PostgreSQL. For the command above it is
+> `postgresql://pharma:pharma@localhost:5432/pharmacy`.
 
 ### Frontend
 
