@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   ShieldCheck,
   TriangleAlert,
+  Truck,
   Users,
   LogOut,
   X,
@@ -46,6 +47,7 @@ const menuItems = [
     icon: ChartSpline,
     path: "/stock-intelligence",
   },
+  { name: "Suppliers & Drafts", icon: Truck, path: "/ordering" },
   { name: "Audit History", icon: History, path: "/audit-log" },
 ];
 

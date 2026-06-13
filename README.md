@@ -59,3 +59,12 @@ active dosette demand and usable, non-expired stock to identify shortages,
 excess, inactive, and dead-stock review candidates. The explainable calculation,
 API compatibility, role boundary, and demonstration flow are documented in
 [docs/stock-intelligence.md](docs/stock-intelligence.md).
+
+## Supplier and Draft Ordering
+
+Managers and Stock Assistants can maintain an original local supplier
+directory, assign preferred suppliers to medications, and convert outstanding
+stock recommendations into internal draft purchase orders. Open drafts reduce
+subsequent suggestions to avoid duplicate planning. Nothing is transmitted to
+an external wholesaler or NHS service. The workflow and evidence are documented
+in [docs/supplier-ordering.md](docs/supplier-ordering.md).

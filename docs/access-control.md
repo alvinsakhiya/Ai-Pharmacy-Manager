@@ -18,7 +18,8 @@ Inventory records remain readable to patient-care roles because dosette and
 picking workflows need medication context. Stock changes are restricted to
 Managers and Stock Assistants. These roles can also review the immutable stock
 movement ledger, record controlled adjustments, review stock intelligence, and
-configure medication stock thresholds.
+configure medication stock thresholds. They also maintain the local supplier
+directory and create, review, or archive internal draft purchase orders.
 
 Structured clinical reviews are restricted to Managers and Pharmacists because
 they may contain sensitive patient-care context. Dispensers, Stock Assistants,

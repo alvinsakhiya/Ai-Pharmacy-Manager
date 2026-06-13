@@ -90,6 +90,9 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("notifications-list"),
             reverse("notifications-summary"),
             reverse("stock_intelligence"),
+            reverse("suppliers-list"),
+            reverse("draft-purchase-orders-list"),
+            reverse("draft-purchase-orders-suggestions"),
         ]
         for url in readable_urls:
             with self.subTest(url=url):
@@ -169,6 +172,21 @@ class PharmacyRolePermissionTest(APITestCase):
         )
         self.assert_status(
             "get",
+            reverse("suppliers-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
+            reverse("draft-purchase-orders-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
+            reverse("draft-purchase-orders-suggestions"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
             reverse("notifications-list"),
             status.HTTP_200_OK,
         )
@@ -240,6 +258,16 @@ class PharmacyRolePermissionTest(APITestCase):
         )
         self.assert_status(
             "get",
+            reverse("suppliers-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
+            reverse("draft-purchase-orders-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
             reverse("notifications-list"),
             status.HTTP_200_OK,
         )
@@ -297,6 +325,21 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("stock_intelligence"),
             status.HTTP_200_OK,
         )
+        self.assert_status(
+            "get",
+            reverse("suppliers-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
+            "get",
+            reverse("draft-purchase-orders-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
+            "get",
+            reverse("draft-purchase-orders-suggestions"),
+            status.HTTP_200_OK,
+        )
 
     def test_read_only_user_can_view_but_cannot_change_records(self):
         self.authenticate_as(PharmacyRole.READ_ONLY)
@@ -347,6 +390,16 @@ class PharmacyRolePermissionTest(APITestCase):
         self.assert_status(
             "get",
             reverse("stock_intelligence"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
+            reverse("suppliers-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
+            reverse("draft-purchase-orders-list"),
             status.HTTP_403_FORBIDDEN,
         )
         self.assert_status(

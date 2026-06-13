@@ -202,7 +202,9 @@ def _stock_assessment(
 def generate_medication_forecast():
     forecasts = []
     today = timezone.localdate()
-    medications = Medication.objects.prefetch_related(
+    medications = Medication.objects.select_related(
+        "preferred_supplier"
+    ).prefetch_related(
         Prefetch(
             "dosette_records",
             queryset=DosetteRecord.objects.filter(is_active=True),
@@ -246,6 +248,17 @@ def generate_medication_forecast():
             "reorder_threshold": medication.reorder_threshold,
             "target_weeks_of_cover": float(
                 medication.target_weeks_of_cover
+            ),
+            "preferred_supplier_id": medication.preferred_supplier_id,
+            "preferred_supplier_name": (
+                medication.preferred_supplier.name
+                if medication.preferred_supplier
+                else None
+            ),
+            "preferred_supplier_active": (
+                medication.preferred_supplier.is_active
+                if medication.preferred_supplier
+                else None
             ),
             **{
                 key: value

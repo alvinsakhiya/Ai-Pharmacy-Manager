@@ -38,6 +38,9 @@ class ApiAuthenticationTest(APITestCase):
             reverse("notifications-list"),
             reverse("notifications-summary"),
             reverse("stock_intelligence"),
+            reverse("suppliers-list"),
+            reverse("draft-purchase-orders-list"),
+            reverse("draft-purchase-orders-suggestions"),
             reverse("current_user"),
         ]
 

@@ -5,6 +5,28 @@ from django.db import models
 from django.db.models import F, Q
 
 
+class Supplier(models.Model):
+    name = models.CharField(max_length=150, unique=True)
+    contact_name = models.CharField(max_length=150, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    account_reference = models.CharField(max_length=100, blank=True)
+    lead_time_days = models.PositiveSmallIntegerField(
+        default=2,
+        validators=[MaxValueValidator(365)],
+    )
+    notes = models.TextField(blank=True, max_length=2000)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Medication(models.Model):
     FORM_CHOICES = [
         ("Tablet", "Tablet"),
@@ -41,6 +63,14 @@ class Medication(models.Model):
             MinValueValidator(1),
             MaxValueValidator(52),
         ],
+    )
+
+    preferred_supplier = models.ForeignKey(
+        Supplier,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="preferred_medications",
     )
 
     created_at = models.DateTimeField(
@@ -172,4 +202,95 @@ class StockMovement(models.Model):
         return (
             f"{self.get_movement_type_display()} {self.batch_number} "
             f"({sign}{self.quantity_change})"
+        )
+
+
+class DraftPurchaseOrder(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        REVIEWED = "REVIEWED", "Reviewed"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.PROTECT,
+        related_name="draft_purchase_orders",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+    )
+    notes = models.TextField(blank=True, max_length=2000)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="draft_purchase_orders",
+    )
+    created_by_username = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(
+                fields=["supplier", "status", "-created_at"],
+                name="draft_po_supplier_status",
+            ),
+        ]
+
+    @property
+    def reference(self):
+        return f"DRAFT-{self.pk:06d}" if self.pk else "DRAFT-PENDING"
+
+    @property
+    def total_units(self):
+        prefetched_items = getattr(self, "_prefetched_objects_cache", {}).get(
+            "items"
+        )
+        if prefetched_items is not None:
+            return sum(item.quantity for item in prefetched_items)
+        return self.items.aggregate(total=models.Sum("quantity"))["total"] or 0
+
+    def __str__(self):
+        return f"{self.reference} · {self.supplier}"
+
+
+class DraftPurchaseOrderItem(models.Model):
+    purchase_order = models.ForeignKey(
+        DraftPurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    medication = models.ForeignKey(
+        Medication,
+        on_delete=models.PROTECT,
+        related_name="draft_purchase_order_items",
+    )
+    medication_name = models.CharField(max_length=250)
+    quantity = models.PositiveIntegerField(
+        validators=[MinValueValidator(1)],
+    )
+    recommended_quantity = models.PositiveIntegerField()
+    current_stock = models.PositiveIntegerField()
+    target_stock = models.PositiveIntegerField()
+    rationale = models.CharField(max_length=300)
+
+    class Meta:
+        ordering = ["medication_name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["purchase_order", "medication"],
+                name="unique_draft_po_medication",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.purchase_order.reference} · "
+            f"{self.medication_name} x {self.quantity}"
         )

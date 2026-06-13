@@ -47,6 +47,9 @@ These are operational review prompts, not clinical decisions.
 - `PATCH /api/medications/{id}/` updates the three stock-control fields.
 - `GET /api/forecasts/` keeps its original six response fields and adds
   compatible stock-control details for richer clients.
+- Forecast and stock-intelligence items include the medication's optional
+  preferred supplier so the local ordering workflow can reuse the same
+  calculation.
 
 The stock-intelligence endpoint is available only to Managers and Stock
 Assistants. Medication updates remain protected by the existing inventory role

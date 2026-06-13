@@ -52,6 +52,10 @@ export const pageRoles = {
     PharmacyRole.MANAGER,
     PharmacyRole.STOCK_ASSISTANT,
   ],
+  "/ordering": [
+    PharmacyRole.MANAGER,
+    PharmacyRole.STOCK_ASSISTANT,
+  ],
   "/audit-log": [PharmacyRole.MANAGER],
 };
 

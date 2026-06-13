@@ -16,6 +16,7 @@ const workspaceDestinations = [
   { label: "Expiry Alerts", keywords: "expired risk safety", path: "/alerts" },
   { label: "AI Forecasting", keywords: "forecast demand reorder risk", path: "/forecasts" },
   { label: "Stock Intelligence", keywords: "minimum threshold cover low excess inactive dead stock", path: "/stock-intelligence" },
+  { label: "Suppliers & Drafts", keywords: "supplier reorder purchasing internal draft order", path: "/ordering" },
   { label: "Audit History", keywords: "governance activity trace staff actions", path: "/audit-log" },
 ];
 

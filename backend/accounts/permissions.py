@@ -193,6 +193,20 @@ class StockIntelligenceRolePermission(MethodRolePermission):
     }
 
 
+class OrderingRolePermission(MethodRolePermission):
+    ordering_roles = frozenset(
+        {
+            PharmacyRole.MANAGER,
+            PharmacyRole.STOCK_ASSISTANT,
+        }
+    )
+    method_roles = {
+        "GET": ordering_roles,
+        "POST": ordering_roles,
+        "PATCH": ordering_roles,
+    }
+
+
 class ClinicalReviewRolePermission(MethodRolePermission):
     clinical_roles = frozenset(
         {

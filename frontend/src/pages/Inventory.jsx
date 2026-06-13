@@ -11,6 +11,7 @@ import {
   PackageOpen,
   RotateCw,
   Scale,
+  Truck,
   X,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
@@ -302,6 +303,15 @@ function Inventory() {
         icon={PackageOpen}
         actions={
           <>
+            {canViewStockIntelligence && (
+              <Link
+                to="/ordering"
+                className={buttonClassName("secondary")}
+              >
+                <Truck aria-hidden="true" size={18} />
+                Suppliers & drafts
+              </Link>
+            )}
             {canViewStockIntelligence && (
               <Link
                 to="/stock-intelligence"

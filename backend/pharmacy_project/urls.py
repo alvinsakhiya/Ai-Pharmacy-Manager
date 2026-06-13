@@ -28,9 +28,11 @@ from accounts.views import (
 from auditlog.api_views import AuditEventViewSet
 from patients.api_views import ClinicalReviewNoteViewSet, PatientViewSet
 from inventory.api_views import (
+    DraftPurchaseOrderViewSet,
     MedicationViewSet,
     StockBatchViewSet,
     StockMovementViewSet,
+    SupplierViewSet,
 )
 from dosette.api_views import DosetteRecordViewSet
 from dosette.picking_api_views import patient_picking_list
@@ -55,6 +57,12 @@ router.register(
     r"stock-movements",
     StockMovementViewSet,
     basename="stock-movements",
+)
+router.register(r"suppliers", SupplierViewSet, basename="suppliers")
+router.register(
+    r"draft-purchase-orders",
+    DraftPurchaseOrderViewSet,
+    basename="draft-purchase-orders",
 )
 router.register(r"dosette-records", DosetteRecordViewSet, basename="dosette-records")
 router.register(r"audit-events", AuditEventViewSet, basename="audit-events")

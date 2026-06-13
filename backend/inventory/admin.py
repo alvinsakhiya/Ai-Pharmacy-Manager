@@ -1,6 +1,35 @@
 from django.contrib import admin
-from .models import Medication, StockBatch, StockMovement
+from .models import (
+    DraftPurchaseOrder,
+    DraftPurchaseOrderItem,
+    Medication,
+    StockBatch,
+    StockMovement,
+    Supplier,
+)
 from .services import record_initial_stock_receipt
+
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "contact_name",
+        "email",
+        "lead_time_days",
+        "is_active",
+        "updated_at",
+    )
+    list_filter = ("is_active", "lead_time_days")
+    search_fields = (
+        "name",
+        "contact_name",
+        "email",
+        "account_reference",
+    )
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Medication)
@@ -12,11 +41,12 @@ class MedicationAdmin(admin.ModelAdmin):
         "minimum_stock_level",
         "reorder_threshold",
         "target_weeks_of_cover",
+        "preferred_supplier",
         "manufacturer",
         "created_at",
     )
     search_fields = ("name", "strength", "form", "manufacturer")
-    list_filter = ("form", "manufacturer")
+    list_filter = ("form", "manufacturer", "preferred_supplier")
 
 
 @admin.register(StockBatch)
@@ -89,6 +119,55 @@ class StockMovementAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class DraftPurchaseOrderItemInline(admin.TabularInline):
+    model = DraftPurchaseOrderItem
+    extra = 0
+    can_delete = False
+    readonly_fields = (
+        "medication",
+        "medication_name",
+        "quantity",
+        "recommended_quantity",
+        "current_stock",
+        "target_stock",
+        "rationale",
+    )
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(DraftPurchaseOrder)
+class DraftPurchaseOrderAdmin(admin.ModelAdmin):
+    list_display = (
+        "reference",
+        "supplier",
+        "status",
+        "created_by_username",
+        "created_at",
+    )
+    list_filter = ("status", "supplier", "created_at")
+    search_fields = (
+        "supplier__name",
+        "created_by_username",
+        "notes",
+    )
+    readonly_fields = (
+        "supplier",
+        "created_by",
+        "created_by_username",
+        "created_at",
+        "updated_at",
+    )
+    inlines = (DraftPurchaseOrderItemInline,)
+
+    def has_add_permission(self, request):
         return False
 
     def has_delete_permission(self, request, obj=None):
