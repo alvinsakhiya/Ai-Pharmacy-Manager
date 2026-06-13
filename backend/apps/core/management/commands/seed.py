@@ -150,6 +150,12 @@ class Command(BaseCommand):
                           DosetteCycle, DosettePlan, PatientNote, Patient, Medicine,
                           Manufacturer, Supplier):
                 model.objects.all().delete()
+        elif Patient.objects.exists() or MedicineUsage.objects.exists():
+            # Idempotent: the entrypoint seeds on every container start, so skip
+            # if data already exists. Use --flush to wipe and reseed from scratch.
+            self.stdout.write(self.style.WARNING(
+                "Data already present — skipping seed. Run with --flush to reseed."))
+            return
 
         self._users()
         suppliers = self._suppliers()

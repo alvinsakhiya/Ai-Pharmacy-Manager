@@ -22,6 +22,8 @@ if cfg.get("ENGINE", "").endswith("postgresql"):
 print("Database ready.")
 PY
 
+echo "Generating migrations…"
+python manage.py makemigrations accounts core patients stock dosette picking notifications reports --noinput
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput || true
 

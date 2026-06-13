@@ -164,11 +164,16 @@ SPECTACULAR_SETTINGS = {
 # --- CORS -----------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 
-# --- Security (tightened automatically when DEBUG is off) -----------------
+# --- Security ---------------------------------------------------------------
+# HTTPS-only behaviours are explicit opt-ins (enable them in production behind a
+# TLS-terminating proxy/load balancer). They default OFF so a plain-HTTP local or
+# Docker deployment is not broken by an SSL redirect. Trust the proxy's scheme
+# header so Django knows when a request arrived over HTTPS.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", False)
+SESSION_COOKIE_SECURE = env_bool("DJANGO_SECURE_COOKIES", False)
+CSRF_COOKIE_SECURE = env_bool("DJANGO_SECURE_COOKIES", False)
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", "0"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
+    SECURE_CONTENT_TYPE_NOSNIFF = True
