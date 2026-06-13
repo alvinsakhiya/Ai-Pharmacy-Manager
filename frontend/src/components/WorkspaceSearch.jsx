@@ -15,6 +15,7 @@ const workspaceDestinations = [
   { label: "Picking Lists", keywords: "fefo allocation shortfall", path: "/picking-lists" },
   { label: "Expiry Alerts", keywords: "expired risk safety", path: "/alerts" },
   { label: "AI Forecasting", keywords: "forecast demand reorder risk", path: "/forecasts" },
+  { label: "Stock Intelligence", keywords: "minimum threshold cover low excess inactive dead stock", path: "/stock-intelligence" },
   { label: "Audit History", keywords: "governance activity trace staff actions", path: "/audit-log" },
 ];
 

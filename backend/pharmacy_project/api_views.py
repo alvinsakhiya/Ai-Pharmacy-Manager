@@ -8,13 +8,17 @@ from accounts.permissions import (
     DashboardRolePermission,
     ExpiryAlertRolePermission,
     ForecastRolePermission,
+    StockIntelligenceRolePermission,
 )
 from patients.models import Patient
 from inventory.models import Medication, StockBatch
 from dosette.models import DosetteRecord
 from dosette.utils import InvalidDoseValue
 from inventory.utils import get_expiry_alerts
-from inventory.forecasting import generate_medication_forecast
+from inventory.forecasting import (
+    generate_medication_forecast,
+    generate_stock_intelligence,
+)
 
 
 @api_view(["GET"])
@@ -56,6 +60,31 @@ def dashboard_stats(request):
     }
 
     return Response(data)
+
+
+@api_view(["GET"])
+@permission_classes([StockIntelligenceRolePermission])
+def stock_intelligence(request):
+    try:
+        intelligence = generate_stock_intelligence()
+    except InvalidDoseValue as exc:
+        return Response(
+            {"detail": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    log_audit_event(
+        action=AuditEvent.Action.ACCESS,
+        entity_type="StockIntelligence",
+        summary=(
+            "Viewed stock intelligence containing "
+            f"{len(intelligence['items'])} medication records."
+        ),
+        request=request,
+    )
+
+    return Response(intelligence)
+
 
 @api_view(["GET"])
 @permission_classes([ExpiryAlertRolePermission])

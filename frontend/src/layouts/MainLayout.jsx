@@ -18,6 +18,7 @@ const pageNames = {
   "/picking-lists": "Picking Lists",
   "/alerts": "Expiry Alerts",
   "/forecasts": "AI Forecasting",
+  "/stock-intelligence": "Stock Intelligence",
   "/audit-log": "Audit History",
 };
 

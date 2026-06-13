@@ -48,6 +48,10 @@ export const pageRoles = {
     PharmacyRole.PHARMACIST,
     PharmacyRole.READ_ONLY,
   ],
+  "/stock-intelligence": [
+    PharmacyRole.MANAGER,
+    PharmacyRole.STOCK_ASSISTANT,
+  ],
   "/audit-log": [PharmacyRole.MANAGER],
 };
 

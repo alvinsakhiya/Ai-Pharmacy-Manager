@@ -5,7 +5,16 @@ from .services import record_initial_stock_receipt
 
 @admin.register(Medication)
 class MedicationAdmin(admin.ModelAdmin):
-    list_display = ("name", "strength", "form", "manufacturer", "created_at")
+    list_display = (
+        "name",
+        "strength",
+        "form",
+        "minimum_stock_level",
+        "reorder_threshold",
+        "target_weeks_of_cover",
+        "manufacturer",
+        "created_at",
+    )
     search_fields = ("name", "strength", "form", "manufacturer")
     list_filter = ("form", "manufacturer")
 

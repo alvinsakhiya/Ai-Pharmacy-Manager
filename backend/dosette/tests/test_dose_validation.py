@@ -122,7 +122,7 @@ class DoseValueTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("cannot be negative", response.data["detail"])
 
-    def test_forecast_reports_legacy_invalid_dose(self):
+    def test_forecast_and_stock_intelligence_report_legacy_invalid_dose(self):
         DosetteRecord.objects.create(
             patient=self.patient,
             medication=self.medication,
@@ -134,3 +134,15 @@ class DoseValueTest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("must be a finite number", response.data["detail"])
+
+        assign_role(self.user, PharmacyRole.MANAGER)
+        intelligence_response = self.client.get(reverse("stock_intelligence"))
+
+        self.assertEqual(
+            intelligence_response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn(
+            "must be a finite number",
+            intelligence_response.data["detail"],
+        )

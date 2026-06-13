@@ -35,7 +35,12 @@ from inventory.api_views import (
 from dosette.api_views import DosetteRecordViewSet
 from dosette.picking_api_views import patient_picking_list
 from notifications.api_views import NotificationViewSet
-from .api_views import dashboard_stats, expiry_alerts, medication_forecasts
+from .api_views import (
+    dashboard_stats,
+    expiry_alerts,
+    medication_forecasts,
+    stock_intelligence,
+)
 
 router = DefaultRouter()
 router.register(r"patients", PatientViewSet, basename="patients")
@@ -58,6 +63,11 @@ router.register(r"notifications", NotificationViewSet, basename="notifications")
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/dashboard/", dashboard_stats, name="dashboard_stats"),
+    path(
+        "api/stock-intelligence/",
+        stock_intelligence,
+        name="stock_intelligence",
+    ),
     path("api/", include(router.urls)),
     path("api/picking-list/<int:patient_id>/", patient_picking_list, name="patient_picking_list"),
     path("api/expiry-alerts/", expiry_alerts, name="expiry_alerts"),

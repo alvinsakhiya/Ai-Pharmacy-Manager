@@ -4,6 +4,7 @@ import {
   AlertOctagon,
   ArrowLeftRight,
   CalendarCheck,
+  ChartSpline,
   Factory,
   Hash,
   PackageMinus,
@@ -26,7 +27,7 @@ import useApiResource from "../hooks/useApiResource";
 import useAuth from "../hooks/useAuth";
 import useToast from "../hooks/useToast";
 import api from "../services/api";
-import { canManageInventory } from "../utils/access";
+import { canAccessPath, canManageInventory } from "../utils/access";
 import { buttonClassName } from "../utils/styles";
 import {
   formatDate,
@@ -261,6 +262,7 @@ function Inventory() {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const { user } = useAuth();
   const canAdjustStock = canManageInventory(user);
+  const canViewStockIntelligence = canAccessPath(user, "/stock-intelligence");
   const {
     data: batches,
     error,
@@ -300,6 +302,15 @@ function Inventory() {
         icon={PackageOpen}
         actions={
           <>
+            {canViewStockIntelligence && (
+              <Link
+                to="/stock-intelligence"
+                className={buttonClassName("secondary")}
+              >
+                <ChartSpline aria-hidden="true" size={18} />
+                Stock intelligence
+              </Link>
+            )}
             {canAdjustStock && (
               <Link
                 to="/stock-movements"

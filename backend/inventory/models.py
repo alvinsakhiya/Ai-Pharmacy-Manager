@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import F, Q
 
@@ -28,6 +29,20 @@ class Medication(models.Model):
         blank=True
     )
 
+    minimum_stock_level = models.PositiveIntegerField(default=0)
+
+    reorder_threshold = models.PositiveIntegerField(default=0)
+
+    target_weeks_of_cover = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        default=4,
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(52),
+        ],
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True
     )
@@ -41,6 +56,7 @@ class Medication(models.Model):
 
     def __str__(self):
         return f"{self.name} {self.strength} {self.form}"
+
 
 class StockBatch(models.Model):
     medication = models.ForeignKey(

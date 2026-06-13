@@ -50,3 +50,12 @@ Managers can assign operational notifications while recipients follow an
 audited read, acknowledge, and resolve lifecycle. Visibility rules, transitions,
 API endpoints, dashboard integration, and assessment evidence are documented in
 [docs/notifications.md](docs/notifications.md).
+
+## Stock Intelligence
+
+Managers and Stock Assistants can configure medication minimum levels, reorder
+thresholds, and target weeks of cover. The system combines these controls with
+active dosette demand and usable, non-expired stock to identify shortages,
+excess, inactive, and dead-stock review candidates. The explainable calculation,
+API compatibility, role boundary, and demonstration flow are documented in
+[docs/stock-intelligence.md](docs/stock-intelligence.md).

@@ -149,10 +149,15 @@ class AuditEventTest(APITestCase):
             reverse("patient_picking_list", args=[self.patient.id])
         )
         forecast_response = self.client.get(reverse("medication_forecasts"))
+        intelligence_response = self.client.get(reverse("stock_intelligence"))
         alerts_response = self.client.get(reverse("expiry_alerts"))
 
         self.assertEqual(picking_response.status_code, status.HTTP_200_OK)
         self.assertEqual(forecast_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            intelligence_response.status_code,
+            status.HTTP_200_OK,
+        )
         self.assertEqual(alerts_response.status_code, status.HTTP_200_OK)
         self.assertTrue(
             AuditEvent.objects.filter(
@@ -165,6 +170,12 @@ class AuditEventTest(APITestCase):
             AuditEvent.objects.filter(
                 action=AuditEvent.Action.ACCESS,
                 entity_type="MedicationForecast",
+            ).exists()
+        )
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action=AuditEvent.Action.ACCESS,
+                entity_type="StockIntelligence",
             ).exists()
         )
         self.assertTrue(

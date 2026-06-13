@@ -7,6 +7,27 @@ class MedicationSerializer(serializers.ModelSerializer):
         model = Medication
         fields = "__all__"
 
+    def validate(self, attrs):
+        minimum_stock_level = attrs.get(
+            "minimum_stock_level",
+            getattr(self.instance, "minimum_stock_level", 0),
+        )
+        reorder_threshold = attrs.get(
+            "reorder_threshold",
+            getattr(self.instance, "reorder_threshold", 0),
+        )
+
+        if reorder_threshold < minimum_stock_level:
+            raise serializers.ValidationError(
+                {
+                    "reorder_threshold": (
+                        "Reorder threshold cannot be below the minimum stock level."
+                    )
+                }
+            )
+
+        return attrs
+
 
 class StockBatchSerializer(serializers.ModelSerializer):
     medication_name = serializers.CharField(source="medication.name", read_only=True)
