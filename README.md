@@ -44,6 +44,15 @@ follow-up dates and statuses. The data boundary, role restrictions, safe audit
 behaviour, API filters, and demonstration scope are documented in
 [docs/clinical-reviews.md](docs/clinical-reviews.md).
 
+## Dosette Operations
+
+Patient records include a simple local care-setting group, while dosette
+schedules support cycle start dates, validated cycle lengths, review dates, and
+immutable medication-change history. Existing FEFO, picking, and forecast
+calculations remain unchanged. The compatibility defaults, API, privacy choices,
+and assessment evidence are documented in
+[docs/dosette-operations.md](docs/dosette-operations.md).
+
 ## Notification Centre
 
 Managers can assign operational notifications while recipients follow an

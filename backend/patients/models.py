@@ -3,6 +3,11 @@ from django.db import models
 
 
 class Patient(models.Model):
+    class CareSetting(models.TextChoices):
+        COMMUNITY = "COMMUNITY", "Community"
+        CARE_HOME = "CARE_HOME", "Care home"
+        OTHER = "OTHER", "Other"
+
     first_name = models.CharField(max_length=100)
 
     last_name = models.CharField(max_length=100)
@@ -16,6 +21,13 @@ class Patient(models.Model):
 
     notes = models.TextField(
         blank=True
+    )
+
+    care_setting = models.CharField(
+        max_length=20,
+        choices=CareSetting.choices,
+        default=CareSetting.COMMUNITY,
+        db_index=True,
     )
 
     created_at = models.DateTimeField(

@@ -3,6 +3,11 @@ from .models import ClinicalReviewNote, Patient
 
 
 class PatientSerializer(serializers.ModelSerializer):
+    care_setting_label = serializers.CharField(
+        source="get_care_setting_display",
+        read_only=True,
+    )
+
     class Meta:
         model = Patient
         fields = "__all__"

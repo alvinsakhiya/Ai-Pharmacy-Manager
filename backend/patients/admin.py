@@ -13,6 +13,9 @@ class DosetteRecordInline(admin.TabularInline):
         "evening_dose",
         "bedtime_dose",
         "instructions",
+        "cycle_start_date",
+        "cycle_length_weeks",
+        "review_date",
         "is_active",
     )
 
@@ -24,6 +27,7 @@ class PatientAdmin(admin.ModelAdmin):
         "last_name",
         "date_of_birth",
         "contact_number",
+        "care_setting",
     )
 
     search_fields = (
@@ -31,6 +35,8 @@ class PatientAdmin(admin.ModelAdmin):
         "last_name",
         "contact_number",
     )
+
+    list_filter = ("care_setting",)
 
     inlines = [
         DosetteRecordInline,

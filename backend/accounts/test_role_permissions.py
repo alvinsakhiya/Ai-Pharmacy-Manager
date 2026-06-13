@@ -82,6 +82,7 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("stock-batches-list"),
             reverse("stock-movements-list"),
             reverse("dosette-records-list"),
+            reverse("dosette-changes-list"),
             reverse("patient_picking_list", args=[self.patient.id]),
             reverse("expiry_alerts"),
             reverse("medication_forecasts"),
@@ -134,6 +135,11 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("dosette-records-detail", args=[self.dosette.id]),
             status.HTTP_200_OK,
             {"evening_dose": "1"},
+        )
+        self.assert_status(
+            "get",
+            reverse("dosette-changes-list"),
+            status.HTTP_200_OK,
         )
         self.assert_status(
             "get",
@@ -223,6 +229,11 @@ class PharmacyRolePermissionTest(APITestCase):
             {"afternoon_dose": "1"},
         )
         self.assert_status(
+            "get",
+            reverse("dosette-changes-list"),
+            status.HTTP_200_OK,
+        )
+        self.assert_status(
             "post",
             reverse("dosette-records-list"),
             status.HTTP_403_FORBIDDEN,
@@ -307,6 +318,11 @@ class PharmacyRolePermissionTest(APITestCase):
         )
         self.assert_status(
             "get",
+            reverse("dosette-changes-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
             reverse("medication_forecasts"),
             status.HTTP_403_FORBIDDEN,
         )
@@ -350,6 +366,7 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("medications-list"),
             reverse("stock-batches-list"),
             reverse("dosette-records-list"),
+            reverse("dosette-changes-list"),
             reverse("expiry_alerts"),
             reverse("medication_forecasts"),
             reverse("notifications-list"),

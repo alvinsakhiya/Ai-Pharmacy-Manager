@@ -30,6 +30,7 @@ class ApiAuthenticationTest(APITestCase):
             reverse("stock-batches-list"),
             reverse("stock-movements-list"),
             reverse("dosette-records-list"),
+            reverse("dosette-changes-list"),
             reverse("patient_picking_list", args=[self.patient.id]),
             reverse("expiry_alerts"),
             reverse("medication_forecasts"),

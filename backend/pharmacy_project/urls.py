@@ -34,7 +34,10 @@ from inventory.api_views import (
     StockMovementViewSet,
     SupplierViewSet,
 )
-from dosette.api_views import DosetteRecordViewSet
+from dosette.api_views import (
+    DosetteMedicationChangeViewSet,
+    DosetteRecordViewSet,
+)
 from dosette.picking_api_views import patient_picking_list
 from notifications.api_views import NotificationViewSet
 from .api_views import (
@@ -73,6 +76,11 @@ router.register(
     basename="draft-purchase-orders",
 )
 router.register(r"dosette-records", DosetteRecordViewSet, basename="dosette-records")
+router.register(
+    r"dosette-changes",
+    DosetteMedicationChangeViewSet,
+    basename="dosette-changes",
+)
 router.register(r"audit-events", AuditEventViewSet, basename="audit-events")
 router.register(r"notifications", NotificationViewSet, basename="notifications")
 
