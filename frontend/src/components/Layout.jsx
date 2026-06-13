@@ -1,16 +1,19 @@
 import {
-  Activity,
   Bell,
   Boxes,
   CalendarClock,
   ClipboardList,
+  Command,
   FileBarChart,
   LayoutDashboard,
   LineChart,
   LogOut,
+  PackageSearch,
   Pill,
+  ScanText,
   ScrollText,
-  Search,
+  ShieldCheck,
+  Sparkles,
   TimerReset,
   Users,
 } from "lucide-react";
@@ -19,6 +22,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/client";
 import { cx } from "./ui";
+import CommandBar from "./ai/CommandBar";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -31,6 +35,13 @@ const NAV = [
   { to: "/reports", label: "Reports", icon: FileBarChart },
   { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/audit", label: "Audit log", icon: ScrollText, roles: ["pharmacist"] },
+];
+
+const AI_NAV = [
+  { to: "/ai", label: "AI Co-pilot", icon: Sparkles, end: true },
+  { to: "/ai/safety", label: "Clinical Safety", icon: ShieldCheck },
+  { to: "/ai/reorder", label: "Smart Reorder", icon: PackageSearch },
+  { to: "/ai/intake", label: "Intake AI", icon: ScanText },
 ];
 
 function Brand() {
@@ -51,9 +62,27 @@ export default function Layout() {
   const { user, logout, can } = useAuth();
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
+  const [cmdOpen, setCmdOpen] = useState(false);
 
   useEffect(() => {
     api.get("/notifications/unread_count/").then((r) => setUnread(r.data.count)).catch(() => {});
+  }, []);
+
+  // Global ⌘K / Ctrl+K opens the Co-pilot; other surfaces can fire "copilot:open".
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen(true);
+      }
+    };
+    const onOpen = () => setCmdOpen(true);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("copilot:open", onOpen);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("copilot:open", onOpen);
+    };
   }, []);
 
   const initials = (user?.full_name || user?.username || "?")
@@ -94,6 +123,26 @@ export default function Layout() {
               )}
             </NavLink>
           ))}
+
+          <div className="px-3 pb-1 pt-4 text-micro uppercase text-text-tertiary">AI Suite</div>
+          {AI_NAV.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.end}
+              className={({ isActive }) =>
+                cx(
+                  "group flex items-center gap-3 rounded-md px-3 py-2 text-body font-medium transition-all duration-150 ease",
+                  isActive
+                    ? "bg-accent-soft text-accent"
+                    : "text-text-secondary hover:bg-subtle hover:text-text-primary"
+                )
+              }
+            >
+              <n.icon size={18} className="flex-shrink-0" />
+              <span className="flex-1">{n.label}</span>
+            </NavLink>
+          ))}
         </nav>
         <div className="border-t border-border-subtle p-3 text-[11px] text-text-tertiary">
           Simulated data · Not for clinical use
@@ -103,13 +152,16 @@ export default function Layout() {
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-border-subtle bg-surface/80 px-4 backdrop-blur">
-          <div className="flex items-center gap-2 text-text-tertiary">
-            <Search size={16} />
-            <input
-              placeholder="Search patients, medicines…  ( / )"
-              className="w-72 bg-transparent text-body text-text-primary placeholder:text-text-tertiary focus:outline-none"
-            />
-          </div>
+          <button
+            onClick={() => setCmdOpen(true)}
+            className="group flex h-9 w-72 items-center gap-2.5 rounded-md border border-border-subtle bg-app px-3 text-text-tertiary transition-all duration-150 ease hover:border-border-strong hover:bg-subtle active:scale-[0.99]"
+          >
+            <Sparkles size={15} className="text-accent" />
+            <span className="flex-1 text-left text-body">Ask the Co-pilot…</span>
+            <kbd className="flex items-center gap-0.5 rounded border border-border-subtle bg-surface px-1.5 py-0.5 text-[11px] font-medium text-text-tertiary">
+              <Command size={11} /> K
+            </kbd>
+          </button>
           <div className="flex items-center gap-3">
             <div className="text-right leading-tight">
               <div className="text-caption font-semibold text-text-primary">{user?.full_name}</div>
@@ -137,6 +189,8 @@ export default function Layout() {
           </div>
         </main>
       </div>
+
+      <CommandBar open={cmdOpen} onClose={() => setCmdOpen(false)} />
     </div>
   );
 }

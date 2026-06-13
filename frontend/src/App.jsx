@@ -14,6 +14,10 @@ import Forecasting from "./pages/Forecasting";
 import Reports from "./pages/Reports";
 import Notifications from "./pages/Notifications";
 import AuditLog from "./pages/AuditLog";
+import AIHub from "./pages/ai/AIHub";
+import ClinicalSafety from "./pages/ai/ClinicalSafety";
+import SmartReorder from "./pages/ai/SmartReorder";
+import Intake from "./pages/ai/Intake";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -45,6 +49,10 @@ export default function App() {
         <Route path="stock" element={<Stock />} />
         <Route path="expiry" element={<Expiry />} />
         <Route path="forecasting" element={<Forecasting />} />
+        <Route path="ai" element={<AIHub />} />
+        <Route path="ai/safety" element={<ClinicalSafety />} />
+        <Route path="ai/reorder" element={<SmartReorder />} />
+        <Route path="ai/intake" element={<Intake />} />
         <Route path="reports" element={<Reports />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="audit" element={<AuditLog />} />
