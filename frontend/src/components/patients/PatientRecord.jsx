@@ -1,40 +1,32 @@
 /**
- * PatientRecord — tabbed record where staff manage everything for one patient.
+ * PatientRecord — tabbed patient record (patient workflow only for now).
  *
- * Tabs: Patient · Doctor · Medication · Dosette · Picking · History · Notes.
- * The Dosette tab is the hub: improved tray, repeat-cycle AI, workflow status and
- * a patient-facing printable label. Accessible tabs (role=tablist), keyboard
- * operable, colour never the sole signal (icon + label everywhere).
- *
- * Simulated data — academic demonstration only, not clinical advice.
+ * Tabs: Patient · Doctor · Medication · History · Notes. Mirrors a real pharmacy
+ * "patient details" record. Accessible tabs (role=tablist, keyboard, aria-selected);
+ * colour never the only signal. Simulated data — academic demonstration, not
+ * clinical advice, and no NHS data/branding.
  */
 import { useState } from "react";
 import {
-  User, Stethoscope, Pill, LayoutGrid, ClipboardList, History, StickyNote,
-  Printer, RefreshCw, Sunrise, Sun, Sunset, Moon, Package, AlertTriangle,
-  CheckCircle2, Info, ShieldAlert, MapPin, CalendarClock, Clock, X, Check,
+  User, Stethoscope, Pill, History, StickyNote, CalendarClock, MapPin, ChevronDown,
 } from "lucide-react";
-import { Card, Button, StatusChip, EmptyState, Modal, useToast, cx } from "../ui";
-import {
-  getTray, getPickingList, suggestRepeatCycle, WORKFLOW_STATUSES, STATUS_TONE,
-  fmtDate, PERIODS,
-} from "../../services/patientData";
+import { Card, StatusChip, EmptyState, Modal, cx } from "../ui";
+import { getMedicationHistory, fmtDate } from "../../services/patientData";
 
 const TABS = [
   { id: "patient", label: "Patient", icon: User },
   { id: "doctor", label: "Doctor", icon: Stethoscope },
   { id: "medication", label: "Medication", icon: Pill },
-  { id: "dosette", label: "Dosette", icon: LayoutGrid },
-  { id: "picking", label: "Picking", icon: ClipboardList },
   { id: "history", label: "History", icon: History },
   { id: "notes", label: "Notes", icon: StickyNote },
 ];
 
-const PERIOD_META = {
-  Morning: { icon: Sunrise, band: "bg-warning", soft: "bg-warning-bg", fg: "text-warning-fg", time: "08:00" },
-  Afternoon: { icon: Sun, band: "bg-info", soft: "bg-info-bg", fg: "text-info-fg", time: "12:00" },
-  Evening: { icon: Sunset, band: "bg-accent", soft: "bg-accent-soft", fg: "text-accent", time: "18:00" },
-  Bedtime: { icon: Moon, band: "bg-text-secondary", soft: "bg-subtle", fg: "text-text-secondary", time: "22:00" },
+const CHANGE_TONE = {
+  Started: "success",
+  "Dose change": "warning",
+  "Quantity change": "info",
+  Stopped: "danger",
+  Updated: "neutral",
 };
 
 const KV = ({ label, value }) => (
@@ -45,58 +37,33 @@ const KV = ({ label, value }) => (
 );
 
 export default function PatientRecord({ patient, open, onClose }) {
-  const toast = useToast();
-  const [tab, setTab] = useState("dosette");
-  const [status, setStatus] = useState(patient?.workflow.status);
-  const [history, setHistory] = useState(patient?.workflow.history || []);
-  const [repeat, setRepeat] = useState(null);
-
-  // Re-sync when a different patient opens.
+  const [tab, setTab] = useState("patient");
   const [pid, setPid] = useState(patient?.id);
+
   if (patient && patient.id !== pid) {
     setPid(patient.id);
-    setStatus(patient.workflow.status);
-    setHistory(patient.workflow.history);
-    setRepeat(null);
-    setTab("dosette");
+    setTab("patient");
   }
-
   if (!open || !patient) return null;
 
-  const tray = getTray(patient);
-  const picking = getPickingList(patient);
-  const pickingIssues = picking.filter((p) => p.warning).length;
-
-  const advanceStatus = (next) => {
-    setStatus(next);
-    setHistory((h) => [...h, { status: next, at: new Date().toISOString().slice(0, 10), staff: "You", note: "" }]);
-    toast?.success(`Status → ${next}`);
-  };
-
-  const runRepeat = () => setRepeat(suggestRepeatCycle(patient));
-  const confirmRepeat = () => {
-    toast?.success("Next dosette cycle drafted for review");
-    advanceStatus("Picking required");
-    setRepeat(null);
-  };
-
   return (
-    <Modal open={open} onClose={onClose} wide title={`${patient.name} · ${patient.id}`}>
+    <Modal open={open} onClose={onClose} wide title={`${patient.title} ${patient.name} · ${patient.id}`}>
       {/* Identity strip */}
-      <div className="pm-no-print mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-subtle px-4 py-2.5 text-caption text-text-secondary">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-subtle px-4 py-2.5 text-caption text-text-secondary">
         <span className="inline-flex items-center gap-1"><CalendarClock size={13} aria-hidden="true" /> DOB {fmtDate(patient.dob)} ({patient.age})</span>
         <span className="inline-flex items-center gap-1"><MapPin size={13} aria-hidden="true" /> {patient.postcode}</span>
-        <span className="inline-flex items-center gap-1"><Package size={13} aria-hidden="true" /> {patient.packType}</span>
         {patient.allergies.length > 0 ? (
           <StatusChip tone="warning">Allergy: {patient.allergies.join(", ")}</StatusChip>
         ) : (
           <StatusChip tone="success" icon={false}>No known allergies</StatusChip>
         )}
-        <StatusChip tone={STATUS_TONE[status]} icon={false}>{status}</StatusChip>
+        <StatusChip tone={patient.status === "active" ? "success" : "neutral"} icon={false}>
+          {patient.status === "active" ? "Active patient" : "Inactive"}
+        </StatusChip>
       </div>
 
       {/* Tabs */}
-      <div role="tablist" aria-label="Patient record" className="pm-no-print mb-4 flex gap-1 overflow-x-auto border-b border-border-subtle">
+      <div role="tablist" aria-label="Patient record" className="mb-4 flex gap-1 overflow-x-auto border-b border-border-subtle">
         {TABS.map((t) => {
           const on = tab === t.id;
           return (
@@ -112,25 +79,23 @@ export default function PatientRecord({ patient, open, onClose }) {
             >
               <t.icon size={16} aria-hidden="true" />
               {t.label}
-              {t.id === "picking" && pickingIssues > 0 && (
-                <span className="ml-0.5 rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white" aria-label={`${pickingIssues} issues`}>{pickingIssues}</span>
-              )}
             </button>
           );
         })}
       </div>
 
-      <div role="tabpanel" className="pm-no-print">
+      <div role="tabpanel">
         {tab === "patient" && (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <KV label="Title" value={patient.title} />
             <KV label="Full name" value={patient.name} />
             <KV label="Patient ID" value={patient.id} />
             <KV label="Date of birth" value={`${fmtDate(patient.dob)} (${patient.age})`} />
+            <KV label="Sex" value={patient.sex} />
             <KV label="Phone" value={patient.phone} />
+            <KV label="Address" value={patient.address} />
             <KV label="Postcode" value={patient.postcode} />
             <KV label="Care setting" value={patient.careSetting} />
-            <KV label="Address" value={patient.address} />
-            <KV label="Pack type" value={patient.packType} />
             <KV label="Allergies" value={patient.allergies.join(", ") || "None recorded"} />
           </div>
         )}
@@ -146,33 +111,7 @@ export default function PatientRecord({ patient, open, onClose }) {
 
         {tab === "medication" && <Medication patient={patient} />}
 
-        {tab === "dosette" && (
-          <Dosette
-            patient={patient} tray={tray} status={status} history={history}
-            onAdvance={advanceStatus} onRepeat={runRepeat} onPrint={() => window.print()}
-            pickingIssues={pickingIssues}
-          />
-        )}
-
-        {tab === "picking" && <Picking picking={picking} cycleDays={patient.cycle.lengthDays} />}
-
-        {tab === "history" && (
-          <ol className="space-y-2">
-            {history.slice().reverse().map((h, i) => (
-              <li key={i} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3">
-                <span className={cx("mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full",
-                  { success: "bg-success", warning: "bg-warning", danger: "bg-danger", info: "bg-info", neutral: "bg-text-tertiary" }[STATUS_TONE[h.status]])} aria-hidden="true" />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-body font-medium text-text-primary">{h.status}</span>
-                    <span className="text-caption text-text-tertiary tnum">{fmtDate(h.at)}</span>
-                  </div>
-                  <div className="text-caption text-text-tertiary">{h.staff}{h.note ? ` · ${h.note}` : ""}</div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
+        {tab === "history" && <MedHistory patient={patient} />}
 
         {tab === "notes" && (
           patient.notes.length === 0
@@ -190,81 +129,13 @@ export default function PatientRecord({ patient, open, onClose }) {
               </ul>
         )}
       </div>
-
-      {/* Repeat-dosette review panel */}
-      {repeat && (
-        <RepeatPanel data={repeat} onConfirm={confirmRepeat} onCancel={() => setRepeat(null)} />
-      )}
-
-      {/* Patient-facing printable label (hidden on screen, shown only when printing) */}
-      <PrintLabel patient={patient} tray={tray} />
     </Modal>
   );
 }
 
-/* ----------------------------------------------------------------- Dosette tab */
-function Dosette({ patient, tray, status, onAdvance, onRepeat, onPrint, pickingIssues }) {
-  return (
-    <div className="space-y-4">
-      {/* Action bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={onRepeat}><RefreshCw size={16} /> Repeat dosette</Button>
-        <Button variant="secondary" onClick={onPrint}><Printer size={16} /> Print tray label</Button>
-        <div className="ms-auto flex items-center gap-2">
-          <label htmlFor="wf" className="text-caption text-text-secondary">Status</label>
-          <select
-            id="wf" value={status} onChange={(e) => onAdvance(e.target.value)}
-            className="h-9 rounded-md border border-border-strong bg-surface px-2.5 text-body focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-ring"
-          >
-            {WORKFLOW_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 text-caption text-text-tertiary">
-        <Clock size={13} aria-hidden="true" />
-        Cycle {fmtDate(patient.cycle.start)} → {fmtDate(patient.cycle.end)} · {patient.cycle.lengthDays} days
-        {pickingIssues > 0 && <StatusChip tone="danger">{pickingIssues} picking issue{pickingIssues > 1 ? "s" : ""}</StatusChip>}
-      </div>
-
-      {/* Tray — one column per period */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {tray.map(({ period, items }) => {
-          const m = PERIOD_META[period];
-          return (
-            <section key={period} className="overflow-hidden rounded-xl border border-border-subtle bg-surface" aria-label={period}>
-              <header className={cx("flex items-center gap-2 px-3 py-2", m.soft)}>
-                <m.icon size={16} className={m.fg} aria-hidden="true" />
-                <span className={cx("text-body font-semibold", m.fg)}>{period}</span>
-                <span className="ms-auto text-caption text-text-tertiary tnum">{m.time}</span>
-              </header>
-              <div className={cx("h-1", m.band)} aria-hidden="true" />
-              <div className="space-y-2 p-3">
-                {items.length === 0 ? (
-                  <p className="py-2 text-center text-caption text-text-tertiary">— None —</p>
-                ) : (
-                  items.map((it, i) => (
-                    <div key={i} className="rounded-lg bg-subtle px-3 py-2">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-body font-semibold text-text-primary">{it.name}</span>
-                        <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-caption font-semibold text-text-primary tnum">×{it.qty}</span>
-                      </div>
-                      <div className="text-caption text-text-secondary">{it.strength} · {it.form}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------------------------------------------------- Medication tab */
+/* ----------------------------------------------------------------- Medication */
 function Medication({ patient }) {
-  const [openId, setOpenId] = useState(null);
+  const [openId, setOpenId] = useState(patient.meds[0]?.id);
   return (
     <div className="space-y-2.5">
       {patient.meds.map((m) => {
@@ -280,42 +151,54 @@ function Medication({ patient }) {
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-body font-semibold text-text-primary">{m.name} {m.strength}</span>
+                  <span className="text-caption text-text-tertiary">{m.form}</span>
                   <StatusChip tone={m.status === "Active" ? "success" : "neutral"} icon={false}>{m.status}</StatusChip>
                 </span>
                 <span className="block truncate text-caption text-text-secondary">{m.instruction}</span>
               </span>
-              <span className="shrink-0 text-caption text-text-tertiary tnum">{m.quantityPerDay}/day</span>
+              <span className="hidden shrink-0 text-right sm:block">
+                <span className="block text-caption text-text-tertiary">Last dispensed</span>
+                <span className="block text-body font-medium text-text-primary tnum">{fmtDate(m.lastDispensed)}</span>
+              </span>
+              <ChevronDown size={16} className={cx("shrink-0 text-text-tertiary transition-transform", expanded && "rotate-180")} aria-hidden="true" />
             </button>
+
             {expanded && (
               <div className="border-t border-border-subtle p-4">
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                  <KV label="Dosage" value={m.instruction} />
+                  <KV label="Quantity" value={`${m.quantity} per dispense`} />
                   <KV label="Form" value={m.form} />
-                  <KV label="Quantity / day" value={m.quantityPerDay} />
-                  <KV label="Start date" value={fmtDate(m.startDate)} />
-                  <KV label="End date" value={fmtDate(m.endDate)} />
+                  <KV label="Last dispensed" value={fmtDate(m.lastDispensed)} />
+                  <KV label="Previous dispense" value={fmtDate(m.previousDispensed)} />
+                  <KV label="Next expected" value={m.nextExpected ? fmtDate(m.nextExpected) : "—"} />
+                  <KV label="Prescribed by" value={m.prescribedBy} />
                   <KV label="Created by" value={m.createdBy} />
-                  <KV label="Last updated" value={fmtDate(m.updatedAt)} />
+                  <KV label="Last updated by" value={`${m.updatedBy} · ${fmtDate(m.updatedAt)}`} />
                 </div>
+
                 <div className="mt-3 rounded-xl bg-subtle p-3">
                   <div className="text-micro uppercase text-text-tertiary">Appearance (identification)</div>
                   <div className="mt-1 text-body text-text-secondary">
                     {m.appearance.colour} · {m.appearance.shape} · imprint “{m.appearance.imprint}” — {m.appearance.description}
                   </div>
                 </div>
+
+                {m.notes && (
+                  <p className="mt-3 text-caption text-text-secondary"><span className="font-medium text-text-primary">Notes: </span>{m.notes}</p>
+                )}
+
                 <div className="mt-3">
-                  <div className="mb-1 text-micro uppercase text-text-tertiary">Change history</div>
-                  {m.audit.length === 0 ? (
-                    <p className="text-caption text-text-tertiary">No changes recorded.</p>
-                  ) : (
-                    <ul className="space-y-1.5">
-                      {m.audit.map((a, i) => (
-                        <li key={i} className="flex items-center gap-2 text-caption text-text-secondary">
-                          <History size={13} aria-hidden="true" />
-                          <span className="tnum">{fmtDate(a.at)}</span> · {a.staff} · {a.change}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  <div className="mb-1.5 text-micro uppercase text-text-tertiary">Audit history</div>
+                  <ol className="space-y-1.5">
+                    {m.changes.slice().reverse().map((c, i) => (
+                      <li key={i} className="flex flex-wrap items-center gap-2 text-caption">
+                        <StatusChip tone={CHANGE_TONE[c.type] || "neutral"} icon={false}>{c.type}</StatusChip>
+                        <span className="text-text-secondary">{c.detail}</span>
+                        <span className="text-text-tertiary tnum">· {fmtDate(c.at)} · {c.staff}{c.reason ? ` · ${c.reason}` : ""}</span>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
               </div>
             )}
@@ -326,120 +209,29 @@ function Medication({ patient }) {
   );
 }
 
-/* ----------------------------------------------------------------- Picking tab */
-function Picking({ picking, cycleDays }) {
+/* ----------------------------------------------------------------- History tab */
+function MedHistory({ patient }) {
+  const events = getMedicationHistory(patient);
+  if (events.length === 0) return <EmptyState icon={History} title="No history" hint="Medication changes appear here." />;
   return (
-    <div className="space-y-3">
-      <p className="text-caption text-text-tertiary">Quantities for a {cycleDays}-day cycle, with FEFO batch suggestion and stock check.</p>
-      <div className="overflow-x-auto rounded-xl border border-border-subtle">
-        <table className="w-full text-body">
-          <thead className="bg-subtle text-left text-caption text-text-secondary">
-            <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
-              <th>Medicine</th><th className="text-right">Need</th><th className="text-right">On hand</th>
-              <th>Batch (FEFO)</th><th>Expiry</th><th>Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {picking.map((p, i) => (
-              <tr key={i} className="align-top">
-                <td className="px-3 py-2.5">
-                  <div className="font-medium text-text-primary">{p.name} {p.strength}</div>
-                  <div className="text-caption text-text-tertiary">{p.form} · loc {p.location}</div>
-                </td>
-                <td className="px-3 py-2.5 text-right tnum font-semibold">{p.needed}</td>
-                <td className={cx("px-3 py-2.5 text-right tnum", p.onHand < p.needed && "text-danger-fg font-semibold")}>{p.onHand}</td>
-                <td className="px-3 py-2.5 tnum">{p.batch}</td>
-                <td className="px-3 py-2.5 tnum">{fmtDate(p.expiry)}<span className="block text-caption text-text-tertiary">{p.expiryDays}d</span></td>
-                <td className="px-3 py-2.5">
-                  {p.warning
-                    ? <StatusChip tone="danger">{p.warning}</StatusChip>
-                    : <StatusChip tone="success">FEFO OK</StatusChip>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------------------------------------------------- Repeat panel */
-const CHECK_ICON = { success: CheckCircle2, info: Info, warning: AlertTriangle, danger: ShieldAlert };
-function RepeatPanel({ data, onConfirm, onCancel }) {
-  return (
-    <div className="pm-no-print mt-4 rounded-2xl border border-accent/30 bg-accent-soft/40 p-4 animate-slide-up">
-      <div className="mb-2 flex items-center gap-2">
-        <RefreshCw size={16} className="text-accent" aria-hidden="true" />
-        <h3 className="text-subtitle font-semibold text-text-primary">Repeat dosette — AI draft</h3>
-      </div>
-      <div className="space-y-2">
-        {data.checks.map((c, i) => {
-          const Icon = CHECK_ICON[c.tone] || Info;
-          return (
-            <div key={i} className="rounded-xl border border-border-subtle bg-surface p-3">
-              <div className="flex items-start gap-2">
-                <Icon size={16} className={{ success: "text-success-fg", info: "text-info-fg", warning: "text-warning-fg", danger: "text-danger-fg" }[c.tone]} aria-hidden="true" />
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-body font-medium text-text-primary">{c.title}</span>
-                    <span className="text-caption text-text-tertiary">conf. {Math.round(c.confidence * 100)}%</span>
-                  </div>
-                  <p className="text-caption text-text-secondary">{c.detail}</p>
-                  <p className="mt-1 text-caption text-text-tertiary"><span className="font-medium">Why:</span> {c.reasoning}</p>
-                </div>
-              </div>
+    <ol className="space-y-2">
+      {events.map((e, i) => (
+        <li key={i} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3">
+          <span className={cx("mt-1 h-2.5 w-2.5 shrink-0 rounded-full",
+            { success: "bg-success", warning: "bg-warning", info: "bg-info", danger: "bg-danger", neutral: "bg-text-tertiary" }[CHANGE_TONE[e.type] || "neutral"])} aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-body font-medium text-text-primary">{e.medicine}</span>
+              <span className="text-caption text-text-tertiary tnum">{fmtDate(e.at)}</span>
             </div>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-caption text-text-tertiary">{data.note}</p>
-      <div className="mt-3 flex justify-end gap-2">
-        <Button variant="secondary" onClick={onCancel}><X size={15} /> Cancel</Button>
-        <Button onClick={onConfirm}><Check size={15} /> Confirm &amp; draft cycle</Button>
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------------------------------------------------- Print label */
-function PrintLabel({ patient, tray }) {
-  return (
-    <div id="pm-print-root" className="hidden print:block">
-      <div className="pm-label">
-        <div className="pm-label-head">
-          <div>
-            <div className="pm-label-name">{patient.name}</div>
-            <div className="pm-label-sub">DOB {fmtDate(patient.dob)} · {patient.id}</div>
-          </div>
-          <div className="pm-label-cycle">
-            <div>Cycle: {fmtDate(patient.cycle.start)} – {fmtDate(patient.cycle.end)}</div>
-            <div>{patient.packType}</div>
-          </div>
-        </div>
-
-        {PERIODS.map((period) => {
-          const row = tray.find((t) => t.period === period);
-          return (
-            <div key={period} className="pm-label-period">
-              <div className="pm-label-period-name">{period}</div>
-              <div className="pm-label-meds">
-                {row.items.length === 0
-                  ? <span className="pm-label-none">None</span>
-                  : row.items.map((it, i) => (
-                      <div key={i} className="pm-label-med">
-                        <strong>{it.name} {it.strength}</strong> — {it.qty} {it.form.toLowerCase()}{it.qty > 1 ? "s" : ""}
-                      </div>
-                    ))}
-              </div>
+            <div className="flex flex-wrap items-center gap-2 text-caption text-text-secondary">
+              <StatusChip tone={CHANGE_TONE[e.type] || "neutral"} icon={false}>{e.type}</StatusChip>
+              {e.detail}
             </div>
-          );
-        })}
-
-        <div className="pm-label-foot">
-          Take as directed. Keep out of reach of children. For identification support only — not a substitute for professional advice.
-        </div>
-      </div>
-    </div>
+            <div className="text-caption text-text-tertiary">{e.staff}{e.reason ? ` · ${e.reason}` : ""}</div>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }

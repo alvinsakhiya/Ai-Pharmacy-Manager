@@ -95,19 +95,41 @@ const M = {
 
 // Build a medication record with slot doses + instruction + audit trail.
 let medSeq = 1;
-function med(base, { slots, instruction, startOffset = -120, endOffset = 28, status = "Active", audit = [] }) {
+function med(base, opts) {
+  const {
+    slots, instruction, quantity = 28, intervalDays = 28, lastOffset = -12,
+    prescribedBy = "Dr H. Mistry", createdBy = "P. Sharma (Pharmacist)",
+    updatedBy = "P. Sharma (Pharmacist)", status = "Active",
+    startOffset = -180, notes = "", audit, changes,
+  } = opts;
+  const last = addDays(TODAY, lastOffset);
+  // Change history: an explicit "Started" entry plus any provided dosage/quantity/stop changes.
+  const hist = [
+    {
+      at: iso(addDays(TODAY, startOffset)), staff: createdBy, type: "Started",
+      detail: `${base.name} ${base.strength} ${base.form.toLowerCase()} started`, reason: "New prescription",
+    },
+    ...(changes || (audit || []).map((a) => ({ at: a.at, staff: a.staff, type: "Updated", detail: a.change, reason: "" }))),
+  ];
   return {
     id: `RX-${1000 + medSeq++}`,
     ...base,
     instruction,
     slots, // { Morning: qty, Afternoon: qty, Evening: qty, Bedtime: qty }
     quantityPerDay: PERIODS.reduce((s, p) => s + (slots[p] || 0), 0),
+    quantity,
+    intervalDays,
+    lastDispensed: iso(last),
+    previousDispensed: iso(addDays(last, -intervalDays)),
+    nextExpected: status === "Active" ? iso(addDays(last, intervalDays)) : null,
     startDate: iso(addDays(TODAY, startOffset)),
-    endDate: iso(addDays(TODAY, endOffset)),
     status,
-    createdBy: "P. Sharma (Pharmacist)",
-    updatedAt: iso(addDays(TODAY, -7)),
-    audit,
+    prescribedBy,
+    createdBy,
+    updatedBy,
+    updatedAt: hist[hist.length - 1].at,
+    notes,
+    changes: hist,
   };
 }
 
@@ -154,10 +176,20 @@ export const PATIENTS = [
       ],
     },
     meds: [
-      med(M.metformin500, { slots: { Morning: 1, Evening: 1 }, instruction: "Take ONE tablet in the morning and ONE in the evening with food", audit: [{ at: iso(addDays(TODAY, -40)), staff: "P. Sharma", change: "Dose increased to BD" }] }),
-      med(M.amlodipine5, { slots: { Morning: 1 }, instruction: "Take ONE tablet each morning" }),
-      med(M.atorvastatin20, { slots: { Bedtime: 1 }, instruction: "Take ONE tablet at night" }),
-      med(M.ramipril2, { slots: { Bedtime: 1 }, instruction: "Take ONE capsule at night", audit: [{ at: iso(addDays(TODAY, -10)), staff: "Dr H. Mistry", change: "New item added" }] }),
+      med(M.metformin500, {
+        slots: { Morning: 1, Evening: 1 }, instruction: "Take ONE tablet in the morning and ONE in the evening with food",
+        quantity: 56, intervalDays: 28, lastOffset: -12, startOffset: -400, prescribedBy: "Dr H. Mistry",
+        changes: [
+          { at: iso(addDays(TODAY, -230)), staff: "Dr H. Mistry", type: "Dose change", detail: "Increased from once daily to twice daily (BD)", reason: "HbA1c above target" },
+          { at: iso(addDays(TODAY, -40)), staff: "P. Sharma (Pharmacist)", type: "Quantity change", detail: "Pack quantity 28 → 56 to match BD dosing", reason: "Align supply to dose" },
+        ],
+      }),
+      med(M.amlodipine5, { slots: { Morning: 1 }, instruction: "Take ONE tablet each morning", quantity: 28, lastOffset: -12, startOffset: -300 }),
+      med(M.atorvastatin20, { slots: { Bedtime: 1 }, instruction: "Take ONE tablet at night", quantity: 28, lastOffset: -12, startOffset: -300 }),
+      med(M.ramipril2, {
+        slots: { Bedtime: 1 }, instruction: "Take ONE capsule at night", quantity: 28, lastOffset: -10, startOffset: -10, prescribedBy: "Dr H. Mistry",
+        changes: [{ at: iso(addDays(TODAY, -10)), staff: "Dr H. Mistry", type: "Started", detail: "New item — ramipril 2.5mg initiated", reason: "Blood pressure management" }],
+      }),
     ],
     notes: [
       { at: iso(addDays(TODAY, -10)), staff: "P. Sharma", category: "Clinical review", text: "Annual medication review completed. No changes required beyond ramipril initiation." },
@@ -245,10 +277,24 @@ export const PATIENTS = [
   },
 ];
 
+const META = {
+  "PT-10428": { title: "Mr", sex: "Male" },
+  "PT-10915": { title: "Mrs", sex: "Female" },
+  "PT-11203": { title: "Mr", sex: "Male" },
+  "PT-11876": { title: "Ms", sex: "Female" },
+};
 PATIENTS.forEach((p) => {
   p.name = `${p.firstName} ${p.surname}`;
   p.age = ageFrom(p.dob);
+  Object.assign(p, META[p.id] || { title: "", sex: "" });
 });
+
+// Flattened, newest-first medication change history for the History tab.
+export function getMedicationHistory(patient) {
+  return patient.meds
+    .flatMap((m) => m.changes.map((c) => ({ ...c, medicine: `${m.name} ${m.strength}` })))
+    .sort((a, b) => new Date(b.at) - new Date(a.at));
+}
 
 // ---------------------------------------------------------------- search
 // Fuzzy, multi-format: full name, "A Sakhiya", "Alvin S", "Al Sa", initials,

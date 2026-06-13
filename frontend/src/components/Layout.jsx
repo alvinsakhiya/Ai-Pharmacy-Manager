@@ -1,9 +1,7 @@
 import {
   Bell,
   Boxes,
-  CalendarClock,
   ClipboardList,
-  Command,
   FileBarChart,
   LayoutDashboard,
   LineChart,
@@ -28,11 +26,13 @@ import { usePreferences } from "../context/PreferencesContext";
 import api from "../api/client";
 import { cx } from "./ui";
 import CommandBar from "./ai/CommandBar";
+import PatientSearchBar from "./patients/PatientSearchBar";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/patients", label: "Patients", icon: Users },
-  { to: "/dosette", label: "Dosette", icon: CalendarClock },
+  // Patients are reached via the top search bar for all staff; the sidebar entry
+  // (full patient list) is reserved for administrators.
+  { to: "/patients", label: "Patients", icon: Users, roles: ["administrator"] },
   { to: "/picking", label: "Picking lists", icon: ClipboardList },
   { to: "/stock", label: "Stock", icon: Boxes },
   { to: "/expiry", label: "Expiry", icon: TimerReset },
@@ -162,18 +162,18 @@ export default function Layout() {
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-border-subtle bg-surface/80 px-4 backdrop-blur">
-          <button
-            onClick={() => setCmdOpen(true)}
-            className="group flex h-9 w-72 max-w-[60vw] items-center gap-2.5 rounded-md border border-border-subtle bg-app px-3 text-text-tertiary transition-all duration-150 ease hover:border-border-strong hover:bg-subtle active:scale-[0.99]"
-            aria-label="Open AI Co-pilot search (Command K)"
-          >
-            <Sparkles size={15} className="text-accent" aria-hidden="true" />
-            <span className="flex-1 text-left text-body">Ask the Co-pilot…</span>
-            <kbd className="hidden items-center gap-0.5 rounded border border-border-subtle bg-surface px-1.5 py-0.5 text-[11px] font-medium text-text-tertiary sm:flex">
-              <Command size={11} /> K
-            </kbd>
-          </button>
+          <div className="flex flex-1 items-center pr-3">
+            <PatientSearchBar />
+          </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => setCmdOpen(true)}
+              className="hidden rounded-md p-2 text-text-tertiary transition hover:bg-subtle hover:text-accent sm:block"
+              aria-label="Open AI Co-pilot (Command K)"
+              title="AI Co-pilot (⌘K)"
+            >
+              <Sparkles size={18} />
+            </button>
             <button
               onClick={toggleTheme}
               className="rounded-md p-2 text-text-tertiary transition hover:bg-subtle hover:text-text-primary"
