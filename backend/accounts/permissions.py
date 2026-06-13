@@ -145,3 +145,38 @@ class AuditLogRolePermission(MethodRolePermission):
         "PATCH": MANAGER_ONLY,
         "DELETE": MANAGER_ONLY,
     }
+
+
+class StockMovementRolePermission(MethodRolePermission):
+    method_roles = {
+        "GET": frozenset(
+            {
+                PharmacyRole.MANAGER,
+                PharmacyRole.STOCK_ASSISTANT,
+            }
+        ),
+        "POST": frozenset(
+            {
+                PharmacyRole.MANAGER,
+                PharmacyRole.STOCK_ASSISTANT,
+            }
+        ),
+        "PUT": frozenset(
+            {
+                PharmacyRole.MANAGER,
+                PharmacyRole.STOCK_ASSISTANT,
+            }
+        ),
+        "PATCH": frozenset(
+            {
+                PharmacyRole.MANAGER,
+                PharmacyRole.STOCK_ASSISTANT,
+            }
+        ),
+        "DELETE": frozenset(
+            {
+                PharmacyRole.MANAGER,
+                PharmacyRole.STOCK_ASSISTANT,
+            }
+        ),
+    }

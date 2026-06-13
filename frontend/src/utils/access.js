@@ -17,6 +17,10 @@ export const pageRoles = {
     PharmacyRole.READ_ONLY,
   ],
   "/inventory": allRoles,
+  "/stock-movements": [
+    PharmacyRole.MANAGER,
+    PharmacyRole.STOCK_ASSISTANT,
+  ],
   "/dosette": [
     PharmacyRole.MANAGER,
     PharmacyRole.PHARMACIST,
@@ -47,4 +51,10 @@ export function canAccessPath(user, path) {
   const assignedRoles = user?.roles || [];
 
   return assignedRoles.some((role) => allowedRoles.includes(role));
+}
+
+export function canManageInventory(user) {
+  return [PharmacyRole.MANAGER, PharmacyRole.STOCK_ASSISTANT].some((role) =>
+    user?.roles?.includes(role)
+  );
 }

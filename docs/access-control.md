@@ -16,7 +16,8 @@ REST Framework.
 
 Inventory records remain readable to patient-care roles because dosette and
 picking workflows need medication context. Stock changes are restricted to
-Managers and Stock Assistants.
+Managers and Stock Assistants. These roles can also review the immutable stock
+movement ledger and record controlled adjustments.
 
 ## Account Assignment
 

@@ -80,6 +80,7 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("patients-list"),
             reverse("medications-list"),
             reverse("stock-batches-list"),
+            reverse("stock-movements-list"),
             reverse("dosette-records-list"),
             reverse("patient_picking_list", args=[self.patient.id]),
             reverse("expiry_alerts"),
@@ -101,10 +102,14 @@ class PharmacyRolePermissionTest(APITestCase):
             },
         )
         self.assert_status(
-            "patch",
-            reverse("stock-batches-detail", args=[self.batch.id]),
+            "post",
+            reverse("stock-batches-adjust", args=[self.batch.id]),
             status.HTTP_200_OK,
-            {"quantity": 90},
+            {
+                "movement_type": "CORRECTION",
+                "quantity_change": -10,
+                "reason": "Manager stock count correction.",
+            },
         )
 
     def test_pharmacist_can_manage_patient_care_but_not_stock_or_audit(self):
@@ -146,6 +151,11 @@ class PharmacyRolePermissionTest(APITestCase):
         self.assert_status(
             "get",
             reverse("audit-events-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
+            reverse("stock-movements-list"),
             status.HTTP_403_FORBIDDEN,
         )
 
@@ -199,10 +209,19 @@ class PharmacyRolePermissionTest(APITestCase):
 
         self.assert_status("get", reverse("medications-list"), status.HTTP_200_OK)
         self.assert_status(
-            "patch",
-            reverse("stock-batches-detail", args=[self.batch.id]),
+            "post",
+            reverse("stock-batches-adjust", args=[self.batch.id]),
             status.HTTP_200_OK,
-            {"quantity": 80},
+            {
+                "movement_type": "ADJUSTMENT",
+                "quantity_change": -20,
+                "reason": "Confirmed physical stock count.",
+            },
+        )
+        self.assert_status(
+            "get",
+            reverse("stock-movements-list"),
+            status.HTTP_200_OK,
         )
         self.assert_status(
             "get",

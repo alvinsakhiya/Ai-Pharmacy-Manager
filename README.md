@@ -29,3 +29,10 @@ The system includes Django Group-based access for Managers, Pharmacists,
 Dispensers, Stock Assistants, and Read-only Users. The access matrix and account
 assignment steps are documented in
 [docs/access-control.md](docs/access-control.md).
+
+## Stock Governance
+
+Quantity changes use a controlled, reason-based adjustment endpoint and an
+immutable stock movement ledger. The movement rules, API examples, migration
+behaviour, and picking-list trade-off are documented in
+[docs/stock-governance.md](docs/stock-governance.md).

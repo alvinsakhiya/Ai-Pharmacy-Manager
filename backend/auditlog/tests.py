@@ -103,9 +103,13 @@ class AuditEventTest(APITestCase):
             {"manufacturer": "Updated Manufacturer"},
             format="json",
         )
-        batch_response = self.client.patch(
-            reverse("stock-batches-detail", args=[self.batch.id]),
-            {"quantity": 80},
+        batch_response = self.client.post(
+            reverse("stock-batches-adjust", args=[self.batch.id]),
+            {
+                "movement_type": "ADJUSTMENT",
+                "quantity_change": -20,
+                "reason": "Audit test stock count.",
+            },
             format="json",
         )
         dosette = DosetteRecord.objects.get(patient=self.patient)

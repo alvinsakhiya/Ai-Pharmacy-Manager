@@ -8,6 +8,7 @@ const workspaceDestinations = [
   { label: "Dashboard", keywords: "overview home metrics", path: "/" },
   { label: "Patients", keywords: "patient records care", path: "/patients" },
   { label: "Inventory", keywords: "medication stock batches supplier", path: "/inventory" },
+  { label: "Stock Movements", keywords: "ledger adjustment receipt waste correction", path: "/stock-movements" },
   { label: "Dosette", keywords: "schedule doses morning evening", path: "/dosette" },
   { label: "Picking Lists", keywords: "fefo allocation shortfall", path: "/picking-lists" },
   { label: "Expiry Alerts", keywords: "expired risk safety", path: "/alerts" },

@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import Inventory from "./pages/Inventory";
+import StockMovements from "./pages/StockMovements";
 import Dosette from "./pages/Dosette";
 import PickingLists from "./pages/PickingLists";
 import Alerts from "./pages/Alerts";
@@ -94,6 +95,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute path="/inventory">
             <Inventory />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/stock-movements"
+        element={
+          <ProtectedRoute path="/stock-movements">
+            <StockMovements />
           </ProtectedRoute>
         }
       />

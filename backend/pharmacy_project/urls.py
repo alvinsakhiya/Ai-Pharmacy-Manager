@@ -27,7 +27,11 @@ from accounts.views import (
 )
 from auditlog.api_views import AuditEventViewSet
 from patients.api_views import PatientViewSet
-from inventory.api_views import MedicationViewSet, StockBatchViewSet
+from inventory.api_views import (
+    MedicationViewSet,
+    StockBatchViewSet,
+    StockMovementViewSet,
+)
 from dosette.api_views import DosetteRecordViewSet
 from dosette.picking_api_views import patient_picking_list
 from .api_views import dashboard_stats, expiry_alerts, medication_forecasts
@@ -36,6 +40,11 @@ router = DefaultRouter()
 router.register(r"patients", PatientViewSet, basename="patients")
 router.register(r"medications", MedicationViewSet, basename="medications")
 router.register(r"stock-batches", StockBatchViewSet, basename="stock-batches")
+router.register(
+    r"stock-movements",
+    StockMovementViewSet,
+    basename="stock-movements",
+)
 router.register(r"dosette-records", DosetteRecordViewSet, basename="dosette-records")
 router.register(r"audit-events", AuditEventViewSet, basename="audit-events")
 

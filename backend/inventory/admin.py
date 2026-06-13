@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Medication, StockBatch
+from .models import Medication, StockBatch, StockMovement
+from .services import record_initial_stock_receipt
 
 
 @admin.register(Medication)
@@ -29,3 +30,57 @@ class StockBatchAdmin(admin.ModelAdmin):
         "received_date",
         "supplier",
     )
+
+    def get_readonly_fields(self, request, obj=None):
+        return ("quantity",) if obj else ()
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+
+        if not change:
+            record_initial_stock_receipt(obj, request=request)
+
+
+@admin.register(StockMovement)
+class StockMovementAdmin(admin.ModelAdmin):
+    list_display = (
+        "timestamp",
+        "medication_name",
+        "batch_number",
+        "movement_type",
+        "quantity_change",
+        "quantity_before",
+        "quantity_after",
+        "actor_username",
+    )
+    list_filter = ("movement_type", "timestamp")
+    search_fields = (
+        "medication_name",
+        "batch_number",
+        "reason",
+        "actor_username",
+    )
+    readonly_fields = (
+        "stock_batch",
+        "stock_batch_identifier",
+        "medication_identifier",
+        "medication_name",
+        "batch_number",
+        "movement_type",
+        "quantity_change",
+        "quantity_before",
+        "quantity_after",
+        "reason",
+        "actor",
+        "actor_username",
+        "timestamp",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
