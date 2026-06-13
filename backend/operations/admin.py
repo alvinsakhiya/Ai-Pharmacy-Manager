@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import OpeningHour, OperationalTask
+from .models import LocalDelivery, OpeningHour, OperationalTask
 
 
 @admin.register(OperationalTask)
@@ -57,3 +57,48 @@ class OpeningHourAdmin(admin.ModelAdmin):
         "updated_at",
     )
     list_filter = ("is_closed",)
+
+
+@admin.register(LocalDelivery)
+class LocalDeliveryAdmin(admin.ModelAdmin):
+    list_display = (
+        "patient_name",
+        "scheduled_date",
+        "delivery_window",
+        "status",
+        "assigned_username",
+    )
+    list_filter = (
+        "status",
+        "delivery_window",
+        "scheduled_date",
+    )
+    search_fields = (
+        "patient_name",
+        "assigned_username",
+    )
+    readonly_fields = (
+        "patient_name",
+        "status",
+        "assigned_username",
+        "outcome_notes",
+        "created_by",
+        "created_by_username",
+        "delivered_at",
+        "created_at",
+        "updated_at",
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+            obj.created_by_username = request.user.get_username()
+
+        if obj.patient:
+            obj.patient_name = (
+                f"{obj.patient.first_name} {obj.patient.last_name}"
+            )
+        obj.assigned_username = (
+            obj.assigned_user.get_username() if obj.assigned_user else ""
+        )
+        super().save_model(request, obj, form, change)

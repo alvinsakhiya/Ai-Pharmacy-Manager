@@ -40,7 +40,11 @@ from dosette.api_views import (
 )
 from dosette.picking_api_views import patient_picking_list
 from notifications.api_views import NotificationViewSet
-from operations.api_views import OpeningHourViewSet, OperationalTaskViewSet
+from operations.api_views import (
+    LocalDeliveryViewSet,
+    OpeningHourViewSet,
+    OperationalTaskViewSet,
+)
 from .api_views import (
     dashboard_stats,
     expiry_alerts,
@@ -93,6 +97,11 @@ router.register(
     r"opening-hours",
     OpeningHourViewSet,
     basename="opening-hours",
+)
+router.register(
+    r"local-deliveries",
+    LocalDeliveryViewSet,
+    basename="local-deliveries",
 )
 
 urlpatterns = [

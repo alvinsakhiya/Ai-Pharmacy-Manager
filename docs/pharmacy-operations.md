@@ -6,12 +6,12 @@ The operations module provides original local workflow support. This first
 increment includes:
 
 - operational task assignment and lifecycle;
-- pharmacy opening-hours configuration.
+- pharmacy opening-hours configuration;
+- local delivery tracking.
 
 It does not send data to delivery providers, booking platforms, wholesalers, or
-public healthcare services. Later increments can add local delivery,
-appointment, fridge-monitoring, and internal-resource workflows within the same
-bounded app.
+public healthcare services. Later increments can add appointment,
+fridge-monitoring, and internal-resource workflows within the same bounded app.
 
 ## Operational Tasks
 
@@ -61,6 +61,27 @@ Navigation and action controls follow the authenticated user's pharmacy role.
 The backend remains authoritative, so hiding a control in React is a usability
 improvement rather than the security boundary.
 
+## Local Deliveries
+
+Local delivery records reference an existing patient and store patient and
+staff display snapshots for historical context. No address lookup, route
+optimisation, courier integration, NHS identifier, or external transmission is
+included.
+
+Lifecycle:
+
+1. A Manager or Pharmacist schedules a delivery.
+2. A patient-care staff member claims an unassigned record.
+3. The assigned staff member marks it ready.
+4. A ready, assigned delivery is marked out for delivery.
+5. It is completed or marked failed with a mandatory reason.
+6. A Manager or Pharmacist can cancel unfinished work with a reason.
+
+Delivery access is limited to patient-care roles. Read-only Users can view
+records but cannot change them. Stock Assistants cannot access patient delivery
+data. Finished records are read-only, transitions use database locks, and audit
+summaries omit patient names, instructions, and outcome details.
+
 ## API
 
 Task endpoints:
@@ -81,13 +102,31 @@ Opening-hours endpoints:
 - `GET/POST /api/opening-hours/`
 - `GET/PATCH/DELETE /api/opening-hours/{id}/`
 
+Local-delivery endpoints:
+
+- `GET/POST /api/local-deliveries/`
+- `GET/PATCH /api/local-deliveries/{id}/`
+- `GET /api/local-deliveries/summary/`
+- `GET /api/local-deliveries/assignees/`
+- `POST /api/local-deliveries/{id}/claim/`
+- `POST /api/local-deliveries/{id}/ready/`
+- `POST /api/local-deliveries/{id}/dispatch/`
+- `POST /api/local-deliveries/{id}/deliver/`
+- `POST /api/local-deliveries/{id}/fail/`
+- `POST /api/local-deliveries/{id}/cancel/`
+
+Delivery filters include `status`, `assigned`, `patient`, `date_from`,
+`date_to`, and `search`.
+
 ## Assessment Value
 
 For AT3, the task lifecycle demonstrates clear internal accountability: create,
 claim, start, complete, and review the audit event. Opening hours demonstrate
-validated configuration and role-aware administration.
+validated configuration and role-aware administration. Local delivery
+tracking demonstrates an original, non-NHS operational workflow with visible
+status progression and failure handling.
 
 For AT4, the bounded Django app, service-layer transitions, transaction locks,
 visibility scoping, validation, audit assertions, authentication tests, and
-role tests provide evidence for maintainability, security, and workflow
-integrity.
+role tests provide evidence for maintainability, security, privacy-aware
+design, and workflow integrity.

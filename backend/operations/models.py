@@ -121,3 +121,92 @@ class OpeningHour(models.Model):
             f"{self.get_day_of_week_display()}: "
             f"{self.opening_time}-{self.closing_time}"
         )
+
+
+class LocalDelivery(models.Model):
+    class Window(models.TextChoices):
+        ANYTIME = "ANYTIME", "Any time"
+        MORNING = "MORNING", "Morning"
+        AFTERNOON = "AFTERNOON", "Afternoon"
+        EVENING = "EVENING", "Evening"
+
+    class Status(models.TextChoices):
+        PLANNED = "PLANNED", "Planned"
+        READY = "READY", "Ready"
+        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Out for delivery"
+        DELIVERED = "DELIVERED", "Delivered"
+        FAILED = "FAILED", "Delivery failed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    patient = models.ForeignKey(
+        "patients.Patient",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="local_deliveries",
+    )
+    patient_name = models.CharField(max_length=201)
+    scheduled_date = models.DateField(db_index=True)
+    delivery_window = models.CharField(
+        max_length=20,
+        choices=Window.choices,
+        default=Window.ANYTIME,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PLANNED,
+        db_index=True,
+    )
+    assigned_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="local_deliveries",
+    )
+    assigned_username = models.CharField(max_length=150, blank=True)
+    instructions = models.TextField(blank=True, max_length=1000)
+    outcome_notes = models.TextField(blank=True, max_length=1000)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_local_deliveries",
+    )
+    created_by_username = models.CharField(max_length=150, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["scheduled_date", "status", "-created_at"]
+        indexes = [
+            models.Index(
+                fields=["scheduled_date", "status"],
+                name="ops_delivery_date_status",
+            ),
+            models.Index(
+                fields=["assigned_user", "status"],
+                name="ops_delivery_user_status",
+            ),
+        ]
+
+    @property
+    def is_overdue(self):
+        return bool(
+            self.scheduled_date < timezone.localdate()
+            and self.status
+            not in {
+                self.Status.DELIVERED,
+                self.Status.FAILED,
+                self.Status.CANCELLED,
+            }
+        )
+
+    def __str__(self):
+        return (
+            f"{self.patient_name} - {self.scheduled_date} "
+            f"({self.get_status_display()})"
+        )

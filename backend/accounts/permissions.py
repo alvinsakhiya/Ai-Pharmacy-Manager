@@ -335,3 +335,85 @@ class OpeningHourRolePermission(MethodRolePermission):
         "PATCH": MANAGER_ONLY,
         "DELETE": MANAGER_ONLY,
     }
+
+
+class LocalDeliveryRolePermission(BasePermission):
+    message = "Your pharmacy role does not permit this delivery action."
+    care_roles = frozenset(
+        {
+            PharmacyRole.MANAGER,
+            PharmacyRole.PHARMACIST,
+            PharmacyRole.DISPENSER,
+            PharmacyRole.READ_ONLY,
+        }
+    )
+    action_roles = frozenset(
+        {
+            PharmacyRole.MANAGER,
+            PharmacyRole.PHARMACIST,
+            PharmacyRole.DISPENSER,
+        }
+    )
+    manager_actions = {
+        "create",
+        "update",
+        "partial_update",
+        "assignees",
+        "cancel",
+    }
+    read_actions = {"list", "retrieve", "summary"}
+    lifecycle_actions = {
+        "claim",
+        "ready",
+        "mark_dispatched",
+        "deliver",
+        "fail",
+    }
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.is_superuser:
+            return True
+
+        action = getattr(view, "action", None)
+        roles = set(get_user_roles(request.user))
+
+        if action in self.read_actions:
+            return bool(roles & set(self.care_roles))
+
+        if action in self.lifecycle_actions:
+            return bool(roles & set(self.action_roles))
+
+        if action in self.manager_actions:
+            return bool(
+                roles
+                & {
+                    PharmacyRole.MANAGER,
+                    PharmacyRole.PHARMACIST,
+                }
+            )
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        roles = set(get_user_roles(request.user))
+
+        if roles & {
+            PharmacyRole.MANAGER,
+            PharmacyRole.PHARMACIST,
+        }:
+            return True
+
+        action = getattr(view, "action", None)
+        if action == "claim":
+            return (
+                obj.assigned_user_id is None
+                and not obj.assigned_username
+            )
+
+        if action in {"ready", "mark_dispatched", "deliver", "fail"}:
+            return obj.assigned_user_id == request.user.id
+
+        return True

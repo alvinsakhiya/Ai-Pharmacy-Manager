@@ -96,3 +96,7 @@ Operations workspace exposes the same guarded workflow with accessible
 feedback, filters, and manager-only configuration. The API, permissions,
 validation, and assessment evidence are documented in
 [docs/pharmacy-operations.md](docs/pharmacy-operations.md).
+
+The same bounded module also provides local-only patient delivery tracking with
+patient-care role restrictions, transactional lifecycle changes, safe audit
+summaries, and no courier, route, NHS, or external service integration.

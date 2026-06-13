@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework import pagination, status, viewsets
 from rest_framework.decorators import action
@@ -7,6 +8,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from accounts.permissions import (
+    LocalDeliveryRolePermission,
     OpeningHourRolePermission,
     OperationalTaskRolePermission,
 )
@@ -14,17 +16,26 @@ from accounts.roles import PharmacyRole, get_user_roles
 from auditlog.models import AuditEvent
 from auditlog.services import AuditedModelViewSetMixin, log_audit_event
 
-from .models import OpeningHour, OperationalTask
+from .models import LocalDelivery, OpeningHour, OperationalTask
 from .serializers import (
+    DeliveryOutcomeSerializer,
+    LocalDeliverySerializer,
     OpeningHourSerializer,
     OperationalTaskSerializer,
     TaskCancellationSerializer,
 )
 from .services import (
+    DeliveryTransitionError,
     TaskTransitionError,
+    cancel_delivery,
     cancel_task,
+    claim_delivery,
     claim_task,
+    complete_delivery,
     complete_task,
+    dispatch_delivery,
+    fail_delivery,
+    ready_delivery,
     start_task,
 )
 
@@ -242,3 +253,254 @@ class OpeningHourViewSet(
     serializer_class = OpeningHourSerializer
     permission_classes = [OpeningHourRolePermission]
     audit_entity_type = "OpeningHour"
+
+
+class LocalDeliveryPagination(pagination.PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
+
+class LocalDeliveryViewSet(
+    AuditedModelViewSetMixin,
+    viewsets.ModelViewSet,
+):
+    serializer_class = LocalDeliverySerializer
+    permission_classes = [LocalDeliveryRolePermission]
+    pagination_class = LocalDeliveryPagination
+    audit_entity_type = "LocalDelivery"
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        queryset = LocalDelivery.objects.select_related(
+            "patient",
+            "assigned_user",
+            "created_by",
+        )
+        delivery_status = self.request.query_params.get(
+            "status",
+            "",
+        ).strip().upper()
+        assigned = self.request.query_params.get("assigned", "").strip()
+        patient_id = self.request.query_params.get("patient", "").strip()
+        date_from = self.request.query_params.get("date_from", "").strip()
+        date_to = self.request.query_params.get("date_to", "").strip()
+        search = self.request.query_params.get("search", "").strip()
+
+        if delivery_status:
+            valid_statuses = {
+                choice.value for choice in LocalDelivery.Status
+            }
+            if delivery_status not in valid_statuses:
+                raise ValidationError(
+                    {"status": "Unknown delivery status."}
+                )
+            queryset = queryset.filter(status=delivery_status)
+
+        if assigned:
+            if assigned.lower() == "me":
+                queryset = queryset.filter(assigned_user=self.request.user)
+            elif assigned.lower() == "unassigned":
+                queryset = queryset.filter(
+                    assigned_user__isnull=True,
+                    assigned_username="",
+                )
+            elif assigned.isdigit() and int(assigned) > 0:
+                queryset = queryset.filter(assigned_user_id=int(assigned))
+            else:
+                raise ValidationError(
+                    {"assigned": "Use me, unassigned, or a positive user id."}
+                )
+
+        if patient_id:
+            if not patient_id.isdigit() or int(patient_id) < 1:
+                raise ValidationError(
+                    {"patient": "Patient must be a positive integer."}
+                )
+            queryset = queryset.filter(patient_id=int(patient_id))
+
+        if date_from:
+            parsed_date_from = parse_date(date_from)
+            if parsed_date_from is None:
+                raise ValidationError(
+                    {"date_from": "Use a valid date in YYYY-MM-DD format."}
+                )
+            queryset = queryset.filter(
+                scheduled_date__gte=parsed_date_from
+            )
+        else:
+            parsed_date_from = None
+
+        if date_to:
+            parsed_date_to = parse_date(date_to)
+            if parsed_date_to is None:
+                raise ValidationError(
+                    {"date_to": "Use a valid date in YYYY-MM-DD format."}
+                )
+            if parsed_date_from and parsed_date_to < parsed_date_from:
+                raise ValidationError(
+                    {"date_to": "End date cannot be before start date."}
+                )
+            queryset = queryset.filter(
+                scheduled_date__lte=parsed_date_to
+            )
+
+        if search:
+            queryset = queryset.filter(
+                Q(patient_name__icontains=search)
+                | Q(assigned_username__icontains=search)
+                | Q(instructions__icontains=search)
+            )
+
+        return queryset
+
+    def perform_create(self, serializer):
+        creator = self.request.user
+        serializer.validated_data["created_by"] = creator
+        serializer.validated_data["created_by_username"] = (
+            creator.get_username()
+        )
+        super().perform_create(serializer)
+
+    def _log_lifecycle(self, delivery):
+        log_audit_event(
+            action=AuditEvent.Action.UPDATE,
+            entity_type=self.audit_entity_type,
+            entity_identifier=delivery.pk,
+            summary=(
+                "Updated LocalDelivery lifecycle status to "
+                f"{delivery.get_status_display()}."
+            ),
+            request=self.request,
+        )
+
+    def _transition_response(self, transition, *args):
+        try:
+            delivery = transition(*args)
+        except DeliveryTransitionError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        self._log_lifecycle(delivery)
+        return Response(self.get_serializer(delivery).data)
+
+    @action(detail=False, methods=["get"])
+    def summary(self, request):
+        queryset = self.get_queryset()
+        active = queryset.exclude(
+            status__in={
+                LocalDelivery.Status.DELIVERED,
+                LocalDelivery.Status.FAILED,
+                LocalDelivery.Status.CANCELLED,
+            }
+        )
+        today = timezone.localdate()
+
+        return Response(
+            {
+                "total_visible": queryset.count(),
+                "planned": queryset.filter(
+                    status=LocalDelivery.Status.PLANNED
+                ).count(),
+                "ready": queryset.filter(
+                    status=LocalDelivery.Status.READY
+                ).count(),
+                "out_for_delivery": queryset.filter(
+                    status=LocalDelivery.Status.OUT_FOR_DELIVERY
+                ).count(),
+                "delivered_today": queryset.filter(
+                    status=LocalDelivery.Status.DELIVERED,
+                    delivered_at__date=today,
+                ).count(),
+                "overdue": active.filter(
+                    scheduled_date__lt=today
+                ).count(),
+                "unassigned": active.filter(
+                    assigned_user__isnull=True,
+                    assigned_username="",
+                ).count(),
+            }
+        )
+
+    @action(detail=False, methods=["get"])
+    def assignees(self, request):
+        users = (
+            get_user_model()
+            .objects.filter(
+                Q(is_superuser=True)
+                | Q(
+                    groups__name__in={
+                        PharmacyRole.MANAGER,
+                        PharmacyRole.PHARMACIST,
+                        PharmacyRole.DISPENSER,
+                    }
+                ),
+                is_active=True,
+            )
+            .distinct()
+            .order_by("username")
+        )
+        return Response(
+            [
+                {
+                    "id": user.pk,
+                    "username": user.get_username(),
+                    "display_name": user.get_full_name() or user.get_username(),
+                    "roles": get_user_roles(user),
+                }
+                for user in users
+            ]
+        )
+
+    @action(detail=True, methods=["post"])
+    def claim(self, request, pk=None):
+        delivery = self.get_object()
+        return self._transition_response(
+            claim_delivery,
+            delivery.pk,
+            request.user,
+        )
+
+    @action(detail=True, methods=["post"])
+    def ready(self, request, pk=None):
+        delivery = self.get_object()
+        return self._transition_response(ready_delivery, delivery.pk)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="dispatch",
+        url_name="dispatch",
+    )
+    def mark_dispatched(self, request, pk=None):
+        delivery = self.get_object()
+        return self._transition_response(dispatch_delivery, delivery.pk)
+
+    @action(detail=True, methods=["post"])
+    def deliver(self, request, pk=None):
+        delivery = self.get_object()
+        return self._transition_response(complete_delivery, delivery.pk)
+
+    @action(detail=True, methods=["post"])
+    def fail(self, request, pk=None):
+        delivery = self.get_object()
+        serializer = DeliveryOutcomeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._transition_response(
+            fail_delivery,
+            delivery.pk,
+            serializer.validated_data["reason"],
+        )
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        delivery = self.get_object()
+        serializer = DeliveryOutcomeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._transition_response(
+            cancel_delivery,
+            delivery.pk,
+            serializer.validated_data["reason"],
+        )
