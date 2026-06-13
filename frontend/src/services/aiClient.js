@@ -20,6 +20,7 @@ import {
   runReorderSuggestions,
   runIntakeParse,
   runInsights,
+  runDailyBrief,
   PATIENTS,
 } from "./aiEngine";
 
@@ -67,6 +68,12 @@ export async function insights() {
   return think({ ...runInsights(), live: false }, 300);
 }
 
+export async function dailyBrief() {
+  const backend = await tryBackend(() => api.get("/ai/daily-brief/"));
+  if (backend.ok) return { ...backend.data, live: true };
+  return think({ ...runDailyBrief(), live: false }, 520);
+}
+
 // Patients list for selectors (live patients endpoint when present, else sample).
 export async function listPatients() {
   const backend = await tryBackend(() => api.get("/patients/"));
@@ -77,4 +84,4 @@ export async function listPatients() {
   return PATIENTS;
 }
 
-export default { copilot, safetyCheck, reorder, intakeParse, insights, listPatients };
+export default { copilot, safetyCheck, reorder, intakeParse, insights, dailyBrief, listPatients };

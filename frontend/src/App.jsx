@@ -18,6 +18,8 @@ import AIHub from "./pages/ai/AIHub";
 import ClinicalSafety from "./pages/ai/ClinicalSafety";
 import SmartReorder from "./pages/ai/SmartReorder";
 import Intake from "./pages/ai/Intake";
+import DailyBrief from "./pages/ai/DailyBrief";
+import Settings from "./pages/Settings";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -50,12 +52,14 @@ export default function App() {
         <Route path="expiry" element={<Expiry />} />
         <Route path="forecasting" element={<Forecasting />} />
         <Route path="ai" element={<AIHub />} />
+        <Route path="ai/brief" element={<DailyBrief />} />
         <Route path="ai/safety" element={<ClinicalSafety />} />
         <Route path="ai/reorder" element={<SmartReorder />} />
         <Route path="ai/intake" element={<Intake />} />
         <Route path="reports" element={<Reports />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="audit" element={<AuditLog />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

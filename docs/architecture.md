@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pharmica is a **decoupled single-page application + REST API**. The React SPA owns all
+Pharmacy Manager is a **decoupled single-page application + REST API**. The React SPA owns all
 presentation and client-side routing; the Django REST Framework API owns business logic, data
 integrity, authentication and the forecasting engine. They communicate over JSON with stateless
 JWT authentication, which keeps the API horizontally scalable and lets the frontend be served as

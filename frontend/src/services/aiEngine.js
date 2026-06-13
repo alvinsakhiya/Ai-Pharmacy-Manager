@@ -91,8 +91,8 @@ export const INVENTORY = [
   { medicine: "Metformin 500mg tab", batch: "M4418D", expiry: "2027-02-28", onHand: 2980, location: "B2", reorder: 600, weekly: 520, supplier: "Meridian Wholesale", leadTimeDays: 2, unitCost: 0.02 },
   { medicine: "Omeprazole 20mg cap", batch: "O1187E", expiry: iso(day(11)), onHand: 90, location: "C4", reorder: 200, weekly: 160, supplier: "Cawthorne Supply Co", leadTimeDays: 3, unitCost: 0.05 },
   { medicine: "Ramipril 5mg cap", batch: "R3320F", expiry: iso(day(140)), onHand: 175, location: "A2", reorder: 220, weekly: 95, supplier: "Meridian Wholesale", leadTimeDays: 2, unitCost: 0.06 },
-  { medicine: "Levothyroxine 50mcg tab", batch: "L8855G", expiry: iso(day(72)), onHand: 410, location: "B1", reorder: 150, weekly: 70, supplier: "Northgate Pharma", leadTimeDays: 4, unitCost: 0.07 },
-  { medicine: "Sertraline 50mg tab", batch: "S6643H", expiry: iso(day(220)), onHand: 660, location: "C1", reorder: 200, weekly: 130, supplier: "Northgate Pharma", leadTimeDays: 4, unitCost: 0.05 },
+  { medicine: "Levothyroxine 50mcg tab", batch: "L8855G", expiry: iso(day(72)), onHand: 410, location: "B1", reorder: 150, weekly: 70, supplier: "Northgate Supplies", leadTimeDays: 4, unitCost: 0.07 },
+  { medicine: "Sertraline 50mg tab", batch: "S6643H", expiry: iso(day(220)), onHand: 660, location: "C1", reorder: 200, weekly: 130, supplier: "Northgate Supplies", leadTimeDays: 4, unitCost: 0.05 },
 ];
 
 /* ------------------------------------------------- clinical knowledge (neutral) */
@@ -492,6 +492,99 @@ export function runInsights() {
     flagged,
     toOrder: reorder.summary.toOrder,
     wasteValue: reorder.summary.wasteValue,
+  };
+}
+
+/* ========================================================== AI DAILY BRIEF */
+// Aggregates the day's signals into one ranked, explainable operational to-do list.
+export function runDailyBrief() {
+  const tasks = [];
+
+  // Pack due dates (proactive prep)
+  PATIENTS.forEach((p) => {
+    const d = daysUntil(p.dueDate);
+    if (d > 4) return;
+    const overdue = d < 0;
+    tasks.push({
+      id: `due-${p.id}`,
+      category: "Dosette",
+      title: overdue ? `Overdue pack — ${p.name}` : `Prepare pack — ${p.name}`,
+      detail: `${p.packType} · ${p.setting} · due ${fmt(new Date(p.dueDate))}`,
+      priority: overdue ? 96 + Math.min(4, -d) : 88 - d * 6,
+      tone: overdue ? "danger" : d <= 1 ? "warning" : "info",
+      confidence: 0.99,
+      reasoning: overdue
+        ? `Due date has passed by ${-d} day(s); compliance packs should never run late.`
+        : `Due in ${d} day(s); prepare ahead so it is ready before the due date.`,
+      action: { label: "Open picking", to: "/picking" },
+    });
+  });
+
+  // Clinical safety flags
+  PATIENTS.forEach((p) => {
+    const r = runSafetyCheck(p);
+    if (r.overall === "pass") return;
+    const top = r.checks.find((c) => c.severity === r.overall) || r.checks[0];
+    tasks.push({
+      id: `safety-${p.id}`,
+      category: "Clinical",
+      title: `Review ${p.name} — ${top.kind.toLowerCase()}`,
+      detail: top.title,
+      priority: r.overall === "danger" ? 94 : r.overall === "warning" ? 76 : 58,
+      tone: r.overall,
+      confidence: 0.9,
+      reasoning: top.detail,
+      action: { label: "Open Clinical Safety", to: "/ai/safety" },
+    });
+  });
+
+  // Stock to order
+  const { items, waste } = runReorderSuggestions();
+  items
+    .filter((i) => i.urgency !== "ok")
+    .forEach((i) => {
+      tasks.push({
+        id: `stock-${i.medicine}`,
+        category: "Stock",
+        title: `${i.urgency === "now" ? "Order now" : "Order soon"} — ${i.medicine}`,
+        detail: `Suggest +${i.suggestedQty} from ${i.supplier} (${i.leadTimeDays}d lead)`,
+        priority: i.urgency === "now" ? 86 : 66,
+        tone: i.urgency === "now" ? "danger" : "warning",
+        confidence: 0.8,
+        reasoning: i.rationale,
+        action: { label: "Open Smart Reorder", to: "/ai/reorder" },
+      });
+    });
+
+  // Waste interventions
+  waste
+    .filter((w) => w.daysToExpiry <= 21 && w.projectedWaste > 0)
+    .forEach((w) => {
+      tasks.push({
+        id: `waste-${w.batch}`,
+        category: "Waste",
+        title: `Prevent waste — ${w.medicine}`,
+        detail: `Batch ${w.batch}: ${w.projectedWaste} at risk (£${w.value}) · ${w.daysToExpiry}d to expiry`,
+        priority: w.daysToExpiry <= 14 ? 78 : 52,
+        tone: w.daysToExpiry <= 14 ? "warning" : "info",
+        confidence: 0.75,
+        reasoning: w.suggestion,
+        action: { label: "Open expiry view", to: "/expiry" },
+      });
+    });
+
+  tasks.sort((a, b) => b.priority - a.priority);
+  const byCat = tasks.reduce((acc, t) => ((acc[t.category] = (acc[t.category] || 0) + 1), acc), {});
+
+  return {
+    generatedAt: TODAY.toISOString(),
+    dateLabel: fmt(TODAY),
+    total: tasks.length,
+    urgent: tasks.filter((t) => t.priority >= 85).length,
+    byCategory: byCat,
+    tasks,
+    note:
+      "AI-ranked operational summary — decision-support only. Priorities are computed from due dates, run-rate cover, expiry and clinical rules; confirm before acting.",
   };
 }
 

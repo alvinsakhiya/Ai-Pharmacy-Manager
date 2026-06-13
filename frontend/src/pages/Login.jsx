@@ -42,7 +42,7 @@ export default function Login() {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
             <Pill size={20} />
           </div>
-          <span className="text-subtitle font-semibold">Pharmica</span>
+          <span className="text-subtitle font-semibold">Pharmacy Manager</span>
         </div>
         <div className="relative max-w-md">
           <h1 className="text-[34px] font-semibold leading-tight tracking-tight">

@@ -1,4 +1,4 @@
-# Pharmica — AI-Enhanced Pharmacy Stock Optimisation & Patient Dosette Management System
+# Pharmacy Manager — AI-Enhanced Pharmacy Stock Optimisation & Patient Dosette Management System
 
 > **Design and Evaluation of an AI-Enhanced Pharmacy Stock Optimisation and Patient Dosette Management System**
 > Final-year computing project — a production-quality prototype demonstrating how fragmented UK

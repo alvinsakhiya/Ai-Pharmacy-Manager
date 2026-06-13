@@ -1,45 +1,58 @@
 /** Design-system tokens — Apple pro-tool calm + Swiggy/Zomato life.
- *  Colours, type, radius, shadow and motion all map to the house language. */
+ *
+ *  Every colour resolves to a CSS custom-property channel (R G B), so the entire
+ *  app can be re-themed at runtime — light/dark, high-contrast, and colour-blind-safe
+ *  palettes — without touching a single component. The channel values (and their
+ *  per-theme overrides) live in src/index.css. Font sizes multiply by --fs so the
+ *  accessibility font-scale setting scales all token text. */
+
 /** @type {import('tailwindcss').Config} */
+const ch = (v) => `rgb(var(${v}) / <alpha-value>)`;
+
 export default {
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
       colors: {
-        app: "#F7F8FA",
-        surface: "#FFFFFF",
-        subtle: "#F0F2F5",
-        border: { subtle: "#E6E8EC", strong: "#D2D6DC" },
-        text: { primary: "#111418", secondary: "#5B6470", tertiary: "#9099A4" },
-        accent: {
-          DEFAULT: "#4F46E5",
-          hover: "#4338CA",
-          soft: "#EEF0FE",
-          ring: "#A5B4FC",
+        app: ch("--c-app"),
+        surface: ch("--c-surface"),
+        subtle: ch("--c-subtle"),
+        border: { subtle: ch("--c-border-subtle"), strong: ch("--c-border-strong") },
+        text: {
+          primary: ch("--c-text-primary"),
+          secondary: ch("--c-text-secondary"),
+          tertiary: ch("--c-text-tertiary"),
         },
-        success: { DEFAULT: "#15A463", fg: "#0E7A4B", bg: "#E7F6EE" },
-        danger: { DEFAULT: "#E0402F", fg: "#B42318", bg: "#FDECEA" },
-        warning: { DEFAULT: "#E8A100", fg: "#9A6A00", bg: "#FFF6E0" },
-        info: { DEFAULT: "#2D74D6", fg: "#1F5AA8", bg: "#EAF1FB" },
-        // FEFO expiry heat scale
+        accent: {
+          DEFAULT: ch("--c-accent"),
+          hover: ch("--c-accent-hover"),
+          soft: ch("--c-accent-soft"),
+          ring: ch("--c-accent-ring"),
+        },
+        success: { DEFAULT: ch("--c-success"), fg: ch("--c-success-fg"), bg: ch("--c-success-bg") },
+        danger: { DEFAULT: ch("--c-danger"), fg: ch("--c-danger-fg"), bg: ch("--c-danger-bg") },
+        warning: { DEFAULT: ch("--c-warning"), fg: ch("--c-warning-fg"), bg: ch("--c-warning-bg") },
+        info: { DEFAULT: ch("--c-info"), fg: ch("--c-info-fg"), bg: ch("--c-info-bg") },
         fefo: {
-          expired: "#E0402F",
-          le30: "#E8A100",
-          le90: "#C9A227",
-          le180: "#7BA05B",
-          fresh: "#9099A4",
+          expired: ch("--c-fefo-expired"),
+          le30: ch("--c-fefo-le30"),
+          le90: ch("--c-fefo-le90"),
+          le180: ch("--c-fefo-le180"),
+          fresh: ch("--c-fefo-fresh"),
         },
       },
       fontFamily: {
-        sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+        sans: ["var(--font-sans)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
       },
+      // Sizes multiply by the accessibility font-scale (--fs); line-heights are unitless so they scale too.
       fontSize: {
-        micro: ["11px", { lineHeight: "14px", fontWeight: "600", letterSpacing: "0.06em" }],
-        caption: ["12px", { lineHeight: "16px" }],
-        body: ["14px", { lineHeight: "20px" }],
-        subtitle: ["16px", { lineHeight: "24px" }],
-        title: ["20px", { lineHeight: "28px" }],
-        display: ["28px", { lineHeight: "34px" }],
+        micro: ["calc(11px * var(--fs, 1))", { lineHeight: "1.27", fontWeight: "600", letterSpacing: "0.06em" }],
+        caption: ["calc(12px * var(--fs, 1))", { lineHeight: "1.33" }],
+        body: ["calc(14px * var(--fs, 1))", { lineHeight: "1.43" }],
+        subtitle: ["calc(16px * var(--fs, 1))", { lineHeight: "1.5" }],
+        title: ["calc(20px * var(--fs, 1))", { lineHeight: "1.4" }],
+        display: ["calc(28px * var(--fs, 1))", { lineHeight: "1.21" }],
       },
       borderRadius: { md: "8px", xl: "12px", "2xl": "16px" },
       boxShadow: {

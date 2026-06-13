@@ -2,10 +2,207 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   THEME ENGINE
+   Every house colour is a CSS custom-property channel ("R G B"). Tailwind tokens
+   resolve to rgb(var(--c-*) / <alpha>), so light/dark, high-contrast and four
+   colour-blind-safe palettes are applied by overriding these channels on <html>
+   via data-attributes — no component edits required.
+   Palette hues use the Okabe–Ito colour-blind-safe set where relevant. Colour is
+   never the only signal: status always pairs with an icon + label in the UI.
+   ============================================================================ */
+
 :root {
+  /* Accessibility runtime knobs */
+  --fs: 1;                 /* font-scale multiplier (Appearance > font size) */
+  --font-sans: "Inter";    /* swapped to a hyperlegible face for dyslexia mode */
+
+  /* Surfaces & text (light default) */
+  --c-app: 247 248 250;
+  --c-surface: 255 255 255;
+  --c-subtle: 240 242 245;
+  --c-border-subtle: 230 232 236;
+  --c-border-strong: 210 214 220;
+  --c-text-primary: 17 20 24;
+  --c-text-secondary: 91 100 112;
+  --c-text-tertiary: 144 153 164;
+
+  /* Accent */
+  --c-accent: 79 70 229;
+  --c-accent-hover: 67 56 202;
+  --c-accent-soft: 238 240 254;
+  --c-accent-ring: 165 180 252;
+
+  /* Semantic */
+  --c-success: 21 164 99;
+  --c-success-fg: 14 122 75;
+  --c-success-bg: 231 246 238;
+  --c-danger: 224 64 47;
+  --c-danger-fg: 180 35 24;
+  --c-danger-bg: 253 236 234;
+  --c-warning: 232 161 0;
+  --c-warning-fg: 154 106 0;
+  --c-warning-bg: 255 246 224;
+  --c-info: 45 116 214;
+  --c-info-fg: 31 90 168;
+  --c-info-bg: 234 241 251;
+
+  /* FEFO expiry heat scale */
+  --c-fefo-expired: 224 64 47;
+  --c-fefo-le30: 232 161 0;
+  --c-fefo-le90: 201 162 39;
+  --c-fefo-le180: 123 160 91;
+  --c-fefo-fresh: 144 153 164;
+
   color-scheme: light;
 }
 
+/* ----------------------------------------------------------------- DARK ---- */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --c-app: 14 17 22;
+  --c-surface: 24 28 35;
+  --c-subtle: 33 38 47;
+  --c-border-subtle: 42 48 58;
+  --c-border-strong: 64 72 85;
+  --c-text-primary: 233 236 240;
+  --c-text-secondary: 165 173 184;
+  --c-text-tertiary: 120 130 142;
+
+  --c-accent: 129 140 248;
+  --c-accent-hover: 165 180 252;
+  --c-accent-soft: 38 40 66;
+  --c-accent-ring: 129 140 248;
+
+  --c-success: 52 211 153;
+  --c-success-fg: 110 231 183;
+  --c-success-bg: 14 46 36;
+  --c-danger: 248 113 92;
+  --c-danger-fg: 252 165 152;
+  --c-danger-bg: 58 26 22;
+  --c-warning: 245 184 70;
+  --c-warning-fg: 252 211 138;
+  --c-warning-bg: 56 44 16;
+  --c-info: 96 165 250;
+  --c-info-fg: 147 197 253;
+  --c-info-bg: 18 36 60;
+
+  --c-fefo-expired: 248 113 92;
+  --c-fefo-le30: 245 184 70;
+  --c-fefo-le90: 201 162 39;
+  --c-fefo-le180: 123 160 91;
+  --c-fefo-fresh: 120 130 142;
+}
+
+/* --------------------------------------------------- HIGH CONTRAST (light) - */
+html[data-contrast="high"] {
+  --c-text-primary: 0 0 0;
+  --c-text-secondary: 26 26 26;
+  --c-text-tertiary: 64 64 64;
+  --c-border-subtle: 110 110 110;
+  --c-border-strong: 40 40 40;
+  --c-accent: 49 46 129;
+  --c-accent-hover: 30 27 90;
+  --c-success-fg: 0 92 56;
+  --c-danger-fg: 150 20 12;
+  --c-warning-fg: 110 76 0;
+  --c-info-fg: 12 64 130;
+}
+
+/* ---------------------------------------------------- HIGH CONTRAST (dark) - */
+html[data-theme="dark"][data-contrast="high"] {
+  --c-app: 0 0 0;
+  --c-surface: 18 18 20;
+  --c-subtle: 30 30 34;
+  --c-text-primary: 255 255 255;
+  --c-text-secondary: 230 230 230;
+  --c-text-tertiary: 190 190 190;
+  --c-border-subtle: 150 150 150;
+  --c-border-strong: 210 210 210;
+  --c-accent: 165 180 252;
+}
+
+/* ============================ COLOUR-BLIND-SAFE PALETTES ==================== */
+/* Protanopia & Deuteranopia (red–green): Okabe–Ito blue/orange/green/vermillion */
+html[data-cvd="protanopia"],
+html[data-cvd="deuteranopia"] {
+  --c-success: 0 158 115;
+  --c-success-fg: 0 104 76;
+  --c-success-bg: 219 242 234;
+  --c-danger: 213 94 0;
+  --c-danger-fg: 150 66 0;
+  --c-danger-bg: 252 235 222;
+  --c-warning: 230 159 0;
+  --c-warning-fg: 150 104 0;
+  --c-warning-bg: 252 243 222;
+  --c-info: 0 114 178;
+  --c-info-fg: 0 84 132;
+  --c-info-bg: 221 238 248;
+  --c-fefo-expired: 213 94 0;
+  --c-fefo-le30: 230 159 0;
+  --c-fefo-le90: 240 228 66;
+  --c-fefo-le180: 0 158 115;
+  --c-fefo-fresh: 144 153 164;
+}
+
+/* Tritanopia (blue–yellow): avoid blue/yellow pairs; use green/red/pink */
+html[data-cvd="tritanopia"] {
+  --c-success: 0 158 115;
+  --c-success-fg: 0 104 76;
+  --c-success-bg: 219 242 234;
+  --c-danger: 215 38 56;
+  --c-danger-fg: 150 22 34;
+  --c-danger-bg: 251 228 231;
+  --c-warning: 213 94 0;
+  --c-warning-fg: 150 66 0;
+  --c-warning-bg: 252 235 222;
+  --c-info: 204 121 167;
+  --c-info-fg: 140 70 110;
+  --c-info-bg: 247 230 240;
+  --c-fefo-expired: 215 38 56;
+  --c-fefo-le30: 213 94 0;
+  --c-fefo-le90: 0 158 115;
+  --c-fefo-le180: 204 121 167;
+  --c-fefo-fresh: 144 153 164;
+}
+
+/* Achromatopsia (no colour): distinct luminance steps; UI relies on icon + label */
+html[data-cvd="achromatopsia"] {
+  --c-accent: 45 45 45;
+  --c-accent-hover: 20 20 20;
+  --c-accent-soft: 230 230 230;
+  --c-accent-ring: 130 130 130;
+  --c-success: 110 110 110;
+  --c-success-fg: 60 60 60;
+  --c-success-bg: 236 236 236;
+  --c-danger: 30 30 30;
+  --c-danger-fg: 20 20 20;
+  --c-danger-bg: 224 224 224;
+  --c-warning: 80 80 80;
+  --c-warning-fg: 45 45 45;
+  --c-warning-bg: 232 232 232;
+  --c-info: 150 150 150;
+  --c-info-fg: 90 90 90;
+  --c-info-bg: 240 240 240;
+  --c-fefo-expired: 30 30 30;
+  --c-fefo-le30: 80 80 80;
+  --c-fefo-le90: 120 120 120;
+  --c-fefo-le180: 160 160 160;
+  --c-fefo-fresh: 190 190 190;
+}
+html[data-theme="dark"][data-cvd="achromatopsia"] {
+  --c-accent: 220 220 220;
+  --c-accent-soft: 50 50 50;
+}
+
+/* --------------------------------------------------------- DYSLEXIA FONT --- */
+html[data-font="dyslexia"] {
+  --font-sans: "Atkinson Hyperlegible", "Comic Sans MS", "Verdana";
+  letter-spacing: 0.01em;
+  word-spacing: 0.04em;
+}
+
+/* ============================================================ BASE LAYOUT == */
 html,
 body,
 #root {
@@ -14,12 +211,13 @@ body,
 
 body {
   margin: 0;
-  background: theme("colors.app");
-  color: theme("colors.text.primary");
-  font-family: theme("fontFamily.sans");
-  font-size: 14px;
+  background: rgb(var(--c-app));
+  color: rgb(var(--c-text-primary));
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: calc(14px * var(--fs, 1));
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Tabular figures for all data — columns of numbers must align (pro data tool). */
@@ -27,22 +225,73 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Calm custom scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* ----------------------------------------------------- FOCUS VISIBILITY ---- */
+/* Always-visible, high-contrast focus ring for keyboard users (WCAG 2.4.7). */
+:focus-visible {
+  outline: 3px solid rgb(var(--c-accent));
+  outline-offset: 2px;
+  border-radius: 4px;
 }
-::-webkit-scrollbar-thumb {
-  background: #d2d6dc;
-  border-radius: 9999px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #b6bcc6;
-  background-clip: content-box;
+*:focus:not(:focus-visible) {
+  outline: none;
 }
 
+/* ---------------------------------------------------- SKIP-TO-CONTENT ------ */
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  transform: translateY(-120%);
+  margin: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: rgb(var(--c-accent));
+  color: #fff;
+  font-weight: 600;
+  transition: transform 0.18s ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* ----------------------------------------------- MOTOR: LARGE TARGETS ------ */
+/* WCAG 2.5.8 / 2.5.5 — enforce comfortable hit areas across all interactive UI. */
+html[data-targets="large"] button,
+html[data-targets="large"] a[role="button"],
+html[data-targets="large"] [role="tab"],
+html[data-targets="large"] input,
+html[data-targets="large"] select,
+html[data-targets="large"] textarea {
+  min-height: 44px;
+}
+html[data-targets="large"] button,
+html[data-targets="large"] a[role="button"] {
+  min-width: 44px;
+}
+html[data-targets="large"] nav a {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* ------------------------------------------------ COGNITIVE: SIMPLIFIED ---- */
+/* Reduce visual noise: drop decorative flourishes and heavy motion. */
+html[data-simplified="on"] [data-decorative] {
+  display: none !important;
+}
+html[data-simplified="on"] * {
+  animation: none !important;
+}
+
+/* --------------------------------------------------------- REDUCED MOTION -- */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -50,4 +299,20 @@ body {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* --------------------------------------------------------------- SCROLLBAR - */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--c-border-strong));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--c-text-tertiary));
+  background-clip: content-box;
 }
