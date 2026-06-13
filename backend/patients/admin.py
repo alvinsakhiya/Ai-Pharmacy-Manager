@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Patient
+from .models import ClinicalReviewNote, Patient
 from dosette.models import DosetteRecord
 
 
@@ -35,3 +35,39 @@ class PatientAdmin(admin.ModelAdmin):
     inlines = [
         DosetteRecordInline,
     ]
+
+
+@admin.register(ClinicalReviewNote)
+class ClinicalReviewNoteAdmin(admin.ModelAdmin):
+    list_display = (
+        "patient",
+        "category",
+        "follow_up_status",
+        "review_date",
+        "author_username",
+        "created_at",
+    )
+    list_filter = (
+        "category",
+        "follow_up_status",
+        "review_date",
+    )
+    search_fields = (
+        "patient__first_name",
+        "patient__last_name",
+        "note_text",
+        "author_username",
+    )
+    readonly_fields = (
+        "author",
+        "author_username",
+        "created_at",
+        "updated_at",
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.author = request.user
+            obj.author_username = request.user.get_username()
+
+        super().save_model(request, obj, form, change)

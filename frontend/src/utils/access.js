@@ -21,6 +21,10 @@ export const pageRoles = {
     PharmacyRole.MANAGER,
     PharmacyRole.STOCK_ASSISTANT,
   ],
+  "/clinical-reviews": [
+    PharmacyRole.MANAGER,
+    PharmacyRole.PHARMACIST,
+  ],
   "/dosette": [
     PharmacyRole.MANAGER,
     PharmacyRole.PHARMACIST,

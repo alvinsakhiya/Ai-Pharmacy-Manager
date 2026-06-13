@@ -84,7 +84,7 @@ function Patients() {
           <SearchField
             id="patient-search"
             label="Search patients"
-            placeholder="Search by patient name, contact, date of birth or notes..."
+            placeholder="Search by patient name, contact, date of birth or profile notes..."
             value={searchQuery}
             onChange={setSearchQuery}
           />
@@ -116,7 +116,7 @@ function Patients() {
                     <th>Patient</th>
                     <th>Date of birth</th>
                     <th>Contact</th>
-                    <th>Clinical notes</th>
+                    <th>General profile notes</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -139,7 +139,7 @@ function Patients() {
                       </td>
                       <td className="max-w-md">
                         <p className="line-clamp-2 text-sm leading-6 text-slate-500">
-                          {patient.notes || "No clinical notes recorded."}
+                          {patient.notes || "No general profile notes recorded."}
                         </p>
                       </td>
                     </tr>
@@ -178,10 +178,10 @@ function Patients() {
                       <FileText className="mt-0.5 text-slate-400" size={17} />
                       <div>
                         <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Notes
+                          General profile notes
                         </dt>
                         <dd className="mt-1 text-sm leading-6 text-slate-600">
-                          {patient.notes || "No clinical notes recorded."}
+                          {patient.notes || "No general profile notes recorded."}
                         </dd>
                       </div>
                     </div>

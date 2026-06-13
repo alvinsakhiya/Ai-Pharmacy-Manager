@@ -9,7 +9,7 @@ REST Framework.
 | Role | Main responsibilities |
 | --- | --- |
 | Manager | Full access, including audit history |
-| Pharmacist | Patient and dosette management, picking lists, forecasts and safety alerts |
+| Pharmacist | Patient, clinical review and dosette management, picking lists, forecasts and safety alerts |
 | Dispenser | Patient and dosette viewing, dosette updates and picking lists |
 | Stock Assistant | Medication, batch and expiry-alert workflows |
 | Read-only User | Dashboard and permitted read-only operational views |
@@ -18,6 +18,10 @@ Inventory records remain readable to patient-care roles because dosette and
 picking workflows need medication context. Stock changes are restricted to
 Managers and Stock Assistants. These roles can also review the immutable stock
 movement ledger and record controlled adjustments.
+
+Structured clinical reviews are restricted to Managers and Pharmacists because
+they may contain sensitive patient-care context. Dispensers, Stock Assistants,
+Read-only Users, and unassigned accounts cannot access the endpoint or page.
 
 ## Account Assignment
 

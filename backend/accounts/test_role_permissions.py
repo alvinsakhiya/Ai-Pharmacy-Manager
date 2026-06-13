@@ -86,6 +86,7 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("expiry_alerts"),
             reverse("medication_forecasts"),
             reverse("audit-events-list"),
+            reverse("clinical-reviews-list"),
         ]
         for url in readable_urls:
             with self.subTest(url=url):
@@ -158,6 +159,17 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("stock-movements-list"),
             status.HTTP_403_FORBIDDEN,
         )
+        self.assert_status(
+            "post",
+            reverse("clinical-reviews-list"),
+            status.HTTP_201_CREATED,
+            {
+                "patient": self.patient.id,
+                "category": "GENERAL_REVIEW",
+                "note_text": "Routine review recorded.",
+                "follow_up_status": "NOT_REQUIRED",
+            },
+        )
 
     def test_dispenser_can_update_dosette_and_generate_picking_lists(self):
         self.authenticate_as(PharmacyRole.DISPENSER)
@@ -203,6 +215,11 @@ class PharmacyRolePermissionTest(APITestCase):
             reverse("medication_forecasts"),
             status.HTTP_403_FORBIDDEN,
         )
+        self.assert_status(
+            "get",
+            reverse("clinical-reviews-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
 
     def test_stock_assistant_controls_inventory_and_expiry_workflows(self):
         self.authenticate_as(PharmacyRole.STOCK_ASSISTANT)
@@ -241,6 +258,11 @@ class PharmacyRolePermissionTest(APITestCase):
         self.assert_status(
             "get",
             reverse("medication_forecasts"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
+            reverse("clinical-reviews-list"),
             status.HTTP_403_FORBIDDEN,
         )
 
@@ -286,6 +308,11 @@ class PharmacyRolePermissionTest(APITestCase):
         self.assert_status(
             "get",
             reverse("audit-events-list"),
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assert_status(
+            "get",
+            reverse("clinical-reviews-list"),
             status.HTTP_403_FORBIDDEN,
         )
 

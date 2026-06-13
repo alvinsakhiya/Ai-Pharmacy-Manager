@@ -12,6 +12,7 @@ const pageNames = {
   "/patients": "Patients",
   "/inventory": "Inventory",
   "/stock-movements": "Stock Movements",
+  "/clinical-reviews": "Clinical Reviews",
   "/dosette": "Dosette Management",
   "/picking-lists": "Picking Lists",
   "/alerts": "Expiry Alerts",

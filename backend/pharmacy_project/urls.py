@@ -26,7 +26,7 @@ from accounts.views import (
     logout_view,
 )
 from auditlog.api_views import AuditEventViewSet
-from patients.api_views import PatientViewSet
+from patients.api_views import ClinicalReviewNoteViewSet, PatientViewSet
 from inventory.api_views import (
     MedicationViewSet,
     StockBatchViewSet,
@@ -38,6 +38,11 @@ from .api_views import dashboard_stats, expiry_alerts, medication_forecasts
 
 router = DefaultRouter()
 router.register(r"patients", PatientViewSet, basename="patients")
+router.register(
+    r"clinical-reviews",
+    ClinicalReviewNoteViewSet,
+    basename="clinical-reviews",
+)
 router.register(r"medications", MedicationViewSet, basename="medications")
 router.register(r"stock-batches", StockBatchViewSet, basename="stock-batches")
 router.register(

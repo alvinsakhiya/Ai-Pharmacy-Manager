@@ -36,3 +36,10 @@ Quantity changes use a controlled, reason-based adjustment endpoint and an
 immutable stock movement ledger. The movement rules, API examples, migration
 behaviour, and picking-list trade-off are documented in
 [docs/stock-governance.md](docs/stock-governance.md).
+
+## Clinical Reviews
+
+Managers and Pharmacists can record structured, authored patient reviews with
+follow-up dates and statuses. The data boundary, role restrictions, safe audit
+behaviour, API filters, and demonstration scope are documented in
+[docs/clinical-reviews.md](docs/clinical-reviews.md).

@@ -34,6 +34,7 @@ class ApiAuthenticationTest(APITestCase):
             reverse("expiry_alerts"),
             reverse("medication_forecasts"),
             reverse("audit-events-list"),
+            reverse("clinical-reviews-list"),
             reverse("current_user"),
         ]
 

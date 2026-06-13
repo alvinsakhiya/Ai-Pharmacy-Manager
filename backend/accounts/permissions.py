@@ -180,3 +180,19 @@ class StockMovementRolePermission(MethodRolePermission):
             }
         ),
     }
+
+
+class ClinicalReviewRolePermission(MethodRolePermission):
+    clinical_roles = frozenset(
+        {
+            PharmacyRole.MANAGER,
+            PharmacyRole.PHARMACIST,
+        }
+    )
+    method_roles = {
+        "GET": clinical_roles,
+        "POST": clinical_roles,
+        "PUT": clinical_roles,
+        "PATCH": clinical_roles,
+        "DELETE": clinical_roles,
+    }
