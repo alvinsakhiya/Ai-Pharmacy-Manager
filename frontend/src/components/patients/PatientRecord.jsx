@@ -8,15 +8,17 @@
  */
 import { useEffect, useState } from "react";
 import {
-  User, Stethoscope, Pill, History, StickyNote, CalendarClock, MapPin, ChevronDown,
+  User, Stethoscope, Pill, LayoutGrid, History, StickyNote, CalendarClock, MapPin, ChevronDown,
 } from "lucide-react";
 import { Card, StatusChip, EmptyState, Modal, cx } from "../ui";
 import { getMedicationHistory, fmtDate } from "../../services/patientData";
+import DosetteTab from "./DosetteTab";
 
 const TABS = [
   { id: "patient", label: "Patient", icon: User },
   { id: "doctor", label: "Doctor", icon: Stethoscope },
   { id: "medication", label: "Medication", icon: Pill },
+  { id: "dosette", label: "Dosette", icon: LayoutGrid },
   { id: "history", label: "History", icon: History },
   { id: "notes", label: "Notes", icon: StickyNote },
 ];
@@ -36,16 +38,16 @@ const KV = ({ label, value }) => (
   </div>
 );
 
-export default function PatientRecord({ patient, open, onClose }) {
-  const [tab, setTab] = useState("patient");
+export default function PatientRecord({ patient, open, onClose, initialTab = "patient" }) {
+  const [tab, setTab] = useState(initialTab);
   const [pid, setPid] = useState(patient?.id);
 
   useEffect(() => {
     if (patient && patient.id !== pid) {
       setPid(patient.id);
-      setTab("patient");
+      setTab(initialTab);
     }
-  }, [patient, pid]);
+  }, [patient, pid, initialTab]);
   if (!open || !patient) return null;
 
   return (
@@ -112,6 +114,8 @@ export default function PatientRecord({ patient, open, onClose }) {
         )}
 
         {tab === "medication" && <Medication patient={patient} />}
+
+        {tab === "dosette" && <DosetteTab patient={patient} />}
 
         {tab === "history" && <MedHistory patient={patient} />}
 

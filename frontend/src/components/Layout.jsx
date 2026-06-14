@@ -4,6 +4,7 @@ import {
   ClipboardList,
   FileBarChart,
   LayoutDashboard,
+  LayoutGrid,
   LineChart,
   ListChecks,
   LogOut,
@@ -35,6 +36,7 @@ const NAV = [
   // Patients are reached via the top search bar for all staff; the sidebar entry
   // (full patient list) is reserved for administrators.
   { to: "/patients", label: "Patients", icon: Users, roles: ["administrator"] },
+  { to: "/dosette", label: "Dosette", icon: LayoutGrid },
   { to: "/picking", label: "Picking lists", icon: ClipboardList },
   { to: "/stock", label: "Stock", icon: Boxes },
   { to: "/expiry", label: "Expiry", icon: TimerReset },
