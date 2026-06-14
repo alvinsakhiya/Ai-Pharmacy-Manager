@@ -33,10 +33,12 @@ import PatientSearchBar from "./patients/PatientSearchBar";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  // Patients are reached via the top search bar for all staff; the sidebar entry
-  // (full patient list) is reserved for administrators.
+  // Mirrors the real-world workflow: pharmacists and dispensers reach a patient —
+  // and that patient's dosette — through the top search bar, not by browsing lists.
+  // The standalone Patients list and Dosette overview are therefore reserved for
+  // administrators; everyone else opens dosette from inside the patient record.
   { to: "/patients", label: "Patients", icon: Users, roles: ["administrator"] },
-  { to: "/dosette", label: "Dosette", icon: LayoutGrid },
+  { to: "/dosette", label: "Dosette", icon: LayoutGrid, roles: ["administrator"] },
   { to: "/picking", label: "Picking lists", icon: ClipboardList },
   { to: "/stock", label: "Stock", icon: Boxes },
   { to: "/expiry", label: "Expiry", icon: TimerReset },

@@ -227,6 +227,7 @@ Ai-Pharmacy-Manager/
 - [Deployment guide](docs/deployment.md)
 - [Engineering audit (13 June 2026)](docs/audit-2026-06-13.md)
 - [Real-world pharmacy workflow & UX analysis](docs/screenshot-workflow-analysis.md)
+- [Screenshot inventory (154 screens)](docs/screenshot-inventory.md) · [grouped workflow analysis](docs/real-world-workflow-analysis.md) · [implementation plan](docs/screenshot-implementation-plan.md)
 - [Roadmap & future enhancements](docs/roadmap.md)
 
 ## Roadmap
