@@ -13,7 +13,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned. Effort: S (hours) · M (1�
 
 | # | Item | Source | Status |
 |---|---|---|---|
-| Q1 | **Role-based sidebar** — hide Patients & Dosette from the sidebar for Pharmacist/Dispenser (top-bar search only); keep for Admin | 6, 14, 68 | 🟡 this iteration |
+| Q1 | **Role-based sidebar** — hide Patients & Dosette from the sidebar for Pharmacist/Dispenser (top-bar search only); keep for Admin | 6, 14, 68 | ✅ shipped |
 | Q2 | **Similar-spelling patient search** (phonetic + edit-distance), labelled "Similar spelling" | 68–70 | ✅ shipped |
 | Q3 | **Fix repeat-dosette crash** (`m.audit` → `m.changes`) | exercised via 29–39 | ✅ shipped |
 | Q4 | **Enrich printable tray label** — per-item directions + appearance (colour/shape/marking) | 36–37, 90 | ✅ shipped |
@@ -30,7 +30,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned. Effort: S (hours) · M (1�
 | M4 | **Allergies/ADR & sensitivities** section on the patient record (feeds AI clinical-safety) | 73 | ⬜ |
 | M5 | **Admin user-management UI** (role, active/inactive, last login) — RBAC already exists | 86, 118 | ⬜ |
 | M6 | **RP-on-duty indicator** + audit entry; filterable audit-log viewer | 59–60, 96 | ⬜ |
-| M7 | **Per-user accessibility preferences** (high-contrast cues, confirm-before-delete, alert set) | 116–117 | ⬜ |
+| M7 | **Per-user accessibility preferences** (high contrast, colour-vision palettes, text size, reduced motion and large targets) | 116–117 | ✅ shipped |
 
 ## Major features (L)
 
@@ -38,7 +38,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned. Effort: S (hours) · M (1�
 |---|---|---|---|
 | L1 | **Store-wide dispensing pipeline board** — status columns across all patients, AI prompts, role-gated transitions, job history | 13–17 | ✅ shipped — [docs](pipeline-board.md) |
 | L2 | **Barcode/QR accuracy check** — scan picked stock vs expected item, pass/fail screen (+ picking-list label) | 15, 98, 115 | ⬜ (roadmap #1) |
-| L3 | **Trusted-Directions / sig-code builder** — type a code → plain-English directions; seed our own library | 49, 108, 123–154 | ⬜ |
+| L3 | **Trusted-Directions / sig-code builder** — type a code → plain-English directions; seed our own library | 49, 108, 123–154 | ✅ shipped |
 | L4 | **PO generation + book-in → batches** (reorder recs → order → receive into stock) | 20, 24, 94 | ⬜ (roadmap #4) |
 | L5 | **AI review-due & non-compliance detection** — patients due for review; unusual dispensing cadence | 43, 79, 100, 117 | ⬜ |
 
@@ -56,7 +56,7 @@ Deeper items need backend models:
 - **Dispensing pipeline** (L1): formalise per-patient/per-cycle `WorkflowState` transitions (we already
   model 8 states in the frontend; promote to the dosette/picking app with an audited transition log).
 - **Accuracy check** (L2): `AccuracyCheck` (cycle/item FK, scanned GTIN/batch, expected, result, checked_by/at).
-- **Directions library** (L3): `TrustedDirection` (code, plain_text, category) — new small app/table.
+- **Directions library** (L3): `TrustedDirection` (code, text, category, active state, sort order) — implemented in `apps/directions`.
 - **Purchase orders** (L4): `PurchaseOrder` + `PurchaseOrderLine`, and a book-in action creating `StockBatch`.
 - Indices for FEFO/expiry already exist; add indexes on new FK + status columns.
 
@@ -64,8 +64,8 @@ All new tables keep the **no-NHS / simulated-data** constraint and append-only a
 
 ## Backend changes (DRF)
 
-- New endpoints follow existing conventions (e.g. `/api/dosette/cycles/`, `/api/patients/<id>/conditions/`,
-  `/api/dispensing/pipeline/`, `/api/accuracy-checks/`, `/api/directions/`, `/api/orders/`).
+- New endpoints follow existing conventions. The shipped direction lookup is
+  `/api/trusted-directions/`; the shipped pipeline is `/api/workflow-jobs/board/`.
 - Reuse our **forecasting** + **reporting** patterns; the pipeline board is an aggregation endpoint
   (counts per state) + a list endpoint.
 - AI review-due/non-compliance (L5) reuses the explainable-engine style of `forecasting/` (return reasons +
@@ -80,7 +80,7 @@ All new tables keep the **no-NHS / simulated-data** constraint and append-only a
 - M1/M5/M6/M7: new panels/pages using existing primitives (`Card`, `StatusChip`, `DataTable`, `Modal`,
   `Select`) and the design tokens in `tailwind.config.js`.
 - L1: a pipeline board page (tabbed counts + filterable `DataTable`, row → patient record).
-- L3: a directions builder component (combobox over the seeded library) used in the dosette item + label.
+- L3: a keyboard direction picker over the seeded library is used in the dispensing item and printable label.
 - Keep all new UI keyboard-navigable, ARIA-labelled, and status shown by **icon + text**.
 
 ## AI feature opportunities (explainable, human-confirmed)
@@ -118,8 +118,7 @@ All new tables keep the **no-NHS / simulated-data** constraint and append-only a
 
 ## Sequencing recommendation
 
-1. **Now:** Q1 (role-based sidebar) — small, high-visibility, directly requested.
-2. Next: M1 (cycle-history) + Q5/Q6 (legend, action filters) — round out the dosette/notifications story.
-3. Then: L1 (pipeline board) + L2 (accuracy check) — the biggest realism gains.
-4. Then: L3 (directions builder) + M4 (ADR) — feed AI clinical-safety.
-5. Ongoing: L5 (AI review/non-compliance), M2/M3/M5/M6/M7, CI/CD.
+1. Completed: role-based navigation, similar-spelling patient search, pipeline board and trusted directions.
+2. Next: M1 (cycle history) + Q5/Q6 (legend, action filters).
+3. Then: L2 (barcode accuracy check) + M4 (structured ADR/sensitivities).
+4. Ongoing: L5 (AI review/non-compliance), M2/M3/M5/M6 and CI/CD.

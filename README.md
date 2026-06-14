@@ -31,13 +31,14 @@
 
 ## What it does
 
-A unified platform built around the real community-pharmacy dosette workflow, with ten core modules:
+A unified platform built around the real community-pharmacy dosette workflow, with these core modules:
 
 | Module | Highlights |
 |---|---|
 | **Authentication & security** | JWT access/refresh tokens, role-based access control (Administrator / Pharmacist / Dispenser), PBKDF2 password hashing, protected routes, immutable **audit log** of every significant action. |
 | **Dashboard** | Headline KPIs, 90-day dispensing trend, expiry exposure, predicted shortages, recent activity — with professional charts. |
 | **Patient management** | PostgreSQL-backed pseudo-anonymised demographics, notes, role-scoped list/search APIs and active/inactive status. A top-bar patient search reaches any record by name, initials, DOB, postcode, ID — and **similar spellings** (phonetic + edit-distance), mirroring a real Find-Patient picker that never auto-opens the first match. The richer medication-history record remains an explicitly simulated portfolio workflow pending API integration. |
+| **Dispensing workspace** | Compact item-by-item prescription entry with a persistent patient context, selectable item list, explicit warning acknowledgement, printable simulated labels and a keyboard-operated **trusted-directions** picker. The approved phrase library is PostgreSQL-backed and searchable by shortcut code or wording; it speeds up typing but never replaces human verification. |
 | **Dosette management** | Weekly & monthly compliance packs, day × time-slot schedules (Morning/Afternoon/Evening/Bedtime), cycle generation with proactive **due dates**, dosage review tracking, printable per-patient pack summaries, and the signature day × slot pack-grid visualisation. |
 | **Dispensing pipeline board** | Store-wide [workflow board](docs/pipeline-board.md) — every job (prescription / dosette / stock issue) across all patients grouped into status columns (New → Picking → Accuracy check → Ready → Collected, or Issue), with priority/overdue badges, **role-gated** transitions (pharmacist-only accuracy check), assignment, an audited status history, and **explainable AI prompts** (overdue, stock/expiry, due-soon, needs-pharmacist) with confidence scores. |
 | **Picking lists** | Auto-aggregated weekly requirements across all active plans, per-line completion tracking, shortfall flags and **PDF export**. |
@@ -172,7 +173,7 @@ python manage.py seed              # ~220 patients, 65 medicines, batches, plans
 python manage.py seed --flush      # wipe domain data first, then reseed
 ```
 
-Generates 200+ pseudo-anonymised patients, 60+ medicines, suppliers/manufacturers, stock batches
+Generates 200+ pseudo-anonymised patients, 60+ medicines, an original trusted-directions library, suppliers/manufacturers, stock batches
 with a realistic expiry mix, weekly/monthly dosette plans, ~18 months of daily usage history
 (trend + seasonality + noise) for the forecasting engine, an initial picking list and notifications.
 
@@ -180,7 +181,7 @@ with a realistic expiry mix, weekly/monthly dosette plans, ~18 months of daily u
 
 ```bash
 cd backend
-pytest                 # FEFO, RBAC/auth, patient search, forecasting, dosette & picking
+pytest                 # FEFO, RBAC/auth, patient search, trusted directions, forecasting, dosette & picking
 
 cd ../frontend
 npm run lint
@@ -205,11 +206,13 @@ Ai-Pharmacy-Manager/
 │       ├── core/            # base models, audit log, RBAC, middleware, seed command
 │       ├── accounts/        # custom user, JWT auth, RBAC, audit API
 │       ├── patients/        # patient records & history
+│       ├── directions/      # staff-approved label phrase lookup
 │       ├── stock/           # medicines, suppliers, FEFO batches, movements, usage
 │       ├── dosette/         # plans, items, cycles, due dates
 │       ├── picking/         # picking lists & generation
 │       ├── forecasting/     # explainable forecasting engine
 │       ├── notifications/   # alert generation & centre
+│       ├── workflow/        # dispensing pipeline and audited transitions
 │       └── reports/         # dashboard, PDF/CSV reports
 ├── frontend/                # React + Vite + Tailwind SPA
 │   └── src/{api,components,context,hooks,pages,lib}

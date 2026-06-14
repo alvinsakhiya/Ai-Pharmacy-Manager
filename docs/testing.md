@@ -26,6 +26,8 @@ users (one per role), an authenticated client factory, and a medicine with two b
 | FEFO allocation | `apps/stock/tests.py` | soonest-expiry-first ordering, expired batches skipped, shortfall raises, on-hand & low-stock aggregates, expiry banding |
 | Auth & RBAC | `apps/accounts/tests.py` | login returns tokens+user, bad password rejected, unauthenticated 401, dispenser blocked from writes, admin-only user list, login audit entry |
 | Patient access | `apps/patients/tests.py` | admin-only full list, limited staff search, minimum query validation and disabled hard deletion |
+| Trusted directions | `apps/directions/tests.py` | all-role lookup, exact-code ranking, inactive phrase exclusion and read-only API |
+| Dispensing workflow | `apps/workflow/tests.py` | legal transitions, pharmacist accuracy gate, issue handling, history and board grouping |
 | Forecasting | `apps/forecasting/tests.py` | empty history handled, moving-average for short series, trend detected & CI widens with horizon, reorder recommendation, forecast API shape |
 | Dosette & picking | `apps/dosette/tests.py`, `apps/picking/tests.py` | schedule/day/slot validation, duplicate medicine prevention, cycle state transitions, pharmacist-only final check and demand aggregation |
 | Notifications | `apps/notifications/tests.py` | generated alerts are read-only through CRUD endpoints and refresh is role-restricted |
@@ -40,8 +42,9 @@ npm test
 npm run build
 ```
 
-Vitest and React Testing Library cover keyboard sorting/row activation in `DataTable` and modal
-labelling, initial focus and Escape handling. Browser-level end-to-end coverage remains future work.
+Vitest and React Testing Library cover keyboard sorting/row activation in `DataTable`, modal
+labelling/focus/Escape handling, patient search, and trusted-direction filtering/composition.
+Browser-level end-to-end coverage remains future work.
 
 ## Continuous integration (recommended)
 

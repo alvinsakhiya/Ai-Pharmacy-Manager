@@ -18,21 +18,23 @@ flowchart LR
         AUTH["accounts<br/>JWT · RBAC · audit"]
         CORE["core<br/>base models · audit · middleware"]
         PAT["patients"]
+        DIR["directions<br/>approved label phrases"]
         STK["stock<br/>FEFO · batches · movements · usage"]
         DOS["dosette<br/>plans · cycles · due dates"]
         PCK["picking<br/>lists · generation"]
         FC["forecasting<br/>numpy / statsmodels engine"]
         NOT["notifications"]
         REP["reports<br/>dashboard · PDF/CSV"]
+        WRK["workflow<br/>dispensing pipeline · audit"]
     end
 
     DB[("PostgreSQL")]
     RDS[("Redis<br/>(future jobs)")]
 
     SPA -->|"HTTPS / JSON · Bearer JWT"| AUTH
-    SPA --> PAT & STK & DOS & PCK & FC & NOT & REP
+    SPA --> PAT & DIR & STK & DOS & PCK & FC & NOT & REP & WRK
     AUTH --- CORE
-    PAT & STK & DOS & PCK & NOT & REP --> DB
+    PAT & DIR & STK & DOS & PCK & NOT & REP & WRK --> DB
     FC --> STK
     REP --> FC
     PCK --> DOS
@@ -106,8 +108,8 @@ components/DataTable.jsx → sortable, sticky-header, tabular-figure data tables
 Every data-backed view renders all four states (loading skeletons, empty, error-with-retry,
 populated), per the design-system requirement for a pro tool.
 
-The operational stock, dosette, picking, forecasting, reports and notification pages use the REST
-API. The rich top-bar patient record and the optional AI showcase currently use deterministic
+The operational stock, dosette, picking, forecasting, reports, notification, workflow and
+trusted-direction pages use the REST API. The rich top-bar patient record and the optional AI showcase currently use deterministic
 simulated fixtures and label that source in the interface. They are presentation prototypes, not a
 second source of truth; connecting medication history and `/api/ai/*` endpoints is documented as
 remaining work in the engineering audit.

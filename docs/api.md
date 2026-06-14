@@ -31,6 +31,16 @@ and field filters where noted.
 | GET | `/patients/{id}/` | includes notes (history) |
 | GET/POST | `/patient-notes/` | filter `patient`, `category` |
 
+## Trusted directions
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/trusted-directions/` | Authenticated, read-only approved label phrases; `q` searches code/text and exact shortcut codes rank first |
+| GET | `/trusted-directions/?category=timing` | Optional category filter: `dose`, `timing`, `route`, `qualifier`, `general` |
+
+The direction library is typing assistance only. Selecting a phrase does not
+confirm a prescription item or perform a clinical decision.
+
 ## Stock
 
 | Method | Path | Notes |
@@ -66,6 +76,16 @@ and field filters where noted.
 | POST | `/picking-lists/generate/` | `{period_start?, weeks?}` → aggregated list |
 | GET | `/picking-lists/{id}/export-pdf/` | PDF download |
 | POST | `/picking-items/{id}/toggle-picked/` | toggle completion, refreshes list status |
+
+## Dispensing workflow
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/workflow-jobs/board/` | Store-wide jobs grouped by status with counts and explainable prompts |
+| POST | `/workflow-jobs/{id}/transition/` | Audited legal status transition; pharmacist-only accuracy sign-off |
+| POST | `/workflow-jobs/{id}/raise-issue/` | Park an active job with a required issue note |
+| POST | `/workflow-jobs/{id}/resolve-issue/` | Pharmacist/Admin resolution back into the workflow |
+| GET | `/workflow-jobs/{id}/history/` | Append-only status history |
 
 ## Forecasting
 

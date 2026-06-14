@@ -19,6 +19,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.dosette.models import DAYS, DosetteCycle, DosetteItem, DosettePlan
+from apps.directions.models import TrustedDirection
 from apps.notifications.services import generate_notifications
 from apps.patients.models import Patient, PatientNote
 from apps.picking.models import PickingItem, PickingList
@@ -139,6 +140,45 @@ MANUFACTURERS = [
     "Aurobindo", "Glenmark", "Dr Reddy's", "Zentiva",
 ]
 
+TRUSTED_DIRECTIONS = [
+    ("ONE", "Take one", "dose"),
+    ("TWO", "Take two", "dose"),
+    ("HALF", "Take half", "dose"),
+    ("1TAB", "Take one tablet", "dose"),
+    ("2TAB", "Take two tablets", "dose"),
+    ("1CAP", "Take one capsule", "dose"),
+    ("2CAP", "Take two capsules", "dose"),
+    ("OD", "Once daily", "timing"),
+    ("BD", "Twice daily", "timing"),
+    ("TDS", "Three times daily", "timing"),
+    ("QDS", "Four times daily", "timing"),
+    ("AM", "In the morning", "timing"),
+    ("NOON", "At midday", "timing"),
+    ("PM", "In the evening", "timing"),
+    ("ON", "At bedtime", "timing"),
+    ("6H", "Every six hours", "timing"),
+    ("8H", "Every eight hours", "timing"),
+    ("12H", "Every twelve hours", "timing"),
+    ("24H", "Every twenty-four hours", "timing"),
+    ("PRN", "When required", "qualifier"),
+    ("WF", "With food", "qualifier"),
+    ("BF", "Before food", "qualifier"),
+    ("AF", "After food", "qualifier"),
+    ("EXT", "For external use only", "qualifier"),
+    ("SHAKE", "Shake well before use", "qualifier"),
+    ("SWALLOW", "Swallow whole; do not crush or chew", "qualifier"),
+    ("L-EYE", "Into the left eye", "route"),
+    ("R-EYE", "Into the right eye", "route"),
+    ("B-EYE", "Into both eyes", "route"),
+    ("L-EAR", "Into the left ear", "route"),
+    ("R-EAR", "Into the right ear", "route"),
+    ("B-EAR", "Into both ears", "route"),
+    ("INHALE1", "Inhale one puff", "route"),
+    ("INHALE2", "Inhale two puffs", "route"),
+    ("SKIN", "Apply thinly to the affected area", "route"),
+    ("WATER", "Dilute with water and sip slowly", "qualifier"),
+]
+
 
 class Command(BaseCommand):
     help = "Seed the database with realistic simulated pharmacy data."
@@ -157,16 +197,19 @@ class Command(BaseCommand):
                           PickingItem, PickingList,
                           MedicineUsage, StockMovement, StockBatch, DosetteItem,
                           DosetteCycle, DosettePlan, PatientNote, Patient, Medicine,
-                          Manufacturer, Supplier):
+                          Manufacturer, Supplier, TrustedDirection):
                 model.objects.all().delete()
-        elif Patient.objects.exists() or MedicineUsage.objects.exists():
+        self._users()
+        self._trusted_directions()
+
+        if not opts["flush"] and (Patient.objects.exists() or MedicineUsage.objects.exists()):
             # Idempotent: the entrypoint seeds on every container start, so skip
-            # if data already exists. Use --flush to wipe and reseed from scratch.
+            # heavy domain generation if data already exists. Small reference
+            # tables above are still upserted so newly added defaults appear.
             self.stdout.write(self.style.WARNING(
                 "Data already present — skipping seed. Run with --flush to reseed."))
             return
 
-        self._users()
         suppliers = self._suppliers()
         manufacturers = self._manufacturers()
         medicines = self._medicines(suppliers, manufacturers)
@@ -185,6 +228,23 @@ class Command(BaseCommand):
         ))
 
     # --- builders ----------------------------------------------------------
+    def _trusted_directions(self):
+        TrustedDirection.objects.bulk_create(
+            [
+                TrustedDirection(
+                    code=code,
+                    text=text,
+                    category=category,
+                    sort_order=index * 10,
+                )
+                for index, (code, text, category) in enumerate(
+                    TRUSTED_DIRECTIONS, start=1
+                )
+            ],
+            ignore_conflicts=True,
+        )
+        self.stdout.write(f"✓ {TrustedDirection.objects.count()} trusted directions")
+
     def _users(self):
         defs = [
             ("admin", "administrator", "Alex", "Doyle", "Pharmacy Manager"),

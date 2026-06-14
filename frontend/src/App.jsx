@@ -7,6 +7,7 @@ import Layout from "./components/Layout";
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Pipeline = lazy(() => import("./pages/Pipeline"));
+const Dispensing = lazy(() => import("./pages/Dispensing"));
 const Patients = lazy(() => import("./pages/Patients"));
 const Dosette = lazy(() => import("./pages/Dosette"));
 const Picking = lazy(() => import("./pages/Picking"));
@@ -57,6 +58,7 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="pipeline" element={<Pipeline />} />
+          <Route path="dispensing" element={<Dispensing />} />
           <Route path="patients" element={<Patients />} />
           <Route path="dosette" element={<Dosette />} />
           <Route path="picking" element={<Picking />} />

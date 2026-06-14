@@ -14,6 +14,7 @@ import {
   PackageSearch,
   Pill,
   ScanText,
+  Tablets,
   ScrollText,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -36,6 +37,7 @@ const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   // Store-wide dispensing pipeline board — visible to all staff.
   { to: "/pipeline", label: "Pipeline", icon: KanbanSquare },
+  { to: "/dispensing", label: "Dispensing", icon: Tablets },
   // Mirrors the real-world workflow: pharmacists and dispensers reach a patient —
   // and that patient's dosette — through the top search bar, not by browsing lists.
   // The standalone Patients list and Dosette overview are therefore reserved for
