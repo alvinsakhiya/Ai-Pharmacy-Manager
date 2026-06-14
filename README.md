@@ -39,6 +39,7 @@ A unified platform built around the real community-pharmacy dosette workflow, wi
 | **Dashboard** | Headline KPIs, 90-day dispensing trend, expiry exposure, predicted shortages, recent activity — with professional charts. |
 | **Patient management** | PostgreSQL-backed pseudo-anonymised demographics, notes, role-scoped list/search APIs and active/inactive status. A top-bar patient search reaches any record by name, initials, DOB, postcode, ID — and **similar spellings** (phonetic + edit-distance), mirroring a real Find-Patient picker that never auto-opens the first match. The richer medication-history record remains an explicitly simulated portfolio workflow pending API integration. |
 | **Dosette management** | Weekly & monthly compliance packs, day × time-slot schedules (Morning/Afternoon/Evening/Bedtime), cycle generation with proactive **due dates**, dosage review tracking, printable per-patient pack summaries, and the signature day × slot pack-grid visualisation. |
+| **Dispensing pipeline board** | Store-wide [workflow board](docs/pipeline-board.md) — every job (prescription / dosette / stock issue) across all patients grouped into status columns (New → Picking → Accuracy check → Ready → Collected, or Issue), with priority/overdue badges, **role-gated** transitions (pharmacist-only accuracy check), assignment, an audited status history, and **explainable AI prompts** (overdue, stock/expiry, due-soon, needs-pharmacist) with confidence scores. |
 | **Picking lists** | Auto-aggregated weekly requirements across all active plans, per-line completion tracking, shortfall flags and **PDF export**. |
 | **Stock management** | Medicines, pack sizes, manufacturers, suppliers, batches, expiry dates, **FEFO allocation**, stock adjustments, wastage recording and an append-only movement ledger. |
 | **Expiry management** | 1/3/6-month expiry windows, FEFO heat scale, expired-stock alerts. |
@@ -228,6 +229,7 @@ Ai-Pharmacy-Manager/
 - [Engineering audit (13 June 2026)](docs/audit-2026-06-13.md)
 - [Real-world pharmacy workflow & UX analysis](docs/screenshot-workflow-analysis.md)
 - [Screenshot inventory (154 screens)](docs/screenshot-inventory.md) · [grouped workflow analysis](docs/real-world-workflow-analysis.md) · [implementation plan](docs/screenshot-implementation-plan.md)
+- [Dispensing pipeline board](docs/pipeline-board.md)
 - [Roadmap & future enhancements](docs/roadmap.md)
 
 ## Roadmap

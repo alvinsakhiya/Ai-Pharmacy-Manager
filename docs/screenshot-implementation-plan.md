@@ -36,7 +36,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned. Effort: S (hours) · M (1�
 
 | # | Item | Source | Status |
 |---|---|---|---|
-| L1 | **Store-wide dispensing pipeline board** — New / In Progress / Ready / Issue counts across all patients, click-through to record | 13–17 | ⬜ |
+| L1 | **Store-wide dispensing pipeline board** — status columns across all patients, AI prompts, role-gated transitions, job history | 13–17 | ✅ shipped — [docs](pipeline-board.md) |
 | L2 | **Barcode/QR accuracy check** — scan picked stock vs expected item, pass/fail screen (+ picking-list label) | 15, 98, 115 | ⬜ (roadmap #1) |
 | L3 | **Trusted-Directions / sig-code builder** — type a code → plain-English directions; seed our own library | 49, 108, 123–154 | ⬜ |
 | L4 | **PO generation + book-in → batches** (reorder recs → order → receive into stock) | 20, 24, 94 | ⬜ (roadmap #4) |

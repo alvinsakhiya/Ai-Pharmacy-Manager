@@ -21,6 +21,7 @@ from django.db import transaction
 from apps.dosette.models import DAYS, DosetteCycle, DosetteItem, DosettePlan
 from apps.notifications.services import generate_notifications
 from apps.patients.models import Patient, PatientNote
+from apps.picking.models import PickingItem, PickingList
 from apps.picking.services import generate_picking_list
 from apps.stock.models import (
     Manufacturer,
@@ -29,6 +30,12 @@ from apps.stock.models import (
     StockBatch,
     StockMovement,
     Supplier,
+)
+from apps.workflow.models import (
+    JobStatus,
+    Priority,
+    WorkflowJob,
+    WorkflowStatusHistory,
 )
 
 User = get_user_model()
@@ -146,7 +153,9 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         if opts["flush"]:
             self.stdout.write("Flushing existing domain data…")
-            for model in (MedicineUsage, StockMovement, StockBatch, DosetteItem,
+            for model in (WorkflowStatusHistory, WorkflowJob,
+                          PickingItem, PickingList,
+                          MedicineUsage, StockMovement, StockBatch, DosetteItem,
                           DosetteCycle, DosettePlan, PatientNote, Patient, Medicine,
                           Manufacturer, Supplier):
                 model.objects.all().delete()
@@ -166,6 +175,7 @@ class Command(BaseCommand):
         patients = self._patients(opts["patients"])
         self._dosette(patients, medicines)
         self._picking()
+        self._workflow(patients)
         generate_notifications()
 
         self.stdout.write(self.style.SUCCESS(
@@ -346,3 +356,86 @@ class Command(BaseCommand):
         generate_picking_list(start, weeks=1, created_by=admin,
                               name=f"Picking list w/c {start:%d %b %Y}")
         self.stdout.write("✓ picking list")
+
+    def _workflow(self, patients):
+        """Populate the dispensing pipeline board with a realistic spread of jobs.
+
+        Dosette jobs are derived from generated cycles; a handful of prescription
+        and stock-issue jobs round out the board. Statuses, priorities and due dates
+        are spread so the board (and its AI suggestions) look like a live pharmacy.
+        """
+        today = date.today()
+        dispenser = User.objects.filter(role="dispenser").first()
+        pharmacist = User.objects.filter(role="pharmacist").first()
+        staff = [None, dispenser, pharmacist]
+
+        # Map a dosette cycle's prep state onto a board status.
+        cycle_status_map = {
+            "scheduled": [JobStatus.NEW, JobStatus.PICKING_REQUIRED],
+            "in_prep": [JobStatus.PICKING_IN_PROGRESS],
+            "assembled": [JobStatus.PICKED, JobStatus.ACCURACY_CHECK],
+            "checked": [JobStatus.READY],
+            "sealed": [JobStatus.COLLECTED],
+        }
+
+        def priority_for(due):
+            if due is None:
+                return Priority.NORMAL
+            d = (due - today).days
+            if d < 0:
+                return Priority.URGENT
+            if d <= 2:
+                return Priority.HIGH
+            if d <= 7:
+                return Priority.NORMAL
+            return Priority.LOW
+
+        jobs = []
+        for cycle in DosetteCycle.objects.select_related("plan__patient")[:120]:
+            status = rng.choice(cycle_status_map.get(cycle.status, [JobStatus.NEW]))
+            # occasionally park a job as an issue
+            if rng.random() < 0.06 and status not in (JobStatus.NEW, JobStatus.COLLECTED):
+                status = JobStatus.ISSUE_FOUND
+            job = WorkflowJob(
+                patient=cycle.plan.patient,
+                dosette_cycle=cycle,
+                job_type="dosette",
+                title=f"{cycle.plan.get_frequency_display()} dosette pack",
+                priority=priority_for(cycle.due_date),
+                status=status,
+                due_date=cycle.due_date,
+                assigned_to=rng.choice(staff),
+                issue_notes=("Stock below requirement — awaiting delivery."
+                             if status == JobStatus.ISSUE_FOUND else ""),
+            )
+            jobs.append(job)
+
+        # A few prescription jobs and stock issues across active patients.
+        active = [p for p in patients if p.status == "active"][:40]
+        for p in rng.sample(active, min(18, len(active))):
+            due = today + timedelta(days=rng.randint(-3, 9))
+            jobs.append(WorkflowJob(
+                patient=p, job_type="prescription",
+                title="Acute prescription",
+                priority=priority_for(due),
+                status=rng.choice([JobStatus.NEW, JobStatus.PICKING_REQUIRED,
+                                   JobStatus.PICKING_IN_PROGRESS, JobStatus.READY]),
+                due_date=due, assigned_to=rng.choice(staff),
+            ))
+        for p in rng.sample(active, min(6, len(active))):
+            jobs.append(WorkflowJob(
+                patient=p, job_type="stock_issue",
+                title="Owed item — short supply",
+                priority=Priority.HIGH,
+                status=JobStatus.ISSUE_FOUND, due_date=today + timedelta(days=rng.randint(0, 3)),
+                issue_notes="Item owed to patient; reorder placed.",
+            ))
+
+        WorkflowJob.objects.bulk_create(jobs)
+        # Seed a creation history row for each job (best-effort, non-critical).
+        WorkflowStatusHistory.objects.bulk_create([
+            WorkflowStatusHistory(job=j, from_status="", to_status=j.status,
+                                  changed_by_label="system", note="Seeded")
+            for j in WorkflowJob.objects.all()
+        ])
+        self.stdout.write(f"✓ {WorkflowJob.objects.count()} workflow jobs")

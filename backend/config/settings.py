@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "apps.forecasting",
     "apps.notifications",
     "apps.reports",
+    "apps.workflow",
 ]
 
 MIDDLEWARE = [
