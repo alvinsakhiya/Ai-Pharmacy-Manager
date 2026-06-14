@@ -42,7 +42,7 @@ A unified platform built around the real community-pharmacy dosette workflow, wi
 | **Picking lists** | Auto-aggregated weekly requirements across all active plans, per-line completion tracking, shortfall flags and **PDF export**. |
 | **Stock management** | Medicines, pack sizes, manufacturers, suppliers, batches, expiry dates, **FEFO allocation**, stock adjustments, wastage recording and an append-only movement ledger. |
 | **Expiry management** | 1/3/6-month expiry windows, FEFO heat scale, expired-stock alerts. |
-| **AI forecasting** | Explainable time-series demand forecasting (Holt-Winters → Holt trend → moving-average, with graceful fallback), 95% confidence intervals, reorder recommendations with rationale. |
+| **AI forecasting** | Explainable time-series demand forecasting (Holt-Winters → Holt trend → moving-average, with graceful fallback), 95% confidence intervals, reorder recommendations with rationale, and a **rolling-origin model-evaluation harness** (MAE/RMSE/MAPE/MASE per method vs naive baselines, with a skill score) surfaced as the **Model accuracy** panel — so method selection is evidence-based, not assumed. |
 | **AI decision support showcase** | Explainable safety prompts, intake parsing, daily priorities and reorder/waste suggestions. These screens clearly identify deterministic simulated data until dedicated `/api/ai/*` services are implemented; human review is always required. |
 | **Notification centre** | Low stock, approaching expiry, predicted shortages, overdue reviews and announcements — idempotently regenerated. |
 | **Reporting** | Stock valuation, expiry, low-stock, dosette workload, forecasting and patient-summary reports with **PDF & CSV export**. |
@@ -232,8 +232,9 @@ Ai-Pharmacy-Manager/
 
 Highlights (full list in [`docs/roadmap.md`](docs/roadmap.md)): barcode/2D-scan accuracy checks,
 Celery/Redis background jobs for nightly forecasting & alerting, configurable safety-stock service
-levels, multi-site inventory, label printing, and a model-evaluation harness (MAPE/RMSE backtesting)
-for the forecasting module.
+levels, multi-site inventory and label printing. The model-evaluation harness (rolling-origin
+MAPE/RMSE/MASE backtesting) for the forecasting module is **now implemented** — see the Model accuracy
+panel on the Forecasting screen.
 
 ---
 

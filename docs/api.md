@@ -72,6 +72,7 @@ and field filters where noted.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/forecast/medicine/{id}/?horizon=4` | full explainable forecast + reorder rec |
+| GET | `/forecast/medicine/{id}/backtest/` | rolling-origin model-evaluation report: MAE/RMSE/MAPE/MASE per method vs naive baselines, skill score, best method |
 | GET | `/forecast/shortages/` | medicines predicted to need reordering |
 | GET | `/forecast/summary/` | dashboard headline numbers |
 

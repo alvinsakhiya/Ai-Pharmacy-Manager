@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 
 from apps.stock.models import Medicine
 
+from .backtest import backtest_medicine
 from .engine import forecast_medicine
 
 
@@ -34,6 +35,23 @@ class MedicineForecastView(APIView):
         data = result.as_dict()
         data["medicine_label"] = medicine.label
         return Response(data)
+
+
+class MedicineBacktestView(APIView):
+    """GET /api/forecast/medicine/<id>/backtest/ -> rolling-origin accuracy report.
+
+    Walk-forward evaluation of every candidate method (incl. naive baselines)
+    reporting MAE/RMSE/MAPE/MASE and a skill score, so method selection is
+    evidence-based rather than assumed.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request, medicine_id):
+        medicine = get_object_or_404(Medicine, pk=medicine_id)
+        result = backtest_medicine(medicine)
+        return Response(result.as_dict())
 
 
 class ShortageForecastView(APIView):

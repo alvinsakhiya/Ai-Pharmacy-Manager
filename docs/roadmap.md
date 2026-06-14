@@ -16,9 +16,12 @@ Each is framed so it can be discussed as "future work" in a dissertation.
 
 ## Forecasting maturity
 
-5. **Model-evaluation harness.** Rolling-origin backtesting reporting MAPE / RMSE / MASE per method,
+5. ✅ **Model-evaluation harness — implemented.** Rolling-origin (walk-forward) backtesting reporting
+   MAE / RMSE / MAPE / MASE per method against naive and seasonal-naive baselines, with a skill score,
    so method selection is *evidence-based* and reportable — directly supporting the "Evaluation" half
-   of the project title.
+   of the project title. Engine in [`backend/apps/forecasting/backtest.py`](../backend/apps/forecasting/backtest.py),
+   exposed at `GET /api/forecast/medicine/<id>/backtest/` and surfaced as the **Model accuracy** panel
+   on the Forecasting screen. *Next:* multi-step (h-week) horizons and a cross-medicine accuracy summary.
 6. **Promotional / seasonal regressors & intermittent-demand models** (e.g. Croston's method) for
    slow-moving lines.
 7. **Per-medicine method override & confidence tuning** surfaced in the UI.

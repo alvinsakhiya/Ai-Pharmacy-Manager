@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Brain, Lightbulb, ShoppingCart, TrendingDown, TrendingUp } from "lucide-react";
+import { Brain, GaugeCircle, Lightbulb, ShoppingCart, TrendingDown, TrendingUp, Trophy } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
 import { Card, Select, Skeleton, StatusChip } from "../components/ui";
@@ -39,6 +39,7 @@ export default function Forecasting() {
     params: { horizon },
     skip: !medId,
   });
+  const bt = useFetch(`/forecast/medicine/${medId}/backtest/`, { skip: !medId });
 
   const chartData = useMemo(() => {
     if (!fc.data) return [];
@@ -160,6 +161,8 @@ export default function Forecasting() {
         </div>
       </div>
 
+      <BacktestPanel bt={bt} />
+
       <Card className="mt-5 p-5">
         <h3 className="mb-3 text-subtitle font-semibold">
           Predicted shortages {shortages.data ? `(${shortages.data.count})` : ""}
@@ -204,5 +207,105 @@ function KV({ label, v }) {
       <div className="text-text-tertiary">{label}</div>
       <div className="font-semibold tnum text-text-primary">{v}</div>
     </div>
+  );
+}
+
+const fmt2 = (n) => (n === null || n === undefined ? "—" : Number(n).toFixed(2));
+const fmtPct = (n) => (n === null || n === undefined ? "—" : `${Number(n).toFixed(0)}%`);
+const fmtSkill = (n) =>
+  n === null || n === undefined ? "—" : `${n > 0 ? "+" : ""}${(n * 100).toFixed(0)}%`;
+
+function BacktestPanel({ bt }) {
+  const d = bt.data;
+  return (
+    <Card className="mt-5 p-5">
+      <div className="mb-1 flex items-center gap-2">
+        <GaugeCircle size={18} className="text-accent" />
+        <h3 className="text-subtitle font-semibold">Model accuracy</h3>
+        {d && !d.insufficient_history && (
+          <StatusChip tone="neutral" icon={false}>
+            {d.folds} rolling-origin folds
+          </StatusChip>
+        )}
+      </div>
+      <p className="mb-4 text-caption text-text-secondary">
+        Walk-forward backtest: every method re-forecasts one week ahead across history.
+        Lower is better; <span className="font-medium">MASE&nbsp;&lt;&nbsp;1</span> beats a naive
+        "repeat last week" forecast.
+      </p>
+
+      {bt.loading || !d ? (
+        <Skeleton className="h-44" />
+      ) : d.insufficient_history ? (
+        <p className="rounded-xl bg-subtle p-3.5 text-body text-text-secondary">{d.explanation}</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-body">
+              <thead>
+                <tr className="border-b border-border-subtle text-caption text-text-tertiary">
+                  <th className="py-2 pr-3 text-left font-medium">Method</th>
+                  <th className="py-2 px-3 text-right font-medium">MAPE</th>
+                  <th className="py-2 px-3 text-right font-medium">RMSE</th>
+                  <th className="py-2 px-3 text-right font-medium">MASE</th>
+                  <th className="py-2 pl-3 text-right font-medium">Skill vs naive</th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.methods.map((m) => {
+                  const isBest = m.method === d.best_method;
+                  const isLive = m.method === d.engine_method;
+                  return (
+                    <tr
+                      key={m.method}
+                      className={`border-b border-border-subtle last:border-0 ${
+                        isBest ? "bg-accent-soft" : ""
+                      }`}
+                    >
+                      <td className="py-2 pr-3">
+                        <span className="inline-flex items-center gap-1.5">
+                          {isBest && <Trophy size={14} className="text-accent" />}
+                          <span className={isBest ? "font-semibold" : m.is_baseline ? "text-text-secondary" : ""}>
+                            {m.label}
+                          </span>
+                          {isLive && (
+                            <StatusChip tone="info" icon={false}>live</StatusChip>
+                          )}
+                          {m.is_baseline && (
+                            <span className="text-caption text-text-tertiary">baseline</span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-right tnum">{fmtPct(m.mape)}</td>
+                      <td className="py-2 px-3 text-right tnum">{fmt2(m.rmse)}</td>
+                      <td className={`py-2 px-3 text-right tnum ${isBest ? "font-semibold text-accent" : ""}`}>
+                        {fmt2(m.mase)}
+                      </td>
+                      <td className="py-2 pl-3 text-right tnum">
+                        <span
+                          className={
+                            m.skill_vs_naive > 0
+                              ? "text-success-fg"
+                              : m.skill_vs_naive < 0
+                                ? "text-danger-fg"
+                                : "text-text-secondary"
+                          }
+                        >
+                          {fmtSkill(m.skill_vs_naive)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 flex items-start gap-2 rounded-xl bg-subtle p-3.5 text-body text-text-secondary">
+            <Brain size={18} className="mt-0.5 flex-shrink-0 text-accent" />
+            <p>{d.explanation}</p>
+          </div>
+        </>
+      )}
+    </Card>
   );
 }
