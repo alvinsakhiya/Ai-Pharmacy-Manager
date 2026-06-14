@@ -37,7 +37,7 @@ A unified platform built around the real community-pharmacy dosette workflow, wi
 |---|---|
 | **Authentication & security** | JWT access/refresh tokens, role-based access control (Administrator / Pharmacist / Dispenser), PBKDF2 password hashing, protected routes, immutable **audit log** of every significant action. |
 | **Dashboard** | Headline KPIs, 90-day dispensing trend, expiry exposure, predicted shortages, recent activity — with professional charts. |
-| **Patient management** | PostgreSQL-backed pseudo-anonymised demographics, notes, role-scoped list/search APIs and active/inactive status. The richer medication-history record shown from the top bar remains an explicitly simulated portfolio workflow pending API integration. |
+| **Patient management** | PostgreSQL-backed pseudo-anonymised demographics, notes, role-scoped list/search APIs and active/inactive status. A top-bar patient search reaches any record by name, initials, DOB, postcode, ID — and **similar spellings** (phonetic + edit-distance), mirroring a real Find-Patient picker that never auto-opens the first match. The richer medication-history record remains an explicitly simulated portfolio workflow pending API integration. |
 | **Dosette management** | Weekly & monthly compliance packs, day × time-slot schedules (Morning/Afternoon/Evening/Bedtime), cycle generation with proactive **due dates**, dosage review tracking, printable per-patient pack summaries, and the signature day × slot pack-grid visualisation. |
 | **Picking lists** | Auto-aggregated weekly requirements across all active plans, per-line completion tracking, shortfall flags and **PDF export**. |
 | **Stock management** | Medicines, pack sizes, manufacturers, suppliers, batches, expiry dates, **FEFO allocation**, stock adjustments, wastage recording and an append-only movement ledger. |
@@ -226,6 +226,7 @@ Ai-Pharmacy-Manager/
 - [UI previews](docs/ui-previews.md)
 - [Deployment guide](docs/deployment.md)
 - [Engineering audit (13 June 2026)](docs/audit-2026-06-13.md)
+- [Real-world pharmacy workflow & UX analysis](docs/screenshot-workflow-analysis.md)
 - [Roadmap & future enhancements](docs/roadmap.md)
 
 ## Roadmap

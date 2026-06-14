@@ -383,9 +383,30 @@ html[data-motion="reduced"] *::after {
   font-size: 18px;
   font-weight: 700;
 }
+.pm-label-period-time {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: #555;
+}
 .pm-label-med {
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.45;
+  padding: 4px 0;
+}
+.pm-label-med + .pm-label-med {
+  border-top: 1px dotted #bbb;
+}
+.pm-label-med-line {
+  font-size: 16px;
+}
+.pm-label-med-dir {
+  font-size: 13px;
+  font-style: italic;
+}
+.pm-label-med-look {
+  font-size: 12px;
+  color: #333;
 }
 .pm-label-none {
   font-size: 15px;

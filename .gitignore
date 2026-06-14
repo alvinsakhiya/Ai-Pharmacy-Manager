@@ -26,3 +26,7 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Reference screenshots — real-world third-party pharmacy system, studied as
+# workflow/UX material only (educational permission). MUST NEVER be committed.
+/Screenshots/

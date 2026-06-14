@@ -275,6 +275,71 @@ export const PATIENTS = [
     ],
     notes: [],
   },
+  // A deliberately near-identical surname cluster (Connor / Conner / Connors) so
+  // the similar-spelling search tier is demonstrable: searching "conner" surfaces
+  // all three, the non-exact ones flagged as similar matches.
+  {
+    id: "PT-12044",
+    firstName: "James",
+    surname: "Connor",
+    dob: "1953-09-14",
+    postcode: "LE3 2BB",
+    phone: "07700 900810",
+    address: "5 Hinckley Road, Leicester",
+    status: "active",
+    careSetting: "Community",
+    packType: "Monthly compliance pack",
+    doctor: { name: "Dr A. Khan", practice: "Hinckley Road Surgery", phone: "0116 496 0505", address: "Hinckley Road, Leicester" },
+    allergies: [],
+    cycle: cycle(-1, 28),
+    workflow: { status: "Picked", history: [{ status: "Picked", at: iso(addDays(TODAY, -1)), staff: "T. Reilly", note: "" }] },
+    meds: [
+      med(M.amlodipine5, { slots: { Morning: 1 }, instruction: "Take ONE tablet each morning" }),
+      med(M.atorvastatin20, { slots: { Bedtime: 1 }, instruction: "Take ONE tablet at night" }),
+    ],
+    notes: [],
+  },
+  {
+    id: "PT-12051",
+    firstName: "Aisha",
+    surname: "Conner",
+    dob: "1967-04-22",
+    postcode: "LE4 6CC",
+    phone: "07700 900822",
+    address: "41 Melton Road, Leicester",
+    status: "active",
+    careSetting: "Community",
+    packType: "Weekly compliance pack",
+    doctor: { name: "Dr S. Patel", practice: "Melton Road Health", phone: "0116 496 0606", address: "Melton Road, Leicester" },
+    allergies: [],
+    cycle: cycle(-3, 7),
+    workflow: { status: "Picking required", history: [{ status: "Picking required", at: iso(addDays(TODAY, -1)), staff: "P. Sharma", note: "" }] },
+    meds: [
+      med(M.levothyroxine50, { slots: { Morning: 1 }, instruction: "Take ONE tablet each morning before food" }),
+      med(M.sertraline50, { slots: { Morning: 1 }, instruction: "Take ONE tablet each morning" }),
+    ],
+    notes: [],
+  },
+  {
+    id: "PT-12067",
+    firstName: "Robert",
+    surname: "Connors",
+    dob: "1940-12-05",
+    postcode: "LE2 8DD",
+    phone: "07700 900833",
+    address: "18 Saffron Lane, Leicester",
+    status: "inactive",
+    careSetting: "Care home",
+    packType: "Monthly compliance pack",
+    doctor: { name: "Dr H. Mistry", practice: "Saffron Lane Medical", phone: "0116 496 0707", address: "Saffron Lane, Leicester" },
+    allergies: ["Codeine"],
+    cycle: cycle(-10, 28),
+    workflow: { status: "Collected / Delivered", history: [{ status: "Collected / Delivered", at: iso(addDays(TODAY, -6)), staff: "P. Sharma", note: "" }] },
+    meds: [
+      med(M.omeprazole20, { slots: { Morning: 1 }, instruction: "Take ONE capsule each morning before food" }),
+    ],
+    notes: [{ at: iso(addDays(TODAY, -30)), staff: "Care home", category: "Note", text: "Pack collection paused pending review." }],
+  },
 ];
 
 const META = {
@@ -282,6 +347,9 @@ const META = {
   "PT-10915": { title: "Mrs", sex: "Female" },
   "PT-11203": { title: "Mr", sex: "Male" },
   "PT-11876": { title: "Ms", sex: "Female" },
+  "PT-12044": { title: "Mr", sex: "Male" },
+  "PT-12051": { title: "Mrs", sex: "Female" },
+  "PT-12067": { title: "Mr", sex: "Male" },
 };
 PATIENTS.forEach((p) => {
   p.name = `${p.firstName} ${p.surname}`;
@@ -297,9 +365,48 @@ export function getMedicationHistory(patient) {
 }
 
 // ---------------------------------------------------------------- search
-// Fuzzy, multi-format: full name, "A Sakhiya", "Alvin S", "Al Sa", initials,
-// DOB (several formats), postcode, patient ID.
+// Multi-format: full name, "A Sakhiya", "Alvin S", "Al Sa", initials, DOB
+// (several formats), postcode, patient ID — plus a *similar-spelling* tier so a
+// misheard or mistyped surname still surfaces the right patient (the real-world
+// Find-Patient behaviour that groups e.g. Connor / Conner / Connors together).
 const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+
+// Soundex-style phonetic key: surnames that *sound* alike share a key. Kept
+// deliberately small and dependency-free; this is identification support only.
+function phonetic(s) {
+  const up = (s || "").toUpperCase().replace(/[^A-Z]/g, "");
+  if (!up) return "";
+  const code = (ch) =>
+    ({ B: "1", F: "1", P: "1", V: "1", C: "2", G: "2", J: "2", K: "2", Q: "2", S: "2", X: "2", Z: "2",
+       D: "3", T: "3", L: "4", M: "5", N: "5", R: "6" }[ch] || "");
+  let out = up[0];
+  let prev = code(up[0]);
+  for (let i = 1; i < up.length; i++) {
+    const c = code(up[i]);
+    if (c && c !== prev) out += c;
+    if (up[i] !== "H" && up[i] !== "W") prev = c; // H/W don't break a run
+  }
+  return (out + "000").slice(0, 4);
+}
+
+// Levenshtein edit distance — how many single-character edits separate two words.
+function editDistance(a, b) {
+  a = a || ""; b = b || "";
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
 
 function dobVariants(dob) {
   const d = new Date(dob);
@@ -313,6 +420,10 @@ export function searchPatients(query) {
   const q = norm(query);
   if (!q) return [];
   const tokens = q.split(" ").filter(Boolean);
+  // A single alphabetic word (≥3 letters) is treated as a possible surname for
+  // the similar-spelling tier.
+  const surnameish = tokens.length === 1 && /^[a-z]+$/.test(q) && q.length >= 3;
+  const qPhon = surnameish ? phonetic(q) : "";
 
   return PATIENTS.map((p) => {
     const first = norm(p.firstName);
@@ -321,6 +432,7 @@ export function searchPatients(query) {
     const id = norm(p.id);
     const pc = norm(p.postcode);
     let score = 0;
+    let fuzzy = false;
 
     if (id === q || id.replace(/[^a-z0-9]/g, "") === q.replace(/[^a-z0-9]/g, "")) score += 100;
     if (full === q) score += 90;
@@ -335,11 +447,23 @@ export function searchPatients(query) {
       // initials e.g. "as"
       if (tokens.length === 1 && t1Initials(p).includes(q)) score += 30;
     }
-    return { p, score };
+
+    // Similar-spelling tier — only when nothing above matched this patient, so a
+    // direct match always outranks a phonetic/near one. Scored below any direct
+    // hit and flagged so the UI can label it "similar".
+    if (surnameish && score === 0) {
+      const dist = editDistance(sur, q);
+      const soundsAlike = qPhon && phonetic(sur) === qPhon;
+      if (soundsAlike || dist <= 2) {
+        score += Math.max(8, 22 - dist * 5) + (soundsAlike ? 6 : 0);
+        fuzzy = true;
+      }
+    }
+    return { p, score, fuzzy };
   })
     .filter((r) => r.score > 0)
     .sort((a, b) => b.score - a.score)
-    .map((r) => r.p);
+    .map((r) => ({ ...r.p, _fuzzy: r.fuzzy }));
 }
 function t1Initials(p) {
   return norm(`${p.firstName[0]}${p.surname[0]}`);
@@ -351,7 +475,10 @@ export function getTray(patient) {
     period,
     items: patient.meds
       .filter((m) => m.status === "Active" && (m.slots[period] || 0) > 0)
-      .map((m) => ({ name: m.name, strength: m.strength, form: m.form, qty: m.slots[period], instruction: m.instruction })),
+      .map((m) => ({
+        name: m.name, strength: m.strength, form: m.form, qty: m.slots[period],
+        instruction: m.instruction, appearance: m.appearance,
+      })),
   }));
 }
 
@@ -384,7 +511,8 @@ export function suggestRepeatCycle(patient) {
   const nextEnd = addDays(nextStart, last.lengthDays - 1);
   const picking = getPickingList(patient);
   const stockWarnings = picking.filter((p) => p.warning);
-  const scheduleChanged = patient.meds.some((m) => m.audit.some((a) => new Date(a.at) >= addDays(TODAY, -30)));
+  const scheduleChanged = patient.meds.some((m) =>
+    m.changes.some((c) => new Date(c.at) >= addDays(TODAY, -30)));
   const checks = [];
   checks.push({
     tone: "info", title: "Suggested next cycle",

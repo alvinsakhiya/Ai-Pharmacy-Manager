@@ -117,6 +117,9 @@ export default function PatientSearchBar() {
                       <StatusChip tone={p.status === "active" ? "success" : "neutral"} icon={false}>
                         {p.status === "active" ? "Active" : "Inactive"}
                       </StatusChip>
+                      {p._fuzzy && (
+                        <StatusChip tone="warning" icon={false}>Similar spelling</StatusChip>
+                      )}
                     </span>
                     <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-caption text-text-tertiary tnum">
                       <span className="inline-flex items-center gap-1"><CalendarClock size={12} aria-hidden="true" />{fmtDate(p.dob)}</span>
@@ -130,7 +133,7 @@ export default function PatientSearchBar() {
             </ul>
           )}
           <div className="border-t border-border-subtle bg-app/60 px-3 py-1.5 text-[11px] text-text-tertiary">
-            Use ↑ ↓ to navigate · Enter to open · matches name, initials, DOB, postcode or ID
+            Use ↑ ↓ to navigate · Enter to open · matches name, initials, DOB, postcode, ID — and similar spellings
           </div>
         </div>
       )}

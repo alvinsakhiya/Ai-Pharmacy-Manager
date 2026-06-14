@@ -225,15 +225,25 @@ function PrintLabel({ patient, tray }) {
 
         {PERIODS.map((period) => {
           const row = tray.find((t) => t.period === period);
+          const meta = PERIOD_META[period];
           return (
             <div key={period} className="pm-label-period">
-              <div className="pm-label-period-name">{period}</div>
+              <div className="pm-label-period-name">{period}<span className="pm-label-period-time">{meta.time}</span></div>
               <div className="pm-label-meds">
                 {row.items.length === 0
                   ? <span className="pm-label-none">None</span>
                   : row.items.map((it) => (
                       <div key={`${it.name}-${it.strength}`} className="pm-label-med">
-                        <strong>{it.name} {it.strength}</strong> — {it.qty} {it.form.toLowerCase()}{it.qty > 1 ? "s" : ""}
+                        <div className="pm-label-med-line">
+                          <strong>{it.name} {it.strength}</strong> — {it.qty} {it.form.toLowerCase()}{it.qty > 1 ? "s" : ""}
+                        </div>
+                        {it.instruction && <div className="pm-label-med-dir">{it.instruction}</div>}
+                        {it.appearance && (
+                          <div className="pm-label-med-look">
+                            Appearance: {[it.appearance.colour, it.appearance.shape, it.form].filter(Boolean).join(" · ")}
+                            {it.appearance.imprint ? ` · marking “${it.appearance.imprint}”` : ""}
+                          </div>
+                        )}
                       </div>
                     ))}
               </div>
@@ -242,7 +252,8 @@ function PrintLabel({ patient, tray }) {
         })}
 
         <div className="pm-label-foot">
-          Take as directed. Keep out of reach and sight of children. For identification support only — not a substitute for professional advice.
+          Take as directed. Keep out of reach and sight of children. Medication appearance is provided for
+          identification support only and may vary between manufacturers — not a substitute for professional advice.
         </div>
       </div>
     </div>
