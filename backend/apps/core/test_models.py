@@ -1,5 +1,3 @@
-import pytest
-
 from .models import SoftDeleteModel, TenantScopedQuerySet, TimeStampedModel
 
 
@@ -21,9 +19,5 @@ def test_soft_delete_model_exposes_soft_delete_fields():
     assert SoftDeleteModel._meta.get_field("deleted_at")
 
 
-def test_tenant_scoping_stub_raises():
-    with pytest.raises(
-        NotImplementedError,
-        match="Tenant scoping is implemented in Phase 1 Task 4.",
-    ):
-        TenantScopedQuerySet().for_user(None)
+def test_tenant_scoped_queryset_exposes_for_user():
+    assert hasattr(TenantScopedQuerySet, "for_user")

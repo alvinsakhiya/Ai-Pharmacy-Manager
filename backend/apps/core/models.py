@@ -25,7 +25,32 @@ class SoftDeleteModel(models.Model):
 
 class TenantScopedQuerySet(models.QuerySet):
     def for_user(self, user):
-        raise NotImplementedError("Tenant scoping is implemented in Phase 1 Task 4.")
+        from apps.tenancy.policy import resolve_scope
+
+        scope = resolve_scope(user)
+        if scope.is_global:
+            return self
+
+        tenant_pharmacy_id_field = getattr(
+            self.model,
+            "tenant_pharmacy_id_field",
+            None,
+        )
+        tenant_group_id_field = getattr(
+            self.model,
+            "tenant_group_id_field",
+            None,
+        )
+
+        if tenant_pharmacy_id_field:
+            return self.filter(
+                **{f"{tenant_pharmacy_id_field}__in": scope.pharmacy_ids}
+            )
+        if tenant_group_id_field:
+            return self.filter(**{f"{tenant_group_id_field}__in": scope.group_ids})
+
+        return self.none()
 
 
 TenantScopedManager = models.Manager.from_queryset(TenantScopedQuerySet)
+TenantScopedManager.use_in_migrations = False

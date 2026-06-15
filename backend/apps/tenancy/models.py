@@ -3,19 +3,26 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
-from apps.core.models import TimeStampedModel
+from apps.core.models import TenantScopedManager, TimeStampedModel
 
 
 class Group(TimeStampedModel):
+    tenant_group_id_field = "id"
+
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True)
     is_active = models.BooleanField(default=True)
+
+    objects = models.Manager()
+    scoped = TenantScopedManager()
 
     def __str__(self) -> str:
         return self.name
 
 
 class Pharmacy(TimeStampedModel):
+    tenant_pharmacy_id_field = "id"
+
     group = models.ForeignKey(
         Group,
         on_delete=models.PROTECT,
@@ -26,6 +33,9 @@ class Pharmacy(TimeStampedModel):
     address = models.TextField(blank=True)
     postcode = models.CharField(max_length=16, blank=True)
     is_active = models.BooleanField(default=True)
+
+    objects = models.Manager()
+    scoped = TenantScopedManager()
 
     class Meta:
         constraints = [
