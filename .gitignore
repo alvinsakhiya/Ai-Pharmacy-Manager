@@ -1,0 +1,40 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.sqlite3
+db.sqlite3
+
+# Django
+staticfiles/
+media/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+
+# Editors and local scratch files
+.idea/
+.vscode/
+main.py
+
+# Operating systems
+.DS_Store
+Thumbs.db
