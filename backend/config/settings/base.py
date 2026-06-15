@@ -33,6 +33,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "apps.core",
+    "apps.accounts",
+    "apps.tenancy",
+    "apps.audit",
 ]
 
 MIDDLEWARE = [

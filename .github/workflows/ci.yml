@@ -10,13 +10,27 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: pharmacy
+          POSTGRES_USER: pharmacy
+          POSTGRES_PASSWORD: pharmacy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pharmacy -d pharmacy"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
     env:
       DJANGO_SECRET_KEY: ci-only-secret-key
       DJANGO_SETTINGS_MODULE: config.settings.dev
-      DATABASE_URL: sqlite:///ci.sqlite3
+      DATABASE_URL: postgresql://pharmacy:pharmacy@localhost:5432/pharmacy
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,6 +41,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
+      - run: mypy .
       - run: pytest
 
   frontend:

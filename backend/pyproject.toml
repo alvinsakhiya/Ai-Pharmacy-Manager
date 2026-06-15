@@ -27,7 +27,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["config*"]
+include = ["config*", "apps*"]
 
 [tool.black]
 line-length = 88
