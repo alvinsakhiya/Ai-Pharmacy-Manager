@@ -14,6 +14,11 @@ class AuditAction(models.TextChoices):
     PASSWORD_RESET = "PASSWORD_RESET", "Password reset"
     ROLE_ASSIGNED = "ROLE_ASSIGNED", "Role assigned"
 
+    GROUP_CREATED = "GROUP_CREATED", "Group created"
+    GROUP_UPDATED = "GROUP_UPDATED", "Group updated"
+    PHARMACY_CREATED = "PHARMACY_CREATED", "Pharmacy created"
+    PHARMACY_UPDATED = "PHARMACY_UPDATED", "Pharmacy updated"
+
 
 class AuditEvent(models.Model):
     """Append-only audit event with application-level write protection.
