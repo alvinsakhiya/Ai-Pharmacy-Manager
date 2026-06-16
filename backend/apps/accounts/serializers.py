@@ -65,6 +65,12 @@ class UserCreateSerializer(serializers.Serializer):
         validate_password(value)
         return value
 
+    def validate_email(self, value: str) -> str:
+        normalized_email = User.objects.normalize_email(value)
+        if User.objects.filter(email__iexact=normalized_email).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return normalized_email
+
     def validate(self, attrs):
         request = self.context["request"]
         requester = request.user

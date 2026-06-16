@@ -204,6 +204,32 @@ def test_admin_can_create_user_in_any_pharmacy(client, user_api_data):
 
 
 @pytest.mark.django_db
+def test_duplicate_email_create_returns_validation_error(client, user_api_data):
+    authenticate(client, user_api_data["admin"])
+    existing_user = user_api_data["user_p1"]
+    user_count = User.objects.count()
+    membership_count = Membership.objects.count()
+
+    response = client.post(
+        "/api/users/",
+        {
+            "email": existing_user.email,
+            "full_name": "Duplicate User",
+            "password": NEW_PASSWORD,
+            "role": Role.DISPENSER,
+            "pharmacy_id": user_api_data["p1"].id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "email" in response.json()
+    assert User.objects.count() == user_count
+    assert Membership.objects.count() == membership_count
+    assert not AuditEvent.objects.filter(action=AuditAction.USER_CREATED).exists()
+
+
+@pytest.mark.django_db
 def test_pharmacist_lists_only_own_pharmacy_users(client, user_api_data):
     authenticate(client, user_api_data["pharmacist_p1"])
 
