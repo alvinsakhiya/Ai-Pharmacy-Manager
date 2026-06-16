@@ -24,6 +24,7 @@ class Action(StrEnum):
     USER_DEACTIVATE = "user.deactivate"
     USER_DELETE = "user.delete"
     USER_ASSIGN_ROLE = "user.assign_role"
+    USER_MANAGE = "user.manage"
 
     GROUP_MANAGE = "group.manage"
     PHARMACY_MANAGE = "pharmacy.manage"
@@ -70,6 +71,7 @@ ROLE_CAPABILITIES = {
             Action.USER_RESET_PASSWORD,
             Action.USER_DEACTIVATE,
             Action.USER_ASSIGN_ROLE,
+            Action.USER_MANAGE,
             Action.AUDIT_VIEW,
         }
     ),

@@ -9,6 +9,7 @@ class AuditAction(models.TextChoices):
 
     USER_CREATED = "USER_CREATED", "User created"
     USER_DEACTIVATED = "USER_DEACTIVATED", "User deactivated"
+    USER_DELETED = "USER_DELETED", "User deleted"
     PASSWORD_CHANGED = "PASSWORD_CHANGED", "Password changed"
     PASSWORD_RESET = "PASSWORD_RESET", "Password reset"
     ROLE_ASSIGNED = "ROLE_ASSIGNED", "Role assigned"
