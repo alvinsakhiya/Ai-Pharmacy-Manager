@@ -1,6 +1,7 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -10,11 +11,13 @@ from apps.tenancy.permissions import Action, require
 
 from .selectors import users_visible_to
 from .serializers import (
+    MembershipAssignmentSerializer,
     PasswordResetSerializer,
     UserCreateSerializer,
     UserReadSerializer,
     UserUpdateSerializer,
 )
+from .services import reassign_membership
 
 
 class UserListCreateView(APIView):
@@ -142,3 +145,37 @@ class UserResetPasswordView(APIView):
             )
 
         return Response({"detail": "Password reset."})
+
+
+class AssignMembershipView(APIView):
+    permission_classes = [require(Action.USER_ASSIGN_ROLE)]
+
+    def post(self, request, pk: int):
+        target = get_object_or_404(users_visible_to(request.user), pk=pk)
+        if target.pk == request.user.pk:
+            return Response(
+                {"detail": "You cannot reassign your own membership."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = MembershipAssignmentSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            reassign_membership(
+                target_user=target,
+                role=serializer.validated_data["role"],
+                group=serializer.validated_data.get("group"),
+                pharmacy=serializer.validated_data.get("pharmacy"),
+                pharmacies=serializer.validated_data.get("pharmacies"),
+                actor=request.user,
+                request=request,
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict or exc.messages) from exc
+
+        target.refresh_from_db()
+        return Response(UserReadSerializer(target).data)

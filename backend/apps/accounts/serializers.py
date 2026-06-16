@@ -3,7 +3,7 @@ from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 
-from apps.tenancy.models import Membership, Pharmacy, Role
+from apps.tenancy.models import Group, Membership, Pharmacy, Role
 from apps.tenancy.policy import get_active_membership, resolve_scope
 
 from .models import User
@@ -147,3 +147,125 @@ class PasswordResetSerializer(serializers.Serializer):
     def validate_new_password(self, value: str) -> str:
         validate_password(value)
         return value
+
+
+class MembershipAssignmentSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=Role.choices)
+    group_id = serializers.IntegerField(required=False, allow_null=True)
+    pharmacy_id = serializers.IntegerField(required=False, allow_null=True)
+    pharmacy_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        allow_empty=True,
+    )
+
+    def validate(self, attrs):
+        requester = self.context["request"].user
+        scope = resolve_scope(requester)
+        membership = get_active_membership(requester)
+        role = attrs["role"]
+        group_id = attrs.get("group_id")
+        pharmacy_id = attrs.get("pharmacy_id")
+        pharmacy_ids = attrs.get("pharmacy_ids", [])
+        group = None
+        pharmacy = None
+        pharmacies = []
+
+        if scope.is_global:
+            group, pharmacy, pharmacies = self._validate_global_scope(
+                role,
+                group_id,
+                pharmacy_id,
+                pharmacy_ids,
+            )
+        else:
+            group, pharmacy, pharmacies = self._validate_pharmacist_scope(
+                membership,
+                role,
+                group_id,
+                pharmacy_id,
+                pharmacy_ids,
+            )
+
+        attrs["group"] = group
+        attrs["pharmacy"] = pharmacy
+        attrs["pharmacies"] = pharmacies
+        return attrs
+
+    def _get_group(self, group_id):
+        try:
+            return Group.objects.get(pk=group_id)
+        except Group.DoesNotExist as exc:
+            raise serializers.ValidationError({"group_id": "Invalid group."}) from exc
+
+    def _get_pharmacy(self, pharmacy_id):
+        try:
+            return Pharmacy.objects.get(pk=pharmacy_id)
+        except Pharmacy.DoesNotExist as exc:
+            raise serializers.ValidationError(
+                {"pharmacy_id": "Invalid pharmacy."}
+            ) from exc
+
+    def _get_pharmacies(self, pharmacy_ids):
+        pharmacies = list(Pharmacy.objects.filter(pk__in=pharmacy_ids))
+        if len(pharmacies) != len(set(pharmacy_ids)):
+            raise serializers.ValidationError(
+                {"pharmacy_ids": "One or more pharmacies are invalid."}
+            )
+        return pharmacies
+
+    def _validate_global_scope(self, role, group_id, pharmacy_id, pharmacy_ids):
+        if role == Role.ADMIN:
+            if group_id is not None or pharmacy_id is not None or pharmacy_ids:
+                raise serializers.ValidationError(
+                    "Admin memberships must not have a scope."
+                )
+            return None, None, []
+
+        if role == Role.SUPERINTENDENT:
+            if group_id is None or pharmacy_id is not None or pharmacy_ids:
+                raise serializers.ValidationError(
+                    "Superintendent memberships require only a group."
+                )
+            return self._get_group(group_id), None, []
+
+        if role == Role.STOCK_EMPLOYEE:
+            if group_id is None or pharmacy_id is not None:
+                raise serializers.ValidationError(
+                    "Stock employee memberships require a group and selected "
+                    "pharmacies."
+                )
+            group = self._get_group(group_id)
+            pharmacies = self._get_pharmacies(pharmacy_ids)
+            if any(pharmacy.group_id != group.id for pharmacy in pharmacies):
+                raise serializers.ValidationError(
+                    {"pharmacy_ids": "Selected pharmacies must belong to the group."}
+                )
+            return group, None, pharmacies
+
+        if role in {Role.PHARMACIST, Role.DISPENSER}:
+            if pharmacy_id is None or group_id is not None or pharmacy_ids:
+                raise serializers.ValidationError(
+                    f"{role.title()} memberships require only a pharmacy."
+                )
+            return None, self._get_pharmacy(pharmacy_id), []
+
+        raise serializers.ValidationError({"role": "Invalid role."})
+
+    def _validate_pharmacist_scope(
+        self,
+        membership,
+        role,
+        group_id,
+        pharmacy_id,
+        pharmacy_ids,
+    ):
+        if membership is None or membership.role != Role.PHARMACIST:
+            raise PermissionDenied("You do not have permission to assign memberships.")
+        if role not in {Role.PHARMACIST, Role.DISPENSER}:
+            raise PermissionDenied("You can only assign pharmacy-scoped roles.")
+        if group_id is not None or pharmacy_ids:
+            raise PermissionDenied("You cannot assign group-scoped memberships.")
+        if pharmacy_id != membership.pharmacy_id:
+            raise PermissionDenied("You can only assign users in your pharmacy.")
+        return None, membership.pharmacy, []

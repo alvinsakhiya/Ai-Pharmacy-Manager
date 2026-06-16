@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .user_views import (
+    AssignMembershipView,
     UserDeactivateView,
     UserDetailView,
     UserListCreateView,
@@ -15,5 +16,10 @@ urlpatterns = [
         "<int:pk>/reset-password/",
         UserResetPasswordView.as_view(),
         name="user-reset-password",
+    ),
+    path(
+        "<int:pk>/assign-membership/",
+        AssignMembershipView.as_view(),
+        name="user-assign-membership",
     ),
 ]
