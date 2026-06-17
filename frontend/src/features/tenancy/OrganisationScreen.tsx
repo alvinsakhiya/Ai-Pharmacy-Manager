@@ -1,4 +1,5 @@
 import { GroupsSection } from "./GroupsSection";
+import { PharmaciesSection } from "./PharmaciesSection";
 
 export function OrganisationScreen() {
   return (
@@ -9,19 +10,14 @@ export function OrganisationScreen() {
           Organisation
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          Manage the high-level group structure for pharmacy organisations.
-          Pharmacy management arrives in the next task.
+          Manage the high-level group structure and pharmacies for pharmacy
+          organisations.
         </p>
       </section>
 
       <GroupsSection />
 
-      <section className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-6 shadow-sm">
-        <h2 className="text-xl font-bold text-slate-950">Pharmacies</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Pharmacy management arrives in the next task.
-        </p>
-      </section>
+      <PharmaciesSection />
     </div>
   );
 }
