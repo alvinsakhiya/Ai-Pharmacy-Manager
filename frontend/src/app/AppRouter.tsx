@@ -10,6 +10,7 @@ import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { ChangePasswordScreen } from "../features/auth/ChangePasswordScreen";
 import { LoginScreen } from "../features/auth/LoginScreen";
 import { UsersScreen } from "../features/users/UsersScreen";
+import { OrganisationScreen } from "../features/tenancy/OrganisationScreen";
 import { ModulePlaceholder } from "../features/placeholders/ModulePlaceholder";
 import { AppShell } from "./AppShell";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -58,10 +59,7 @@ export function AppRouter() {
               path="/tenancy"
               element={
                 <RequirePermission anyOf={["group.manage", "pharmacy.manage"]}>
-                  <ModulePlaceholder
-                    description="Organisation management screens will be added in Task 7B."
-                    title="Organisation"
-                  />
+                  <OrganisationScreen />
                 </RequirePermission>
               }
             />
