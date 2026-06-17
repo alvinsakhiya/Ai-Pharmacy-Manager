@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthContext";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { ChangePasswordScreen } from "../features/auth/ChangePasswordScreen";
 import { LoginScreen } from "../features/auth/LoginScreen";
+import { UsersScreen } from "../features/users/UsersScreen";
 import { ModulePlaceholder } from "../features/placeholders/ModulePlaceholder";
 import { AppShell } from "./AppShell";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -49,10 +50,7 @@ export function AppRouter() {
               path="/users"
               element={
                 <RequirePermission anyOf={["user.manage"]}>
-                  <ModulePlaceholder
-                    description="User management screens will be added in Task 7B."
-                    title="Users"
-                  />
+                  <UsersScreen />
                 </RequirePermission>
               }
             />
