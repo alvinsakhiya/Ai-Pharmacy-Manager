@@ -19,6 +19,12 @@ export interface ManagedUser {
 export interface PharmacyOption {
   id: number;
   name: string;
+  group: number;
+}
+
+export interface GroupOption {
+  id: number;
+  name: string;
 }
 
 export interface CreateUserBody {
@@ -27,6 +33,13 @@ export interface CreateUserBody {
   password: string;
   role: string;
   pharmacy_id?: number | null;
+}
+
+export interface AssignMembershipBody {
+  role: string;
+  group_id?: number;
+  pharmacy_id?: number;
+  pharmacy_ids?: number[];
 }
 
 export class ApiError extends Error {
@@ -98,4 +111,21 @@ export async function resetPassword(
 
 export async function listPharmaciesForPicker(): Promise<PharmacyOption[]> {
   return requestJson<PharmacyOption[]>("/api/tenancy/pharmacies/");
+}
+
+export async function listGroupsForPicker(): Promise<GroupOption[]> {
+  return requestJson<GroupOption[]>("/api/tenancy/groups/");
+}
+
+export async function assignMembership(
+  id: number,
+  body: AssignMembershipBody,
+): Promise<ManagedUser> {
+  return requestJson<ManagedUser>(`/api/users/${id}/assign-membership/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
 }

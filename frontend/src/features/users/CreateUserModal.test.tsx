@@ -44,8 +44,8 @@ describe("CreateUserModal", () => {
     vi.resetAllMocks();
     createUserMock.mockResolvedValue(createdUser());
     listPharmaciesForPickerMock.mockResolvedValue([
-      { id: 7, name: "North Pharmacy" },
-      { id: 8, name: "South Pharmacy" },
+      { id: 7, name: "North Pharmacy", group: 1 },
+      { id: 8, name: "South Pharmacy", group: 1 },
     ]);
   });
 

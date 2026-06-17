@@ -4,6 +4,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
 import { useDeactivateUser } from "./useUsers";
 import type { ManagedUser } from "./usersApi";
+import { ReassignMembershipModal } from "./ReassignMembershipModal";
 import { ResetPasswordModal } from "./ResetPasswordModal";
 
 interface UsersTableProps {
@@ -20,6 +21,7 @@ export function UsersTable({ users }: UsersTableProps) {
   const canManageUsers = can("user.manage");
   const deactivateUser = useDeactivateUser();
   const [resetTarget, setResetTarget] = useState<ManagedUser | null>(null);
+  const [reassignTarget, setReassignTarget] = useState<ManagedUser | null>(null);
 
   async function handleDeactivate(user: ManagedUser) {
     if (!window.confirm(`Deactivate ${user.email}?`)) {
@@ -64,6 +66,7 @@ export function UsersTable({ users }: UsersTableProps) {
                 const showDeactivate =
                   canManageUsers && managedUser.is_active && !isCurrentUser;
                 const showReset = canManageUsers;
+                const showReassign = canManageUsers && !isCurrentUser;
 
                 return (
                   <tr key={managedUser.id}>
@@ -116,6 +119,15 @@ export function UsersTable({ users }: UsersTableProps) {
                             Reset password
                           </button>
                         ) : null}
+                        {showReassign ? (
+                          <button
+                            className="rounded-lg border border-teal-200 px-3 py-1.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                            onClick={() => setReassignTarget(managedUser)}
+                            type="button"
+                          >
+                            Reassign membership
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -129,6 +141,10 @@ export function UsersTable({ users }: UsersTableProps) {
       <ResetPasswordModal
         onClose={() => setResetTarget(null)}
         user={resetTarget}
+      />
+      <ReassignMembershipModal
+        onClose={() => setReassignTarget(null)}
+        user={reassignTarget}
       />
     </>
   );

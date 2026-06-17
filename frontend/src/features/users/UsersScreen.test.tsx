@@ -21,11 +21,16 @@ vi.mock("./usersApi", async (importOriginal) => {
     deactivateUser: vi.fn(),
     resetPassword: vi.fn(),
     listPharmaciesForPicker: vi.fn(),
+    assignMembership: vi.fn(),
+    listGroupsForPicker: vi.fn(),
   };
 });
 
 const listUsersMock = vi.mocked(usersApi.listUsers);
 const resetPasswordMock = vi.mocked(usersApi.resetPassword);
+const assignMembershipMock = vi.mocked(usersApi.assignMembership);
+const listGroupsForPickerMock = vi.mocked(usersApi.listGroupsForPicker);
+const listPharmaciesForPickerMock = vi.mocked(usersApi.listPharmaciesForPicker);
 
 function makeManagedUser(overrides: Partial<ManagedUser> = {}): ManagedUser {
   return {
@@ -46,6 +51,11 @@ describe("UsersScreen", () => {
     vi.resetAllMocks();
     listUsersMock.mockResolvedValue([makeManagedUser()]);
     resetPasswordMock.mockResolvedValue({ detail: "Password reset." });
+    assignMembershipMock.mockResolvedValue(makeManagedUser());
+    listGroupsForPickerMock.mockResolvedValue([{ id: 1, name: "Group One" }]);
+    listPharmaciesForPickerMock.mockResolvedValue([
+      { id: 3, name: "Central Pharmacy", group: 1 },
+    ]);
   });
 
   it("renders user rows from the mocked list", async () => {
@@ -83,7 +93,15 @@ describe("UsersScreen", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides create, deactivate, and reset actions without permission", async () => {
+  it("shows the reassign action with user.manage", async () => {
+    renderWithProviders(<UsersScreen />);
+
+    expect(
+      await screen.findByRole("button", { name: "Reassign membership" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides create, deactivate, reset, and reassign actions without permission", async () => {
     renderWithProviders(<UsersScreen />, {
       auth: makeAuthContext({
         user: makeAuthUser({ permissions: {} }),
@@ -94,9 +112,12 @@ describe("UsersScreen", () => {
     expect(screen.queryByRole("button", { name: "Create user" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Deactivate" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Reset password" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Reassign membership" }),
+    ).toBeNull();
   });
 
-  it("hides deactivate for the current logged-in user", async () => {
+  it("hides deactivate and reassign for the current logged-in user", async () => {
     listUsersMock.mockResolvedValue([
       makeManagedUser({
         id: 1,
@@ -112,6 +133,9 @@ describe("UsersScreen", () => {
     expect(
       screen.getByRole("button", { name: "Reset password" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reassign membership" }),
+    ).toBeNull();
   });
 
   it("reset submit calls resetPassword", async () => {
@@ -156,5 +180,23 @@ describe("UsersScreen", () => {
     expect(
       await screen.findByText("This password is too weak."),
     ).toBeInTheDocument();
+  });
+
+  it("successful membership reassignment refetches users", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UsersScreen />);
+
+    await screen.findByText("team@example.com");
+    await user.click(
+      screen.getByRole("button", { name: "Reassign membership" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save membership" }));
+
+    await waitFor(() => {
+      expect(assignMembershipMock).toHaveBeenCalledWith(10, { role: "ADMIN" });
+    });
+    await waitFor(() => {
+      expect(listUsersMock).toHaveBeenCalledTimes(2);
+    });
   });
 });
