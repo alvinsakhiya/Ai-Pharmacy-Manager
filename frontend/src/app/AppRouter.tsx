@@ -9,9 +9,9 @@ import { useAuth } from "../auth/AuthContext";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { ChangePasswordScreen } from "../features/auth/ChangePasswordScreen";
 import { LoginScreen } from "../features/auth/LoginScreen";
+import { AuditScreen } from "../features/audit/AuditScreen";
 import { UsersScreen } from "../features/users/UsersScreen";
 import { OrganisationScreen } from "../features/tenancy/OrganisationScreen";
-import { ModulePlaceholder } from "../features/placeholders/ModulePlaceholder";
 import { AppShell } from "./AppShell";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { RequirePermission } from "./RequirePermission";
@@ -67,10 +67,7 @@ export function AppRouter() {
               path="/audit"
               element={
                 <RequirePermission anyOf={["audit.view"]}>
-                  <ModulePlaceholder
-                    description="Audit log screens will be added in Task 7B."
-                    title="Audit Log"
-                  />
+                  <AuditScreen />
                 </RequirePermission>
               }
             />
