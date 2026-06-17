@@ -76,6 +76,15 @@ describe("ProtectedRoute", () => {
     expect(await screen.findByText("Change password page")).toBeInTheDocument();
   });
 
+  it("does not render shell content when password change is required", async () => {
+    renderProtectedRoute({
+      user: makeUser({ must_change_password: true }),
+    });
+
+    expect(await screen.findByText("Change password page")).toBeInTheDocument();
+    expect(screen.queryByText("Protected content")).toBeNull();
+  });
+
   it("normal authenticated user renders protected content", () => {
     renderProtectedRoute({ user: makeUser() });
 

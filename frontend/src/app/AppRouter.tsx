@@ -6,16 +6,20 @@ import {
 } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
+import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { ChangePasswordScreen } from "../features/auth/ChangePasswordScreen";
 import { LoginScreen } from "../features/auth/LoginScreen";
+import { ModulePlaceholder } from "../features/placeholders/ModulePlaceholder";
+import { AppShell } from "./AppShell";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { RequirePermission } from "./RequirePermission";
 
 function LoginRoute() {
   const { loading, user } = useAuth();
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700">
         Loading...
       </main>
     );
@@ -32,34 +36,6 @@ function LoginRoute() {
   return <LoginScreen />;
 }
 
-function SignedInPlaceholder() {
-  const { logout, user } = useAuth();
-
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 py-16 text-slate-100">
-      <section className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl shadow-cyan-950/30">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
-          AI Pharmacy Manager
-        </p>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight">
-          Signed in as {user?.email} ({user?.role ?? "no role"})
-        </h1>
-        <p className="mt-4 text-slate-300">
-          Auth routing is ready. The full app shell and role-filtered navigation
-          arrive in the next frontend task.
-        </p>
-        <button
-          className="mt-8 rounded-lg bg-cyan-400 px-4 py-2 font-semibold text-slate-950 transition hover:bg-cyan-300"
-          onClick={() => void logout()}
-          type="button"
-        >
-          Logout
-        </button>
-      </section>
-    </main>
-  );
-}
-
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -67,7 +43,43 @@ export function AppRouter() {
         <Route path="/login" element={<LoginRoute />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/change-password" element={<ChangePasswordScreen />} />
-          <Route path="*" element={<SignedInPlaceholder />} />
+          <Route element={<AppShell />}>
+            <Route index element={<DashboardScreen />} />
+            <Route
+              path="/users"
+              element={
+                <RequirePermission anyOf={["user.manage"]}>
+                  <ModulePlaceholder
+                    description="User management screens will be added in Task 7B."
+                    title="Users"
+                  />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/tenancy"
+              element={
+                <RequirePermission anyOf={["group.manage", "pharmacy.manage"]}>
+                  <ModulePlaceholder
+                    description="Organisation management screens will be added in Task 7B."
+                    title="Organisation"
+                  />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/audit"
+              element={
+                <RequirePermission anyOf={["audit.view"]}>
+                  <ModulePlaceholder
+                    description="Audit log screens will be added in Task 7B."
+                    title="Audit Log"
+                  />
+                </RequirePermission>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>
