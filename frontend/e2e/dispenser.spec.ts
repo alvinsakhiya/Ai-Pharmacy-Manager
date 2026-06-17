@@ -1,0 +1,30 @@
+import { expect, test } from "@playwright/test";
+
+import {
+  expectAccessDenied,
+  expectNavHidden,
+  expectNavVisible,
+  login,
+  logout,
+} from "./helpers";
+
+test("dispenser only sees dashboard and is denied management routes", async ({
+  page,
+}) => {
+  await login(page, "dispenser@demo.local");
+
+  await expect(page.getByText("Dashboard landing")).toBeVisible();
+  await expectNavVisible(page, ["Dashboard"]);
+  await expectNavHidden(page, ["Users", "Organisation", "Audit Log"]);
+
+  await page.goto("/users");
+  await expectAccessDenied(page);
+
+  await page.goto("/tenancy");
+  await expectAccessDenied(page);
+
+  await page.goto("/audit");
+  await expectAccessDenied(page);
+
+  await logout(page);
+});
