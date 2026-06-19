@@ -1,4 +1,10 @@
+from datetime import date
+
 from rest_framework import serializers
+
+from apps.catalogue.models import Medication
+from apps.tenancy.models import Pharmacy
+from apps.tenancy.permissions import Action, can
 
 from .models import StockBatch, StockItem
 
@@ -47,3 +53,49 @@ class StockItemDetailSerializer(StockItemSerializer):
     class Meta(StockItemSerializer.Meta):
         fields = [*StockItemSerializer.Meta.fields, "batches"]
         read_only_fields = fields
+
+
+class ReceiveStockSerializer(serializers.Serializer):
+    pharmacy = serializers.PrimaryKeyRelatedField(queryset=Pharmacy.objects.all())
+    medication = serializers.PrimaryKeyRelatedField(queryset=Medication.objects.all())
+    batch_number = serializers.CharField(max_length=64)
+    expiry_date = serializers.DateField()
+    quantity = serializers.IntegerField(min_value=1)
+    received_at = serializers.DateField(required=False)
+    unit_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
+    reason = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    reference = serializers.CharField(max_length=128, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        pharmacy = attrs["pharmacy"]
+        medication = attrs["medication"]
+        received_at = attrs.get("received_at") or date.today()
+        expiry_date = attrs["expiry_date"]
+
+        if request is not None and not can(
+            request.user,
+            Action.STOCK_MANAGE,
+            target=pharmacy,
+        ):
+            raise serializers.ValidationError(
+                {"pharmacy": ["This pharmacy is outside your stock scope."]}
+            )
+
+        if medication.group_id != pharmacy.group_id:
+            raise serializers.ValidationError(
+                {"medication": ["Medication does not belong to this pharmacy's group."]}
+            )
+
+        if expiry_date < received_at:
+            raise serializers.ValidationError(
+                {"expiry_date": ["Expiry date cannot be before the received date."]}
+            )
+
+        attrs["received_at"] = received_at
+        return attrs
