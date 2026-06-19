@@ -2,8 +2,10 @@ from django.db import models
 
 from apps.core.models import SoftDeleteModel, TenantScopedManager, TimeStampedModel
 
-# These fictional demo fields are stored as plaintext in Module 7A.
-# Field-level encryption is planned for Module 7B; never store real patient data.
+from .fields import EncryptedDateField, EncryptedTextField
+
+# These fictional demo fields use prototype application-level encryption at rest.
+# This does not make compliance claims; never store real patient data.
 SENSITIVE_PATIENT_FIELDS = (
     "first_name",
     "last_name",
@@ -24,19 +26,19 @@ class Patient(TimeStampedModel, SoftDeleteModel):
         related_name="patients",
     )
     patient_reference = models.CharField(max_length=64)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    date_of_birth = models.DateField()
-    address = models.TextField(blank=True)
-    postcode = models.CharField(max_length=20, blank=True)
-    phone = models.CharField(max_length=32, blank=True)
-    notes = models.TextField(blank=True)
+    first_name = EncryptedTextField(max_length=100)
+    last_name = EncryptedTextField(max_length=100)
+    date_of_birth = EncryptedDateField()
+    address = EncryptedTextField(blank=True)
+    postcode = EncryptedTextField(max_length=20, blank=True)
+    phone = EncryptedTextField(max_length=32, blank=True)
+    notes = EncryptedTextField(blank=True)
 
     objects = models.Manager()
     scoped = TenantScopedManager()
 
     class Meta:
-        ordering = ["last_name", "first_name"]
+        ordering = ["patient_reference"]
         constraints = [
             models.UniqueConstraint(
                 fields=["pharmacy", "patient_reference"],

@@ -21,6 +21,10 @@ def env_list(name: str, default: str = "") -> list[str]:
 
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-development-key")
+# Dev/test-only fallback Fernet key for prototype patient field encryption.
+# Set PATIENT_FIELD_KEY outside local development; this fallback is not secret.
+PATIENT_FIELD_KEY_DEV_DEFAULT = "YaKhc3E0z_nLejfE-AK0J6LQJS6RCfoaL8lctbICjwM="
+PATIENT_FIELD_KEY = os.getenv("PATIENT_FIELD_KEY", PATIENT_FIELD_KEY_DEV_DEFAULT)
 DEBUG = env_bool("DJANGO_DEBUG")
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 

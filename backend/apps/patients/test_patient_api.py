@@ -245,14 +245,27 @@ def test_invalid_pharmacy_filter_returns_empty(client, patient_api_data):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("term", ["alice", "SUTTON", "P1-001"])
-def test_search_filters_within_scoped_queryset(client, patient_api_data, term):
+def test_search_filters_by_patient_reference_within_scoped_queryset(
+    client,
+    patient_api_data,
+):
+    authenticate(client, patient_api_data["pharmacist"])
+
+    response = client.get("/api/patients/", {"search": "P1-001"})
+
+    assert response.status_code == 200
+    assert ids_from_response(response) == {patient_api_data["patient_one"].id}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("term", ["alice", "SUTTON"])
+def test_name_search_is_temporarily_disabled(client, patient_api_data, term):
     authenticate(client, patient_api_data["pharmacist"])
 
     response = client.get("/api/patients/", {"search": term})
 
     assert response.status_code == 200
-    assert ids_from_response(response) == {patient_api_data["patient_one"].id}
+    assert response.json() == []
 
 
 @pytest.mark.django_db
@@ -263,6 +276,19 @@ def test_search_does_not_leak_cross_pharmacy_patients(client, patient_api_data):
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_patient_detail_returns_plaintext_sensitive_fields(client, patient_api_data):
+    authenticate(client, patient_api_data["pharmacist"])
+
+    response = client.get(f"/api/patients/{patient_api_data['patient_one'].id}/")
+
+    assert response.status_code == 200
+    assert response.json()["first_name"] == "Alice"
+    assert response.json()["last_name"] == "Sutton"
+    assert response.json()["date_of_birth"] == "1980-01-01"
+    assert response.json()["notes"] == "P1-001 private note"
 
 
 @pytest.mark.django_db

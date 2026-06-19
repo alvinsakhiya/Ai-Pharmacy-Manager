@@ -6,6 +6,8 @@ from .models import Patient
 
 
 class PatientSerializer(serializers.ModelSerializer):
+    date_of_birth = serializers.DateField()
+
     class Meta:
         model = Patient
         fields = [
