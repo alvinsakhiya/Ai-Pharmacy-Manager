@@ -8,6 +8,7 @@ from django.test import override_settings
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.catalogue.models import Medication, MedicationForm
+from apps.inventory.models import StockBatch, StockItem
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 
 DEMO_PASSWORD = "DemoPass!2026"
@@ -67,6 +68,17 @@ def test_seed_demo_creates_expected_demo_data():
         Membership.objects.filter(user__email__in=DEMO_EMAILS, is_active=True).count()
         == 5
     )
+
+    sutton = Pharmacy.objects.get(group=group, code="SUT")
+    croydon = Pharmacy.objects.get(group=group, code="CRO")
+    wimbledon = Pharmacy.objects.get(group=group, code="WIM")
+    assert StockItem.objects.filter(pharmacy=sutton).count() == 3
+    assert StockItem.objects.filter(pharmacy=croydon).count() == 3
+    assert StockItem.objects.filter(pharmacy=wimbledon).count() == 0
+    assert StockBatch.objects.filter(stock_item__pharmacy=sutton).count() == 4
+    assert StockBatch.objects.filter(stock_item__pharmacy=croydon).count() == 3
+    assert StockBatch.objects.filter(stock_item__pharmacy=wimbledon).count() == 0
+
     assert "local demo credentials only" in output
     assert DEMO_PASSWORD in output
     assert AuditEvent.objects.count() == 0
@@ -144,6 +156,12 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
         "groups": Group.objects.filter(slug="jmw-pharmacy-group").count(),
         "pharmacies": Pharmacy.objects.filter(group=get_demo_group()).count(),
         "medications": Medication.objects.filter(group=get_demo_group()).count(),
+        "stock_items": StockItem.objects.filter(
+            pharmacy__group=get_demo_group(),
+        ).count(),
+        "stock_batches": StockBatch.objects.filter(
+            stock_item__pharmacy__group=get_demo_group(),
+        ).count(),
         "users": User.objects.filter(email__in=DEMO_EMAILS).count(),
         "memberships": Membership.objects.filter(
             user__email__in=DEMO_EMAILS,
@@ -164,6 +182,16 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
     assert (
         Medication.objects.filter(group=get_demo_group()).count()
         == first_counts["medications"]
+    )
+    assert (
+        StockItem.objects.filter(pharmacy__group=get_demo_group()).count()
+        == first_counts["stock_items"]
+    )
+    assert (
+        StockBatch.objects.filter(
+            stock_item__pharmacy__group=get_demo_group(),
+        ).count()
+        == first_counts["stock_batches"]
     )
     assert User.objects.filter(email__in=DEMO_EMAILS).count() == first_counts["users"]
     assert (

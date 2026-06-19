@@ -2,9 +2,11 @@
 
 This command is for development/demo use only. It creates fictional
 ``@demo.local`` accounts for local demos and tests, and does not create real
-patient, NHS, customer, or stock data.
+patient, NHS, customer, or movement data.
 """
 
+from datetime import date
+from decimal import Decimal
 from typing import NamedTuple
 
 from django.conf import settings
@@ -13,6 +15,7 @@ from django.db import transaction
 
 from apps.accounts.models import User
 from apps.catalogue.models import Medication, MedicationForm
+from apps.inventory.models import StockBatch, StockItem
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 
 DEMO_PASSWORD = "DemoPass!2026"
@@ -36,6 +39,65 @@ MEDICATIONS = [
         "form": MedicationForm.INHALER,
         "strength": "100 micrograms/dose",
     },
+]
+
+STOCK_RECEIVED_AT = date(2026, 1, 15)
+
+
+class DemoStockBatch(NamedTuple):
+    batch_number: str
+    expiry_date: date
+    quantity: int
+    quantity_received: int
+
+
+class DemoStockItem(NamedTuple):
+    pharmacy_code: str
+    medication_name: str
+    unit_price: Decimal
+    batches: tuple[DemoStockBatch, ...]
+
+
+STOCK_ITEMS = [
+    DemoStockItem(
+        "SUT",
+        "Paracetamol",
+        Decimal("0.03"),
+        (
+            DemoStockBatch("SUT-PAR-001", date(2027, 1, 31), 120, 150),
+            DemoStockBatch("SUT-PAR-002", date(2027, 6, 30), 80, 100),
+        ),
+    ),
+    DemoStockItem(
+        "SUT",
+        "Ibuprofen",
+        Decimal("0.04"),
+        (DemoStockBatch("SUT-IBU-001", date(2027, 3, 31), 90, 100),),
+    ),
+    DemoStockItem(
+        "SUT",
+        "Amlodipine",
+        Decimal("0.06"),
+        (DemoStockBatch("SUT-AML-001", date(2028, 2, 29), 60, 60),),
+    ),
+    DemoStockItem(
+        "CRO",
+        "Paracetamol",
+        Decimal("0.03"),
+        (DemoStockBatch("CRO-PAR-001", date(2027, 2, 28), 110, 120),),
+    ),
+    DemoStockItem(
+        "CRO",
+        "Ibuprofen",
+        Decimal("0.04"),
+        (DemoStockBatch("CRO-IBU-001", date(2027, 4, 30), 75, 80),),
+    ),
+    DemoStockItem(
+        "CRO",
+        "Amlodipine",
+        Decimal("0.06"),
+        (DemoStockBatch("CRO-AML-001", date(2028, 1, 31), 55, 60),),
+    ),
 ]
 
 
@@ -128,6 +190,7 @@ class Command(BaseCommand):
                 user_statuses.append((user, created))
 
             medication_statuses = []
+            medications_by_name = {}
             for medication_data in MEDICATIONS:
                 medication, created = Medication.objects.get_or_create(
                     group=group,
@@ -139,6 +202,61 @@ class Command(BaseCommand):
                 medication.is_active = True
                 medication.save(update_fields=["is_active", "updated_at"])
                 medication_statuses.append((medication, created))
+                medications_by_name[medication.name] = medication
+
+            stock_item_statuses = []
+            stock_batch_statuses = []
+            for stock_data in STOCK_ITEMS:
+                stock_item, created = StockItem.objects.get_or_create(
+                    pharmacy=pharmacies_by_code[stock_data.pharmacy_code],
+                    medication=medications_by_name[stock_data.medication_name],
+                    defaults={
+                        "is_active": True,
+                        "reorder_level": 20,
+                        "unit_price": stock_data.unit_price,
+                    },
+                )
+                stock_item.is_active = True
+                stock_item.reorder_level = 20
+                stock_item.unit_price = stock_data.unit_price
+                stock_item.save(
+                    update_fields=[
+                        "is_active",
+                        "reorder_level",
+                        "unit_price",
+                        "updated_at",
+                    ]
+                )
+                stock_item_statuses.append((stock_item, created))
+
+                for batch_data in stock_data.batches:
+                    batch, batch_created = StockBatch.objects.get_or_create(
+                        stock_item=stock_item,
+                        batch_number=batch_data.batch_number,
+                        defaults={
+                            "expiry_date": batch_data.expiry_date,
+                            "quantity": batch_data.quantity,
+                            "quantity_received": batch_data.quantity_received,
+                            "received_at": STOCK_RECEIVED_AT,
+                            "is_active": True,
+                        },
+                    )
+                    batch.expiry_date = batch_data.expiry_date
+                    batch.quantity = batch_data.quantity
+                    batch.quantity_received = batch_data.quantity_received
+                    batch.received_at = STOCK_RECEIVED_AT
+                    batch.is_active = True
+                    batch.save(
+                        update_fields=[
+                            "expiry_date",
+                            "quantity",
+                            "quantity_received",
+                            "received_at",
+                            "is_active",
+                            "updated_at",
+                        ]
+                    )
+                    stock_batch_statuses.append((batch, batch_created))
 
         self.stdout.write(self.style.SUCCESS("Seeded local demo data."))
         self.stdout.write(
@@ -159,6 +277,11 @@ class Command(BaseCommand):
                 f"- {medication.name} {medication.strength} "
                 f"({'created' if created else 'found'})"
             )
+        self.stdout.write("Stock:")
+        self.stdout.write(
+            f"- {len(stock_item_statuses)} stock items, "
+            f"{len(stock_batch_statuses)} batches"
+        )
         self.stdout.write(
             f"Shared password ({self.style.WARNING('local demo credentials only')}): "
             f"{DEMO_PASSWORD}"
