@@ -77,3 +77,18 @@ export async function openFirstStockItemDetail(page: Page) {
     page.getByRole("link", { name: "Back to inventory" }),
   ).toBeVisible();
 }
+
+export async function openPatients(page: Page) {
+  await nav(page).getByRole("link", { name: "Patients", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Patients", exact: true }),
+  ).toBeVisible();
+}
+
+export async function openFirstPatientDetail(page: Page) {
+  await page.getByRole("link", { name: "View" }).first().click();
+  await expect(page).toHaveURL(/\/patients\/\d+$/);
+  await expect(
+    page.getByRole("link", { name: "Back to patients" }),
+  ).toBeVisible();
+}
