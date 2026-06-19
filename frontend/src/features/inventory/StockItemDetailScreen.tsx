@@ -1,5 +1,10 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { usePermissions } from "../../auth/usePermissions";
+import { AdjustBatchModal } from "./AdjustBatchModal";
+import { CountBatchModal } from "./CountBatchModal";
+import { ReceiveStockModal } from "./ReceiveStockModal";
 import type { StockBatch } from "./inventoryApi";
 import { useStockItemQuery } from "./useInventory";
 import { usePharmacyNames } from "./usePharmacyNames";
@@ -46,7 +51,17 @@ function DetailValue({
   );
 }
 
-function BatchRow({ batch }: { batch: StockBatch }) {
+function BatchRow({
+  batch,
+  canManage,
+  onAdjust,
+  onCount,
+}: {
+  batch: StockBatch;
+  canManage: boolean;
+  onAdjust: (batch: StockBatch) => void;
+  onCount: (batch: StockBatch) => void;
+}) {
   return (
     <tr>
       <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
@@ -67,16 +82,43 @@ function BatchRow({ batch }: { batch: StockBatch }) {
       <td className="whitespace-nowrap px-4 py-4 text-sm">
         <StatusPill active={batch.is_active} />
       </td>
+      {canManage ? (
+        <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+          <div className="flex justify-end gap-2">
+            <button
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              onClick={() => onAdjust(batch)}
+              type="button"
+            >
+              Adjust
+            </button>
+            <button
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              onClick={() => onCount(batch)}
+              type="button"
+            >
+              Count
+            </button>
+          </div>
+        </td>
+      ) : null}
     </tr>
   );
 }
 
 export function StockItemDetailScreen() {
+  const { can } = usePermissions();
   const { stockItemId } = useParams();
   const parsedStockItemId = Number(stockItemId);
   const isValidStockItemId = Number.isFinite(parsedStockItemId);
   const stockItemQuery = useStockItemQuery(parsedStockItemId);
   const { pharmacyName } = usePharmacyNames();
+  const canManage = can("stock.manage");
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [batchAction, setBatchAction] = useState<{
+    type: "adjust" | "count";
+    batch: StockBatch;
+  } | null>(null);
 
   if (!isValidStockItemId) {
     return (
@@ -143,7 +185,18 @@ export function StockItemDetailScreen() {
               {stockItem.medication_name}
             </h1>
           </div>
-          <StatusPill active={stockItem.is_active} />
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusPill active={stockItem.is_active} />
+            {canManage ? (
+              <button
+                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                onClick={() => setReceiveOpen(true)}
+                type="button"
+              >
+                Receive stock
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -192,17 +245,52 @@ export function StockItemDetailScreen() {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Status
                   </th>
+                  {canManage ? (
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Actions
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
                 {stockItem.batches.map((batch) => (
-                  <BatchRow batch={batch} key={batch.id} />
+                  <BatchRow
+                    batch={batch}
+                    canManage={canManage}
+                    key={batch.id}
+                    onAdjust={(nextBatch) =>
+                      setBatchAction({ type: "adjust", batch: nextBatch })
+                    }
+                    onCount={(nextBatch) =>
+                      setBatchAction({ type: "count", batch: nextBatch })
+                    }
+                  />
                 ))}
               </tbody>
             </table>
           </div>
         </section>
       )}
+
+      <ReceiveStockModal
+        isOpen={receiveOpen}
+        onClose={() => setReceiveOpen(false)}
+        stockItem={stockItem}
+      />
+      {batchAction?.type === "adjust" ? (
+        <AdjustBatchModal
+          batch={batchAction.batch}
+          isOpen
+          onClose={() => setBatchAction(null)}
+        />
+      ) : null}
+      {batchAction?.type === "count" ? (
+        <CountBatchModal
+          batch={batchAction.batch}
+          isOpen
+          onClose={() => setBatchAction(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getStockItem, listStockItems } from "./inventoryApi";
+import {
+  adjustBatch,
+  countBatch,
+  getStockItem,
+  listStockItems,
+  receiveStock,
+  type AdjustBatchBody,
+  type CountBatchBody,
+  type ReceiveStockBody,
+} from "./inventoryApi";
 
 export function useStockItemsQuery(pharmacyId?: number) {
   return useQuery({
@@ -15,5 +24,40 @@ export function useStockItemQuery(id: number) {
     queryKey: ["stock-items", "detail", id],
     queryFn: () => getStockItem(id),
     enabled: Number.isFinite(id),
+  });
+}
+
+export function useReceiveStock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: ReceiveStockBody) => receiveStock(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["stock-items"] });
+    },
+  });
+}
+
+export function useAdjustBatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ batchId, body }: { batchId: number; body: AdjustBatchBody }) =>
+      adjustBatch(batchId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["stock-items"] });
+    },
+  });
+}
+
+export function useCountBatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ batchId, body }: { batchId: number; body: CountBatchBody }) =>
+      countBatch(batchId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["stock-items"] });
+    },
   });
 }
