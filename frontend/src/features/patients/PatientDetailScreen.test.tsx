@@ -1,0 +1,122 @@
+import { Route, Routes } from "react-router-dom";
+import { screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  makeAuthContext,
+  makeAuthUser,
+  renderWithProviders,
+} from "../../test/providers";
+import { PatientDetailScreen } from "./PatientDetailScreen";
+import type { Patient } from "./patientApi";
+import * as patientApi from "./patientApi";
+
+vi.mock("./patientApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./patientApi")>();
+  return {
+    ...actual,
+    listPatients: vi.fn(),
+    getPatient: vi.fn(),
+  };
+});
+
+const getPatientMock = vi.mocked(patientApi.getPatient);
+
+function makePatient(overrides: Partial<Patient> = {}): Patient {
+  return {
+    id: 20,
+    pharmacy: 1,
+    patient_reference: "SUT-P1",
+    first_name: "Alice",
+    last_name: "Sutton",
+    date_of_birth: "1980-01-01",
+    address: "1 Demo Street, Sutton",
+    postcode: "SM1 1AA",
+    phone: "020 0000 0001",
+    notes: "Fictional patient note",
+    is_active: true,
+    created_at: "2026-06-19T09:00:00Z",
+    updated_at: "2026-06-19T09:00:00Z",
+    ...overrides,
+  };
+}
+
+function patientAuth() {
+  return makeAuthContext({
+    user: makeAuthUser({
+      permissions: {
+        "patient.view": true,
+      },
+      pharmacies: [
+        { id: 1, name: "JMW Sutton" },
+        { id: 2, name: "JMW Croydon" },
+      ],
+    }),
+  });
+}
+
+function renderDetail(route = "/patients/20") {
+  return renderWithProviders(
+    <Routes>
+      <Route element={<PatientDetailScreen />} path="/patients/:patientId" />
+    </Routes>,
+    { auth: patientAuth(), route },
+  );
+}
+
+describe("PatientDetailScreen", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    getPatientMock.mockResolvedValue(makePatient());
+  });
+
+  it("loads the patient from the route parameter", async () => {
+    renderDetail();
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    expect(getPatientMock).toHaveBeenCalledWith(20);
+  });
+
+  it("renders patient demographics", async () => {
+    renderDetail();
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    expect(screen.getByText("SUT-P1")).toBeInTheDocument();
+    expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
+    expect(screen.getByText("01 Jan 1980")).toBeInTheDocument();
+    expect(screen.getByText("1 Demo Street, Sutton")).toBeInTheDocument();
+    expect(screen.getByText("SM1 1AA")).toBeInTheDocument();
+    expect(screen.getByText("020 0000 0001")).toBeInTheDocument();
+    expect(screen.getByText("Fictional patient note")).toBeInTheDocument();
+  });
+
+  it("links back to the patient list", async () => {
+    renderDetail();
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to patients" })).toHaveAttribute(
+      "href",
+      "/patients",
+    );
+  });
+
+  it("does not render mutation or note-history controls", async () => {
+    renderDetail();
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /deactivate/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /add note/i })).toBeNull();
+    expect(screen.queryByText("Note history")).toBeNull();
+  });
+
+  it("shows not found or out-of-access error state", async () => {
+    getPatientMock.mockRejectedValue(new Error("Not found"));
+
+    renderDetail();
+
+    expect(
+      await screen.findByText("This patient was not found or is outside your access."),
+    ).toBeInTheDocument();
+  });
+});

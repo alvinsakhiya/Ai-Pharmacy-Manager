@@ -13,6 +13,8 @@ import { AuditScreen } from "../features/audit/AuditScreen";
 import { MedicationsScreen } from "../features/catalogue/MedicationsScreen";
 import { InventoryScreen } from "../features/inventory/InventoryScreen";
 import { StockItemDetailScreen } from "../features/inventory/StockItemDetailScreen";
+import { PatientDetailScreen } from "../features/patients/PatientDetailScreen";
+import { PatientsScreen } from "../features/patients/PatientsScreen";
 import { UsersScreen } from "../features/users/UsersScreen";
 import { OrganisationScreen } from "../features/tenancy/OrganisationScreen";
 import { AppShell } from "./AppShell";
@@ -87,6 +89,22 @@ export function AppRouter() {
               element={
                 <RequirePermission anyOf={["stock.view"]}>
                   <StockItemDetailScreen />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/patients"
+              element={
+                <RequirePermission anyOf={["patient.view"]}>
+                  <PatientsScreen />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/patients/:patientId"
+              element={
+                <RequirePermission anyOf={["patient.view"]}>
+                  <PatientDetailScreen />
                 </RequirePermission>
               }
             />
