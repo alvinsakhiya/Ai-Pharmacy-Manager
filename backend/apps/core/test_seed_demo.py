@@ -9,6 +9,7 @@ from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.catalogue.models import Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem
+from apps.patients.models import Patient
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 
 DEMO_PASSWORD = "DemoPass!2026"
@@ -78,8 +79,18 @@ def test_seed_demo_creates_expected_demo_data():
     assert StockBatch.objects.filter(stock_item__pharmacy=sutton).count() == 4
     assert StockBatch.objects.filter(stock_item__pharmacy=croydon).count() == 3
     assert StockBatch.objects.filter(stock_item__pharmacy=wimbledon).count() == 0
+    assert Patient.objects.filter(pharmacy=sutton).count() == 2
+    assert Patient.objects.filter(pharmacy=croydon).count() == 2
+    assert Patient.objects.filter(pharmacy=wimbledon).count() == 0
+    assert set(Patient.objects.values_list("patient_reference", flat=True)) == {
+        "SUT-P1",
+        "SUT-P2",
+        "CRO-P1",
+        "CRO-P2",
+    }
 
     assert "local demo credentials only" in output
+    assert "Patients:" in output
     assert DEMO_PASSWORD in output
     assert AuditEvent.objects.count() == 0
 
@@ -162,6 +173,7 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
         "stock_batches": StockBatch.objects.filter(
             stock_item__pharmacy__group=get_demo_group(),
         ).count(),
+        "patients": Patient.objects.filter(pharmacy__group=get_demo_group()).count(),
         "users": User.objects.filter(email__in=DEMO_EMAILS).count(),
         "memberships": Membership.objects.filter(
             user__email__in=DEMO_EMAILS,
@@ -193,6 +205,10 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
         ).count()
         == first_counts["stock_batches"]
     )
+    assert (
+        Patient.objects.filter(pharmacy__group=get_demo_group()).count()
+        == first_counts["patients"]
+    )
     assert User.objects.filter(email__in=DEMO_EMAILS).count() == first_counts["users"]
     assert (
         Membership.objects.filter(user__email__in=DEMO_EMAILS, is_active=True).count()
@@ -202,6 +218,7 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
     assert admin.check_password(DEMO_PASSWORD) is True
     assert admin.must_change_password is False
     assert admin.is_active is True
+    assert AuditEvent.objects.count() == 0
 
 
 @pytest.mark.django_db

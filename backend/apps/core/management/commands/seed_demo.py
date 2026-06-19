@@ -1,8 +1,8 @@
 """Seed fictional development/demo accounts and tenancy data.
 
 This command is for development/demo use only. It creates fictional
-``@demo.local`` accounts for local demos and tests, and does not create real
-patient, NHS, customer, or movement data.
+``@demo.local`` accounts and fictional patient records for local demos and
+tests, and does not create real patient, NHS, customer, or movement data.
 """
 
 from datetime import date
@@ -16,6 +16,7 @@ from django.db import transaction
 from apps.accounts.models import User
 from apps.catalogue.models import Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem
+from apps.patients.models import Patient
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 
 DEMO_PASSWORD = "DemoPass!2026"
@@ -97,6 +98,66 @@ STOCK_ITEMS = [
         "Amlodipine",
         Decimal("0.06"),
         (DemoStockBatch("CRO-AML-001", date(2028, 1, 31), 55, 60),),
+    ),
+]
+
+
+class DemoPatient(NamedTuple):
+    pharmacy_code: str
+    patient_reference: str
+    first_name: str
+    last_name: str
+    date_of_birth: date
+    address: str
+    postcode: str
+    phone: str
+    notes: str
+
+
+DEMO_PATIENTS = [
+    DemoPatient(
+        "SUT",
+        "SUT-P1",
+        "Demo",
+        "PatientOne",
+        date(1980, 1, 1),
+        "1 Demo Street, Sutton",
+        "SM1 1AA",
+        "020 0000 0001",
+        "Fictional local demo patient.",
+    ),
+    DemoPatient(
+        "SUT",
+        "SUT-P2",
+        "Demo",
+        "PatientTwo",
+        date(1975, 5, 12),
+        "2 Demo Street, Sutton",
+        "SM1 1AB",
+        "020 0000 0002",
+        "Fictional local demo patient.",
+    ),
+    DemoPatient(
+        "CRO",
+        "CRO-P1",
+        "Demo",
+        "PatientThree",
+        date(1990, 9, 23),
+        "3 Demo Road, Croydon",
+        "CR0 1AA",
+        "020 0000 0003",
+        "Fictional local demo patient.",
+    ),
+    DemoPatient(
+        "CRO",
+        "CRO-P2",
+        "Demo",
+        "PatientFour",
+        date(1968, 3, 14),
+        "4 Demo Road, Croydon",
+        "CR0 1AB",
+        "020 0000 0004",
+        "Fictional local demo patient.",
     ),
 ]
 
@@ -258,6 +319,45 @@ class Command(BaseCommand):
                     )
                     stock_batch_statuses.append((batch, batch_created))
 
+            patient_statuses = []
+            for patient_data in DEMO_PATIENTS:
+                patient, created = Patient.objects.get_or_create(
+                    pharmacy=pharmacies_by_code[patient_data.pharmacy_code],
+                    patient_reference=patient_data.patient_reference,
+                    defaults={
+                        "first_name": patient_data.first_name,
+                        "last_name": patient_data.last_name,
+                        "date_of_birth": patient_data.date_of_birth,
+                        "address": patient_data.address,
+                        "postcode": patient_data.postcode,
+                        "phone": patient_data.phone,
+                        "notes": patient_data.notes,
+                        "is_active": True,
+                    },
+                )
+                patient.first_name = patient_data.first_name
+                patient.last_name = patient_data.last_name
+                patient.date_of_birth = patient_data.date_of_birth
+                patient.address = patient_data.address
+                patient.postcode = patient_data.postcode
+                patient.phone = patient_data.phone
+                patient.notes = patient_data.notes
+                patient.is_active = True
+                patient.save(
+                    update_fields=[
+                        "first_name",
+                        "last_name",
+                        "date_of_birth",
+                        "address",
+                        "postcode",
+                        "phone",
+                        "notes",
+                        "is_active",
+                        "updated_at",
+                    ]
+                )
+                patient_statuses.append((patient, created))
+
         self.stdout.write(self.style.SUCCESS("Seeded local demo data."))
         self.stdout.write(
             f"Group: {group.name} ({'created' if group_created else 'found'})"
@@ -282,6 +382,8 @@ class Command(BaseCommand):
             f"- {len(stock_item_statuses)} stock items, "
             f"{len(stock_batch_statuses)} batches"
         )
+        self.stdout.write("Patients:")
+        self.stdout.write(f"- {len(patient_statuses)} fictional patient records")
         self.stdout.write(
             f"Shared password ({self.style.WARNING('local demo credentials only')}): "
             f"{DEMO_PASSWORD}"

@@ -22,6 +22,10 @@ class AuditAction(models.TextChoices):
     MEDICATION_CREATED = "MEDICATION_CREATED", "Medication created"
     MEDICATION_UPDATED = "MEDICATION_UPDATED", "Medication updated"
 
+    PATIENT_CREATED = "PATIENT_CREATED", "Patient created"
+    PATIENT_UPDATED = "PATIENT_UPDATED", "Patient updated"
+    PATIENT_DEACTIVATED = "PATIENT_DEACTIVATED", "Patient deactivated"
+
     STOCK_RECEIVED = "STOCK_RECEIVED", "Stock received"
     STOCK_ADJUSTED = "STOCK_ADJUSTED", "Stock adjusted"
     STOCK_COUNT_RECONCILED = "STOCK_COUNT_RECONCILED", "Stock count reconciled"
