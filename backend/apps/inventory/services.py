@@ -103,3 +103,121 @@ def receive_stock(
         )
 
         return stock_item, movement
+
+
+def adjust_stock(
+    *,
+    actor,
+    batch,
+    delta,
+    reason,
+    reference="",
+    request=None,
+) -> tuple[StockItem, StockMovement]:
+    with transaction.atomic():
+        batch = (
+            StockBatch.objects.select_for_update()
+            .select_related("stock_item", "stock_item__pharmacy")
+            .get(pk=batch.pk)
+        )
+        if not batch.is_active:
+            raise serializers.ValidationError(
+                {"batch": ["Cannot modify an inactive batch."]}
+            )
+
+        new_quantity = batch.quantity + delta
+        if new_quantity < 0:
+            raise serializers.ValidationError(
+                {"delta": ["Adjustment would result in negative stock."]}
+            )
+
+        batch.quantity = new_quantity
+        batch.save(update_fields=["quantity", "updated_at"])
+
+        movement = StockMovement.objects.create(
+            stock_item=batch.stock_item,
+            batch=batch,
+            movement_type=MovementType.ADJUSTMENT,
+            quantity_delta=delta,
+            balance_after=new_quantity,
+            actor=actor,
+            reason=reason,
+            reference=reference,
+        )
+
+        record(
+            action=AuditAction.STOCK_ADJUSTED,
+            actor=actor,
+            pharmacy=batch.stock_item.pharmacy,
+            target=batch,
+            request=request,
+            metadata={
+                "pharmacy_id": batch.stock_item.pharmacy_id,
+                "medication_id": batch.stock_item.medication_id,
+                "batch_id": batch.id,
+                "batch_number": batch.batch_number,
+                "quantity_delta": movement.quantity_delta,
+                "balance_after": movement.balance_after,
+                "movement_id": movement.id,
+            },
+        )
+
+        return batch.stock_item, movement
+
+
+def reconcile_count(
+    *,
+    actor,
+    batch,
+    counted_quantity,
+    reason="",
+    reference="",
+    request=None,
+) -> tuple[StockItem, StockMovement | None]:
+    with transaction.atomic():
+        batch = (
+            StockBatch.objects.select_for_update()
+            .select_related("stock_item", "stock_item__pharmacy")
+            .get(pk=batch.pk)
+        )
+        if not batch.is_active:
+            raise serializers.ValidationError(
+                {"batch": ["Cannot modify an inactive batch."]}
+            )
+
+        delta = counted_quantity - batch.quantity
+        if delta == 0:
+            return batch.stock_item, None
+
+        batch.quantity = counted_quantity
+        batch.save(update_fields=["quantity", "updated_at"])
+
+        movement = StockMovement.objects.create(
+            stock_item=batch.stock_item,
+            batch=batch,
+            movement_type=MovementType.COUNT_CORRECTION,
+            quantity_delta=delta,
+            balance_after=counted_quantity,
+            actor=actor,
+            reason=reason,
+            reference=reference,
+        )
+
+        record(
+            action=AuditAction.STOCK_COUNT_RECONCILED,
+            actor=actor,
+            pharmacy=batch.stock_item.pharmacy,
+            target=batch,
+            request=request,
+            metadata={
+                "pharmacy_id": batch.stock_item.pharmacy_id,
+                "medication_id": batch.stock_item.medication_id,
+                "batch_id": batch.id,
+                "batch_number": batch.batch_number,
+                "quantity_delta": movement.quantity_delta,
+                "balance_after": movement.balance_after,
+                "movement_id": movement.id,
+            },
+        )
+
+        return batch.stock_item, movement

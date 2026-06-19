@@ -1,4 +1,5 @@
 from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.response import Response
@@ -9,11 +10,33 @@ from apps.tenancy.permissions import Action, require
 from .models import StockBatch
 from .selectors import stock_items_for
 from .serializers import (
+    AdjustStockSerializer,
+    CountStockSerializer,
     ReceiveStockSerializer,
     StockItemDetailSerializer,
     StockItemSerializer,
 )
-from .services import receive_stock
+from .services import adjust_stock, receive_stock, reconcile_count
+
+
+def _reload_stock_item_for_response(stock_item, user):
+    return (
+        stock_items_for(user)
+        .prefetch_related(Prefetch("batches", queryset=StockBatch.objects.all()))
+        .get(pk=stock_item.pk)
+    )
+
+
+def _movement_summary(movement):
+    if movement is None:
+        return None
+    return {
+        "id": movement.id,
+        "movement_type": movement.movement_type,
+        "quantity_delta": movement.quantity_delta,
+        "balance_after": movement.balance_after,
+        "batch": movement.batch_id,
+    }
 
 
 class StockItemListView(ListAPIView):
@@ -56,21 +79,58 @@ class StockReceiveView(APIView):
             request=request,
             **serializer.validated_data,
         )
-        reloaded_stock_item = (
-            stock_items_for(request.user)
-            .prefetch_related(Prefetch("batches", queryset=StockBatch.objects.all()))
-            .get(pk=stock_item.pk)
-        )
+        reloaded_stock_item = _reload_stock_item_for_response(stock_item, request.user)
         return Response(
             {
                 "stock_item": StockItemDetailSerializer(reloaded_stock_item).data,
-                "movement": {
-                    "id": movement.id,
-                    "movement_type": movement.movement_type,
-                    "quantity_delta": movement.quantity_delta,
-                    "balance_after": movement.balance_after,
-                    "batch": movement.batch_id,
-                },
+                "movement": _movement_summary(movement),
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class StockAdjustView(APIView):
+    permission_classes = [require(Action.STOCK_MANAGE)]
+
+    def post(self, request, pk):
+        batch = get_object_or_404(StockBatch.scoped.for_user(request.user), pk=pk)
+        serializer = AdjustStockSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        stock_item, movement = adjust_stock(
+            actor=request.user,
+            batch=batch,
+            request=request,
+            **serializer.validated_data,
+        )
+        reloaded_stock_item = _reload_stock_item_for_response(stock_item, request.user)
+        return Response(
+            {
+                "stock_item": StockItemDetailSerializer(reloaded_stock_item).data,
+                "movement": _movement_summary(movement),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class StockCountView(APIView):
+    permission_classes = [require(Action.STOCK_MANAGE)]
+
+    def post(self, request, pk):
+        batch = get_object_or_404(StockBatch.scoped.for_user(request.user), pk=pk)
+        serializer = CountStockSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        stock_item, movement = reconcile_count(
+            actor=request.user,
+            batch=batch,
+            request=request,
+            **serializer.validated_data,
+        )
+        reloaded_stock_item = _reload_stock_item_for_response(stock_item, request.user)
+        return Response(
+            {
+                "stock_item": StockItemDetailSerializer(reloaded_stock_item).data,
+                "movement": _movement_summary(movement),
+                "changed": movement is not None,
+            },
+            status=status.HTTP_200_OK,
         )

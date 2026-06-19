@@ -99,3 +99,20 @@ class ReceiveStockSerializer(serializers.Serializer):
 
         attrs["received_at"] = received_at
         return attrs
+
+
+class AdjustStockSerializer(serializers.Serializer):
+    delta = serializers.IntegerField()
+    reason = serializers.CharField(max_length=255)
+    reference = serializers.CharField(max_length=128, required=False, allow_blank=True)
+
+    def validate_delta(self, value):
+        if value == 0:
+            raise serializers.ValidationError("Adjustment delta cannot be zero.")
+        return value
+
+
+class CountStockSerializer(serializers.Serializer):
+    counted_quantity = serializers.IntegerField(min_value=0)
+    reason = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    reference = serializers.CharField(max_length=128, required=False, allow_blank=True)
