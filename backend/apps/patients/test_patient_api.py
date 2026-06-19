@@ -251,25 +251,54 @@ def test_search_filters_by_patient_reference_within_scoped_queryset(
 ):
     authenticate(client, patient_api_data["pharmacist"])
 
-    response = client.get("/api/patients/", {"search": "P1-001"})
+    response = client.get("/api/patients/", {"search": "P1"})
 
     assert response.status_code == 200
     assert ids_from_response(response) == {patient_api_data["patient_one"].id}
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("term", ["alice", "SUTTON"])
-def test_name_search_is_temporarily_disabled(client, patient_api_data, term):
+@pytest.mark.parametrize("term", ["Sutton", "SUTTON", " sutton "])
+def test_exact_normalized_last_name_search_works(client, patient_api_data, term):
     authenticate(client, patient_api_data["pharmacist"])
 
     response = client.get("/api/patients/", {"search": term})
+
+    assert response.status_code == 200
+    assert ids_from_response(response) == {patient_api_data["patient_one"].id}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("term", ["alice", "Sutt"])
+def test_non_indexed_or_partial_name_search_does_not_match(
+    client,
+    patient_api_data,
+    term,
+):
+    authenticate(client, patient_api_data["pharmacist"])
+
+    response = client.get("/api/patients/", {"search": term})
+
+    assert response.status_code == 200
+    # Partial encrypted-name search is intentionally unsupported.
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_search_does_not_leak_cross_pharmacy_patients(client, patient_api_data):
+    authenticate(client, patient_api_data["pharmacist"])
+
+    response = client.get("/api/patients/", {"search": "Croydon"})
 
     assert response.status_code == 200
     assert response.json() == []
 
 
 @pytest.mark.django_db
-def test_search_does_not_leak_cross_pharmacy_patients(client, patient_api_data):
+def test_last_name_search_does_not_leak_cross_pharmacy_patients(
+    client,
+    patient_api_data,
+):
     authenticate(client, patient_api_data["pharmacist"])
 
     response = client.get("/api/patients/", {"search": "Croydon"})
@@ -289,6 +318,30 @@ def test_patient_detail_returns_plaintext_sensitive_fields(client, patient_api_d
     assert response.json()["last_name"] == "Sutton"
     assert response.json()["date_of_birth"] == "1980-01-01"
     assert response.json()["notes"] == "P1-001 private note"
+    assert "last_name_index" not in response.json()
+
+
+@pytest.mark.django_db
+def test_last_name_update_refreshes_search_index(client, patient_api_data):
+    authenticate(client, patient_api_data["admin"])
+    patient = patient_api_data["patient_one"]
+    old_index = patient.last_name_index
+
+    response = client.patch(
+        f"/api/patients/{patient.id}/",
+        {"last_name": "UpdatedLast"},
+        format="json",
+    )
+    patient.refresh_from_db()
+    old_search_response = client.get("/api/patients/", {"search": "Sutton"})
+    new_search_response = client.get("/api/patients/", {"search": "updatedlast"})
+
+    assert response.status_code == 200
+    assert patient.last_name_index != old_index
+    assert old_search_response.status_code == 200
+    assert old_search_response.json() == []
+    assert new_search_response.status_code == 200
+    assert ids_from_response(new_search_response) == {patient.id}
 
 
 @pytest.mark.django_db
@@ -450,10 +503,15 @@ def test_patient_create_update_and_deactivate_write_safe_audit_events(
     patient_id = create_response.json()["id"]
     client.patch(
         f"/api/patients/{patient_id}/",
-        {"first_name": "PrivateName", "phone": "020 0000 0444"},
+        {
+            "first_name": "PrivateName",
+            "last_name": "PrivateLast",
+            "phone": "020 0000 0444",
+        },
         format="json",
     )
     client.post(f"/api/patients/{patient_id}/deactivate/")
+    patient = Patient.objects.get(pk=patient_id)
 
     created = AuditEvent.objects.get(action=AuditAction.PATIENT_CREATED)
     updated = AuditEvent.objects.get(action=AuditAction.PATIENT_UPDATED)
@@ -467,7 +525,7 @@ def test_patient_create_update_and_deactivate_write_safe_audit_events(
     assert created.metadata == expected_base_metadata
     assert updated.metadata == {
         **expected_base_metadata,
-        "changed_fields": ["first_name", "phone"],
+        "changed_fields": ["first_name", "last_name", "phone"],
     }
     assert deactivated.metadata == expected_base_metadata
     assert created.pharmacy == patient_api_data["pharmacy_one"]
@@ -477,8 +535,11 @@ def test_patient_create_update_and_deactivate_write_safe_audit_events(
     for event in (created, updated, deactivated):
         metadata_text = str(event.metadata)
         assert "PrivateName" not in metadata_text
+        assert "PrivateLast" not in metadata_text
         assert "020 0000 0444" not in metadata_text
         assert "99 Demo Lane" not in metadata_text
+        assert "last_name_index" not in event.metadata
+        assert patient.last_name_index not in metadata_text
 
 
 @pytest.mark.django_db

@@ -12,6 +12,9 @@ if os.getenv("DJANGO_SECRET_KEY") in {None, "", "unsafe-development-key"}:
 if os.getenv("PATIENT_FIELD_KEY") in {None, "", PATIENT_FIELD_KEY_DEV_DEFAULT}:  # noqa: F405
     raise ImproperlyConfigured("PATIENT_FIELD_KEY must be set in production.")
 
+if os.getenv("PATIENT_INDEX_KEY") in {None, "", PATIENT_INDEX_KEY_DEV_DEFAULT}:  # noqa: F405
+    raise ImproperlyConfigured("PATIENT_INDEX_KEY must be set in production.")
+
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True

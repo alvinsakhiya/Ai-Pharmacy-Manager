@@ -25,6 +25,9 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-development-key")
 # Set PATIENT_FIELD_KEY outside local development; this fallback is not secret.
 PATIENT_FIELD_KEY_DEV_DEFAULT = "YaKhc3E0z_nLejfE-AK0J6LQJS6RCfoaL8lctbICjwM="
 PATIENT_FIELD_KEY = os.getenv("PATIENT_FIELD_KEY", PATIENT_FIELD_KEY_DEV_DEFAULT)
+# DEV/TEST ONLY - not a secret; production MUST set PATIENT_INDEX_KEY.
+PATIENT_INDEX_KEY_DEV_DEFAULT = "dev-only-patient-index-key-not-secret"
+PATIENT_INDEX_KEY = os.getenv("PATIENT_INDEX_KEY", PATIENT_INDEX_KEY_DEV_DEFAULT)
 DEBUG = env_bool("DJANGO_DEBUG")
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 

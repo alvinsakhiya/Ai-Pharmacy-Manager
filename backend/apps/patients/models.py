@@ -28,6 +28,12 @@ class Patient(TimeStampedModel, SoftDeleteModel):
     patient_reference = models.CharField(max_length=64)
     first_name = EncryptedTextField(max_length=100)
     last_name = EncryptedTextField(max_length=100)
+    last_name_index = models.CharField(
+        max_length=64,
+        db_index=True,
+        blank=True,
+        default="",
+    )
     date_of_birth = EncryptedDateField()
     address = EncryptedTextField(blank=True)
     postcode = EncryptedTextField(max_length=20, blank=True)
@@ -48,3 +54,14 @@ class Patient(TimeStampedModel, SoftDeleteModel):
 
     def __str__(self) -> str:
         return f"{self.pharmacy_id}:{self.patient_reference}"
+
+    def save(self, *args, **kwargs) -> None:
+        from .crypto import blind_index
+
+        self.last_name_index = blind_index(self.last_name)
+
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "last_name" in update_fields:
+            kwargs["update_fields"] = set(update_fields) | {"last_name_index"}
+
+        super().save(*args, **kwargs)

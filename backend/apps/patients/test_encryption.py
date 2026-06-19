@@ -1,4 +1,5 @@
 from datetime import date
+from string import hexdigits
 
 import pytest
 from cryptography.fernet import Fernet, InvalidToken
@@ -7,7 +8,7 @@ from django.test import override_settings
 
 from apps.tenancy.models import Group, Pharmacy
 
-from .crypto import decrypt_str
+from .crypto import blind_index, decrypt_str
 from .models import Patient
 
 
@@ -88,3 +89,30 @@ def test_wrong_patient_field_key_cannot_decrypt_stored_token():
 
 def test_patient_default_ordering_uses_plaintext_reference():
     assert Patient._meta.ordering == ["patient_reference"]
+
+
+@pytest.mark.django_db
+def test_last_name_blind_index_is_generated():
+    patient = make_patient()
+
+    assert len(patient.last_name_index) == 64
+    assert all(char in hexdigits for char in patient.last_name_index)
+    assert patient.last_name_index != "PlainLast"
+    assert patient.last_name_index == blind_index(patient.last_name)
+
+
+@pytest.mark.django_db
+def test_raw_last_name_blind_index_is_stored_without_plaintext():
+    patient = make_patient()
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT last_name_index FROM {Patient._meta.db_table} WHERE id = %s",
+            [patient.pk],
+        )
+        (raw_last_name_index,) = cursor.fetchone()
+
+    assert len(raw_last_name_index) == 64
+    assert all(char in hexdigits for char in raw_last_name_index)
+    assert raw_last_name_index != "PlainLast"
+    assert raw_last_name_index == blind_index("PlainLast")

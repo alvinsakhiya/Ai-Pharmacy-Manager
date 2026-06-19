@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
@@ -10,6 +11,7 @@ from apps.audit.models import AuditAction
 from apps.audit.services import record
 from apps.tenancy.permissions import Action, require
 
+from .crypto import blind_index
 from .models import Patient
 from .selectors import patients_for
 from .serializers import PatientSerializer
@@ -47,8 +49,10 @@ class PatientListCreateView(ListCreateAPIView):
 
         search = self.request.query_params.get("search", "").strip()
         if search:
-            # Name search is restored via blind index in Module 7B-2.
-            queryset = queryset.filter(patient_reference__icontains=search)
+            queryset = queryset.filter(
+                Q(patient_reference__icontains=search)
+                | Q(last_name_index=blind_index(search))
+            )
 
         return queryset
 
