@@ -59,3 +59,21 @@ export async function openMedicationsAndAssert(
     await expect(createButton).toHaveCount(0);
   }
 }
+
+export async function openInventory(page: Page) {
+  await nav(page)
+    .getByRole("link", { name: "Inventory", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Inventory", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "View" }).first()).toBeVisible();
+}
+
+export async function openFirstStockItemDetail(page: Page) {
+  await page.getByRole("link", { name: "View" }).first().click();
+  await expect(page).toHaveURL(/\/inventory\/\d+$/);
+  await expect(
+    page.getByRole("link", { name: "Back to inventory" }),
+  ).toBeVisible();
+}
