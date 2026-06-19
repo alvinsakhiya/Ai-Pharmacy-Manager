@@ -27,6 +27,16 @@ class AuditAction(models.TextChoices):
     PATIENT_DEACTIVATED = "PATIENT_DEACTIVATED", "Patient deactivated"
     PATIENT_NOTE_ADDED = "PATIENT_NOTE_ADDED", "Patient note added"
 
+    BLISTER_MEDICATION_ADDED = "BLISTER_MEDICATION_ADDED", "Blister medication added"
+    BLISTER_MEDICATION_UPDATED = (
+        "BLISTER_MEDICATION_UPDATED",
+        "Blister medication updated",
+    )
+    BLISTER_MEDICATION_DISCONTINUED = (
+        "BLISTER_MEDICATION_DISCONTINUED",
+        "Blister medication discontinued",
+    )
+
     STOCK_RECEIVED = "STOCK_RECEIVED", "Stock received"
     STOCK_ADJUSTED = "STOCK_ADJUSTED", "Stock adjusted"
     STOCK_COUNT_RECONCILED = "STOCK_COUNT_RECONCILED", "Stock count reconciled"

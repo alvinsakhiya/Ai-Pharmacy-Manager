@@ -13,6 +13,10 @@ urlpatterns = [
     path("api/audit/", include("apps.audit.urls")),
     path("api/catalogue/", include("apps.catalogue.urls")),
     path("api/inventory/", include("apps.inventory.urls")),
+    path(
+        "api/patients/<int:patient_pk>/medications/",
+        include("apps.blister.urls"),
+    ),
     path("api/patients/", include("apps.patients.urls")),
     path("api/users/", include("apps.accounts.user_urls")),
     path("api/tenancy/", include("apps.tenancy.urls")),
