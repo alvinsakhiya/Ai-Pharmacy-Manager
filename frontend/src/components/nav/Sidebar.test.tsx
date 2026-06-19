@@ -127,6 +127,30 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: "Medications" })).toBeInTheDocument();
   });
 
+  it("user with stock.view sees Inventory", () => {
+    renderSidebar(
+      makeUser({
+        role: "PHARMACIST",
+        scope: {
+          is_global: false,
+          group_ids: [],
+          pharmacy_ids: [1],
+        },
+        permissions: {
+          "stock.view": true,
+        },
+      }),
+    );
+
+    expect(screen.getByRole("link", { name: "Inventory" })).toBeInTheDocument();
+  });
+
+  it("user without stock.view does not see Inventory", () => {
+    renderSidebar(makeUser());
+
+    expect(screen.queryByRole("link", { name: "Inventory" })).toBeNull();
+  });
+
   it("user without medication.view does not see Medications", () => {
     renderSidebar(makeUser());
 
@@ -136,7 +160,7 @@ describe("Sidebar", () => {
   it("future items appear disabled and non-clickable", () => {
     renderSidebar(makeUser());
 
-    const stockItem = screen.getByText("Stock");
+    const stockItem = screen.getByText("Patients");
 
     expect(stockItem).toHaveAttribute("aria-disabled", "true");
     expect(stockItem.closest("a")).toBeNull();

@@ -29,6 +29,11 @@ export const NAV_ITEMS: NavItem[] = [
     requiredAnyOf: ["medication.view"],
   },
   {
+    label: "Inventory",
+    path: "/inventory",
+    requiredAnyOf: ["stock.view"],
+  },
+  {
     label: "Audit Log",
     path: "/audit",
     requiredAnyOf: ["audit.view"],
@@ -36,7 +41,6 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export const FUTURE_ITEMS: FutureNavItem[] = [
-  { label: "Stock" },
   { label: "Patients" },
   { label: "Dosette/MDS" },
   { label: "Clinical Review" },
