@@ -10,7 +10,7 @@ from apps.patients.crypto import decrypt_str
 from apps.patients.models import Patient
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 
-from .models import PatientMedication
+from .models import CycleFrequency, CycleStatus, DosetteCycle, PatientMedication
 
 
 def make_group(slug: str = "blister-group") -> Group:
@@ -53,6 +53,25 @@ def make_line(
         patient=patient,
         medication=medication,
         dose_instructions=dose_instructions,
+    )
+
+
+def make_cycle(
+    patient: Patient,
+    reference: str = "CYCLE-1",
+    *,
+    frequency: str = "WEEKLY",
+    start_date: date = date(2026, 1, 1),
+    end_date: date = date(2026, 1, 7),
+    status: str = "DRAFT",
+) -> DosetteCycle:
+    return DosetteCycle.objects.create(
+        patient=patient,
+        reference=reference,
+        frequency=frequency,
+        start_date=start_date,
+        end_date=end_date,
+        status=status,
     )
 
 
@@ -166,3 +185,126 @@ def test_patient_medication_protects_linked_patient_and_medication():
 
     with pytest.raises(ProtectedError):
         medication.delete()
+
+
+@pytest.mark.django_db
+def test_dosette_cycle_can_be_created_with_default_status_and_string():
+    group = make_group()
+    pharmacy = make_pharmacy(group)
+    patient = make_patient(pharmacy)
+
+    cycle = make_cycle(
+        patient,
+        "MDS-001",
+        frequency="FOUR_WEEKLY",
+        end_date=date(2026, 1, 28),
+    )
+
+    assert cycle.status == CycleStatus.DRAFT
+    assert cycle.frequency == CycleFrequency.FOUR_WEEKLY
+    assert str(cycle) == f"{patient.id}:MDS-001"
+
+
+@pytest.mark.django_db
+def test_dosette_cycle_scoped_manager_filters_by_patient_pharmacy():
+    group = make_group()
+    pharmacy_one = make_pharmacy(group, "P1")
+    pharmacy_two = make_pharmacy(group, "P2")
+    in_scope = make_cycle(make_patient(pharmacy_one, "P1-CYCLE"), "CYCLE-P1")
+    out_of_scope = make_cycle(make_patient(pharmacy_two, "P2-CYCLE"), "CYCLE-P2")
+    user = User.objects.create_user(
+        "pharmacist-cycle@example.com",
+        "test-password",
+    )
+    Membership.objects.create(user=user, role=Role.PHARMACIST, pharmacy=pharmacy_one)
+
+    scoped_cycles = set(DosetteCycle.scoped.for_user(user))
+
+    assert scoped_cycles == {in_scope}
+    assert out_of_scope not in scoped_cycles
+
+
+@pytest.mark.django_db
+def test_dosette_cycle_reference_is_unique_per_patient():
+    group = make_group()
+    pharmacy = make_pharmacy(group)
+    patient_one = make_patient(pharmacy, "PAT-CYCLE-1")
+    patient_two = make_patient(pharmacy, "PAT-CYCLE-2")
+    make_cycle(patient_one, "DUP-CYCLE")
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        make_cycle(patient_one, "DUP-CYCLE")
+
+    second_patient_cycle = make_cycle(patient_two, "DUP-CYCLE")
+
+    assert second_patient_cycle.patient == patient_two
+
+
+@pytest.mark.django_db
+def test_dosette_cycle_end_date_must_not_be_before_start_date():
+    group = make_group()
+    pharmacy = make_pharmacy(group)
+    patient = make_patient(pharmacy)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        make_cycle(
+            patient,
+            "BAD-DATES",
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 1, 31),
+        )
+
+
+@pytest.mark.django_db
+def test_dosette_cycle_protects_linked_patient():
+    group = make_group()
+    pharmacy = make_pharmacy(group)
+    patient = make_patient(pharmacy)
+    make_cycle(patient)
+
+    with pytest.raises(ProtectedError):
+        patient.delete()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("status", CycleStatus.values)
+def test_dosette_cycle_can_be_saved_with_each_status(status):
+    group = make_group()
+    pharmacy = make_pharmacy(group)
+    patient = make_patient(pharmacy)
+
+    cycle = make_cycle(patient, f"CYCLE-{status}", status=status)
+
+    assert cycle.status == status
+
+
+@pytest.mark.django_db
+def test_dosette_cycles_are_ordered_by_newest_start_date_then_id():
+    group = make_group()
+    pharmacy = make_pharmacy(group)
+    patient = make_patient(pharmacy)
+    older = make_cycle(
+        patient,
+        "OLDER",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 7),
+    )
+    newest_first = make_cycle(
+        patient,
+        "NEWEST-1",
+        start_date=date(2026, 2, 1),
+        end_date=date(2026, 2, 7),
+    )
+    newest_second = make_cycle(
+        patient,
+        "NEWEST-2",
+        start_date=date(2026, 2, 1),
+        end_date=date(2026, 2, 7),
+    )
+
+    assert list(DosetteCycle.objects.all()) == [
+        newest_second,
+        newest_first,
+        older,
+    ]
+    assert newest_second.id > newest_first.id
