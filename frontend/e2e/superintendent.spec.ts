@@ -7,6 +7,7 @@ import {
   login,
   logout,
   nav,
+  openMedicationsAndAssert,
 } from "./helpers";
 
 test("superintendent sees audit only and denied management routes", async ({
@@ -16,7 +17,7 @@ test("superintendent sees audit only and denied management routes", async ({
 
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText("Dashboard landing")).toBeVisible();
-  await expectNavVisible(page, ["Dashboard", "Audit Log"]);
+  await expectNavVisible(page, ["Dashboard", "Audit Log", "Medications"]);
   await expectNavHidden(page, ["Users", "Organisation"]);
 
   await page.goto("/users");
@@ -32,6 +33,8 @@ test("superintendent sees audit only and denied management routes", async ({
   await expect(
     page.getByText("Group-level audit visibility is limited in this phase."),
   ).toBeVisible();
+
+  await openMedicationsAndAssert(page, { canManage: true });
 
   await logout(page);
 });

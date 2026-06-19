@@ -6,15 +6,16 @@ import {
   expectNavVisible,
   login,
   logout,
+  openMedicationsAndAssert,
 } from "./helpers";
 
-test("dispenser only sees dashboard and is denied management routes", async ({
+test("dispenser sees dashboard and medications but is denied management routes", async ({
   page,
 }) => {
   await login(page, "dispenser@demo.local");
 
   await expect(page.getByText("Dashboard landing")).toBeVisible();
-  await expectNavVisible(page, ["Dashboard"]);
+  await expectNavVisible(page, ["Dashboard", "Medications"]);
   await expectNavHidden(page, ["Users", "Organisation", "Audit Log"]);
 
   await page.goto("/users");
@@ -25,6 +26,8 @@ test("dispenser only sees dashboard and is denied management routes", async ({
 
   await page.goto("/audit");
   await expectAccessDenied(page);
+
+  await openMedicationsAndAssert(page, { canManage: false });
 
   await logout(page);
 });

@@ -38,3 +38,24 @@ export async function expectNavHidden(page: Page, names: string[]) {
     );
   }
 }
+
+export async function openMedicationsAndAssert(
+  page: Page,
+  { canManage }: { canManage: boolean },
+) {
+  await nav(page)
+    .getByRole("link", { name: "Medications", exact: true })
+    .click();
+
+  await expect(
+    page.getByRole("heading", { name: "Medications", exact: true }),
+  ).toBeVisible();
+
+  const createButton = page.getByRole("button", { name: "Create medication" });
+
+  if (canManage) {
+    await expect(createButton).toBeVisible();
+  } else {
+    await expect(createButton).toHaveCount(0);
+  }
+}

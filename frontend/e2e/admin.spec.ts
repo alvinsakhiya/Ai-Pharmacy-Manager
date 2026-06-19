@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { login } from "./helpers";
+import { login, openMedicationsAndAssert } from "./helpers";
 
 test("admin can navigate phase 1 management screens", async ({ page }) => {
   await login(page, "admin@demo.local");
@@ -12,6 +12,7 @@ test("admin can navigate phase 1 management screens", async ({ page }) => {
   await expect(nav.getByRole("link", { name: "Dashboard" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Users" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Organisation" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Medications" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Audit" })).toBeVisible();
 
   await nav.getByRole("link", { name: "Users" }).click();
@@ -28,6 +29,8 @@ test("admin can navigate phase 1 management screens", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Audit Log", exact: true }),
   ).toBeVisible();
+
+  await openMedicationsAndAssert(page, { canManage: true });
 
   await page.getByRole("button", { name: "Logout" }).click();
   await expect(page.getByLabel("Email")).toBeVisible();

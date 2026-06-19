@@ -7,6 +7,7 @@ import {
   login,
   logout,
   nav,
+  openMedicationsAndAssert,
 } from "./helpers";
 
 test("pharmacist can access users and audit but not organisation", async ({
@@ -15,7 +16,12 @@ test("pharmacist can access users and audit but not organisation", async ({
   await login(page, "pharmacist@demo.local");
 
   await expect(page.getByText("Dashboard landing")).toBeVisible();
-  await expectNavVisible(page, ["Dashboard", "Users", "Audit Log"]);
+  await expectNavVisible(page, [
+    "Dashboard",
+    "Users",
+    "Audit Log",
+    "Medications",
+  ]);
   await expectNavHidden(page, ["Organisation"]);
 
   await nav(page).getByRole("link", { name: "Users", exact: true }).click();
@@ -30,6 +36,8 @@ test("pharmacist can access users and audit but not organisation", async ({
 
   await page.goto("/tenancy");
   await expectAccessDenied(page);
+
+  await openMedicationsAndAssert(page, { canManage: true });
 
   await logout(page);
 });
