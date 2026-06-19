@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from apps.tenancy.permissions import Action, can
 
-from .models import Patient
+from .models import Patient, PatientNote
 
 
 class PatientSerializer(serializers.ModelSerializer):
@@ -76,3 +76,17 @@ class PatientSerializer(serializers.ModelSerializer):
                 )
 
         return attrs
+
+
+class PatientNoteSerializer(serializers.ModelSerializer):
+    body = serializers.CharField(allow_blank=True)
+
+    class Meta:
+        model = PatientNote
+        fields = ["id", "body", "author", "author_email", "created_at"]
+        read_only_fields = ["id", "author", "author_email", "created_at"]
+
+    def validate_body(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Note body is required.")
+        return value

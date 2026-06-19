@@ -14,7 +14,7 @@ from apps.tenancy.permissions import Action, require
 from .crypto import blind_index
 from .models import Patient
 from .selectors import patients_for
-from .serializers import PatientSerializer
+from .serializers import PatientNoteSerializer, PatientSerializer
 
 
 def _audit_metadata(patient: Patient) -> dict[str, object]:
@@ -125,3 +125,46 @@ class PatientDeactivateView(APIView):
             PatientSerializer(patient, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+
+class PatientNoteListCreateView(ListCreateAPIView):
+    serializer_class = PatientNoteSerializer
+
+    def get_permissions(self):
+        action = (
+            Action.PATIENT_VIEW
+            if self.request.method in SAFE_METHODS
+            else Action.PATIENT_MANAGE
+        )
+        return [require(action)()]
+
+    def _get_patient(self):
+        return get_object_or_404(
+            patients_for(self.request.user),
+            pk=self.kwargs["pk"],
+        )
+
+    def get_queryset(self):
+        return self._get_patient().history_notes.all()
+
+    def perform_create(self, serializer):
+        patient = self._get_patient()
+        with transaction.atomic():
+            note = serializer.save(
+                patient=patient,
+                author=self.request.user,
+                author_email=getattr(self.request.user, "email", "") or "",
+            )
+            record(
+                action=AuditAction.PATIENT_NOTE_ADDED,
+                actor=self.request.user,
+                pharmacy=patient.pharmacy,
+                target=note,
+                request=self.request,
+                metadata={
+                    "pharmacy_id": patient.pharmacy_id,
+                    "patient_id": patient.id,
+                    "patient_reference": patient.patient_reference,
+                    "note_id": note.id,
+                },
+            )

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from apps.core.models import SoftDeleteModel, TenantScopedManager, TimeStampedModel
@@ -65,3 +66,43 @@ class Patient(TimeStampedModel, SoftDeleteModel):
             kwargs["update_fields"] = set(update_fields) | {"last_name_index"}
 
         super().save(*args, **kwargs)
+
+
+class PatientNote(TimeStampedModel):
+    """Append-only patient note with encrypted body.
+
+    Body is encrypted at rest using the shared patient field encryption key.
+    Immutability is enforced at the application layer through save/delete guards;
+    bulk/raw SQL can still bypass this, as with other append-only records.
+    Prototype only; no compliance claim.
+    """
+
+    tenant_pharmacy_id_field = "patient__pharmacy"
+
+    patient = models.ForeignKey(
+        Patient,
+        on_delete=models.PROTECT,
+        related_name="history_notes",
+    )
+    body = EncryptedTextField()
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="patient_notes",
+    )
+    author_email = models.CharField(max_length=254, blank=True)
+
+    objects = models.Manager()
+    scoped = TenantScopedManager()
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def save(self, *args, **kwargs) -> None:
+        if self.pk is not None:
+            raise ValueError("Patient notes are append-only and cannot be updated.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
+        raise ValueError("Patient notes are append-only and cannot be deleted.")
