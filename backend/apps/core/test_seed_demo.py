@@ -7,6 +7,7 @@ from django.test import override_settings
 
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
+from apps.catalogue.models import Medication, MedicationForm
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 
 DEMO_PASSWORD = "DemoPass!2026"
@@ -49,6 +50,15 @@ def test_seed_demo_creates_expected_demo_data():
         "JMW Sutton",
         "JMW Croydon",
         "JMW Wimbledon",
+    }
+    medications = Medication.objects.filter(group=group)
+    assert medications.count() == 5
+    assert set(medications.values_list("name", "form", "strength")) == {
+        ("Paracetamol", MedicationForm.TABLET, "500 mg"),
+        ("Ibuprofen", MedicationForm.TABLET, "200 mg"),
+        ("Amlodipine", MedicationForm.TABLET, "5 mg"),
+        ("Metformin", MedicationForm.TABLET, "500 mg"),
+        ("Salbutamol", MedicationForm.INHALER, "100 micrograms/dose"),
     }
 
     demo_users = User.objects.filter(email__in=DEMO_EMAILS)
@@ -133,6 +143,7 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
     first_counts = {
         "groups": Group.objects.filter(slug="jmw-pharmacy-group").count(),
         "pharmacies": Pharmacy.objects.filter(group=get_demo_group()).count(),
+        "medications": Medication.objects.filter(group=get_demo_group()).count(),
         "users": User.objects.filter(email__in=DEMO_EMAILS).count(),
         "memberships": Membership.objects.filter(
             user__email__in=DEMO_EMAILS,
@@ -149,6 +160,10 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
     assert (
         Pharmacy.objects.filter(group=get_demo_group()).count()
         == first_counts["pharmacies"]
+    )
+    assert (
+        Medication.objects.filter(group=get_demo_group()).count()
+        == first_counts["medications"]
     )
     assert User.objects.filter(email__in=DEMO_EMAILS).count() == first_counts["users"]
     assert (

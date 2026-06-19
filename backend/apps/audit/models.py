@@ -19,6 +19,9 @@ class AuditAction(models.TextChoices):
     PHARMACY_CREATED = "PHARMACY_CREATED", "Pharmacy created"
     PHARMACY_UPDATED = "PHARMACY_UPDATED", "Pharmacy updated"
 
+    MEDICATION_CREATED = "MEDICATION_CREATED", "Medication created"
+    MEDICATION_UPDATED = "MEDICATION_UPDATED", "Medication updated"
+
 
 class AuditEvent(models.Model):
     """Append-only audit event with application-level write protection.

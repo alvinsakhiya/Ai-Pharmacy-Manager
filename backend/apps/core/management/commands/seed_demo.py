@@ -12,6 +12,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.accounts.models import User
+from apps.catalogue.models import Medication, MedicationForm
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 
 DEMO_PASSWORD = "DemoPass!2026"
@@ -23,6 +24,18 @@ PHARMACIES = [
     {"name": "JMW Sutton", "code": "SUT"},
     {"name": "JMW Croydon", "code": "CRO"},
     {"name": "JMW Wimbledon", "code": "WIM"},
+]
+
+MEDICATIONS = [
+    {"name": "Paracetamol", "form": MedicationForm.TABLET, "strength": "500 mg"},
+    {"name": "Ibuprofen", "form": MedicationForm.TABLET, "strength": "200 mg"},
+    {"name": "Amlodipine", "form": MedicationForm.TABLET, "strength": "5 mg"},
+    {"name": "Metformin", "form": MedicationForm.TABLET, "strength": "500 mg"},
+    {
+        "name": "Salbutamol",
+        "form": MedicationForm.INHALER,
+        "strength": "100 micrograms/dose",
+    },
 ]
 
 
@@ -114,6 +127,19 @@ class Command(BaseCommand):
                 )
                 user_statuses.append((user, created))
 
+            medication_statuses = []
+            for medication_data in MEDICATIONS:
+                medication, created = Medication.objects.get_or_create(
+                    group=group,
+                    name=medication_data["name"],
+                    form=medication_data["form"],
+                    strength=medication_data["strength"],
+                    defaults={"is_active": True},
+                )
+                medication.is_active = True
+                medication.save(update_fields=["is_active", "updated_at"])
+                medication_statuses.append((medication, created))
+
         self.stdout.write(self.style.SUCCESS("Seeded local demo data."))
         self.stdout.write(
             f"Group: {group.name} ({'created' if group_created else 'found'})"
@@ -127,6 +153,12 @@ class Command(BaseCommand):
         self.stdout.write("Demo users:")
         for user, created in user_statuses:
             self.stdout.write(f"- {user.email} ({'created' if created else 'found'})")
+        self.stdout.write("Medication catalogue:")
+        for medication, created in medication_statuses:
+            self.stdout.write(
+                f"- {medication.name} {medication.strength} "
+                f"({'created' if created else 'found'})"
+            )
         self.stdout.write(
             f"Shared password ({self.style.WARNING('local demo credentials only')}): "
             f"{DEMO_PASSWORD}"

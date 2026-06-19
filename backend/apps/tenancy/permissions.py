@@ -31,6 +31,9 @@ class Action(StrEnum):
 
     AUDIT_VIEW = "audit.view"
 
+    MEDICATION_VIEW = "medication.view"
+    MEDICATION_MANAGE = "medication.manage"
+
 
 PATIENT_CLASS_ACTIONS = frozenset(
     {
@@ -49,6 +52,8 @@ ROLE_CAPABILITIES = {
             Action.STOCK_MANAGE,
             Action.STOCK_TRANSFER,
             Action.AUDIT_VIEW,
+            Action.MEDICATION_VIEW,
+            Action.MEDICATION_MANAGE,
         }
     ),
     Role.STOCK_EMPLOYEE: frozenset(
@@ -56,6 +61,7 @@ ROLE_CAPABILITIES = {
             Action.STOCK_VIEW,
             Action.STOCK_MANAGE,
             Action.STOCK_TRANSFER,
+            Action.MEDICATION_VIEW,
         }
     ),
     Role.PHARMACIST: frozenset(
@@ -73,6 +79,8 @@ ROLE_CAPABILITIES = {
             Action.USER_ASSIGN_ROLE,
             Action.USER_MANAGE,
             Action.AUDIT_VIEW,
+            Action.MEDICATION_VIEW,
+            Action.MEDICATION_MANAGE,
         }
     ),
     Role.DISPENSER: frozenset(
@@ -80,6 +88,7 @@ ROLE_CAPABILITIES = {
             Action.STOCK_VIEW,
             Action.PATIENT_VIEW,
             Action.BLISTER_VIEW,
+            Action.MEDICATION_VIEW,
         }
     ),
 }
