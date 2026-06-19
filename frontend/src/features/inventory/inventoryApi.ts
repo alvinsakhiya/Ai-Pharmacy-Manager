@@ -76,6 +76,23 @@ export interface CountBatchResponse {
   changed: boolean;
 }
 
+export interface TransferBatchBody {
+  destination_pharmacy: number;
+  quantity: number;
+  reason?: string;
+  reference?: string;
+}
+
+export interface TransferBatchResponse {
+  source_stock_item: StockItemDetail;
+  destination_stock_item: StockItemDetail;
+  transfer: {
+    quantity: number;
+    out_movement: MovementSummary;
+    in_movement: MovementSummary;
+  };
+}
+
 export function listStockItems(params?: {
   pharmacy?: number;
 }): Promise<StockItem[]> {
@@ -128,6 +145,22 @@ export function countBatch(
 ): Promise<CountBatchResponse> {
   return requestJson<CountBatchResponse>(
     `/api/inventory/batches/${batchId}/count/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function transferBatch(
+  batchId: number,
+  body: TransferBatchBody,
+): Promise<TransferBatchResponse> {
+  return requestJson<TransferBatchResponse>(
+    `/api/inventory/batches/${batchId}/transfer/`,
     {
       method: "POST",
       headers: {

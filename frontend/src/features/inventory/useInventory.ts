@@ -6,9 +6,11 @@ import {
   getStockItem,
   listStockItems,
   receiveStock,
+  transferBatch,
   type AdjustBatchBody,
   type CountBatchBody,
   type ReceiveStockBody,
+  type TransferBatchBody,
 } from "./inventoryApi";
 
 export function useStockItemsQuery(pharmacyId?: number) {
@@ -56,6 +58,23 @@ export function useCountBatch() {
   return useMutation({
     mutationFn: ({ batchId, body }: { batchId: number; body: CountBatchBody }) =>
       countBatch(batchId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["stock-items"] });
+    },
+  });
+}
+
+export function useTransferBatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      batchId,
+      body,
+    }: {
+      batchId: number;
+      body: TransferBatchBody;
+    }) => transferBatch(batchId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["stock-items"] });
     },

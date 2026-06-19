@@ -48,19 +48,32 @@ function makeStockItemDetail(): StockItemDetail {
   };
 }
 
-function inventoryAuth(canManage: boolean) {
+function inventoryAuth({
+  canManage,
+  canTransfer = false,
+}: {
+  canManage: boolean;
+  canTransfer?: boolean;
+}) {
   return makeAuthContext({
     user: makeAuthUser({
       permissions: {
         "stock.view": true,
         "stock.manage": canManage,
+        "stock.transfer": canTransfer,
       },
       pharmacies: [{ id: 1, name: "JMW Sutton" }],
     }),
   });
 }
 
-function renderDetail(canManage: boolean) {
+function renderDetail({
+  canManage,
+  canTransfer = false,
+}: {
+  canManage: boolean;
+  canTransfer?: boolean;
+}) {
   return renderWithProviders(
     <Routes>
       <Route
@@ -68,7 +81,7 @@ function renderDetail(canManage: boolean) {
         path="/inventory/:stockItemId"
       />
     </Routes>,
-    { auth: inventoryAuth(canManage), route: "/inventory/20" },
+    { auth: inventoryAuth({ canManage, canTransfer }), route: "/inventory/20" },
   );
 }
 
@@ -79,7 +92,7 @@ describe("StockItemDetailScreen actions", () => {
   });
 
   it("shows receive adjust and count actions for stock.manage users", async () => {
-    renderDetail(true);
+    renderDetail({ canManage: true });
 
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
     expect(
@@ -89,13 +102,30 @@ describe("StockItemDetailScreen actions", () => {
     expect(screen.getByRole("button", { name: "Count" })).toBeInTheDocument();
   });
 
+  it("shows transfer for stock.transfer users", async () => {
+    renderDetail({ canManage: true, canTransfer: true });
+
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Transfer" })).toBeInTheDocument();
+  });
+
+  it("shows adjust and count but not transfer for stock.manage-only users", async () => {
+    renderDetail({ canManage: true });
+
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Adjust" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Count" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Transfer" })).toBeNull();
+  });
+
   it("hides action controls and column for view-only users", async () => {
-    renderDetail(false);
+    renderDetail({ canManage: false });
 
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Receive stock" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Adjust" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Count" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Transfer" })).toBeNull();
     expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull();
   });
 });

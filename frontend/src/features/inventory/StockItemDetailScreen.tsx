@@ -5,6 +5,7 @@ import { usePermissions } from "../../auth/usePermissions";
 import { AdjustBatchModal } from "./AdjustBatchModal";
 import { CountBatchModal } from "./CountBatchModal";
 import { ReceiveStockModal } from "./ReceiveStockModal";
+import { TransferBatchModal } from "./TransferBatchModal";
 import type { StockBatch } from "./inventoryApi";
 import { useStockItemQuery } from "./useInventory";
 import { usePharmacyNames } from "./usePharmacyNames";
@@ -54,13 +55,17 @@ function DetailValue({
 function BatchRow({
   batch,
   canManage,
+  canTransfer,
   onAdjust,
   onCount,
+  onTransfer,
 }: {
   batch: StockBatch;
   canManage: boolean;
+  canTransfer: boolean;
   onAdjust: (batch: StockBatch) => void;
   onCount: (batch: StockBatch) => void;
+  onTransfer: (batch: StockBatch) => void;
 }) {
   return (
     <tr>
@@ -82,23 +87,36 @@ function BatchRow({
       <td className="whitespace-nowrap px-4 py-4 text-sm">
         <StatusPill active={batch.is_active} />
       </td>
-      {canManage ? (
+      {canManage || canTransfer ? (
         <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
           <div className="flex justify-end gap-2">
-            <button
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => onAdjust(batch)}
-              type="button"
-            >
-              Adjust
-            </button>
-            <button
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => onCount(batch)}
-              type="button"
-            >
-              Count
-            </button>
+            {canManage ? (
+              <>
+                <button
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  onClick={() => onAdjust(batch)}
+                  type="button"
+                >
+                  Adjust
+                </button>
+                <button
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  onClick={() => onCount(batch)}
+                  type="button"
+                >
+                  Count
+                </button>
+              </>
+            ) : null}
+            {canTransfer ? (
+              <button
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                onClick={() => onTransfer(batch)}
+                type="button"
+              >
+                Transfer
+              </button>
+            ) : null}
           </div>
         </td>
       ) : null}
@@ -114,9 +132,10 @@ export function StockItemDetailScreen() {
   const stockItemQuery = useStockItemQuery(parsedStockItemId);
   const { pharmacyName } = usePharmacyNames();
   const canManage = can("stock.manage");
+  const canTransfer = can("stock.transfer");
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [batchAction, setBatchAction] = useState<{
-    type: "adjust" | "count";
+    type: "adjust" | "count" | "transfer";
     batch: StockBatch;
   } | null>(null);
 
@@ -245,7 +264,7 @@ export function StockItemDetailScreen() {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Status
                   </th>
-                  {canManage ? (
+                  {canManage || canTransfer ? (
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Actions
                     </th>
@@ -257,12 +276,16 @@ export function StockItemDetailScreen() {
                   <BatchRow
                     batch={batch}
                     canManage={canManage}
+                    canTransfer={canTransfer}
                     key={batch.id}
                     onAdjust={(nextBatch) =>
                       setBatchAction({ type: "adjust", batch: nextBatch })
                     }
                     onCount={(nextBatch) =>
                       setBatchAction({ type: "count", batch: nextBatch })
+                    }
+                    onTransfer={(nextBatch) =>
+                      setBatchAction({ type: "transfer", batch: nextBatch })
                     }
                   />
                 ))}
@@ -289,6 +312,14 @@ export function StockItemDetailScreen() {
           batch={batchAction.batch}
           isOpen
           onClose={() => setBatchAction(null)}
+        />
+      ) : null}
+      {batchAction?.type === "transfer" ? (
+        <TransferBatchModal
+          batch={batchAction.batch}
+          isOpen
+          onClose={() => setBatchAction(null)}
+          sourcePharmacyId={stockItem.pharmacy}
         />
       ) : null}
     </div>
