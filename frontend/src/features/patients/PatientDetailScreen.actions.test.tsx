@@ -18,6 +18,7 @@ vi.mock("./patientApi", async (importOriginal) => {
     ...actual,
     listPatients: vi.fn(),
     getPatient: vi.fn(),
+    listPatientNotes: vi.fn(),
     createPatient: vi.fn(),
     updatePatient: vi.fn(),
     deactivatePatient: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("./patientApi", async (importOriginal) => {
 });
 
 const getPatientMock = vi.mocked(patientApi.getPatient);
+const listPatientNotesMock = vi.mocked(patientApi.listPatientNotes);
 const deactivatePatientMock = vi.mocked(patientApi.deactivatePatient);
 
 function makePatient(overrides: Partial<Patient> = {}): Patient {
@@ -68,6 +70,7 @@ describe("PatientDetailScreen actions", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     getPatientMock.mockResolvedValue(makePatient());
+    listPatientNotesMock.mockResolvedValue([]);
     deactivatePatientMock.mockResolvedValue(makePatient({ is_active: false }));
   });
 

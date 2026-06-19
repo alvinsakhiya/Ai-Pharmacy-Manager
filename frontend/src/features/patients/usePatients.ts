@@ -2,11 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createPatient,
+  createPatientNote,
   deactivatePatient,
   getPatient,
+  listPatientNotes,
   listPatients,
   updatePatient,
   type PatientListParams,
+  type PatientNoteWriteBody,
   type PatientUpdateBody,
   type PatientWriteBody,
 } from "./patientApi";
@@ -61,6 +64,33 @@ export function useDeactivatePatient() {
     mutationFn: (id: number) => deactivatePatient(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}
+
+export function usePatientNotesQuery(patientId: number) {
+  return useQuery({
+    queryKey: ["patients", "notes", patientId],
+    queryFn: () => listPatientNotes(patientId),
+    enabled: Number.isFinite(patientId),
+  });
+}
+
+export function useCreatePatientNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      patientId,
+      body,
+    }: {
+      patientId: number;
+      body: PatientNoteWriteBody;
+    }) => createPatientNote(patientId, body),
+    onSuccess: (_note, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["patients", "notes", variables.patientId],
+      });
     },
   });
 }

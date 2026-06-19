@@ -3,8 +3,13 @@ import { Link, useParams } from "react-router-dom";
 
 import { usePermissions } from "../../auth/usePermissions";
 import { Modal } from "../../components/ui/Modal";
+import { AddPatientNoteModal } from "./AddPatientNoteModal";
 import { PatientFormModal } from "./PatientFormModal";
-import { useDeactivatePatient, usePatientQuery } from "./usePatients";
+import {
+  useDeactivatePatient,
+  usePatientNotesQuery,
+  usePatientQuery,
+} from "./usePatients";
 import { usePharmacyNames } from "./usePharmacyNames";
 
 function formatDate(value: string): string {
@@ -17,6 +22,21 @@ function formatDate(value: string): string {
     day: "2-digit",
     month: "short",
     year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -55,10 +75,12 @@ export function PatientDetailScreen() {
   const parsedPatientId = Number(patientId);
   const isValidPatientId = Number.isFinite(parsedPatientId);
   const patientQuery = usePatientQuery(parsedPatientId);
+  const notesQuery = usePatientNotesQuery(parsedPatientId);
   const deactivatePatient = useDeactivatePatient();
   const { pharmacyName } = usePharmacyNames();
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isDeactivateModalOpen, setDeactivateModalOpen] = useState(false);
+  const [isAddNoteModalOpen, setAddNoteModalOpen] = useState(false);
 
   if (!isValidPatientId) {
     return (
@@ -172,10 +194,72 @@ export function PatientDetailScreen() {
         </p>
       </section>
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-bold text-slate-950">Note history</h2>
+          {canManage ? (
+            <button
+              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              onClick={() => setAddNoteModalOpen(true)}
+              type="button"
+            >
+              Add note
+            </button>
+          ) : null}
+        </div>
+
+        {notesQuery.isLoading ? (
+          <p className="mt-4 text-sm text-slate-600">Loading notes...</p>
+        ) : null}
+
+        {notesQuery.isError ? (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="text-sm font-semibold text-red-900">
+              Could not load notes.
+            </p>
+            <button
+              className="mt-3 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+              onClick={() => void notesQuery.refetch()}
+              type="button"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        {notesQuery.isSuccess && notesQuery.data.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-600">No notes recorded yet.</p>
+        ) : null}
+
+        {notesQuery.isSuccess && notesQuery.data.length > 0 ? (
+          <div className="mt-4 space-y-4">
+            {notesQuery.data.map((note) => (
+              <article
+                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                key={note.id}
+              >
+                <p className="whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                  {note.body}
+                </p>
+                <p className="mt-3 text-xs font-medium text-slate-500">
+                  {note.author_email} - {formatDateTime(note.created_at)}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
       <PatientFormModal
         isOpen={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
         patient={patient}
+      />
+
+      <AddPatientNoteModal
+        isOpen={isAddNoteModalOpen}
+        onClose={() => setAddNoteModalOpen(false)}
+        patientId={patient.id}
       />
 
       <Modal

@@ -17,10 +17,12 @@ vi.mock("./patientApi", async (importOriginal) => {
     ...actual,
     listPatients: vi.fn(),
     getPatient: vi.fn(),
+    listPatientNotes: vi.fn(),
   };
 });
 
 const getPatientMock = vi.mocked(patientApi.getPatient);
+const listPatientNotesMock = vi.mocked(patientApi.listPatientNotes);
 
 function makePatient(overrides: Partial<Patient> = {}): Patient {
   return {
@@ -68,6 +70,7 @@ describe("PatientDetailScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     getPatientMock.mockResolvedValue(makePatient());
+    listPatientNotesMock.mockResolvedValue([]);
   });
 
   it("loads the patient from the route parameter", async () => {
@@ -100,14 +103,14 @@ describe("PatientDetailScreen", () => {
     );
   });
 
-  it("does not render mutation or note-history controls", async () => {
+  it("renders note history without write controls for read-only users", async () => {
     renderDetail();
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    expect(screen.getByText("Note history")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /deactivate/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /add note/i })).toBeNull();
-    expect(screen.queryByText("Note history")).toBeNull();
   });
 
   it("shows not found or out-of-access error state", async () => {

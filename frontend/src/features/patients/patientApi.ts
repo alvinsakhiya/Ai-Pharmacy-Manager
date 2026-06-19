@@ -24,6 +24,10 @@ export interface PatientNote {
   created_at: string;
 }
 
+export interface PatientNoteWriteBody {
+  body: string;
+}
+
 export interface PatientListParams {
   pharmacy?: number;
   search?: string;
@@ -89,5 +93,22 @@ export function updatePatient(
 export function deactivatePatient(id: number): Promise<Patient> {
   return requestJson<Patient>(`/api/patients/${id}/deactivate/`, {
     method: "POST",
+  });
+}
+
+export function listPatientNotes(patientId: number): Promise<PatientNote[]> {
+  return requestJson<PatientNote[]>(`/api/patients/${patientId}/notes/`);
+}
+
+export function createPatientNote(
+  patientId: number,
+  body: PatientNoteWriteBody,
+): Promise<PatientNote> {
+  return requestJson<PatientNote>(`/api/patients/${patientId}/notes/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   });
 }
