@@ -109,6 +109,30 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: "Organisation" })).toBeNull();
   });
 
+  it("user with medication.view sees Medications", () => {
+    renderSidebar(
+      makeUser({
+        role: "PHARMACIST",
+        scope: {
+          is_global: false,
+          group_ids: [],
+          pharmacy_ids: [1],
+        },
+        permissions: {
+          "medication.view": true,
+        },
+      }),
+    );
+
+    expect(screen.getByRole("link", { name: "Medications" })).toBeInTheDocument();
+  });
+
+  it("user without medication.view does not see Medications", () => {
+    renderSidebar(makeUser());
+
+    expect(screen.queryByRole("link", { name: "Medications" })).toBeNull();
+  });
+
   it("future items appear disabled and non-clickable", () => {
     renderSidebar(makeUser());
 

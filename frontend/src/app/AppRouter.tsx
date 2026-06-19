@@ -10,6 +10,7 @@ import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { ChangePasswordScreen } from "../features/auth/ChangePasswordScreen";
 import { LoginScreen } from "../features/auth/LoginScreen";
 import { AuditScreen } from "../features/audit/AuditScreen";
+import { MedicationsScreen } from "../features/catalogue/MedicationsScreen";
 import { UsersScreen } from "../features/users/UsersScreen";
 import { OrganisationScreen } from "../features/tenancy/OrganisationScreen";
 import { AppShell } from "./AppShell";
@@ -60,6 +61,14 @@ export function AppRouter() {
               element={
                 <RequirePermission anyOf={["group.manage", "pharmacy.manage"]}>
                   <OrganisationScreen />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/catalogue"
+              element={
+                <RequirePermission anyOf={["medication.view"]}>
+                  <MedicationsScreen />
                 </RequirePermission>
               }
             />

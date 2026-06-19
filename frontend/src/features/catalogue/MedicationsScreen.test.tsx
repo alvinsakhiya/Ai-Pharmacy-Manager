@@ -1,0 +1,116 @@
+import { screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  makeAuthContext,
+  makeAuthUser,
+  renderWithProviders,
+} from "../../test/providers";
+import { MedicationsScreen } from "./MedicationsScreen";
+import type { Medication } from "./catalogueApi";
+import * as catalogueApi from "./catalogueApi";
+
+vi.mock("./catalogueApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./catalogueApi")>();
+  return {
+    ...actual,
+    listMedications: vi.fn(),
+    createMedication: vi.fn(),
+    updateMedication: vi.fn(),
+  };
+});
+
+const listMedicationsMock = vi.mocked(catalogueApi.listMedications);
+
+function makeMedication(overrides: Partial<Medication> = {}): Medication {
+  return {
+    id: 20,
+    group: 1,
+    name: "Paracetamol",
+    form: "TABLET",
+    strength: "500 mg",
+    manufacturer: "",
+    notes: "",
+    is_active: true,
+    created_at: "2026-06-19T09:00:00Z",
+    updated_at: "2026-06-19T09:00:00Z",
+    ...overrides,
+  };
+}
+
+function medicationAuth(canManage = true) {
+  return makeAuthContext({
+    user: makeAuthUser({
+      permissions: {
+        "medication.view": true,
+        "medication.manage": canManage,
+      },
+    }),
+  });
+}
+
+describe("MedicationsScreen", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    listMedicationsMock.mockResolvedValue([
+      makeMedication(),
+      makeMedication({
+        id: 21,
+        name: "Salbutamol",
+        form: "INHALER",
+        strength: "100 micrograms/dose",
+        manufacturer: "Respira",
+        is_active: false,
+      }),
+    ]);
+  });
+
+  it("renders medication rows", async () => {
+    renderWithProviders(<MedicationsScreen />, { auth: medicationAuth() });
+
+    expect(screen.getByText("Loading medications...")).toBeInTheDocument();
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(screen.getByText("Tablet")).toBeInTheDocument();
+    expect(screen.getByText("500 mg")).toBeInTheDocument();
+    expect(screen.getByText("Salbutamol")).toBeInTheDocument();
+    expect(screen.getByText("Inhaler")).toBeInTheDocument();
+    expect(screen.getByText("Respira")).toBeInTheDocument();
+  });
+
+  it("renders empty state", async () => {
+    listMedicationsMock.mockResolvedValue([]);
+
+    renderWithProviders(<MedicationsScreen />, { auth: medicationAuth() });
+
+    expect(await screen.findByText("No medications yet.")).toBeInTheDocument();
+  });
+
+  it("shows create button for users with medication.manage", async () => {
+    renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(true) });
+
+    expect(
+      await screen.findByRole("button", { name: "Create medication" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides create button for view-only users", async () => {
+    renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(false) });
+
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create medication" })).toBeNull();
+  });
+
+  it("hides row edit for view-only users", async () => {
+    renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(false) });
+
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
+  it("does not render a delete control", async () => {
+    renderWithProviders(<MedicationsScreen />, { auth: medicationAuth() });
+
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
+  });
+});
