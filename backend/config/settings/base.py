@@ -109,7 +109,7 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "login": "10/min",
+        "login": os.getenv("LOGIN_THROTTLE_RATE", "10/min"),
     },
 }
 
