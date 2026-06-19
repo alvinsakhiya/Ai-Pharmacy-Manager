@@ -29,6 +29,20 @@ export interface PatientListParams {
   search?: string;
 }
 
+export interface PatientWriteBody {
+  pharmacy: number;
+  patient_reference: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  address: string;
+  postcode: string;
+  phone: string;
+  notes: string;
+}
+
+export type PatientUpdateBody = Omit<PatientWriteBody, "pharmacy">;
+
 export function listPatients(params?: PatientListParams): Promise<Patient[]> {
   const searchParams = new URLSearchParams();
   if (params?.pharmacy !== undefined) {
@@ -47,4 +61,33 @@ export function listPatients(params?: PatientListParams): Promise<Patient[]> {
 
 export function getPatient(id: number): Promise<Patient> {
   return requestJson<Patient>(`/api/patients/${id}/`);
+}
+
+export function createPatient(body: PatientWriteBody): Promise<Patient> {
+  return requestJson<Patient>("/api/patients/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export function updatePatient(
+  id: number,
+  body: PatientUpdateBody,
+): Promise<Patient> {
+  return requestJson<Patient>(`/api/patients/${id}/`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export function deactivatePatient(id: number): Promise<Patient> {
+  return requestJson<Patient>(`/api/patients/${id}/deactivate/`, {
+    method: "POST",
+  });
 }

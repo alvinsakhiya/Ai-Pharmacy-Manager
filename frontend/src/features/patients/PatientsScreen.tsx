@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../../auth/AuthContext";
+import { usePermissions } from "../../auth/usePermissions";
 import type { Patient } from "./patientApi";
+import { PatientFormModal } from "./PatientFormModal";
 import { usePatientsQuery } from "./usePatients";
 import { usePharmacyNames } from "./usePharmacyNames";
 
@@ -70,11 +72,14 @@ function PatientRow({
 
 export function PatientsScreen() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canManage = can("patient.manage");
   const pharmacies = user?.pharmacies ?? [];
   const [search, setSearch] = useState("");
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<
     number | undefined
   >(undefined);
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const patientsQuery = usePatientsQuery({
     pharmacy: selectedPharmacyId,
     search: search.trim(),
@@ -84,14 +89,27 @@ export function PatientsScreen() {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div>
-          <p className="text-sm font-semibold text-teal-700">Patient records</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-            Patients
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            View fictional patient records for your assigned pharmacy scope.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-teal-700">
+              Patient records
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+              Patients
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              View fictional patient records for your assigned pharmacy scope.
+            </p>
+          </div>
+          {canManage ? (
+            <button
+              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              onClick={() => setCreateModalOpen(true)}
+              type="button"
+            >
+              Create patient
+            </button>
+          ) : null}
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -199,6 +217,12 @@ export function PatientsScreen() {
           </div>
         </section>
       ) : null}
+
+      <PatientFormModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        patient={null}
+      />
     </div>
   );
 }

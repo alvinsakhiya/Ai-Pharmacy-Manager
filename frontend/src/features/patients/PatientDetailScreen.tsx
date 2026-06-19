@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { usePatientQuery } from "./usePatients";
+import { usePermissions } from "../../auth/usePermissions";
+import { Modal } from "../../components/ui/Modal";
+import { PatientFormModal } from "./PatientFormModal";
+import { useDeactivatePatient, usePatientQuery } from "./usePatients";
 import { usePharmacyNames } from "./usePharmacyNames";
 
 function formatDate(value: string): string {
@@ -45,11 +49,16 @@ function DetailValue({ label, value }: { label: string; value: string }) {
 }
 
 export function PatientDetailScreen() {
+  const { can } = usePermissions();
+  const canManage = can("patient.manage");
   const { patientId } = useParams();
   const parsedPatientId = Number(patientId);
   const isValidPatientId = Number.isFinite(parsedPatientId);
   const patientQuery = usePatientQuery(parsedPatientId);
+  const deactivatePatient = useDeactivatePatient();
   const { pharmacyName } = usePharmacyNames();
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isDeactivateModalOpen, setDeactivateModalOpen] = useState(false);
 
   if (!isValidPatientId) {
     return (
@@ -117,7 +126,27 @@ export function PatientDetailScreen() {
               {patient.first_name} {patient.last_name}
             </h1>
           </div>
-          <StatusPill active={patient.is_active} />
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusPill active={patient.is_active} />
+            {canManage ? (
+              <button
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                onClick={() => setEditModalOpen(true)}
+                type="button"
+              >
+                Edit
+              </button>
+            ) : null}
+            {canManage && patient.is_active ? (
+              <button
+                className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                onClick={() => setDeactivateModalOpen(true)}
+                type="button"
+              >
+                Deactivate
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -142,6 +171,45 @@ export function PatientDetailScreen() {
           {fallback(patient.notes)}
         </p>
       </section>
+
+      <PatientFormModal
+        isOpen={isEditModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        patient={patient}
+      />
+
+      <Modal
+        isOpen={isDeactivateModalOpen}
+        onClose={() => setDeactivateModalOpen(false)}
+        title="Deactivate this patient?"
+      >
+        <div className="space-y-5">
+          <p className="text-sm leading-6 text-slate-700">
+            This patient will be marked inactive. Their existing record remains
+            visible in your permitted scope.
+          </p>
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              onClick={() => setDeactivateModalOpen(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={deactivatePatient.isPending}
+              onClick={async () => {
+                await deactivatePatient.mutateAsync(patient.id);
+                setDeactivateModalOpen(false);
+              }}
+              type="button"
+            >
+              {deactivatePatient.isPending ? "Deactivating..." : "Deactivate"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
