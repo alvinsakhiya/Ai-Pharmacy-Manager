@@ -116,3 +116,27 @@ class CountStockSerializer(serializers.Serializer):
     counted_quantity = serializers.IntegerField(min_value=0)
     reason = serializers.CharField(max_length=255, required=False, allow_blank=True)
     reference = serializers.CharField(max_length=128, required=False, allow_blank=True)
+
+
+class TransferStockSerializer(serializers.Serializer):
+    destination_pharmacy = serializers.PrimaryKeyRelatedField(
+        queryset=Pharmacy.objects.all()
+    )
+    quantity = serializers.IntegerField(min_value=1)
+    reason = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    reference = serializers.CharField(max_length=128, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        destination_pharmacy = attrs["destination_pharmacy"]
+
+        if request is not None and not can(
+            request.user,
+            Action.STOCK_TRANSFER,
+            target=destination_pharmacy,
+        ):
+            raise serializers.ValidationError(
+                {"destination_pharmacy": ["This pharmacy is outside your stock scope."]}
+            )
+
+        return attrs

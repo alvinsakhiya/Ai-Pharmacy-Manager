@@ -15,8 +15,9 @@ from .serializers import (
     ReceiveStockSerializer,
     StockItemDetailSerializer,
     StockItemSerializer,
+    TransferStockSerializer,
 )
-from .services import adjust_stock, receive_stock, reconcile_count
+from .services import adjust_stock, receive_stock, reconcile_count, transfer_stock
 
 
 def _reload_stock_item_for_response(stock_item, user):
@@ -131,6 +132,49 @@ class StockCountView(APIView):
                 "stock_item": StockItemDetailSerializer(reloaded_stock_item).data,
                 "movement": _movement_summary(movement),
                 "changed": movement is not None,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class StockTransferView(APIView):
+    permission_classes = [require(Action.STOCK_TRANSFER)]
+
+    def post(self, request, pk):
+        source_batch = get_object_or_404(
+            StockBatch.scoped.for_user(request.user),
+            pk=pk,
+        )
+        serializer = TransferStockSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        result = transfer_stock(
+            actor=request.user,
+            source_batch=source_batch,
+            request=request,
+            **serializer.validated_data,
+        )
+        source_stock_item = _reload_stock_item_for_response(
+            result["source_stock_item"],
+            request.user,
+        )
+        destination_stock_item = _reload_stock_item_for_response(
+            result["destination_stock_item"],
+            request.user,
+        )
+        return Response(
+            {
+                "source_stock_item": StockItemDetailSerializer(source_stock_item).data,
+                "destination_stock_item": StockItemDetailSerializer(
+                    destination_stock_item
+                ).data,
+                "transfer": {
+                    "quantity": result["quantity"],
+                    "out_movement": _movement_summary(result["out_movement"]),
+                    "in_movement": _movement_summary(result["in_movement"]),
+                },
             },
             status=status.HTTP_200_OK,
         )

@@ -25,6 +25,7 @@ class AuditAction(models.TextChoices):
     STOCK_RECEIVED = "STOCK_RECEIVED", "Stock received"
     STOCK_ADJUSTED = "STOCK_ADJUSTED", "Stock adjusted"
     STOCK_COUNT_RECONCILED = "STOCK_COUNT_RECONCILED", "Stock count reconciled"
+    STOCK_TRANSFERRED = "STOCK_TRANSFERRED", "Stock transferred"
 
 
 class AuditEvent(models.Model):

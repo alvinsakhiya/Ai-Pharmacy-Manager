@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -221,3 +223,152 @@ def reconcile_count(
         )
 
         return batch.stock_item, movement
+
+
+def transfer_stock(
+    *,
+    actor,
+    source_batch,
+    destination_pharmacy,
+    quantity,
+    reason="",
+    reference="",
+    request=None,
+) -> dict:
+    with transaction.atomic():
+        source_batch = (
+            StockBatch.objects.select_for_update()
+            .select_related(
+                "stock_item",
+                "stock_item__pharmacy",
+                "stock_item__medication",
+            )
+            .get(pk=source_batch.pk)
+        )
+        source_item = source_batch.stock_item
+        source_pharmacy = source_item.pharmacy
+        source_pharmacy_id = source_pharmacy.pk
+
+        if not source_batch.is_active:
+            raise serializers.ValidationError(
+                {"batch": ["Cannot transfer from an inactive batch."]}
+            )
+        if destination_pharmacy.pk == source_pharmacy_id:
+            raise serializers.ValidationError(
+                {"destination_pharmacy": ["Cannot transfer to the same pharmacy."]}
+            )
+        if destination_pharmacy.group_id != source_pharmacy.group_id:
+            raise serializers.ValidationError(
+                {
+                    "destination_pharmacy": [
+                        "Destination pharmacy must be in the same group as the source."
+                    ]
+                }
+            )
+        if source_batch.quantity < quantity:
+            raise serializers.ValidationError(
+                {"quantity": ["Insufficient stock in the source batch."]}
+            )
+
+        try:
+            destination_stock_item = StockItem.objects.select_for_update().get(
+                pharmacy=destination_pharmacy,
+                medication=source_item.medication,
+            )
+        except StockItem.DoesNotExist:
+            destination_stock_item = StockItem.objects.create(
+                pharmacy=destination_pharmacy,
+                medication=source_item.medication,
+                is_active=True,
+            )
+            destination_stock_item = StockItem.objects.select_for_update().get(
+                pk=destination_stock_item.pk,
+            )
+
+        if not destination_stock_item.is_active:
+            destination_stock_item.is_active = True
+            destination_stock_item.save(update_fields=["is_active", "updated_at"])
+
+        try:
+            destination_batch = StockBatch.objects.select_for_update().get(
+                stock_item=destination_stock_item,
+                batch_number=source_batch.batch_number,
+            )
+            if destination_batch.expiry_date != source_batch.expiry_date:
+                raise serializers.ValidationError(
+                    {"batch": ["Destination batch has a different expiry date."]}
+                )
+            destination_batch.quantity += quantity
+            destination_batch.quantity_received += quantity
+            destination_batch.is_active = True
+            destination_batch.save(
+                update_fields=[
+                    "quantity",
+                    "quantity_received",
+                    "is_active",
+                    "updated_at",
+                ]
+            )
+        except StockBatch.DoesNotExist:
+            destination_batch = StockBatch.objects.create(
+                stock_item=destination_stock_item,
+                batch_number=source_batch.batch_number,
+                expiry_date=source_batch.expiry_date,
+                quantity=quantity,
+                quantity_received=quantity,
+                received_at=date.today(),
+                is_active=True,
+            )
+
+        source_batch.quantity -= quantity
+        source_batch.save(update_fields=["quantity", "updated_at"])
+
+        out_movement = StockMovement.objects.create(
+            stock_item=source_item,
+            batch=source_batch,
+            movement_type=MovementType.TRANSFER_OUT,
+            quantity_delta=-quantity,
+            balance_after=source_batch.quantity,
+            actor=actor,
+            reason=reason,
+            reference=reference,
+        )
+        in_movement = StockMovement.objects.create(
+            stock_item=destination_stock_item,
+            batch=destination_batch,
+            movement_type=MovementType.TRANSFER_IN,
+            quantity_delta=quantity,
+            balance_after=destination_batch.quantity,
+            actor=actor,
+            reason=reason,
+            reference=reference,
+        )
+
+        record(
+            action=AuditAction.STOCK_TRANSFERRED,
+            actor=actor,
+            pharmacy=source_pharmacy,
+            target=source_batch,
+            request=request,
+            metadata={
+                "source_pharmacy_id": source_pharmacy_id,
+                "destination_pharmacy_id": destination_pharmacy.id,
+                "medication_id": source_item.medication_id,
+                "batch_number": source_batch.batch_number,
+                "source_batch_id": source_batch.id,
+                "destination_batch_id": destination_batch.id,
+                "quantity": quantity,
+                "source_balance_after": source_batch.quantity,
+                "destination_balance_after": destination_batch.quantity,
+                "out_movement_id": out_movement.id,
+                "in_movement_id": in_movement.id,
+            },
+        )
+
+        return {
+            "source_stock_item": source_item,
+            "destination_stock_item": destination_stock_item,
+            "out_movement": out_movement,
+            "in_movement": in_movement,
+            "quantity": quantity,
+        }

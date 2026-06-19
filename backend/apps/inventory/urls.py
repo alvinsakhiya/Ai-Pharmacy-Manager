@@ -6,11 +6,17 @@ from .views import (
     StockItemDetailView,
     StockItemListView,
     StockReceiveView,
+    StockTransferView,
 )
 
 urlpatterns = [
     path("batches/<int:pk>/adjust/", StockAdjustView.as_view(), name="stock-adjust"),
     path("batches/<int:pk>/count/", StockCountView.as_view(), name="stock-count"),
+    path(
+        "batches/<int:pk>/transfer/",
+        StockTransferView.as_view(),
+        name="stock-transfer",
+    ),
     path("receipts/", StockReceiveView.as_view(), name="stock-receive"),
     path("stock-items/", StockItemListView.as_view(), name="stock-item-list"),
     path(
