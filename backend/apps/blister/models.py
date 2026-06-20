@@ -80,6 +80,8 @@ class DosetteCycle(TimeStampedModel):
         choices=CycleStatus.choices,
         default=CycleStatus.DRAFT,
     )
+    stock_deducted = models.BooleanField(default=False)
+    deducted_at = models.DateTimeField(null=True, blank=True)
 
     objects = models.Manager()
     scoped = TenantScopedManager()

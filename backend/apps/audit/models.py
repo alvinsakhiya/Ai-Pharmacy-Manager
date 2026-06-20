@@ -40,6 +40,7 @@ class AuditAction(models.TextChoices):
     BLISTER_CYCLE_UPDATED = "BLISTER_CYCLE_UPDATED", "Dosette cycle updated"
     BLISTER_CYCLE_PREPARED = "BLISTER_CYCLE_PREPARED", "Dosette cycle prepared"
     BLISTER_CYCLE_CANCELLED = "BLISTER_CYCLE_CANCELLED", "Dosette cycle cancelled"
+    BLISTER_STOCK_DEDUCTED = "BLISTER_STOCK_DEDUCTED", "Blister stock deducted"
 
     STOCK_RECEIVED = "STOCK_RECEIVED", "Stock received"
     STOCK_ADJUSTED = "STOCK_ADJUSTED", "Stock adjusted"

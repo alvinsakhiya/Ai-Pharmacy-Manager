@@ -83,10 +83,19 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
             "start_date",
             "end_date",
             "status",
+            "stock_deducted",
+            "deducted_at",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "status", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "status",
+            "stock_deducted",
+            "deducted_at",
+            "created_at",
+            "updated_at",
+        ]
         validators: list[object] = []
 
     def validate(self, attrs):
@@ -192,3 +201,40 @@ class StockPreviewSerializer(serializers.Serializer):
     pharmacy_id = serializers.IntegerField(read_only=True)
     medications = StockPreviewRowSerializer(many=True, read_only=True)
     totals = _StockPreviewTotalsSerializer(read_only=True)
+
+
+class DosetteDeductionMovementSerializer(serializers.Serializer):
+    movement_id = serializers.IntegerField(read_only=True)
+    batch_id = serializers.IntegerField(read_only=True)
+    batch_number = serializers.CharField(read_only=True)
+    expiry_date = serializers.DateField(read_only=True)
+    quantity_deducted = serializers.IntegerField(read_only=True)
+    balance_after = serializers.IntegerField(read_only=True)
+
+
+class DosetteDeductionLineSerializer(serializers.Serializer):
+    medication_id = serializers.IntegerField(read_only=True)
+    medication_name = serializers.CharField(read_only=True)
+    required_quantity = serializers.IntegerField(read_only=True)
+    movements = DosetteDeductionMovementSerializer(many=True, read_only=True)
+
+
+class DosetteDeductionCycleSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    reference = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    stock_deducted = serializers.BooleanField(read_only=True)
+    deducted_at = serializers.DateTimeField(allow_null=True, read_only=True)
+
+
+class _DosetteDeductionTotalsSerializer(serializers.Serializer):
+    required = serializers.IntegerField(read_only=True)
+    deducted = serializers.IntegerField(read_only=True)
+
+
+class DosetteDeductionSummarySerializer(serializers.Serializer):
+    cycle = DosetteDeductionCycleSerializer(read_only=True)
+    cycle_days = serializers.IntegerField(read_only=True)
+    patient_reference = serializers.CharField(read_only=True)
+    deductions = DosetteDeductionLineSerializer(many=True, read_only=True)
+    totals = _DosetteDeductionTotalsSerializer(read_only=True)

@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     DosetteCycleCancelView,
+    DosetteCycleDeductStockView,
     DosetteCycleDetailView,
     DosetteCycleListCreateView,
     DosetteCyclePrepareView,
@@ -31,5 +32,10 @@ urlpatterns = [
         "<int:cycle_pk>/stock-preview/",
         StockPreviewView.as_view(),
         name="dosette-cycle-stock-preview",
+    ),
+    path(
+        "<int:cycle_pk>/deduct-stock/",
+        DosetteCycleDeductStockView.as_view(),
+        name="dosette-cycle-deduct-stock",
     ),
 ]

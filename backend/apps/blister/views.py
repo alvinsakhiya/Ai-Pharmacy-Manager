@@ -3,7 +3,7 @@ from typing import Any
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
@@ -18,9 +18,17 @@ from apps.tenancy.permissions import Action, require
 from .models import CycleStatus, DosetteCycle, PatientMedication
 from .serializers import (
     DosetteCycleSerializer,
+    DosetteDeductionSummarySerializer,
     PatientMedicationSerializer,
     PickingListSerializer,
     StockPreviewSerializer,
+)
+from .services import (
+    DosetteDeductionStatusError,
+    DosetteStockAlreadyDeducted,
+    InsufficientDosetteStock,
+    InvalidDosetteCycleDates,
+    deduct_dosette_stock,
 )
 
 
@@ -457,6 +465,53 @@ class StockPreviewView(APIView):
             "totals": totals,
         }
         return Response(StockPreviewSerializer(data).data, status=status.HTTP_200_OK)
+
+
+class DosetteCycleDeductStockView(APIView):
+    permission_classes = [require(Action.BLISTER_DEDUCT)]
+
+    def _get_patient(self, request, patient_pk):
+        return get_object_or_404(patients_for(request.user), pk=patient_pk)
+
+    def _get_cycle(self, request, patient, cycle_pk):
+        return get_object_or_404(
+            DosetteCycle.scoped.for_user(request.user)
+            .filter(patient=patient)
+            .select_related("patient", "patient__pharmacy"),
+            pk=cycle_pk,
+        )
+
+    def post(self, request, patient_pk, cycle_pk):
+        patient = self._get_patient(request, patient_pk)
+        cycle = self._get_cycle(request, patient, cycle_pk)
+
+        try:
+            summary = deduct_dosette_stock(
+                actor=request.user,
+                cycle=cycle,
+                request=request,
+            )
+        except (DosetteDeductionStatusError, InvalidDosetteCycleDates) as exc:
+            return Response(
+                {"detail": exc.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except InsufficientDosetteStock as exc:
+            return Response(
+                {"detail": exc.detail, "shortages": exc.shortages},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DosetteStockAlreadyDeducted as exc:
+            deducted_at = serializers.DateTimeField().to_representation(exc.deducted_at)
+            return Response(
+                {"detail": exc.detail, "deducted_at": deducted_at},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(
+            DosetteDeductionSummarySerializer(summary).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class PatientMedicationListCreateView(PatientMedicationMixin, ListCreateAPIView):
