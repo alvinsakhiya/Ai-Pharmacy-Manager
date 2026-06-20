@@ -2,6 +2,7 @@ from datetime import date
 
 import pytest
 from django.db import connection
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
@@ -300,6 +301,59 @@ def test_manage_roles_can_cancel(client, cycle_api_data, actor_key):
 
     assert response.status_code == 200
     assert response.json()["status"] == CycleStatus.CANCELLED
+
+
+@pytest.mark.django_db
+def test_deducted_prepared_cycle_cannot_be_cancelled(client, cycle_api_data):
+    authenticate(client, cycle_api_data["pharmacist"])
+    patient = cycle_api_data["patient_one"]
+    cycle = make_cycle(
+        patient,
+        "DEDUCTED-CANCEL-BLOCKED",
+        status=CycleStatus.PREPARED,
+        stock_deducted=True,
+        deducted_at=timezone.now(),
+    )
+
+    response = client.post(cancel_url(patient, cycle))
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": ["Cannot cancel a cycle after stock has been deducted."]
+    }
+    cycle.refresh_from_db()
+    assert cycle.status == CycleStatus.PREPARED
+    assert cycle.stock_deducted is True
+    assert cycle.deducted_at is not None
+    assert not AuditEvent.objects.filter(
+        action=AuditAction.BLISTER_CYCLE_CANCELLED,
+        target_id=str(cycle.id),
+    ).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("cycle_status", [CycleStatus.DRAFT, CycleStatus.PREPARED])
+def test_non_deducted_draft_and_prepared_cycles_still_cancel(
+    client,
+    cycle_api_data,
+    cycle_status,
+):
+    authenticate(client, cycle_api_data["pharmacist"])
+    patient = cycle_api_data["patient_one"]
+    cycle = make_cycle(
+        patient,
+        f"NON-DEDUCTED-{cycle_status}-CANCEL",
+        status=cycle_status,
+        stock_deducted=False,
+    )
+
+    response = client.post(cancel_url(patient, cycle))
+
+    cycle.refresh_from_db()
+    assert response.status_code == 200
+    assert response.json()["status"] == CycleStatus.CANCELLED
+    assert cycle.status == CycleStatus.CANCELLED
+    assert cycle.stock_deducted is False
 
 
 @pytest.mark.django_db

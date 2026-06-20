@@ -255,6 +255,12 @@ class DosetteCycleCancelView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if cycle.stock_deducted:
+            return Response(
+                {"detail": ["Cannot cancel a cycle after stock has been deducted."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         with transaction.atomic():
             cycle.status = CycleStatus.CANCELLED
             cycle.save(update_fields=["status", "updated_at"])

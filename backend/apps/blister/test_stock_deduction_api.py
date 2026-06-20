@@ -222,6 +222,10 @@ def deduct_url(patient: Patient, cycle: DosetteCycle) -> str:
     return f"/api/patients/{patient.id}/cycles/{cycle.id}/deduct-stock/"
 
 
+def cancel_url(patient: Patient, cycle: DosetteCycle) -> str:
+    return f"/api/patients/{patient.id}/cycles/{cycle.id}/cancel/"
+
+
 def movement_reference(cycle: DosetteCycle) -> str:
     return f"dosette-cycle:{cycle.id}"
 
@@ -544,6 +548,65 @@ def test_cross_pharmacy_patient_or_cycle_returns_404_for_pharmacist(
 
     assert other_patient_response.status_code == 404
     assert mismatched_cycle_response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_cancel_after_real_stock_deduction_is_blocked_without_touching_movements(
+    client,
+    stock_deduction_data,
+):
+    authenticate(client, stock_deduction_data["pharmacist"])
+    patient = stock_deduction_data["patient_one"]
+    cycle = stock_deduction_data["cycle_one"]
+
+    deduct_response = client.post(deduct_url(patient, cycle), {}, format="json")
+    assert deduct_response.status_code == 200
+
+    reference = movement_reference(cycle)
+    movement_values = list(
+        StockMovement.objects.filter(reference=reference)
+        .order_by("id")
+        .values(
+            "id",
+            "stock_item_id",
+            "batch_id",
+            "movement_type",
+            "quantity_delta",
+            "balance_after",
+            "reference",
+        )
+    )
+
+    cancel_response = client.post(cancel_url(patient, cycle))
+
+    assert cancel_response.status_code == 400
+    assert cancel_response.json() == {
+        "detail": ["Cannot cancel a cycle after stock has been deducted."]
+    }
+    assert (
+        list(
+            StockMovement.objects.filter(reference=reference)
+            .order_by("id")
+            .values(
+                "id",
+                "stock_item_id",
+                "batch_id",
+                "movement_type",
+                "quantity_delta",
+                "balance_after",
+                "reference",
+            )
+        )
+        == movement_values
+    )
+    cycle.refresh_from_db()
+    assert cycle.status == CycleStatus.PREPARED
+    assert cycle.stock_deducted is True
+    assert cycle.deducted_at is not None
+    assert not AuditEvent.objects.filter(
+        action=AuditAction.BLISTER_CYCLE_CANCELLED,
+        target_id=str(cycle.id),
+    ).exists()
 
 
 @pytest.mark.django_db(transaction=True)
