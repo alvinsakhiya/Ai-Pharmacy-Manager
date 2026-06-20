@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.blister",
     "apps.analytics",
     "apps.reports",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
