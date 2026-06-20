@@ -201,7 +201,7 @@ describe("Sidebar", () => {
   it("future items appear disabled and non-clickable", () => {
     renderSidebar(makeUser());
 
-    const stockItem = screen.getByText("Dosette/MDS");
+    const stockItem = screen.getByText("Scheduled Jobs");
 
     expect(stockItem).toHaveAttribute("aria-disabled", "true");
     expect(stockItem.closest("a")).toBeNull();

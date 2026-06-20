@@ -8,7 +8,7 @@ export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
+    <div className="min-h-screen bg-surface-muted text-slate-950">
       <div className="app-shell__desktop-sidebar">
         <Sidebar />
       </div>

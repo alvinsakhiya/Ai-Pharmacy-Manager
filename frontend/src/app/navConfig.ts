@@ -66,8 +66,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export const FUTURE_ITEMS: FutureNavItem[] = [
-  { label: "Dosette/MDS" },
-  { label: "Clinical Review" },
-  { label: "Notifications" },
+  { label: "Scheduled Jobs" },
+  { label: "Messaging" },
   { label: "Settings" },
 ];
