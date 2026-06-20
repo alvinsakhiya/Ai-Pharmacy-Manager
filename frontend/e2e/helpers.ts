@@ -92,3 +92,10 @@ export async function openFirstPatientDetail(page: Page) {
     page.getByRole("link", { name: "Back to patients" }),
   ).toBeVisible();
 }
+
+export async function openDosette(page: Page) {
+  await page.getByRole("link", { name: "Dosette / MDS" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Dosette / MDS" }),
+  ).toBeVisible();
+}
