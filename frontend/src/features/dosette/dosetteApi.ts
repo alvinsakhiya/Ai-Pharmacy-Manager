@@ -38,6 +38,20 @@ export interface DosetteCycle {
   updated_at: string;
 }
 
+export const CYCLE_FREQUENCY_OPTIONS = [
+  { value: "WEEKLY", label: "Weekly" },
+  { value: "FORTNIGHTLY", label: "Fortnightly" },
+  { value: "FOUR_WEEKLY", label: "Four weekly" },
+  { value: "MONTHLY", label: "Monthly" },
+] as const;
+
+export interface DosetteCycleWriteBody {
+  reference: string;
+  frequency: string;
+  start_date: string;
+  end_date: string;
+}
+
 export interface PickingListRow {
   medication_id: number;
   medication_name: string;
@@ -132,6 +146,57 @@ export function discontinuePatientMedication(
 ): Promise<PatientMedicationLine> {
   return requestJson<PatientMedicationLine>(
     `/api/patients/${patientId}/medications/${id}/discontinue/`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function createDosetteCycle(
+  patientId: number,
+  body: DosetteCycleWriteBody,
+): Promise<DosetteCycle> {
+  return requestJson<DosetteCycle>(`/api/patients/${patientId}/cycles/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateDosetteCycle(
+  patientId: number,
+  id: number,
+  body: DosetteCycleWriteBody,
+): Promise<DosetteCycle> {
+  return requestJson<DosetteCycle>(`/api/patients/${patientId}/cycles/${id}/`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export function prepareDosetteCycle(
+  patientId: number,
+  id: number,
+): Promise<DosetteCycle> {
+  return requestJson<DosetteCycle>(
+    `/api/patients/${patientId}/cycles/${id}/prepare/`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function cancelDosetteCycle(
+  patientId: number,
+  id: number,
+): Promise<DosetteCycle> {
+  return requestJson<DosetteCycle>(
+    `/api/patients/${patientId}/cycles/${id}/cancel/`,
     {
       method: "POST",
     },

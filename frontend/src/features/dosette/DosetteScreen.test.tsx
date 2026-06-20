@@ -36,6 +36,10 @@ vi.mock("./dosetteApi", async (importOriginal) => {
     createPatientMedication: vi.fn(),
     updatePatientMedication: vi.fn(),
     discontinuePatientMedication: vi.fn(),
+    createDosetteCycle: vi.fn(),
+    updateDosetteCycle: vi.fn(),
+    prepareDosetteCycle: vi.fn(),
+    cancelDosetteCycle: vi.fn(),
   };
 });
 
@@ -46,6 +50,8 @@ const getPickingListMock = vi.mocked(dosetteApi.getPickingList);
 const discontinuePatientMedicationMock = vi.mocked(
   dosetteApi.discontinuePatientMedication,
 );
+const prepareDosetteCycleMock = vi.mocked(dosetteApi.prepareDosetteCycle);
+const cancelDosetteCycleMock = vi.mocked(dosetteApi.cancelDosetteCycle);
 
 function makeMedication(overrides: Partial<Medication> = {}): Medication {
   return {
@@ -209,6 +215,12 @@ describe("DosetteScreen", () => {
     discontinuePatientMedicationMock.mockResolvedValue(
       makeLine({ is_active: false }),
     );
+    prepareDosetteCycleMock.mockResolvedValue(
+      makeCycle({ status: "PREPARED" }),
+    );
+    cancelDosetteCycleMock.mockResolvedValue(
+      makeCycle({ status: "CANCELLED" }),
+    );
   });
 
   it("renders medication lines", async () => {
@@ -294,8 +306,18 @@ describe("DosetteScreen", () => {
     expect(
       screen.getByRole("button", { name: "Add medication" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(3);
-    expect(screen.getAllByRole("button", { name: "Discontinue" })).toHaveLength(2);
+    const medicationSection = screen.getByText("Medication lines").closest("section");
+    expect(medicationSection).not.toBeNull();
+    expect(
+      within(medicationSection as HTMLElement).getAllByRole("button", {
+        name: "Edit",
+      }),
+    ).toHaveLength(3);
+    expect(
+      within(medicationSection as HTMLElement).getAllByRole("button", {
+        name: "Discontinue",
+      }),
+    ).toHaveLength(2);
   });
 
   it("hides medication management controls with only blister view", async () => {
@@ -341,16 +363,227 @@ describe("DosetteScreen", () => {
     });
   });
 
-  it("does not add cycle management controls", async () => {
+  it("shows cycle add edit and cancel with blister manage", async () => {
     renderDosette(
       "/patients/20/dosette",
       dosetteAuth({ "blister.manage": true }),
     );
 
     expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /create cycle/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^prepare$/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^cancel$/i })).toBeNull();
+    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect(cyclesSection).not.toBeNull();
+    expect(
+      within(cyclesSection as HTMLElement).getByRole("button", {
+        name: "Add cycle",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(cyclesSection as HTMLElement).getAllByRole("button", {
+        name: "Edit",
+      }),
+    ).toHaveLength(2);
+    expect(
+      within(cyclesSection as HTMLElement).getAllByRole("button", {
+        name: "Cancel",
+      }),
+    ).toHaveLength(2);
+  });
+
+  it("hides cycle add edit and cancel with only blister view", async () => {
+    renderDosette();
+
+    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
+    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect(cyclesSection).not.toBeNull();
+    expect(
+      within(cyclesSection as HTMLElement).queryByRole("button", {
+        name: "Add cycle",
+      }),
+    ).toBeNull();
+    expect(
+      within(cyclesSection as HTMLElement).queryByRole("button", {
+        name: "Edit",
+      }),
+    ).toBeNull();
+    expect(
+      within(cyclesSection as HTMLElement).queryByRole("button", {
+        name: "Cancel",
+      }),
+    ).toBeNull();
+  });
+
+  it("shows prepare only with mark-prepared permission and only for draft cycles", async () => {
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.mark_prepared": true }),
+    );
+
+    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
+    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect(cyclesSection).not.toBeNull();
+    expect(
+      within(cyclesSection as HTMLElement).getAllByRole("button", {
+        name: "Prepare",
+      }),
+    ).toHaveLength(1);
+
+    const draftRow = screen.getByText("MDS-2026-W26").closest("tr");
+    const preparedRow = screen.getByText("MDS-2026-FW07").closest("tr");
+    expect(draftRow).not.toBeNull();
+    expect(preparedRow).not.toBeNull();
+    expect(
+      within(draftRow as HTMLElement).getByRole("button", { name: "Prepare" }),
+    ).toBeInTheDocument();
+    expect(
+      within(preparedRow as HTMLElement).queryByRole("button", {
+        name: "Prepare",
+      }),
+    ).toBeNull();
+  });
+
+  it("hides prepare without mark-prepared permission", async () => {
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
+    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect(cyclesSection).not.toBeNull();
+    expect(
+      within(cyclesSection as HTMLElement).queryByRole("button", {
+        name: "Prepare",
+      }),
+    ).toBeNull();
+  });
+
+  it("shows cancel only for draft or prepared cycles", async () => {
+    listDosetteCyclesMock.mockResolvedValueOnce([
+      makeCycle(),
+      makeCycle({
+        id: 41,
+        reference: "MDS-2026-FW07",
+        status: "PREPARED",
+      }),
+      makeCycle({
+        id: 42,
+        reference: "MDS-2026-CANCELLED",
+        status: "CANCELLED",
+      }),
+      makeCycle({
+        id: 43,
+        reference: "MDS-2026-COMPLETED",
+        status: "COMPLETED",
+      }),
+    ]);
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    expect(await screen.findByText("MDS-2026-COMPLETED")).toBeInTheDocument();
+    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect(cyclesSection).not.toBeNull();
+    expect(
+      within(cyclesSection as HTMLElement).getAllByRole("button", {
+        name: "Cancel",
+      }),
+    ).toHaveLength(2);
+    expect(
+      within(screen.getByText("MDS-2026-CANCELLED").closest("tr") as HTMLElement)
+        .queryByRole("button", { name: "Cancel" }),
+    ).toBeNull();
+    expect(
+      within(screen.getByText("MDS-2026-COMPLETED").closest("tr") as HTMLElement)
+        .queryByRole("button", { name: "Cancel" }),
+    ).toBeNull();
+  });
+
+  it("prepare confirmation calls API and refetches cycles and picking-list data", async () => {
+    const user = userEvent.setup();
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.mark_prepared": true }),
+    );
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
+    const cycleCallsBefore = listDosetteCyclesMock.mock.calls.length;
+    const pickingCallsBefore = getPickingListMock.mock.calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Prepare" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Prepare",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(prepareDosetteCycleMock).toHaveBeenCalledWith(20, 40);
+    });
+    await waitFor(() => {
+      expect(listDosetteCyclesMock.mock.calls.length).toBeGreaterThan(
+        cycleCallsBefore,
+      );
+      expect(getPickingListMock.mock.calls.length).toBeGreaterThan(
+        pickingCallsBefore,
+      );
+    });
+  });
+
+  it("cancel confirmation calls API and refetches cycles and picking-list data", async () => {
+    const user = userEvent.setup();
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
+    const cycleCallsBefore = listDosetteCyclesMock.mock.calls.length;
+    const pickingCallsBefore = getPickingListMock.mock.calls.length;
+
+    await user.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Cancel cycle",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(cancelDosetteCycleMock).toHaveBeenCalledWith(20, 40);
+    });
+    await waitFor(() => {
+      expect(listDosetteCyclesMock.mock.calls.length).toBeGreaterThan(
+        cycleCallsBefore,
+      );
+      expect(getPickingListMock.mock.calls.length).toBeGreaterThan(
+        pickingCallsBefore,
+      );
+    });
+  });
+
+  it("does not add checked completed picking-list mutation stock or label controls", async () => {
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({
+        "blister.manage": true,
+        "blister.mark_prepared": true,
+      }),
+    );
+
+    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^check$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^complete$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /stock/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /label/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /update picking list/i }),
+    ).toBeNull();
   });
 
   it("does not render mutation controls for view-only users or dose instructions in picking list", async () => {

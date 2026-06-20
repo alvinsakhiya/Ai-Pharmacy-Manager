@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { usePermissions } from "../../auth/usePermissions";
 import { Modal } from "../../components/ui/Modal";
+import { DosetteCycleFormModal } from "./DosetteCycleFormModal";
 import { PatientMedicationFormModal } from "./PatientMedicationFormModal";
 import type {
   DosetteCycle,
@@ -11,10 +12,12 @@ import type {
   PickingListRow,
 } from "./dosetteApi";
 import {
+  useCancelDosetteCycle,
   useDiscontinuePatientMedication,
   useDosetteCyclesQuery,
   usePatientMedicationsQuery,
   usePickingListQuery,
+  usePrepareDosetteCycle,
 } from "./useDosette";
 
 function formatDate(value: string): string {
@@ -75,6 +78,14 @@ function QuantityCell({ value }: { value: number }) {
   return (
     <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">{value}</td>
   );
+}
+
+function canEditCycle(cycle: DosetteCycle): boolean {
+  return !["CANCELLED", "COMPLETED"].includes(cycle.status);
+}
+
+function canCancelCycle(cycle: DosetteCycle): boolean {
+  return ["DRAFT", "PREPARED"].includes(cycle.status);
 }
 
 function MedicationRow({
@@ -279,12 +290,17 @@ function PickingListSection({
 export function DosetteScreen() {
   const { can } = usePermissions();
   const canManage = can("blister.manage");
+  const canMarkPrepared = can("blister.mark_prepared");
   const { patientId } = useParams();
   const parsedPatientId = Number(patientId);
   const isValidPatientId = Number.isFinite(parsedPatientId);
   const [selectedCycleId, setSelectedCycleId] = useState<number | null>(null);
   const [editingLine, setEditingLine] = useState<PatientMedicationLine | null>(null);
   const [isMedicationModalOpen, setMedicationModalOpen] = useState(false);
+  const [editingCycle, setEditingCycle] = useState<DosetteCycle | null>(null);
+  const [isCycleModalOpen, setCycleModalOpen] = useState(false);
+  const [cycleToPrepare, setCycleToPrepare] = useState<DosetteCycle | null>(null);
+  const [cycleToCancel, setCycleToCancel] = useState<DosetteCycle | null>(null);
   const [lineToDiscontinue, setLineToDiscontinue] =
     useState<PatientMedicationLine | null>(null);
   const medicationsQuery = usePatientMedicationsQuery(parsedPatientId);
@@ -292,6 +308,8 @@ export function DosetteScreen() {
   const pickingListQuery = usePickingListQuery(parsedPatientId, selectedCycleId);
   const discontinueMedication =
     useDiscontinuePatientMedication(parsedPatientId);
+  const prepareCycle = usePrepareDosetteCycle(parsedPatientId);
+  const cancelCycle = useCancelDosetteCycle(parsedPatientId);
 
   function openCreateMedicationModal() {
     setEditingLine(null);
@@ -301,6 +319,16 @@ export function DosetteScreen() {
   function openEditMedicationModal(line: PatientMedicationLine) {
     setEditingLine(line);
     setMedicationModalOpen(true);
+  }
+
+  function openCreateCycleModal() {
+    setEditingCycle(null);
+    setCycleModalOpen(true);
+  }
+
+  function openEditCycleModal(cycle: DosetteCycle) {
+    setEditingCycle(cycle);
+    setCycleModalOpen(true);
   }
 
   if (!isValidPatientId) {
@@ -388,64 +416,103 @@ export function DosetteScreen() {
           title="Could not load cycles."
         />
       ) : null}
-      {cyclesQuery.isSuccess && cyclesQuery.data.length === 0 ? (
-        <LoadingSection text="No dosette cycles yet." />
-      ) : null}
-      {cyclesQuery.isSuccess && cyclesQuery.data.length > 0 ? (
+      {cyclesQuery.isSuccess ? (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-bold text-slate-950">Cycles</h2>
+            {canManage ? (
+              <button
+                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                onClick={openCreateCycleModal}
+                type="button"
+              >
+                Add cycle
+              </button>
+            ) : null}
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Reference
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Frequency
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Start - end date
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {cyclesQuery.data.map((cycle: DosetteCycle) => (
-                  <tr key={cycle.id}>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
-                      {cycle.reference}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                      {statusLabel(cycle.frequency)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                      {formatDate(cycle.start_date)} - {formatDate(cycle.end_date)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm">
-                      <StatusPill value={cycle.status} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
-                      <button
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                        onClick={() => setSelectedCycleId(cycle.id)}
-                        type="button"
-                      >
-                        View picking list
-                      </button>
-                    </td>
+          {cyclesQuery.data.length === 0 ? (
+            <p className="p-6 text-sm text-slate-600">No dosette cycles yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Reference
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Frequency
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Start - end date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Action
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {cyclesQuery.data.map((cycle: DosetteCycle) => (
+                    <tr key={cycle.id}>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
+                        {cycle.reference}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+                        {statusLabel(cycle.frequency)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+                        {formatDate(cycle.start_date)} - {formatDate(cycle.end_date)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm">
+                        <StatusPill value={cycle.status} />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                            onClick={() => setSelectedCycleId(cycle.id)}
+                            type="button"
+                          >
+                            View picking list
+                          </button>
+                          {canManage && canEditCycle(cycle) ? (
+                            <button
+                              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                              onClick={() => openEditCycleModal(cycle)}
+                              type="button"
+                            >
+                              Edit
+                            </button>
+                          ) : null}
+                          {canMarkPrepared && cycle.status === "DRAFT" ? (
+                            <button
+                              className="rounded-lg border border-emerald-300 px-3 py-1.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                              onClick={() => setCycleToPrepare(cycle)}
+                              type="button"
+                            >
+                              Prepare
+                            </button>
+                          ) : null}
+                          {canManage && canCancelCycle(cycle) ? (
+                            <button
+                              className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                              onClick={() => setCycleToCancel(cycle)}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -473,6 +540,83 @@ export function DosetteScreen() {
         onClose={() => setMedicationModalOpen(false)}
         patientId={parsedPatientId}
       />
+
+      <DosetteCycleFormModal
+        cycle={editingCycle}
+        isOpen={isCycleModalOpen}
+        onClose={() => setCycleModalOpen(false)}
+        patientId={parsedPatientId}
+      />
+
+      <Modal
+        isOpen={cycleToPrepare !== null}
+        onClose={() => setCycleToPrepare(null)}
+        title="Prepare this cycle?"
+      >
+        <div className="space-y-5">
+          <p className="text-sm leading-6 text-slate-700">
+            This cycle will move from draft to prepared.
+          </p>
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              onClick={() => setCycleToPrepare(null)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={prepareCycle.isPending}
+              onClick={async () => {
+                if (!cycleToPrepare) {
+                  return;
+                }
+                await prepareCycle.mutateAsync(cycleToPrepare.id);
+                setCycleToPrepare(null);
+              }}
+              type="button"
+            >
+              {prepareCycle.isPending ? "Preparing..." : "Prepare"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={cycleToCancel !== null}
+        onClose={() => setCycleToCancel(null)}
+        title="Cancel this cycle?"
+      >
+        <div className="space-y-5">
+          <p className="text-sm leading-6 text-slate-700">
+            This cycle will be marked cancelled.
+          </p>
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              onClick={() => setCycleToCancel(null)}
+              type="button"
+            >
+              Keep cycle
+            </button>
+            <button
+              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={cancelCycle.isPending}
+              onClick={async () => {
+                if (!cycleToCancel) {
+                  return;
+                }
+                await cancelCycle.mutateAsync(cycleToCancel.id);
+                setCycleToCancel(null);
+              }}
+              type="button"
+            >
+              {cancelCycle.isPending ? "Cancelling..." : "Cancel cycle"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={lineToDiscontinue !== null}

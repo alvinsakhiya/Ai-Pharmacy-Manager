@@ -1,12 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  cancelDosetteCycle,
+  createDosetteCycle,
   createPatientMedication,
   discontinuePatientMedication,
   getPickingList,
   listDosetteCycles,
   listPatientMedications,
+  prepareDosetteCycle,
+  updateDosetteCycle,
   updatePatientMedication,
+  type DosetteCycleWriteBody,
   type PatientMedicationWriteBody,
 } from "./dosetteApi";
 
@@ -81,5 +86,61 @@ export function useDiscontinuePatientMedication(patientId: number) {
   return useMutation({
     mutationFn: (id: number) => discontinuePatientMedication(patientId, id),
     onSuccess: invalidateDosetteMedicationData,
+  });
+}
+
+function useInvalidateDosetteCycleData(patientId: number) {
+  const queryClient = useQueryClient();
+
+  return () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["dosette", "cycles", patientId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["dosette", "picking-list", patientId],
+    });
+  };
+}
+
+export function useCreateDosetteCycle(patientId: number) {
+  const invalidateDosetteCycleData = useInvalidateDosetteCycleData(patientId);
+
+  return useMutation({
+    mutationFn: (body: DosetteCycleWriteBody) =>
+      createDosetteCycle(patientId, body),
+    onSuccess: invalidateDosetteCycleData,
+  });
+}
+
+export function useUpdateDosetteCycle(patientId: number) {
+  const invalidateDosetteCycleData = useInvalidateDosetteCycleData(patientId);
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      body,
+    }: {
+      id: number;
+      body: DosetteCycleWriteBody;
+    }) => updateDosetteCycle(patientId, id, body),
+    onSuccess: invalidateDosetteCycleData,
+  });
+}
+
+export function usePrepareDosetteCycle(patientId: number) {
+  const invalidateDosetteCycleData = useInvalidateDosetteCycleData(patientId);
+
+  return useMutation({
+    mutationFn: (id: number) => prepareDosetteCycle(patientId, id),
+    onSuccess: invalidateDosetteCycleData,
+  });
+}
+
+export function useCancelDosetteCycle(patientId: number) {
+  const invalidateDosetteCycleData = useInvalidateDosetteCycleData(patientId);
+
+  return useMutation({
+    mutationFn: (id: number) => cancelDosetteCycle(patientId, id),
+    onSuccess: invalidateDosetteCycleData,
   });
 }
