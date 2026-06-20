@@ -19,6 +19,7 @@ import { AlertsScreen } from "../features/notifications/AlertsScreen";
 import { PatientDetailScreen } from "../features/patients/PatientDetailScreen";
 import { PatientsScreen } from "../features/patients/PatientsScreen";
 import { ReportsScreen } from "../features/reports/ReportsScreen";
+import { ReviewsScreen } from "../features/reviews/ReviewsScreen";
 import { UsersScreen } from "../features/users/UsersScreen";
 import { OrganisationScreen } from "../features/tenancy/OrganisationScreen";
 import { AppShell } from "./AppShell";
@@ -117,6 +118,14 @@ export function AppRouter() {
               element={
                 <RequirePermission anyOf={["stock.view", "blister.view"]}>
                   <AlertsScreen />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/reviews"
+              element={
+                <RequirePermission anyOf={["review.view"]}>
+                  <ReviewsScreen />
                 </RequirePermission>
               }
             />

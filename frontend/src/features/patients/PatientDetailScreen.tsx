@@ -11,6 +11,7 @@ import {
   usePatientQuery,
 } from "./usePatients";
 import { usePharmacyNames } from "./usePharmacyNames";
+import { PatientReviewsSection } from "../reviews/PatientReviewsSection";
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -258,6 +259,8 @@ export function PatientDetailScreen() {
           </div>
         ) : null}
       </section>
+
+      <PatientReviewsSection patientId={parsedPatientId} />
 
       <PatientFormModal
         isOpen={isEditModalOpen}

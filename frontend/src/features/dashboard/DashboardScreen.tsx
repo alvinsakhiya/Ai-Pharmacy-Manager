@@ -13,6 +13,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     "Explainable inventory analytics for stock attention, expiry, and reorder risk.",
   Reports: "Download read-only stock attention and movement reports as CSV.",
   Alerts: "Review live operational stock and Dosette/MDS alerts.",
+  Reviews: "Manage the operational pharmacist review queue.",
 };
 
 export function DashboardScreen() {
