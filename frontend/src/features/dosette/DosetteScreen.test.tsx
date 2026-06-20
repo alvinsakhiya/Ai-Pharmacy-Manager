@@ -15,6 +15,7 @@ import type {
   DosetteCycle,
   PatientMedicationLine,
   PickingList,
+  StockPreview,
 } from "./dosetteApi";
 import * as dosetteApi from "./dosetteApi";
 
@@ -33,6 +34,7 @@ vi.mock("./dosetteApi", async (importOriginal) => {
     listPatientMedications: vi.fn(),
     listDosetteCycles: vi.fn(),
     getPickingList: vi.fn(),
+    getStockPreview: vi.fn(),
     createPatientMedication: vi.fn(),
     updatePatientMedication: vi.fn(),
     discontinuePatientMedication: vi.fn(),
@@ -47,6 +49,7 @@ const listMedicationsMock = vi.mocked(catalogueApi.listMedications);
 const listPatientMedicationsMock = vi.mocked(dosetteApi.listPatientMedications);
 const listDosetteCyclesMock = vi.mocked(dosetteApi.listDosetteCycles);
 const getPickingListMock = vi.mocked(dosetteApi.getPickingList);
+const getStockPreviewMock = vi.mocked(dosetteApi.getStockPreview);
 const discontinuePatientMedicationMock = vi.mocked(
   dosetteApi.discontinuePatientMedication,
 );
@@ -151,6 +154,69 @@ function makePickingList(overrides: Partial<PickingList> = {}): PickingList {
   };
 }
 
+function makeStockPreview(overrides: Partial<StockPreview> = {}): StockPreview {
+  return {
+    cycle: {
+      id: 40,
+      reference: "MDS-2026-W26",
+      frequency: "WEEKLY",
+      start_date: "2026-06-22",
+      end_date: "2026-06-28",
+      status: "DRAFT",
+    },
+    patient_reference: "SUT-P1",
+    pharmacy_id: 7,
+    medications: [
+      {
+        medication_id: 10,
+        medication_name: "Amlodipine",
+        strength: "5 mg",
+        form: "TABLET",
+        required_quantity: 2,
+        available_quantity: 8,
+        shortage_quantity: 0,
+        in_stock: true,
+        earliest_expiry: "2026-07-10",
+        suggested_batches: [
+          {
+            batch_id: 501,
+            batch_number: "AML-FEFO-1",
+            expiry_date: "2026-07-10",
+            quantity_available: 8,
+            quantity_to_pick: 2,
+          },
+        ],
+      },
+      {
+        medication_id: 11,
+        medication_name: "Metformin",
+        strength: "500 mg",
+        form: "TABLET",
+        required_quantity: 4,
+        available_quantity: 1,
+        shortage_quantity: 3,
+        in_stock: false,
+        earliest_expiry: "2026-07-20",
+        suggested_batches: [
+          {
+            batch_id: 601,
+            batch_number: "MET-FEFO-1",
+            expiry_date: "2026-07-20",
+            quantity_available: 1,
+            quantity_to_pick: 1,
+          },
+        ],
+      },
+    ],
+    totals: {
+      required: 6,
+      available: 9,
+      shortage: 3,
+    },
+    ...overrides,
+  };
+}
+
 function dosetteAuth(permissions: Record<string, boolean> = {}) {
   return makeAuthContext({
     user: makeAuthUser({
@@ -212,6 +278,7 @@ describe("DosetteScreen", () => {
       }),
     ]);
     getPickingListMock.mockResolvedValue(makePickingList());
+    getStockPreviewMock.mockResolvedValue(makeStockPreview());
     discontinuePatientMedicationMock.mockResolvedValue(
       makeLine({ is_active: false }),
     );
@@ -269,6 +336,67 @@ describe("DosetteScreen", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("selecting a cycle renders stock preview values badges and FEFO batches", async () => {
+    const user = userEvent.setup();
+    renderDosette();
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+
+    expect(getStockPreviewMock).toHaveBeenCalledWith(20, 40);
+    expect(
+      await screen.findByRole("heading", { name: "Stock availability" }),
+    ).toBeInTheDocument();
+    const stockSection = screen
+      .getByRole("heading", { name: "Stock availability" })
+      .closest("section");
+    expect(stockSection).not.toBeNull();
+
+    const amlodipineRow = within(stockSection as HTMLElement)
+      .getByText("Amlodipine")
+      .closest("tr");
+    const metforminRow = within(stockSection as HTMLElement)
+      .getByText("Metformin")
+      .closest("tr");
+    expect(amlodipineRow).not.toBeNull();
+    expect(metforminRow).not.toBeNull();
+
+    expect(within(amlodipineRow as HTMLElement).getByText("2")).toBeInTheDocument();
+    expect(within(amlodipineRow as HTMLElement).getByText("8")).toBeInTheDocument();
+    expect(within(amlodipineRow as HTMLElement).getByText("0")).toBeInTheDocument();
+    expect(
+      within(amlodipineRow as HTMLElement).getByText("In stock"),
+    ).toBeInTheDocument();
+    expect(
+      within(amlodipineRow as HTMLElement).getByText("AML-FEFO-1"),
+    ).toBeInTheDocument();
+    expect(
+      within(amlodipineRow as HTMLElement).getByText("10 Jul 2026 - pick 2"),
+    ).toBeInTheDocument();
+
+    expect(within(metforminRow as HTMLElement).getByText("4")).toBeInTheDocument();
+    expect(within(metforminRow as HTMLElement).getByText("1")).toBeInTheDocument();
+    expect(within(metforminRow as HTMLElement).getByText("3")).toBeInTheDocument();
+    expect(
+      within(metforminRow as HTMLElement).getByText("Shortage"),
+    ).toBeInTheDocument();
+    expect(
+      within(metforminRow as HTMLElement).getByText("MET-FEFO-1"),
+    ).toBeInTheDocument();
+    expect(
+      within(metforminRow as HTMLElement).getByText("20 Jul 2026 - pick 1"),
+    ).toBeInTheDocument();
+
+    expect(within(stockSection as HTMLElement).getByText("Totals")).toBeInTheDocument();
+    expect(
+      within(stockSection as HTMLElement).getAllByText("6").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(stockSection as HTMLElement).getAllByText("9").length,
+    ).toBeGreaterThan(0);
+  });
+
   it("handles loading, error, and empty states", async () => {
     listPatientMedicationsMock.mockReturnValueOnce(new Promise(() => undefined));
     listDosetteCyclesMock.mockReturnValueOnce(new Promise(() => undefined));
@@ -294,6 +422,39 @@ describe("DosetteScreen", () => {
 
     expect(await screen.findByText("No medication lines yet.")).toBeInTheDocument();
     expect(await screen.findByText("No dosette cycles yet.")).toBeInTheDocument();
+  });
+
+  it("handles stock preview loading error and empty states", async () => {
+    const user = userEvent.setup();
+    getStockPreviewMock.mockReturnValueOnce(new Promise(() => undefined));
+    const loadingRender = renderDosette();
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+    expect(await screen.findByText("Loading stock availability...")).toBeInTheDocument();
+    loadingRender.unmount();
+
+    getStockPreviewMock.mockRejectedValueOnce(new Error("No stock preview"));
+    const errorRender = renderDosette();
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+    expect(
+      await screen.findByText("Could not load stock availability."),
+    ).toBeInTheDocument();
+    errorRender.unmount();
+
+    getStockPreviewMock.mockResolvedValueOnce(makeStockPreview({ medications: [] }));
+    renderDosette();
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+    expect(
+      await screen.findByText("No active medication lines to preview."),
+    ).toBeInTheDocument();
   });
 
   it("shows medication management controls with blister manage", async () => {
@@ -329,7 +490,7 @@ describe("DosetteScreen", () => {
     expect(screen.queryByRole("button", { name: "Discontinue" })).toBeNull();
   });
 
-  it("discontinue confirmation calls API and refetches medication and picking-list data", async () => {
+  it("discontinue confirmation calls API and refetches medication picking-list and stock-preview data", async () => {
     const user = userEvent.setup();
     renderDosette(
       "/patients/20/dosette",
@@ -342,6 +503,7 @@ describe("DosetteScreen", () => {
     expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
     const medicationCallsBefore = listPatientMedicationsMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
+    const stockPreviewCallsBefore = getStockPreviewMock.mock.calls.length;
 
     await user.click(screen.getAllByRole("button", { name: "Discontinue" })[0]);
     await user.click(
@@ -359,6 +521,9 @@ describe("DosetteScreen", () => {
       );
       expect(getPickingListMock.mock.calls.length).toBeGreaterThan(
         pickingCallsBefore,
+      );
+      expect(getStockPreviewMock.mock.calls.length).toBeGreaterThan(
+        stockPreviewCallsBefore,
       );
     });
   });
@@ -499,7 +664,7 @@ describe("DosetteScreen", () => {
     ).toBeNull();
   });
 
-  it("prepare confirmation calls API and refetches cycles and picking-list data", async () => {
+  it("prepare confirmation calls API and refetches cycles picking-list and stock-preview data", async () => {
     const user = userEvent.setup();
     renderDosette(
       "/patients/20/dosette",
@@ -512,6 +677,7 @@ describe("DosetteScreen", () => {
     expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
     const cycleCallsBefore = listDosetteCyclesMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
+    const stockPreviewCallsBefore = getStockPreviewMock.mock.calls.length;
 
     await user.click(screen.getByRole("button", { name: "Prepare" }));
     await user.click(
@@ -530,10 +696,13 @@ describe("DosetteScreen", () => {
       expect(getPickingListMock.mock.calls.length).toBeGreaterThan(
         pickingCallsBefore,
       );
+      expect(getStockPreviewMock.mock.calls.length).toBeGreaterThan(
+        stockPreviewCallsBefore,
+      );
     });
   });
 
-  it("cancel confirmation calls API and refetches cycles and picking-list data", async () => {
+  it("cancel confirmation calls API and refetches cycles picking-list and stock-preview data", async () => {
     const user = userEvent.setup();
     renderDosette(
       "/patients/20/dosette",
@@ -546,6 +715,7 @@ describe("DosetteScreen", () => {
     expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
     const cycleCallsBefore = listDosetteCyclesMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
+    const stockPreviewCallsBefore = getStockPreviewMock.mock.calls.length;
 
     await user.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
     await user.click(
@@ -564,10 +734,13 @@ describe("DosetteScreen", () => {
       expect(getPickingListMock.mock.calls.length).toBeGreaterThan(
         pickingCallsBefore,
       );
+      expect(getStockPreviewMock.mock.calls.length).toBeGreaterThan(
+        stockPreviewCallsBefore,
+      );
     });
   });
 
-  it("does not add checked completed picking-list mutation stock or label controls", async () => {
+  it("does not add checked completed picking-list stock mutation reservation deduction or label controls", async () => {
     renderDosette(
       "/patients/20/dosette",
       dosetteAuth({
@@ -580,6 +753,11 @@ describe("DosetteScreen", () => {
     expect(screen.queryByRole("button", { name: /^check$/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /^complete$/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /stock/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /movement/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /reserve/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /reservation/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /deduct/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /deduction/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /label/i })).toBeNull();
     expect(
       screen.queryByRole("button", { name: /update picking list/i }),

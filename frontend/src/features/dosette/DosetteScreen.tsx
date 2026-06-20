@@ -10,6 +10,8 @@ import type {
   PatientMedicationLine,
   PickingList,
   PickingListRow,
+  StockPreview,
+  StockPreviewRow,
 } from "./dosetteApi";
 import {
   useCancelDosetteCycle,
@@ -18,6 +20,7 @@ import {
   usePatientMedicationsQuery,
   usePickingListQuery,
   usePrepareDosetteCycle,
+  useStockPreviewQuery,
 } from "./useDosette";
 
 function formatDate(value: string): string {
@@ -287,6 +290,125 @@ function PickingListSection({
   );
 }
 
+function StockAvailabilityPill({ inStock }: { inStock: boolean }) {
+  return (
+    <span
+      className={[
+        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
+        inStock ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700",
+      ].join(" ")}
+    >
+      {inStock ? "In stock" : "Shortage"}
+    </span>
+  );
+}
+
+function StockPreviewRowView({ row }: { row: StockPreviewRow }) {
+  return (
+    <tr>
+      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
+        {row.medication_name}
+      </td>
+      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+        {row.strength} / {row.form}
+      </td>
+      <QuantityCell value={row.required_quantity} />
+      <QuantityCell value={row.available_quantity} />
+      <QuantityCell value={row.shortage_quantity} />
+      <td className="whitespace-nowrap px-4 py-4 text-sm">
+        <StockAvailabilityPill inStock={row.in_stock} />
+      </td>
+      <td className="px-4 py-4 text-sm text-slate-700">
+        {row.suggested_batches.length === 0 ? (
+          <span className="text-slate-500">No batches suggested</span>
+        ) : (
+          <ul className="space-y-1">
+            {row.suggested_batches.map((batch) => (
+              <li key={batch.batch_id}>
+                <span className="font-medium text-slate-950">
+                  {batch.batch_number}
+                </span>{" "}
+                <span>
+                  {formatDate(batch.expiry_date)} - pick {batch.quantity_to_pick}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-6 py-5">
+        <p className="text-sm font-semibold text-teal-700">
+          {stockPreview.patient_reference}
+        </p>
+        <h2 className="mt-1 text-lg font-bold text-slate-950">
+          Stock availability
+        </h2>
+      </div>
+      {stockPreview.medications.length === 0 ? (
+        <p className="p-6 text-sm text-slate-600">
+          No active medication lines to preview.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Medication
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Strength/Form
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Required
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Available
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Shortage
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Suggested FEFO batches
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 bg-white">
+              {stockPreview.medications.map((row) => (
+                <StockPreviewRowView key={row.medication_id} row={row} />
+              ))}
+            </tbody>
+            <tfoot className="bg-slate-50">
+              <tr>
+                <td
+                  className="whitespace-nowrap px-4 py-4 text-sm font-bold text-slate-950"
+                  colSpan={2}
+                >
+                  Totals
+                </td>
+                <QuantityCell value={stockPreview.totals.required} />
+                <QuantityCell value={stockPreview.totals.available} />
+                <QuantityCell value={stockPreview.totals.shortage} />
+                <td className="px-4 py-4" colSpan={2} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function DosetteScreen() {
   const { can } = usePermissions();
   const canManage = can("blister.manage");
@@ -306,6 +428,7 @@ export function DosetteScreen() {
   const medicationsQuery = usePatientMedicationsQuery(parsedPatientId);
   const cyclesQuery = useDosetteCyclesQuery(parsedPatientId);
   const pickingListQuery = usePickingListQuery(parsedPatientId, selectedCycleId);
+  const stockPreviewQuery = useStockPreviewQuery(parsedPatientId, selectedCycleId);
   const discontinueMedication =
     useDiscontinuePatientMedication(parsedPatientId);
   const prepareCycle = usePrepareDosetteCycle(parsedPatientId);
@@ -532,6 +655,18 @@ export function DosetteScreen() {
       ) : null}
       {selectedCycleId !== null && pickingListQuery.isSuccess ? (
         <PickingListSection pickingList={pickingListQuery.data} />
+      ) : null}
+      {selectedCycleId !== null && stockPreviewQuery.isLoading ? (
+        <LoadingSection text="Loading stock availability..." />
+      ) : null}
+      {selectedCycleId !== null && stockPreviewQuery.isError ? (
+        <ErrorSection
+          onRetry={() => void stockPreviewQuery.refetch()}
+          title="Could not load stock availability."
+        />
+      ) : null}
+      {selectedCycleId !== null && stockPreviewQuery.isSuccess ? (
+        <StockPreviewSection stockPreview={stockPreviewQuery.data} />
       ) : null}
 
       <PatientMedicationFormModal

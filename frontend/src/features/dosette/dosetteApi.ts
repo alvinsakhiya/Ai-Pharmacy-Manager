@@ -86,6 +86,48 @@ export interface PickingList {
   totals: PickingListTotals;
 }
 
+export interface StockPreviewBatch {
+  batch_id: number;
+  batch_number: string;
+  expiry_date: string;
+  quantity_available: number;
+  quantity_to_pick: number;
+}
+
+export interface StockPreviewRow {
+  medication_id: number;
+  medication_name: string;
+  strength: string;
+  form: string;
+  required_quantity: number;
+  available_quantity: number;
+  shortage_quantity: number;
+  in_stock: boolean;
+  earliest_expiry: string | null;
+  suggested_batches: StockPreviewBatch[];
+}
+
+export interface StockPreviewTotals {
+  required: number;
+  available: number;
+  shortage: number;
+}
+
+export interface StockPreview {
+  cycle: {
+    id: number;
+    reference: string;
+    frequency: string;
+    start_date: string;
+    end_date: string;
+    status: string;
+  };
+  patient_reference: string;
+  pharmacy_id: number;
+  medications: StockPreviewRow[];
+  totals: StockPreviewTotals;
+}
+
 export function listPatientMedications(
   patientId: number,
 ): Promise<PatientMedicationLine[]> {
@@ -104,6 +146,15 @@ export function getPickingList(
 ): Promise<PickingList> {
   return requestJson<PickingList>(
     `/api/patients/${patientId}/cycles/${cycleId}/picking-list/`,
+  );
+}
+
+export function getStockPreview(
+  patientId: number,
+  cycleId: number,
+): Promise<StockPreview> {
+  return requestJson<StockPreview>(
+    `/api/patients/${patientId}/cycles/${cycleId}/stock-preview/`,
   );
 }
 

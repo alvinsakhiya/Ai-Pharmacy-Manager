@@ -6,6 +6,7 @@ import {
   createPatientMedication,
   discontinuePatientMedication,
   getPickingList,
+  getStockPreview,
   listDosetteCycles,
   listPatientMedications,
   prepareDosetteCycle,
@@ -39,6 +40,14 @@ export function usePickingListQuery(patientId: number, cycleId: number | null) {
   });
 }
 
+export function useStockPreviewQuery(patientId: number, cycleId: number | null) {
+  return useQuery({
+    queryKey: ["dosette", "stock-preview", patientId, cycleId],
+    queryFn: () => getStockPreview(patientId, cycleId as number),
+    enabled: Number.isFinite(patientId) && Number.isFinite(cycleId),
+  });
+}
+
 function useInvalidateDosetteMedicationData(patientId: number) {
   const queryClient = useQueryClient();
 
@@ -48,6 +57,9 @@ function useInvalidateDosetteMedicationData(patientId: number) {
     });
     void queryClient.invalidateQueries({
       queryKey: ["dosette", "picking-list", patientId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["dosette", "stock-preview", patientId],
     });
   };
 }
@@ -98,6 +110,9 @@ function useInvalidateDosetteCycleData(patientId: number) {
     });
     void queryClient.invalidateQueries({
       queryKey: ["dosette", "picking-list", patientId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["dosette", "stock-preview", patientId],
     });
   };
 }
