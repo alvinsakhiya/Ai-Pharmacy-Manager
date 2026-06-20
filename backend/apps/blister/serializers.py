@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import PatientMedication
+from .models import DosetteCycle, PatientMedication
 
 
 class PatientMedicationSerializer(serializers.ModelSerializer):
@@ -69,5 +69,55 @@ class PatientMedicationSerializer(serializers.ModelSerializer):
                     ]
                 }
             )
+
+        return attrs
+
+
+class DosetteCycleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DosetteCycle
+        fields = [
+            "id",
+            "reference",
+            "frequency",
+            "start_date",
+            "end_date",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "status", "created_at", "updated_at"]
+        validators: list[object] = []
+
+    def validate(self, attrs):
+        patient = self.context["patient"]
+        start_date = attrs.get(
+            "start_date",
+            getattr(self.instance, "start_date", None),
+        )
+        end_date = attrs.get("end_date", getattr(self.instance, "end_date", None))
+        reference = attrs.get(
+            "reference",
+            getattr(self.instance, "reference", None),
+        )
+
+        if start_date is not None and end_date is not None and end_date < start_date:
+            raise serializers.ValidationError(
+                {"end_date": ["End date cannot be before the start date."]}
+            )
+
+        if reference:
+            queryset = DosetteCycle.objects.filter(patient=patient, reference=reference)
+            if self.instance is not None:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise serializers.ValidationError(
+                    {
+                        "reference": [
+                            "A cycle with this reference already exists for this "
+                            "patient."
+                        ]
+                    }
+                )
 
         return attrs

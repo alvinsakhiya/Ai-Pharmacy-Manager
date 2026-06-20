@@ -17,6 +17,10 @@ urlpatterns = [
         "api/patients/<int:patient_pk>/medications/",
         include("apps.blister.urls"),
     ),
+    path(
+        "api/patients/<int:patient_pk>/cycles/",
+        include("apps.blister.cycle_urls"),
+    ),
     path("api/patients/", include("apps.patients.urls")),
     path("api/users/", include("apps.accounts.user_urls")),
     path("api/tenancy/", include("apps.tenancy.urls")),
