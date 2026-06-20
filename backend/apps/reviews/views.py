@@ -99,7 +99,10 @@ class ReviewListCreateView(ReviewMixin, ListCreateAPIView):
 
     def perform_create(self, serializer):
         with transaction.atomic():
-            review = serializer.save()
+            review = serializer.save(
+                status=ReviewStatus.PENDING,
+                completed_at=None,
+            )
             record(
                 action=AuditAction.REVIEW_CREATED,
                 actor=self.request.user,

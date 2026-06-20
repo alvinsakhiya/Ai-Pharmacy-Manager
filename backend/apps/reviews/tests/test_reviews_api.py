@@ -317,6 +317,51 @@ def test_create_review_validation(client, review_data):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "requested_status",
+    [
+        None,
+        ReviewStatus.COMPLETED,
+        ReviewStatus.IN_REVIEW,
+        ReviewStatus.CANCELLED,
+    ],
+)
+def test_create_review_always_starts_pending(client, review_data, requested_status):
+    authenticate(client, review_data["pharmacist"])
+    payload = create_payload(
+        review_data,
+        completed_at="2026-06-20T10:00:00Z",
+    )
+    if requested_status is not None:
+        payload["status"] = requested_status
+
+    response = client.post(list_url(), payload, format="json")
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == ReviewStatus.PENDING
+    assert body["completed_at"] is None
+
+    review = ReviewRecord.objects.get(pk=body["id"])
+    assert review.status == ReviewStatus.PENDING
+    assert review.completed_at is None
+
+    event = AuditEvent.objects.get(
+        action=AuditAction.REVIEW_CREATED,
+        target_id=str(review.id),
+    )
+    assert event.metadata["status"] == ReviewStatus.PENDING
+    for forbidden in [
+        "Review note content",
+        "PrivateFirst",
+        "PrivateLast",
+        "date_of_birth",
+        "phone",
+    ]:
+        assert forbidden not in str(event.metadata)
+
+
+@pytest.mark.django_db
 def test_update_review_fields_status_and_terminal_protection(client, review_data):
     authenticate(client, review_data["pharmacist"])
     review = review_data["review_one"]
