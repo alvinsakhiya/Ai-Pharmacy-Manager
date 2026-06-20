@@ -15,6 +15,7 @@ import { MedicationsScreen } from "../features/catalogue/MedicationsScreen";
 import { InventoryScreen } from "../features/inventory/InventoryScreen";
 import { StockItemDetailScreen } from "../features/inventory/StockItemDetailScreen";
 import { DosetteScreen } from "../features/dosette/DosetteScreen";
+import { AlertsScreen } from "../features/notifications/AlertsScreen";
 import { PatientDetailScreen } from "../features/patients/PatientDetailScreen";
 import { PatientsScreen } from "../features/patients/PatientsScreen";
 import { ReportsScreen } from "../features/reports/ReportsScreen";
@@ -108,6 +109,14 @@ export function AppRouter() {
               element={
                 <RequirePermission anyOf={["stock.view"]}>
                   <ReportsScreen />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/alerts"
+              element={
+                <RequirePermission anyOf={["stock.view", "blister.view"]}>
+                  <AlertsScreen />
                 </RequirePermission>
               }
             />

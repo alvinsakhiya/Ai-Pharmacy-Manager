@@ -44,6 +44,11 @@ export const NAV_ITEMS: NavItem[] = [
     requiredAnyOf: ["stock.view"],
   },
   {
+    label: "Alerts",
+    path: "/alerts",
+    requiredAnyOf: ["stock.view", "blister.view"],
+  },
+  {
     label: "Patients",
     path: "/patients",
     requiredAnyOf: ["patient.view"],
