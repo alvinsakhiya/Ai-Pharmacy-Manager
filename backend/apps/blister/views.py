@@ -14,7 +14,11 @@ from apps.patients.selectors import patients_for
 from apps.tenancy.permissions import Action, require
 
 from .models import CycleStatus, DosetteCycle, PatientMedication
-from .serializers import DosetteCycleSerializer, PatientMedicationSerializer
+from .serializers import (
+    DosetteCycleSerializer,
+    PatientMedicationSerializer,
+    PickingListSerializer,
+)
 
 
 def _audit_metadata(line: PatientMedication) -> dict[str, object]:
@@ -259,6 +263,79 @@ class DosetteCycleCancelView(APIView):
             ).data,
             status=status.HTTP_200_OK,
         )
+
+
+class PickingListView(APIView):
+    permission_classes = [require(Action.BLISTER_VIEW)]
+
+    def _get_patient(self, request, patient_pk):
+        return get_object_or_404(patients_for(request.user), pk=patient_pk)
+
+    def _get_cycle(self, request, patient, cycle_pk):
+        return get_object_or_404(
+            DosetteCycle.scoped.for_user(request.user)
+            .filter(patient=patient)
+            .select_related("patient", "patient__pharmacy"),
+            pk=cycle_pk,
+        )
+
+    def get(self, request, patient_pk, cycle_pk):
+        patient = self._get_patient(request, patient_pk)
+        cycle = self._get_cycle(request, patient, cycle_pk)
+        totals = {
+            "morning": 0,
+            "lunchtime": 0,
+            "evening": 0,
+            "bedtime": 0,
+            "total_daily": 0,
+        }
+        rows = []
+
+        lines = (
+            PatientMedication.objects.filter(patient=patient, is_active=True)
+            .select_related("medication")
+            .order_by("medication__name", "id")
+        )
+        for line in lines:
+            total_daily = (
+                line.quantity_morning
+                + line.quantity_lunchtime
+                + line.quantity_evening
+                + line.quantity_bedtime
+            )
+            rows.append(
+                {
+                    "medication_id": line.medication_id,
+                    "medication_name": line.medication.name,
+                    "strength": line.medication.strength,
+                    "form": line.medication.form,
+                    "quantity_morning": line.quantity_morning,
+                    "quantity_lunchtime": line.quantity_lunchtime,
+                    "quantity_evening": line.quantity_evening,
+                    "quantity_bedtime": line.quantity_bedtime,
+                    "total_daily": total_daily,
+                }
+            )
+            totals["morning"] += line.quantity_morning
+            totals["lunchtime"] += line.quantity_lunchtime
+            totals["evening"] += line.quantity_evening
+            totals["bedtime"] += line.quantity_bedtime
+            totals["total_daily"] += total_daily
+
+        data = {
+            "cycle": {
+                "id": cycle.id,
+                "reference": cycle.reference,
+                "frequency": cycle.frequency,
+                "start_date": cycle.start_date,
+                "end_date": cycle.end_date,
+                "status": cycle.status,
+            },
+            "patient_reference": patient.patient_reference,
+            "medications": rows,
+            "totals": totals,
+        }
+        return Response(PickingListSerializer(data).data, status=status.HTTP_200_OK)
 
 
 class PatientMedicationListCreateView(PatientMedicationMixin, ListCreateAPIView):

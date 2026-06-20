@@ -121,3 +121,39 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
                 )
 
         return attrs
+
+
+class PickingListRowSerializer(serializers.Serializer):
+    medication_id = serializers.IntegerField(read_only=True)
+    medication_name = serializers.CharField(read_only=True)
+    strength = serializers.CharField(read_only=True)
+    form = serializers.CharField(read_only=True)
+    quantity_morning = serializers.IntegerField(read_only=True)
+    quantity_lunchtime = serializers.IntegerField(read_only=True)
+    quantity_evening = serializers.IntegerField(read_only=True)
+    quantity_bedtime = serializers.IntegerField(read_only=True)
+    total_daily = serializers.IntegerField(read_only=True)
+
+
+class _PickingListCycleSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    reference = serializers.CharField(read_only=True)
+    frequency = serializers.CharField(read_only=True)
+    start_date = serializers.DateField(read_only=True)
+    end_date = serializers.DateField(read_only=True)
+    status = serializers.CharField(read_only=True)
+
+
+class _PickingListTotalsSerializer(serializers.Serializer):
+    morning = serializers.IntegerField(read_only=True)
+    lunchtime = serializers.IntegerField(read_only=True)
+    evening = serializers.IntegerField(read_only=True)
+    bedtime = serializers.IntegerField(read_only=True)
+    total_daily = serializers.IntegerField(read_only=True)
+
+
+class PickingListSerializer(serializers.Serializer):
+    cycle = _PickingListCycleSerializer(read_only=True)
+    patient_reference = serializers.CharField(read_only=True)
+    medications = PickingListRowSerializer(many=True, read_only=True)
+    totals = _PickingListTotalsSerializer(read_only=True)

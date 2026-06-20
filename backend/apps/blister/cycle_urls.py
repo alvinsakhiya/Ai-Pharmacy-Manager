@@ -5,6 +5,7 @@ from .views import (
     DosetteCycleDetailView,
     DosetteCycleListCreateView,
     DosetteCyclePrepareView,
+    PickingListView,
 )
 
 urlpatterns = [
@@ -19,5 +20,10 @@ urlpatterns = [
         "<int:pk>/cancel/",
         DosetteCycleCancelView.as_view(),
         name="dosette-cycle-cancel",
+    ),
+    path(
+        "<int:cycle_pk>/picking-list/",
+        PickingListView.as_view(),
+        name="dosette-cycle-picking-list",
     ),
 ]
