@@ -17,6 +17,7 @@ import { StockItemDetailScreen } from "../features/inventory/StockItemDetailScre
 import { DosetteScreen } from "../features/dosette/DosetteScreen";
 import { PatientDetailScreen } from "../features/patients/PatientDetailScreen";
 import { PatientsScreen } from "../features/patients/PatientsScreen";
+import { ReportsScreen } from "../features/reports/ReportsScreen";
 import { UsersScreen } from "../features/users/UsersScreen";
 import { OrganisationScreen } from "../features/tenancy/OrganisationScreen";
 import { AppShell } from "./AppShell";
@@ -99,6 +100,14 @@ export function AppRouter() {
               element={
                 <RequirePermission anyOf={["stock.view"]}>
                   <StockAnalyticsScreen />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <RequirePermission anyOf={["stock.view"]}>
+                  <ReportsScreen />
                 </RequirePermission>
               }
             />

@@ -11,6 +11,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   "Audit Log": "Review security and operational audit events in a later task.",
   "Stock Intelligence":
     "Explainable inventory analytics for stock attention, expiry, and reorder risk.",
+  Reports: "Download read-only stock attention and movement reports as CSV.",
 };
 
 export function DashboardScreen() {
