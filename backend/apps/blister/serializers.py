@@ -157,3 +157,38 @@ class PickingListSerializer(serializers.Serializer):
     patient_reference = serializers.CharField(read_only=True)
     medications = PickingListRowSerializer(many=True, read_only=True)
     totals = _PickingListTotalsSerializer(read_only=True)
+
+
+class StockPreviewBatchSerializer(serializers.Serializer):
+    batch_id = serializers.IntegerField(read_only=True)
+    batch_number = serializers.CharField(read_only=True)
+    expiry_date = serializers.DateField(read_only=True)
+    quantity_available = serializers.IntegerField(read_only=True)
+    quantity_to_pick = serializers.IntegerField(read_only=True)
+
+
+class StockPreviewRowSerializer(serializers.Serializer):
+    medication_id = serializers.IntegerField(read_only=True)
+    medication_name = serializers.CharField(read_only=True)
+    strength = serializers.CharField(read_only=True)
+    form = serializers.CharField(read_only=True)
+    required_quantity = serializers.IntegerField(read_only=True)
+    available_quantity = serializers.IntegerField(read_only=True)
+    shortage_quantity = serializers.IntegerField(read_only=True)
+    in_stock = serializers.BooleanField(read_only=True)
+    earliest_expiry = serializers.DateField(allow_null=True, read_only=True)
+    suggested_batches = StockPreviewBatchSerializer(many=True, read_only=True)
+
+
+class _StockPreviewTotalsSerializer(serializers.Serializer):
+    required = serializers.IntegerField(read_only=True)
+    available = serializers.IntegerField(read_only=True)
+    shortage = serializers.IntegerField(read_only=True)
+
+
+class StockPreviewSerializer(serializers.Serializer):
+    cycle = _PickingListCycleSerializer(read_only=True)
+    patient_reference = serializers.CharField(read_only=True)
+    pharmacy_id = serializers.IntegerField(read_only=True)
+    medications = StockPreviewRowSerializer(many=True, read_only=True)
+    totals = _StockPreviewTotalsSerializer(read_only=True)

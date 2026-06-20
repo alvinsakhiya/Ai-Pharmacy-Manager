@@ -2,6 +2,7 @@ from typing import Any
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import SAFE_METHODS
@@ -10,6 +11,7 @@ from rest_framework.views import APIView
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record
+from apps.inventory.models import StockBatch, StockItem
 from apps.patients.selectors import patients_for
 from apps.tenancy.permissions import Action, require
 
@@ -18,6 +20,7 @@ from .serializers import (
     DosetteCycleSerializer,
     PatientMedicationSerializer,
     PickingListSerializer,
+    StockPreviewSerializer,
 )
 
 
@@ -336,6 +339,124 @@ class PickingListView(APIView):
             "totals": totals,
         }
         return Response(PickingListSerializer(data).data, status=status.HTTP_200_OK)
+
+
+class StockPreviewView(APIView):
+    permission_classes = [require(Action.BLISTER_VIEW)]
+
+    def _get_patient(self, request, patient_pk):
+        return get_object_or_404(patients_for(request.user), pk=patient_pk)
+
+    def _get_cycle(self, request, patient, cycle_pk):
+        return get_object_or_404(
+            DosetteCycle.scoped.for_user(request.user)
+            .filter(patient=patient)
+            .select_related("patient", "patient__pharmacy"),
+            pk=cycle_pk,
+        )
+
+    def get(self, request, patient_pk, cycle_pk):
+        patient = self._get_patient(request, patient_pk)
+        cycle = self._get_cycle(request, patient, cycle_pk)
+        today = timezone.now().date()
+        totals = {
+            "required": 0,
+            "available": 0,
+            "shortage": 0,
+        }
+        rows = []
+
+        lines = (
+            PatientMedication.scoped.for_user(request.user)
+            .filter(patient=patient, is_active=True)
+            .select_related("medication")
+            .order_by("medication__name", "id")
+        )
+        for line in lines:
+            required_quantity = (
+                line.quantity_morning
+                + line.quantity_lunchtime
+                + line.quantity_evening
+                + line.quantity_bedtime
+            )
+            stock_item = (
+                StockItem.scoped.for_user(request.user)
+                .filter(
+                    pharmacy=patient.pharmacy,
+                    medication=line.medication,
+                )
+                .first()
+            )
+            batches = StockBatch.objects.none()
+            if stock_item is not None:
+                batches = (
+                    StockBatch.scoped.for_user(request.user)
+                    .filter(
+                        stock_item=stock_item,
+                        is_active=True,
+                        quantity__gt=0,
+                        expiry_date__gte=today,
+                    )
+                    .order_by("expiry_date", "id")
+                )
+
+            usable_batches = list(batches)
+            available_quantity = sum(batch.quantity for batch in usable_batches)
+            shortage_quantity = max(0, required_quantity - available_quantity)
+            remaining_required = required_quantity
+            suggested_batches = []
+
+            for batch in usable_batches:
+                quantity_to_pick = min(remaining_required, batch.quantity)
+                if quantity_to_pick > 0:
+                    suggested_batches.append(
+                        {
+                            "batch_id": batch.id,
+                            "batch_number": batch.batch_number,
+                            "expiry_date": batch.expiry_date,
+                            "quantity_available": batch.quantity,
+                            "quantity_to_pick": quantity_to_pick,
+                        }
+                    )
+                    remaining_required -= quantity_to_pick
+                if remaining_required <= 0:
+                    break
+
+            rows.append(
+                {
+                    "medication_id": line.medication_id,
+                    "medication_name": line.medication.name,
+                    "strength": line.medication.strength,
+                    "form": line.medication.form,
+                    "required_quantity": required_quantity,
+                    "available_quantity": available_quantity,
+                    "shortage_quantity": shortage_quantity,
+                    "in_stock": shortage_quantity == 0,
+                    "earliest_expiry": (
+                        usable_batches[0].expiry_date if usable_batches else None
+                    ),
+                    "suggested_batches": suggested_batches,
+                }
+            )
+            totals["required"] += required_quantity
+            totals["available"] += available_quantity
+            totals["shortage"] += shortage_quantity
+
+        data = {
+            "cycle": {
+                "id": cycle.id,
+                "reference": cycle.reference,
+                "frequency": cycle.frequency,
+                "start_date": cycle.start_date,
+                "end_date": cycle.end_date,
+                "status": cycle.status,
+            },
+            "patient_reference": patient.patient_reference,
+            "pharmacy_id": patient.pharmacy_id,
+            "medications": rows,
+            "totals": totals,
+        }
+        return Response(StockPreviewSerializer(data).data, status=status.HTTP_200_OK)
 
 
 class PatientMedicationListCreateView(PatientMedicationMixin, ListCreateAPIView):

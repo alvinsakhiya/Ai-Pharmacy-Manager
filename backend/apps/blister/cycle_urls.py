@@ -6,6 +6,7 @@ from .views import (
     DosetteCycleListCreateView,
     DosetteCyclePrepareView,
     PickingListView,
+    StockPreviewView,
 )
 
 urlpatterns = [
@@ -25,5 +26,10 @@ urlpatterns = [
         "<int:cycle_pk>/picking-list/",
         PickingListView.as_view(),
         name="dosette-cycle-picking-list",
+    ),
+    path(
+        "<int:cycle_pk>/stock-preview/",
+        StockPreviewView.as_view(),
+        name="dosette-cycle-stock-preview",
     ),
 ]
