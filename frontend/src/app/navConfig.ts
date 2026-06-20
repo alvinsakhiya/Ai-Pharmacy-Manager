@@ -34,6 +34,11 @@ export const NAV_ITEMS: NavItem[] = [
     requiredAnyOf: ["stock.view"],
   },
   {
+    label: "Stock Intelligence",
+    path: "/analytics",
+    requiredAnyOf: ["stock.view"],
+  },
+  {
     label: "Patients",
     path: "/patients",
     requiredAnyOf: ["patient.view"],
@@ -49,7 +54,6 @@ export const FUTURE_ITEMS: FutureNavItem[] = [
   { label: "Dosette/MDS" },
   { label: "Clinical Review" },
   { label: "Notifications" },
-  { label: "AI Analytics" },
   { label: "Reports" },
   { label: "Settings" },
 ];

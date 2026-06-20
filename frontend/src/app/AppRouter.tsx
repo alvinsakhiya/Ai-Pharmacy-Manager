@@ -7,6 +7,7 @@ import {
 
 import { useAuth } from "../auth/AuthContext";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
+import { StockAnalyticsScreen } from "../features/analytics/StockAnalyticsScreen";
 import { ChangePasswordScreen } from "../features/auth/ChangePasswordScreen";
 import { LoginScreen } from "../features/auth/LoginScreen";
 import { AuditScreen } from "../features/audit/AuditScreen";
@@ -90,6 +91,14 @@ export function AppRouter() {
               element={
                 <RequirePermission anyOf={["stock.view"]}>
                   <StockItemDetailScreen />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <RequirePermission anyOf={["stock.view"]}>
+                  <StockAnalyticsScreen />
                 </RequirePermission>
               }
             />

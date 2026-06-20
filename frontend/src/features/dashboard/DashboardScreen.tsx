@@ -9,6 +9,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   Users: "Manage pharmacy users and role assignments in a later task.",
   Organisation: "Manage groups and pharmacies in a later task.",
   "Audit Log": "Review security and operational audit events in a later task.",
+  "Stock Intelligence":
+    "Explainable inventory analytics for stock attention, expiry, and reorder risk.",
 };
 
 export function DashboardScreen() {
