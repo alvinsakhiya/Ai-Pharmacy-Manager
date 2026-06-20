@@ -9,12 +9,12 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <div className="hidden md:fixed md:inset-y-0 md:left-0 md:block">
+      <div className="app-shell__desktop-sidebar">
         <Sidebar />
       </div>
 
       {mobileNavOpen ? (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="app-shell__mobile-overlay fixed inset-0 z-40">
           <button
             aria-label="Close navigation"
             className="absolute inset-0 bg-slate-950/40"
@@ -27,7 +27,7 @@ export function AppShell() {
         </div>
       ) : null}
 
-      <div className="md:pl-72">
+      <div className="app-shell__content">
         <TopBar onMenuClick={() => setMobileNavOpen(true)} />
         <main className="px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />

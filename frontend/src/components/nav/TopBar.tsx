@@ -25,7 +25,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
       <div className="flex min-w-0 items-center gap-3">
         <button
           aria-label="Open navigation"
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 md:hidden"
+          className="app-shell__menu-button rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
           onClick={onMenuClick}
           type="button"
         >

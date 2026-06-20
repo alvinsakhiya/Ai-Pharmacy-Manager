@@ -16,3 +16,30 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+
+.app-shell__desktop-sidebar {
+  display: none;
+}
+
+.app-shell__content {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .app-shell__desktop-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    display: block;
+    width: 18rem;
+  }
+
+  .app-shell__content {
+    padding-left: 18rem;
+  }
+
+  .app-shell__mobile-overlay,
+  .app-shell__menu-button {
+    display: none;
+  }
+}
