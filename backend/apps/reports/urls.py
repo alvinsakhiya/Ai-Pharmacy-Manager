@@ -1,6 +1,11 @@
 from django.urls import path
 
-from .views import StockAttentionReportCsvView, StockAttentionReportView
+from .views import (
+    StockAttentionReportCsvView,
+    StockAttentionReportView,
+    StockMovementsReportCsvView,
+    StockMovementsReportView,
+)
 
 urlpatterns = [
     path(
@@ -12,5 +17,15 @@ urlpatterns = [
         "stock/attention.csv",
         StockAttentionReportCsvView.as_view(),
         name="reports-stock-attention-csv",
+    ),
+    path(
+        "stock/movements/",
+        StockMovementsReportView.as_view(),
+        name="reports-stock-movements",
+    ),
+    path(
+        "stock/movements.csv",
+        StockMovementsReportCsvView.as_view(),
+        name="reports-stock-movements-csv",
     ),
 ]

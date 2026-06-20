@@ -1,5 +1,8 @@
 import csv
+from datetime import datetime
 from io import StringIO
+
+from django.utils import timezone
 
 CSV_COLUMNS = [
     "stock_item_id",
@@ -21,10 +24,27 @@ CSV_COLUMNS = [
     "reasons",
 ]
 
+MOVEMENT_CSV_COLUMNS = [
+    "movement_id",
+    "created_at",
+    "stock_item_id",
+    "medication_id",
+    "medication_name",
+    "pharmacy_id",
+    "batch_id",
+    "batch_number",
+    "movement_type",
+    "quantity_delta",
+    "balance_after",
+    "reference",
+]
+
 
 def _format_date(value) -> str:
     if value is None:
         return ""
+    if isinstance(value, datetime):
+        return timezone.localtime(value).isoformat()
     return value.isoformat() if hasattr(value, "isoformat") else str(value)
 
 
@@ -60,6 +80,32 @@ def stock_attention_report_csv(report: dict) -> str:
                 "attention_score": row["attention_score"],
                 "suggested_reorder_quantity": row["suggested_reorder_quantity"],
                 "reasons": "; ".join(row["reasons"]),
+            }
+        )
+
+    return output.getvalue()
+
+
+def stock_movements_report_csv(report: dict) -> str:
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=MOVEMENT_CSV_COLUMNS)
+    writer.writeheader()
+
+    for row in report["rows"]:
+        writer.writerow(
+            {
+                "movement_id": row["movement_id"],
+                "created_at": _format_date(row["created_at"]),
+                "stock_item_id": row["stock_item_id"],
+                "medication_id": row["medication_id"],
+                "medication_name": row["medication_name"],
+                "pharmacy_id": row["pharmacy_id"],
+                "batch_id": "" if row["batch_id"] is None else row["batch_id"],
+                "batch_number": row["batch_number"] or "",
+                "movement_type": row["movement_type"],
+                "quantity_delta": row["quantity_delta"],
+                "balance_after": row["balance_after"],
+                "reference": row["reference"],
             }
         )
 
