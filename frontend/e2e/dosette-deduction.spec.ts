@@ -16,8 +16,9 @@ test("admin can deduct stock for a prepared dosette cycle", async ({ page }) => 
   await expect(
     page.getByRole("heading", { name: "Stock availability" }),
   ).toBeVisible();
-  await expect(page.getByText("Ibuprofen")).toBeVisible();
-  await expect(page.getByText("CRO-IBU-001")).toBeVisible();
+  const stockSection = page.locator("section", { hasText: "Stock availability" });
+  await expect(stockSection.getByText("Ibuprofen")).toBeVisible();
+  await expect(stockSection.getByText("CRO-IBU-001")).toBeVisible();
 
   const deductButton = cycleRow.getByRole("button", { name: "Deduct stock" });
 
