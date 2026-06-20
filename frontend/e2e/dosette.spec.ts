@@ -7,7 +7,7 @@ import {
   openPatients,
 } from "./helpers";
 
-test("pharmacist can view dosette medication lines, cycles, and picking list", async ({
+test("pharmacist can view dosette medication lines, cycles, picking list, and stock availability", async ({
   page,
 }) => {
   await login(page, "pharmacist@demo.local");
@@ -29,4 +29,13 @@ test("pharmacist can view dosette medication lines, cycles, and picking list", a
     page.getByRole("heading", { name: /Picking list: MDS-2026-W26/ }),
   ).toBeVisible();
   await expect(page.getByText("Totals")).toBeVisible();
+
+  await expect(
+    page.getByRole("heading", { name: "Stock availability" }),
+  ).toBeVisible();
+  await expect(page.getByText("Required")).toBeVisible();
+  await expect(page.getByText("Available")).toBeVisible();
+  await expect(page.getByText("Shortage").first()).toBeVisible();
+  await expect(page.getByText("In stock").first()).toBeVisible();
+  await expect(page.getByText("SUT-PAR-001")).toBeVisible();
 });
