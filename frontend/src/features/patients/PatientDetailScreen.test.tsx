@@ -43,11 +43,12 @@ function makePatient(overrides: Partial<Patient> = {}): Patient {
   };
 }
 
-function patientAuth() {
+function patientAuth(permissions: Record<string, boolean> = {}) {
   return makeAuthContext({
     user: makeAuthUser({
       permissions: {
         "patient.view": true,
+        ...permissions,
       },
       pharmacies: [
         { id: 1, name: "JMW Sutton" },
@@ -57,12 +58,12 @@ function patientAuth() {
   });
 }
 
-function renderDetail(route = "/patients/20") {
+function renderDetail(route = "/patients/20", auth = patientAuth()) {
   return renderWithProviders(
     <Routes>
       <Route element={<PatientDetailScreen />} path="/patients/:patientId" />
     </Routes>,
-    { auth: patientAuth(), route },
+    { auth, route },
   );
 }
 
@@ -111,6 +112,23 @@ describe("PatientDetailScreen", () => {
     expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /deactivate/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /add note/i })).toBeNull();
+  });
+
+  it("shows dosette link for users with blister view", async () => {
+    renderDetail("/patients/20", patientAuth({ "blister.view": true }));
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Dosette / MDS" })).toHaveAttribute(
+      "href",
+      "/patients/20/dosette",
+    );
+  });
+
+  it("hides dosette link without blister view", async () => {
+    renderDetail();
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Dosette / MDS" })).toBeNull();
   });
 
   it("shows not found or out-of-access error state", async () => {

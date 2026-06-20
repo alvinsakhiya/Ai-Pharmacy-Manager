@@ -71,6 +71,7 @@ function DetailValue({ label, value }: { label: string; value: string }) {
 export function PatientDetailScreen() {
   const { can } = usePermissions();
   const canManage = can("patient.manage");
+  const canViewDosette = can("blister.view");
   const { patientId } = useParams();
   const parsedPatientId = Number(patientId);
   const isValidPatientId = Number.isFinite(parsedPatientId);
@@ -150,6 +151,14 @@ export function PatientDetailScreen() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <StatusPill active={patient.is_active} />
+            {canViewDosette ? (
+              <Link
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                to={`/patients/${patient.id}/dosette`}
+              >
+                Dosette / MDS
+              </Link>
+            ) : null}
             {canManage ? (
               <button
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
