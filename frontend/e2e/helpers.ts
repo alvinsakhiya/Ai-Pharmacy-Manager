@@ -67,11 +67,13 @@ export async function openInventory(page: Page) {
   await expect(
     page.getByRole("heading", { name: "Inventory", exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "View" }).first()).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "View", exact: true }).first(),
+  ).toBeVisible();
 }
 
 export async function openFirstStockItemDetail(page: Page) {
-  await page.getByRole("link", { name: "View" }).first().click();
+  await page.getByRole("link", { name: "View", exact: true }).first().click();
   await expect(page).toHaveURL(/\/inventory\/\d+$/);
   await expect(
     page.getByRole("link", { name: "Back to inventory" }),
@@ -86,7 +88,7 @@ export async function openPatients(page: Page) {
 }
 
 export async function openFirstPatientDetail(page: Page) {
-  await page.getByRole("link", { name: "View" }).first().click();
+  await page.getByRole("link", { name: "View", exact: true }).first().click();
   await expect(page).toHaveURL(/\/patients\/\d+$/);
   await expect(
     page.getByRole("link", { name: "Back to patients" }),
