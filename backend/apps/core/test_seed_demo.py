@@ -7,6 +7,7 @@ from django.test import override_settings
 
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
+from apps.blister.models import DosetteCycle, PatientMedication
 from apps.catalogue.models import Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem
 from apps.patients.models import Patient
@@ -91,6 +92,7 @@ def test_seed_demo_creates_expected_demo_data():
 
     assert "local demo credentials only" in output
     assert "Patients:" in output
+    assert "Dosette/MDS:" in output
     assert DEMO_PASSWORD in output
     assert AuditEvent.objects.count() == 0
 
@@ -174,6 +176,12 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
             stock_item__pharmacy__group=get_demo_group(),
         ).count(),
         "patients": Patient.objects.filter(pharmacy__group=get_demo_group()).count(),
+        "patient_medications": PatientMedication.objects.filter(
+            patient__pharmacy__group=get_demo_group(),
+        ).count(),
+        "dosette_cycles": DosetteCycle.objects.filter(
+            patient__pharmacy__group=get_demo_group(),
+        ).count(),
         "users": User.objects.filter(email__in=DEMO_EMAILS).count(),
         "memberships": Membership.objects.filter(
             user__email__in=DEMO_EMAILS,
@@ -209,6 +217,16 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
         Patient.objects.filter(pharmacy__group=get_demo_group()).count()
         == first_counts["patients"]
     )
+    assert (
+        PatientMedication.objects.filter(
+            patient__pharmacy__group=get_demo_group(),
+        ).count()
+        == first_counts["patient_medications"]
+    )
+    assert (
+        DosetteCycle.objects.filter(patient__pharmacy__group=get_demo_group()).count()
+        == first_counts["dosette_cycles"]
+    )
     assert User.objects.filter(email__in=DEMO_EMAILS).count() == first_counts["users"]
     assert (
         Membership.objects.filter(user__email__in=DEMO_EMAILS, is_active=True).count()
@@ -218,6 +236,50 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
     assert admin.check_password(DEMO_PASSWORD) is True
     assert admin.must_change_password is False
     assert admin.is_active is True
+    assert AuditEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_seed_demo_creates_fictional_dosette_data():
+    run_seed_demo()
+
+    assert PatientMedication.objects.count() > 0
+    assert DosetteCycle.objects.count() > 0
+    assert PatientMedication.objects.filter(
+        is_active=True,
+        quantity_morning=0,
+        quantity_lunchtime=0,
+        quantity_evening=0,
+        quantity_bedtime=0,
+    ).exists()
+    assert PatientMedication.objects.filter(is_active=False).exists()
+    assert (
+        PatientMedication.objects.filter(
+            is_active=True,
+        )
+        .exclude(
+            quantity_morning=0,
+            quantity_lunchtime=0,
+            quantity_evening=0,
+            quantity_bedtime=0,
+        )
+        .exists()
+    )
+    assert AuditEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_seed_demo_dosette_data_is_idempotent():
+    run_seed_demo()
+    patient_medication_count = PatientMedication.objects.count()
+    dosette_cycle_count = DosetteCycle.objects.count()
+
+    run_seed_demo()
+
+    assert PatientMedication.objects.count() == patient_medication_count
+    assert DosetteCycle.objects.count() == dosette_cycle_count
     assert AuditEvent.objects.count() == 0
 
 

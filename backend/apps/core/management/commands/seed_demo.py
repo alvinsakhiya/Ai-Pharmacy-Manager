@@ -5,15 +5,21 @@ This command is for development/demo use only. It creates fictional
 tests, and does not create real patient, NHS, customer, or movement data.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
-from typing import NamedTuple
+from typing import NamedTuple, cast
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.accounts.models import User
+from apps.blister.models import (
+    CycleFrequency,
+    CycleStatus,
+    DosetteCycle,
+    PatientMedication,
+)
 from apps.catalogue.models import Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem
 from apps.patients.models import Patient
@@ -43,6 +49,11 @@ MEDICATIONS = [
 ]
 
 STOCK_RECEIVED_AT = date(2026, 1, 15)
+CYCLE_DRAFT_START = date(2026, 6, 22)
+CYCLE_DRAFT_END = date(2026, 6, 28)
+CYCLE_PREPARED_START = date(2026, 6, 1)
+CYCLE_PREPARED_END = date(2026, 6, 28)
+MEDICATION_DISCONTINUED_AT = date(2026, 6, 15)
 
 
 class DemoStockBatch(NamedTuple):
@@ -57,6 +68,25 @@ class DemoStockItem(NamedTuple):
     medication_name: str
     unit_price: Decimal
     batches: tuple[DemoStockBatch, ...]
+
+
+class DemoPatientMedication(NamedTuple):
+    patient_reference: str
+    medication_name: str
+    quantity_morning: int
+    quantity_lunchtime: int
+    quantity_evening: int
+    quantity_bedtime: int
+    is_active: bool = True
+
+
+class DemoDosetteCycle(NamedTuple):
+    patient_reference: str
+    reference: str
+    frequency: str
+    start_date: date
+    end_date: date
+    status: str
 
 
 STOCK_ITEMS = [
@@ -98,6 +128,33 @@ STOCK_ITEMS = [
         "Amlodipine",
         Decimal("0.06"),
         (DemoStockBatch("CRO-AML-001", date(2028, 1, 31), 55, 60),),
+    ),
+]
+
+PATIENT_MEDICATION_LINES = [
+    DemoPatientMedication("SUT-P1", "Paracetamol", 1, 0, 0, 1),
+    DemoPatientMedication("SUT-P1", "Metformin", 1, 0, 1, 0),
+    DemoPatientMedication("SUT-P2", "Salbutamol", 0, 0, 0, 0),
+    DemoPatientMedication("CRO-P1", "Ibuprofen", 0, 1, 1, 0),
+    DemoPatientMedication("CRO-P1", "Amlodipine", 1, 0, 0, 0, is_active=False),
+]
+
+DOSETTE_CYCLES = [
+    DemoDosetteCycle(
+        "SUT-P1",
+        "MDS-2026-W26",
+        cast(str, CycleFrequency.WEEKLY),
+        CYCLE_DRAFT_START,
+        CYCLE_DRAFT_END,
+        cast(str, CycleStatus.DRAFT),
+    ),
+    DemoDosetteCycle(
+        "CRO-P1",
+        "MDS-2026-FW07",
+        cast(str, CycleFrequency.FOUR_WEEKLY),
+        CYCLE_PREPARED_START,
+        CYCLE_PREPARED_END,
+        cast(str, CycleStatus.PREPARED),
     ),
 ]
 
@@ -320,6 +377,7 @@ class Command(BaseCommand):
                     stock_batch_statuses.append((batch, batch_created))
 
             patient_statuses = []
+            patients_by_reference = {}
             for patient_data in DEMO_PATIENTS:
                 patient, created = Patient.objects.get_or_create(
                     pharmacy=pharmacies_by_code[patient_data.pharmacy_code],
@@ -356,7 +414,48 @@ class Command(BaseCommand):
                         "updated_at",
                     ]
                 )
+                patients_by_reference[patient.patient_reference] = patient
                 patient_statuses.append((patient, created))
+
+            patient_medication_statuses = []
+            for line_data in PATIENT_MEDICATION_LINES:
+                line, created = PatientMedication.objects.update_or_create(
+                    patient=patients_by_reference[line_data.patient_reference],
+                    medication=medications_by_name[line_data.medication_name],
+                    defaults={
+                        "dose_instructions": "",
+                        "quantity_morning": line_data.quantity_morning,
+                        "quantity_lunchtime": line_data.quantity_lunchtime,
+                        "quantity_evening": line_data.quantity_evening,
+                        "quantity_bedtime": line_data.quantity_bedtime,
+                        "start_date": None,
+                        "is_active": line_data.is_active,
+                        "deleted_at": (
+                            None
+                            if line_data.is_active
+                            else datetime.combine(
+                                MEDICATION_DISCONTINUED_AT,
+                                time.min,
+                                tzinfo=UTC,
+                            )
+                        ),
+                    },
+                )
+                patient_medication_statuses.append((line, created))
+
+            dosette_cycle_statuses = []
+            for cycle_data in DOSETTE_CYCLES:
+                cycle, created = DosetteCycle.objects.update_or_create(
+                    patient=patients_by_reference[cycle_data.patient_reference],
+                    reference=cycle_data.reference,
+                    defaults={
+                        "frequency": cycle_data.frequency,
+                        "start_date": cycle_data.start_date,
+                        "end_date": cycle_data.end_date,
+                        "status": cycle_data.status,
+                    },
+                )
+                dosette_cycle_statuses.append((cycle, created))
 
         self.stdout.write(self.style.SUCCESS("Seeded local demo data."))
         self.stdout.write(
@@ -384,6 +483,11 @@ class Command(BaseCommand):
         )
         self.stdout.write("Patients:")
         self.stdout.write(f"- {len(patient_statuses)} fictional patient records")
+        self.stdout.write("Dosette/MDS:")
+        self.stdout.write(
+            f"- {len(patient_medication_statuses)} patient medication lines, "
+            f"{len(dosette_cycle_statuses)} cycles"
+        )
         self.stdout.write(
             f"Shared password ({self.style.WARNING('local demo credentials only')}): "
             f"{DEMO_PASSWORD}"
