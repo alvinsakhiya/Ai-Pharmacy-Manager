@@ -20,6 +20,9 @@ class Action(StrEnum):
     BLISTER_MARK_PREPARED = "blister.mark_prepared"
     BLISTER_DEDUCT = "blister.deduct"
 
+    REVIEW_VIEW = "review.view"
+    REVIEW_MANAGE = "review.manage"
+
     USER_CREATE = "user.create"
     USER_RESET_PASSWORD = "user.reset_password"
     USER_DEACTIVATE = "user.deactivate"
@@ -44,6 +47,8 @@ PATIENT_CLASS_ACTIONS = frozenset(
         Action.BLISTER_MANAGE,
         Action.BLISTER_MARK_PREPARED,
         Action.BLISTER_DEDUCT,
+        Action.REVIEW_VIEW,
+        Action.REVIEW_MANAGE,
     }
 )
 
@@ -76,6 +81,8 @@ ROLE_CAPABILITIES = {
             Action.BLISTER_MANAGE,
             Action.BLISTER_MARK_PREPARED,
             Action.BLISTER_DEDUCT,
+            Action.REVIEW_VIEW,
+            Action.REVIEW_MANAGE,
             Action.USER_CREATE,
             Action.USER_RESET_PASSWORD,
             Action.USER_DEACTIVATE,
@@ -91,6 +98,7 @@ ROLE_CAPABILITIES = {
             Action.STOCK_VIEW,
             Action.PATIENT_VIEW,
             Action.BLISTER_VIEW,
+            Action.REVIEW_VIEW,
             Action.MEDICATION_VIEW,
         }
     ),

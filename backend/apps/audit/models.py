@@ -42,6 +42,11 @@ class AuditAction(models.TextChoices):
     BLISTER_CYCLE_CANCELLED = "BLISTER_CYCLE_CANCELLED", "Dosette cycle cancelled"
     BLISTER_STOCK_DEDUCTED = "BLISTER_STOCK_DEDUCTED", "Blister stock deducted"
 
+    REVIEW_CREATED = "REVIEW_CREATED", "Review created"
+    REVIEW_UPDATED = "REVIEW_UPDATED", "Review updated"
+    REVIEW_COMPLETED = "REVIEW_COMPLETED", "Review completed"
+    REVIEW_CANCELLED = "REVIEW_CANCELLED", "Review cancelled"
+
     STOCK_RECEIVED = "STOCK_RECEIVED", "Stock received"
     STOCK_ADJUSTED = "STOCK_ADJUSTED", "Stock adjusted"
     STOCK_COUNT_RECONCILED = "STOCK_COUNT_RECONCILED", "Stock count reconciled"
