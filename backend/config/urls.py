@@ -23,6 +23,7 @@ urlpatterns = [
         include("apps.blister.cycle_urls"),
     ),
     path("api/patients/", include("apps.patients.urls")),
+    path("api/reports/", include("apps.reports.urls")),
     path("api/users/", include("apps.accounts.user_urls")),
     path("api/tenancy/", include("apps.tenancy.urls")),
 ]

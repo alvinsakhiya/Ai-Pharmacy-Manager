@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.patients",
     "apps.blister",
     "apps.analytics",
+    "apps.reports",
 ]
 
 MIDDLEWARE = [
