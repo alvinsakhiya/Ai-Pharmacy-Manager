@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.patients",
     "apps.blister",
+    "apps.analytics",
 ]
 
 MIDDLEWARE = [
