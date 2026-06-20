@@ -34,6 +34,8 @@ export interface DosetteCycle {
   start_date: string;
   end_date: string;
   status: string;
+  stock_deducted: boolean;
+  deducted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -126,6 +128,39 @@ export interface StockPreview {
   pharmacy_id: number;
   medications: StockPreviewRow[];
   totals: StockPreviewTotals;
+}
+
+export interface DeductStockMovement {
+  movement_id: number;
+  batch_id: number;
+  batch_number: string;
+  expiry_date: string;
+  quantity_deducted: number;
+  balance_after: number;
+}
+
+export interface DeductStockLine {
+  medication_id: number;
+  medication_name: string;
+  required_quantity: number;
+  movements: DeductStockMovement[];
+}
+
+export interface DeductStockResult {
+  cycle: {
+    id: number;
+    reference: string;
+    status: string;
+    stock_deducted: boolean;
+    deducted_at: string | null;
+  };
+  cycle_days: number;
+  patient_reference: string;
+  deductions: DeductStockLine[];
+  totals: {
+    required: number;
+    deducted: number;
+  };
 }
 
 export function listPatientMedications(
@@ -248,6 +283,18 @@ export function cancelDosetteCycle(
 ): Promise<DosetteCycle> {
   return requestJson<DosetteCycle>(
     `/api/patients/${patientId}/cycles/${id}/cancel/`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function deductDosetteStock(
+  patientId: number,
+  cycleId: number,
+): Promise<DeductStockResult> {
+  return requestJson<DeductStockResult>(
+    `/api/patients/${patientId}/cycles/${cycleId}/deduct-stock/`,
     {
       method: "POST",
     },

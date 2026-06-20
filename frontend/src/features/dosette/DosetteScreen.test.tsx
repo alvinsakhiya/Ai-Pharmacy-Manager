@@ -1,13 +1,16 @@
 import { Route, Routes } from "react-router-dom";
+import type { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createTestQueryClient,
   makeAuthContext,
   makeAuthUser,
   renderWithProviders,
 } from "../../test/providers";
+import { ApiError } from "../../lib/apiClient";
 import type { Medication } from "../catalogue/catalogueApi";
 import * as catalogueApi from "../catalogue/catalogueApi";
 import { DosetteScreen } from "./DosetteScreen";
@@ -42,6 +45,7 @@ vi.mock("./dosetteApi", async (importOriginal) => {
     updateDosetteCycle: vi.fn(),
     prepareDosetteCycle: vi.fn(),
     cancelDosetteCycle: vi.fn(),
+    deductDosetteStock: vi.fn(),
   };
 });
 
@@ -55,6 +59,7 @@ const discontinuePatientMedicationMock = vi.mocked(
 );
 const prepareDosetteCycleMock = vi.mocked(dosetteApi.prepareDosetteCycle);
 const cancelDosetteCycleMock = vi.mocked(dosetteApi.cancelDosetteCycle);
+const deductDosetteStockMock = vi.mocked(dosetteApi.deductDosetteStock);
 
 function makeMedication(overrides: Partial<Medication> = {}): Medication {
   return {
@@ -102,6 +107,8 @@ function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
     start_date: "2026-06-22",
     end_date: "2026-06-28",
     status: "DRAFT",
+    stock_deducted: false,
+    deducted_at: null,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
     ...overrides,
@@ -231,12 +238,13 @@ function dosetteAuth(permissions: Record<string, boolean> = {}) {
 function renderDosette(
   route = "/patients/20/dosette",
   auth = dosetteAuth(),
+  queryClient?: QueryClient,
 ) {
   return renderWithProviders(
     <Routes>
       <Route element={<DosetteScreen />} path="/patients/:patientId/dosette" />
     </Routes>,
-    { auth, route },
+    { auth, queryClient, route },
   );
 }
 
@@ -288,6 +296,38 @@ describe("DosetteScreen", () => {
     cancelDosetteCycleMock.mockResolvedValue(
       makeCycle({ status: "CANCELLED" }),
     );
+    deductDosetteStockMock.mockResolvedValue({
+      cycle: {
+        id: 41,
+        reference: "MDS-2026-FW07",
+        status: "PREPARED",
+        stock_deducted: true,
+        deducted_at: "2026-06-20T09:30:00Z",
+      },
+      cycle_days: 7,
+      patient_reference: "SUT-P1",
+      deductions: [
+        {
+          medication_id: 10,
+          medication_name: "Amlodipine",
+          required_quantity: 14,
+          movements: [
+            {
+              movement_id: 99,
+              batch_id: 501,
+              batch_number: "AML-FEFO-1",
+              expiry_date: "2026-07-10",
+              quantity_deducted: 14,
+              balance_after: 36,
+            },
+          ],
+        },
+      ],
+      totals: {
+        required: 14,
+        deducted: 14,
+      },
+    });
   });
 
   it("renders medication lines", async () => {
@@ -620,6 +660,215 @@ describe("DosetteScreen", () => {
         name: "Prepare",
       }),
     ).toBeNull();
+  });
+
+  it("shows deduct stock only with permission for prepared non-deducted cycles", async () => {
+    listDosetteCyclesMock.mockResolvedValueOnce([
+      makeCycle({ id: 40, reference: "MDS-2026-DRAFT", status: "DRAFT" }),
+      makeCycle({
+        id: 41,
+        reference: "MDS-2026-PREPARED",
+        status: "PREPARED",
+      }),
+      makeCycle({
+        id: 42,
+        reference: "MDS-2026-DEDUCTED",
+        status: "PREPARED",
+        stock_deducted: true,
+        deducted_at: "2026-06-20T09:30:00Z",
+      }),
+    ]);
+    const allowedRender = renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.deduct": true }),
+    );
+
+    expect(await screen.findByText("MDS-2026-DEDUCTED")).toBeInTheDocument();
+    const draftRow = screen.getByText("MDS-2026-DRAFT").closest("tr");
+    const preparedRow = screen.getByText("MDS-2026-PREPARED").closest("tr");
+    const deductedRow = screen.getByText("MDS-2026-DEDUCTED").closest("tr");
+    expect(draftRow).not.toBeNull();
+    expect(preparedRow).not.toBeNull();
+    expect(deductedRow).not.toBeNull();
+    expect(
+      within(preparedRow as HTMLElement).getByRole("button", {
+        name: "Deduct stock",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(draftRow as HTMLElement).queryByRole("button", {
+        name: "Deduct stock",
+      }),
+    ).toBeNull();
+    expect(
+      within(deductedRow as HTMLElement).queryByRole("button", {
+        name: "Deduct stock",
+      }),
+    ).toBeNull();
+    allowedRender.unmount();
+
+    listDosetteCyclesMock.mockResolvedValueOnce([
+      makeCycle({ status: "PREPARED" }),
+    ]);
+    const viewOnlyRender = renderDosette();
+
+    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deduct stock" })).toBeNull();
+    viewOnlyRender.unmount();
+  });
+
+  it("deduct stock confirmation calls API and invalidates dosette and inventory stock data", async () => {
+    const user = userEvent.setup();
+    const queryClient = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.deduct": true }),
+      queryClient,
+    );
+
+    expect(await screen.findByText("MDS-2026-FW07")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Deduct stock" }));
+    expect(
+      screen.getByRole("heading", { name: "Deduct stock for this cycle?" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This will permanently reduce inventory using FEFO allocation. It cannot be undone in the current version.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Deduct stock",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(deductDosetteStockMock).toHaveBeenCalledWith(20, 41);
+    });
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["dosette", "cycles", 20],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["dosette", "picking-list", 20],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["dosette", "stock-preview", 20],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["stock-items"],
+      });
+    });
+  });
+
+  it("renders shortage errors when stock deduction fails", async () => {
+    const user = userEvent.setup();
+    deductDosetteStockMock.mockRejectedValueOnce(
+      new ApiError(400, {
+        detail: "Insufficient stock to deduct for this cycle.",
+        shortages: [
+          {
+            medication_id: 10,
+            medication_name: "Amlodipine",
+            required_quantity: 14,
+            available_quantity: 5,
+            shortage_quantity: 9,
+          },
+        ],
+      }),
+    );
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.deduct": true }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Deduct stock" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Deduct stock",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Insufficient stock to deduct for this cycle."),
+    ).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Amlodipine")).toBeInTheDocument();
+    expect(within(dialog).getByText("14")).toBeInTheDocument();
+    expect(within(dialog).getByText("5")).toBeInTheDocument();
+    expect(within(dialog).getByText("9")).toBeInTheDocument();
+  });
+
+  it("renders already deducted errors when stock deduction conflicts", async () => {
+    const user = userEvent.setup();
+    deductDosetteStockMock.mockRejectedValueOnce(
+      new ApiError(409, {
+        detail: "Stock has already been deducted for this cycle.",
+        deducted_at: "2026-06-20T09:30:00Z",
+      }),
+    );
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.deduct": true }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Deduct stock" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Deduct stock",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Stock has already been deducted for this cycle."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Deducted at 20 Jun 2026")).toBeInTheDocument();
+  });
+
+  it("shows stock deducted badge and hides cancel for deducted cycles", async () => {
+    listDosetteCyclesMock.mockResolvedValueOnce([
+      makeCycle({
+        id: 41,
+        reference: "MDS-2026-DEDUCTED",
+        status: "PREPARED",
+        stock_deducted: true,
+        deducted_at: "2026-06-20T09:30:00Z",
+      }),
+    ]);
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true, "blister.deduct": true }),
+    );
+
+    expect(await screen.findByText("MDS-2026-DEDUCTED")).toBeInTheDocument();
+    const deductedRow = screen.getByText("MDS-2026-DEDUCTED").closest("tr");
+    expect(deductedRow).not.toBeNull();
+    expect(
+      within(deductedRow as HTMLElement).getByText("Stock deducted"),
+    ).toBeInTheDocument();
+    expect(
+      within(deductedRow as HTMLElement).queryByRole("button", {
+        name: "Cancel",
+      }),
+    ).toBeNull();
+  });
+
+  it("does not render reversal or undo controls for deducted cycles", async () => {
+    listDosetteCyclesMock.mockResolvedValueOnce([
+      makeCycle({
+        status: "PREPARED",
+        stock_deducted: true,
+        deducted_at: "2026-06-20T09:30:00Z",
+      }),
+    ]);
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true, "blister.deduct": true }),
+    );
+
+    expect(await screen.findByText("Stock deducted")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reverse|undo/i })).toBeNull();
   });
 
   it("shows cancel only for draft or prepared cycles", async () => {

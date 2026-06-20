@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { usePermissions } from "../../auth/usePermissions";
 import { Modal } from "../../components/ui/Modal";
+import { ApiError } from "../../lib/apiClient";
 import { DosetteCycleFormModal } from "./DosetteCycleFormModal";
 import { PatientMedicationFormModal } from "./PatientMedicationFormModal";
 import type {
@@ -15,6 +16,7 @@ import type {
 } from "./dosetteApi";
 import {
   useCancelDosetteCycle,
+  useDeductDosetteStock,
   useDiscontinuePatientMedication,
   useDosetteCyclesQuery,
   usePatientMedicationsQuery,
@@ -88,7 +90,118 @@ function canEditCycle(cycle: DosetteCycle): boolean {
 }
 
 function canCancelCycle(cycle: DosetteCycle): boolean {
-  return ["DRAFT", "PREPARED"].includes(cycle.status);
+  return ["DRAFT", "PREPARED"].includes(cycle.status) && !cycle.stock_deducted;
+}
+
+interface DeductStockShortage {
+  medication_id: number;
+  medication_name: string;
+  required_quantity: number;
+  available_quantity: number;
+  shortage_quantity: number;
+}
+
+interface DeductStockErrorState {
+  detail: string;
+  deductedAt: string | null;
+  shortages: DeductStockShortage[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseDeductStockError(error: unknown): DeductStockErrorState {
+  if (!(error instanceof ApiError) || !isRecord(error.data)) {
+    return {
+      detail: "Could not deduct stock.",
+      deductedAt: null,
+      shortages: [],
+    };
+  }
+
+  const detail =
+    typeof error.data.detail === "string"
+      ? error.data.detail
+      : "Could not deduct stock.";
+  const deductedAt =
+    typeof error.data.deducted_at === "string" ? error.data.deducted_at : null;
+  const shortages = Array.isArray(error.data.shortages)
+    ? error.data.shortages.filter(isDeductStockShortage)
+    : [];
+
+  return {
+    detail,
+    deductedAt,
+    shortages,
+  };
+}
+
+function isDeductStockShortage(value: unknown): value is DeductStockShortage {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.medication_id === "number" &&
+    typeof value.medication_name === "string" &&
+    typeof value.required_quantity === "number" &&
+    typeof value.available_quantity === "number" &&
+    typeof value.shortage_quantity === "number"
+  );
+}
+
+function DeductStockError({ error }: { error: DeductStockErrorState }) {
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+      <p className="text-sm font-semibold text-red-900">{error.detail}</p>
+      {error.deductedAt ? (
+        <p className="mt-2 text-sm text-red-700">
+          Deducted at {formatDate(error.deductedAt)}
+        </p>
+      ) : null}
+      {error.shortages.length > 0 ? (
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full divide-y divide-red-200">
+            <thead>
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-red-700">
+                  Medication
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-red-700">
+                  Required
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-red-700">
+                  Available
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-red-700">
+                  Shortage
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-red-100">
+              {error.shortages.map((shortage) => (
+                <tr key={shortage.medication_id}>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm font-medium text-red-950">
+                    {shortage.medication_name}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-red-800">
+                    {shortage.required_quantity}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-red-800">
+                    {shortage.available_quantity}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-red-800">
+                    {shortage.shortage_quantity}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function MedicationRow({
@@ -413,6 +526,7 @@ export function DosetteScreen() {
   const { can } = usePermissions();
   const canManage = can("blister.manage");
   const canMarkPrepared = can("blister.mark_prepared");
+  const canDeduct = can("blister.deduct");
   const { patientId } = useParams();
   const parsedPatientId = Number(patientId);
   const isValidPatientId = Number.isFinite(parsedPatientId);
@@ -422,6 +536,9 @@ export function DosetteScreen() {
   const [editingCycle, setEditingCycle] = useState<DosetteCycle | null>(null);
   const [isCycleModalOpen, setCycleModalOpen] = useState(false);
   const [cycleToPrepare, setCycleToPrepare] = useState<DosetteCycle | null>(null);
+  const [cycleToDeduct, setCycleToDeduct] = useState<DosetteCycle | null>(null);
+  const [deductStockError, setDeductStockError] =
+    useState<DeductStockErrorState | null>(null);
   const [cycleToCancel, setCycleToCancel] = useState<DosetteCycle | null>(null);
   const [lineToDiscontinue, setLineToDiscontinue] =
     useState<PatientMedicationLine | null>(null);
@@ -432,6 +549,7 @@ export function DosetteScreen() {
   const discontinueMedication =
     useDiscontinuePatientMedication(parsedPatientId);
   const prepareCycle = usePrepareDosetteCycle(parsedPatientId);
+  const deductCycle = useDeductDosetteStock(parsedPatientId);
   const cancelCycle = useCancelDosetteCycle(parsedPatientId);
 
   function openCreateMedicationModal() {
@@ -452,6 +570,19 @@ export function DosetteScreen() {
   function openEditCycleModal(cycle: DosetteCycle) {
     setEditingCycle(cycle);
     setCycleModalOpen(true);
+  }
+
+  function openDeductStockModal(cycle: DosetteCycle) {
+    setDeductStockError(null);
+    setCycleToDeduct(cycle);
+  }
+
+  function closeDeductStockModal() {
+    if (deductCycle.isPending) {
+      return;
+    }
+    setDeductStockError(null);
+    setCycleToDeduct(null);
   }
 
   if (!isValidPatientId) {
@@ -590,7 +721,14 @@ export function DosetteScreen() {
                         {formatDate(cycle.start_date)} - {formatDate(cycle.end_date)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm">
-                        <StatusPill value={cycle.status} />
+                        <div className="flex flex-wrap gap-2">
+                          <StatusPill value={cycle.status} />
+                          {cycle.stock_deducted ? (
+                            <span className="inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                              Stock deducted
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
                         <div className="flex justify-end gap-2">
@@ -617,6 +755,17 @@ export function DosetteScreen() {
                               type="button"
                             >
                               Prepare
+                            </button>
+                          ) : null}
+                          {canDeduct &&
+                          cycle.status === "PREPARED" &&
+                          !cycle.stock_deducted ? (
+                            <button
+                              className="rounded-lg border border-sky-300 px-3 py-1.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                              onClick={() => openDeductStockModal(cycle)}
+                              type="button"
+                            >
+                              Deduct stock
                             </button>
                           ) : null}
                           {canManage && canCancelCycle(cycle) ? (
@@ -713,6 +862,49 @@ export function DosetteScreen() {
               type="button"
             >
               {prepareCycle.isPending ? "Preparing..." : "Prepare"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={cycleToDeduct !== null}
+        onClose={closeDeductStockModal}
+        title="Deduct stock for this cycle?"
+      >
+        <div className="space-y-5">
+          <p className="text-sm leading-6 text-slate-700">
+            This will permanently reduce inventory using FEFO allocation. It cannot
+            be undone in the current version.
+          </p>
+          {deductStockError ? <DeductStockError error={deductStockError} /> : null}
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={deductCycle.isPending}
+              onClick={closeDeductStockModal}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={deductCycle.isPending}
+              onClick={async () => {
+                if (!cycleToDeduct) {
+                  return;
+                }
+                setDeductStockError(null);
+                try {
+                  await deductCycle.mutateAsync(cycleToDeduct.id);
+                  setCycleToDeduct(null);
+                } catch (error) {
+                  setDeductStockError(parseDeductStockError(error));
+                }
+              }}
+              type="button"
+            >
+              {deductCycle.isPending ? "Deducting..." : "Deduct stock"}
             </button>
           </div>
         </div>

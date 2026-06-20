@@ -4,6 +4,7 @@ import {
   cancelDosetteCycle,
   createDosetteCycle,
   createPatientMedication,
+  deductDosetteStock,
   discontinuePatientMedication,
   getPickingList,
   getStockPreview,
@@ -157,5 +158,18 @@ export function useCancelDosetteCycle(patientId: number) {
   return useMutation({
     mutationFn: (id: number) => cancelDosetteCycle(patientId, id),
     onSuccess: invalidateDosetteCycleData,
+  });
+}
+
+export function useDeductDosetteStock(patientId: number) {
+  const queryClient = useQueryClient();
+  const invalidateDosetteCycleData = useInvalidateDosetteCycleData(patientId);
+
+  return useMutation({
+    mutationFn: (cycleId: number) => deductDosetteStock(patientId, cycleId),
+    onSuccess: () => {
+      invalidateDosetteCycleData();
+      void queryClient.invalidateQueries({ queryKey: ["stock-items"] });
+    },
   });
 }
