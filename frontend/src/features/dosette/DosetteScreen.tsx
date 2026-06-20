@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { usePermissions } from "../../auth/usePermissions";
+import { Modal } from "../../components/ui/Modal";
+import { PatientMedicationFormModal } from "./PatientMedicationFormModal";
 import type {
   DosetteCycle,
   PatientMedicationLine,
@@ -8,6 +11,7 @@ import type {
   PickingListRow,
 } from "./dosetteApi";
 import {
+  useDiscontinuePatientMedication,
   useDosetteCyclesQuery,
   usePatientMedicationsQuery,
   usePickingListQuery,
@@ -73,7 +77,17 @@ function QuantityCell({ value }: { value: number }) {
   );
 }
 
-function MedicationRow({ line }: { line: PatientMedicationLine }) {
+function MedicationRow({
+  canManage,
+  line,
+  onDiscontinue,
+  onEdit,
+}: {
+  canManage: boolean;
+  line: PatientMedicationLine;
+  onDiscontinue: (line: PatientMedicationLine) => void;
+  onEdit: (line: PatientMedicationLine) => void;
+}) {
   return (
     <tr>
       <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
@@ -90,6 +104,28 @@ function MedicationRow({ line }: { line: PatientMedicationLine }) {
       <td className="whitespace-nowrap px-4 py-4 text-sm">
         <StatusPill value={line.is_active} />
       </td>
+      {canManage ? (
+        <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+          <div className="flex justify-end gap-2">
+            <button
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              onClick={() => onEdit(line)}
+              type="button"
+            >
+              Edit
+            </button>
+            {line.is_active ? (
+              <button
+                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                onClick={() => onDiscontinue(line)}
+                type="button"
+              >
+                Discontinue
+              </button>
+            ) : null}
+          </div>
+        </td>
+      ) : null}
     </tr>
   );
 }
@@ -241,13 +277,31 @@ function PickingListSection({
 }
 
 export function DosetteScreen() {
+  const { can } = usePermissions();
+  const canManage = can("blister.manage");
   const { patientId } = useParams();
   const parsedPatientId = Number(patientId);
   const isValidPatientId = Number.isFinite(parsedPatientId);
   const [selectedCycleId, setSelectedCycleId] = useState<number | null>(null);
+  const [editingLine, setEditingLine] = useState<PatientMedicationLine | null>(null);
+  const [isMedicationModalOpen, setMedicationModalOpen] = useState(false);
+  const [lineToDiscontinue, setLineToDiscontinue] =
+    useState<PatientMedicationLine | null>(null);
   const medicationsQuery = usePatientMedicationsQuery(parsedPatientId);
   const cyclesQuery = useDosetteCyclesQuery(parsedPatientId);
   const pickingListQuery = usePickingListQuery(parsedPatientId, selectedCycleId);
+  const discontinueMedication =
+    useDiscontinuePatientMedication(parsedPatientId);
+
+  function openCreateMedicationModal() {
+    setEditingLine(null);
+    setMedicationModalOpen(true);
+  }
+
+  function openEditMedicationModal(line: PatientMedicationLine) {
+    setEditingLine(line);
+    setMedicationModalOpen(true);
+  }
 
   if (!isValidPatientId) {
     return (
@@ -288,26 +342,42 @@ export function DosetteScreen() {
           title="Could not load medication lines."
         />
       ) : null}
-      {medicationsQuery.isSuccess && medicationsQuery.data.length === 0 ? (
-        <LoadingSection text="No medication lines yet." />
-      ) : null}
-      {medicationsQuery.isSuccess && medicationsQuery.data.length > 0 ? (
+      {medicationsQuery.isSuccess ? (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-bold text-slate-950">
               Medication lines
             </h2>
+            {canManage ? (
+              <button
+                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                onClick={openCreateMedicationModal}
+                type="button"
+              >
+                Add medication
+              </button>
+            ) : null}
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <TableHeader includeStatus />
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {medicationsQuery.data.map((line) => (
-                  <MedicationRow key={line.id} line={line} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {medicationsQuery.data.length === 0 ? (
+            <p className="p-6 text-sm text-slate-600">No medication lines yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <TableHeader includeAction={canManage} includeStatus />
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {medicationsQuery.data.map((line) => (
+                    <MedicationRow
+                      canManage={canManage}
+                      key={line.id}
+                      line={line}
+                      onDiscontinue={setLineToDiscontinue}
+                      onEdit={openEditMedicationModal}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -396,6 +466,49 @@ export function DosetteScreen() {
       {selectedCycleId !== null && pickingListQuery.isSuccess ? (
         <PickingListSection pickingList={pickingListQuery.data} />
       ) : null}
+
+      <PatientMedicationFormModal
+        isOpen={isMedicationModalOpen}
+        line={editingLine}
+        onClose={() => setMedicationModalOpen(false)}
+        patientId={parsedPatientId}
+      />
+
+      <Modal
+        isOpen={lineToDiscontinue !== null}
+        onClose={() => setLineToDiscontinue(null)}
+        title="Discontinue medication line?"
+      >
+        <div className="space-y-5">
+          <p className="text-sm leading-6 text-slate-700">
+            This medication line will be marked inactive and removed from active
+            picking lists.
+          </p>
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              onClick={() => setLineToDiscontinue(null)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={discontinueMedication.isPending}
+              onClick={async () => {
+                if (!lineToDiscontinue) {
+                  return;
+                }
+                await discontinueMedication.mutateAsync(lineToDiscontinue.id);
+                setLineToDiscontinue(null);
+              }}
+              type="button"
+            >
+              {discontinueMedication.isPending ? "Discontinuing..." : "Discontinue"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

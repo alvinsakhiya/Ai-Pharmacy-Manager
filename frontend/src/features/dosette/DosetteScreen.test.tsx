@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router-dom";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,8 @@ import {
   makeAuthUser,
   renderWithProviders,
 } from "../../test/providers";
+import type { Medication } from "../catalogue/catalogueApi";
+import * as catalogueApi from "../catalogue/catalogueApi";
 import { DosetteScreen } from "./DosetteScreen";
 import type {
   DosetteCycle,
@@ -16,6 +18,14 @@ import type {
 } from "./dosetteApi";
 import * as dosetteApi from "./dosetteApi";
 
+vi.mock("../catalogue/catalogueApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../catalogue/catalogueApi")>();
+  return {
+    ...actual,
+    listMedications: vi.fn(),
+  };
+});
+
 vi.mock("./dosetteApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./dosetteApi")>();
   return {
@@ -23,12 +33,35 @@ vi.mock("./dosetteApi", async (importOriginal) => {
     listPatientMedications: vi.fn(),
     listDosetteCycles: vi.fn(),
     getPickingList: vi.fn(),
+    createPatientMedication: vi.fn(),
+    updatePatientMedication: vi.fn(),
+    discontinuePatientMedication: vi.fn(),
   };
 });
 
+const listMedicationsMock = vi.mocked(catalogueApi.listMedications);
 const listPatientMedicationsMock = vi.mocked(dosetteApi.listPatientMedications);
 const listDosetteCyclesMock = vi.mocked(dosetteApi.listDosetteCycles);
 const getPickingListMock = vi.mocked(dosetteApi.getPickingList);
+const discontinuePatientMedicationMock = vi.mocked(
+  dosetteApi.discontinuePatientMedication,
+);
+
+function makeMedication(overrides: Partial<Medication> = {}): Medication {
+  return {
+    id: 10,
+    group: 1,
+    name: "Amlodipine",
+    form: "TABLET",
+    strength: "5 mg",
+    manufacturer: "",
+    notes: "",
+    is_active: true,
+    created_at: "2026-06-19T09:00:00Z",
+    updated_at: "2026-06-19T09:00:00Z",
+    ...overrides,
+  };
+}
 
 function makeLine(
   overrides: Partial<PatientMedicationLine> = {},
@@ -37,6 +70,7 @@ function makeLine(
     id: 1,
     medication: 10,
     medication_name: "Amlodipine",
+    dose_instructions: "Private dose directions",
     strength: "5 mg",
     form: "TABLET",
     quantity_morning: 1,
@@ -111,28 +145,36 @@ function makePickingList(overrides: Partial<PickingList> = {}): PickingList {
   };
 }
 
-function dosetteAuth() {
+function dosetteAuth(permissions: Record<string, boolean> = {}) {
   return makeAuthContext({
     user: makeAuthUser({
       permissions: {
         "blister.view": true,
+        ...permissions,
       },
     }),
   });
 }
 
-function renderDosette(route = "/patients/20/dosette") {
+function renderDosette(
+  route = "/patients/20/dosette",
+  auth = dosetteAuth(),
+) {
   return renderWithProviders(
     <Routes>
       <Route element={<DosetteScreen />} path="/patients/:patientId/dosette" />
     </Routes>,
-    { auth: dosetteAuth(), route },
+    { auth, route },
   );
 }
 
 describe("DosetteScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    listMedicationsMock.mockResolvedValue([
+      makeMedication(),
+      makeMedication({ id: 11, name: "Metformin", strength: "500 mg" }),
+    ]);
     listPatientMedicationsMock.mockResolvedValue([
       makeLine(),
       makeLine({
@@ -164,6 +206,9 @@ describe("DosetteScreen", () => {
       }),
     ]);
     getPickingListMock.mockResolvedValue(makePickingList());
+    discontinuePatientMedicationMock.mockResolvedValue(
+      makeLine({ is_active: false }),
+    );
   });
 
   it("renders medication lines", async () => {
@@ -239,13 +284,79 @@ describe("DosetteScreen", () => {
     expect(await screen.findByText("No dosette cycles yet.")).toBeInTheDocument();
   });
 
-  it("does not render mutation controls or dose instructions", async () => {
+  it("shows medication management controls with blister manage", async () => {
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add medication" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "Discontinue" })).toHaveLength(2);
+  });
+
+  it("hides medication management controls with only blister view", async () => {
+    renderDosette();
+
+    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add medication" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discontinue" })).toBeNull();
+  });
+
+  it("discontinue confirmation calls API and refetches medication and picking-list data", async () => {
+    const user = userEvent.setup();
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
+    const medicationCallsBefore = listPatientMedicationsMock.mock.calls.length;
+    const pickingCallsBefore = getPickingListMock.mock.calls.length;
+
+    await user.click(screen.getAllByRole("button", { name: "Discontinue" })[0]);
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Discontinue",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(discontinuePatientMedicationMock).toHaveBeenCalledWith(20, 1);
+    });
+    await waitFor(() => {
+      expect(listPatientMedicationsMock.mock.calls.length).toBeGreaterThan(
+        medicationCallsBefore,
+      );
+      expect(getPickingListMock.mock.calls.length).toBeGreaterThan(
+        pickingCallsBefore,
+      );
+    });
+  });
+
+  it("does not add cycle management controls", async () => {
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create cycle/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^prepare$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^cancel$/i })).toBeNull();
+  });
+
+  it("does not render mutation controls for view-only users or dose instructions in picking list", async () => {
     listPatientMedicationsMock.mockResolvedValueOnce([
       makeLine({
-        // Simulates an unexpected backend field without typing or rendering it.
-        ...({ dose_instructions: "Private dose directions" } as Partial<
-          PatientMedicationLine
-        >),
+        dose_instructions: "Private dose directions",
       }),
     ]);
     renderDosette();
@@ -255,6 +366,10 @@ describe("DosetteScreen", () => {
     expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /prepare/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull();
+    await userEvent.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
     expect(screen.queryByText("Private dose directions")).toBeNull();
     expect(screen.queryByText("dose_instructions")).toBeNull();
   });
