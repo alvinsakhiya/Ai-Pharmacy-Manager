@@ -28,7 +28,7 @@ test("pharmacist can view dosette medication lines, cycles, picking list, and st
   await expect(
     page.getByRole("heading", { name: /Picking list: MDS-2026-W26/ }),
   ).toBeVisible();
-  await expect(page.getByText("Totals")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Totals" }).first()).toBeVisible();
 
   await expect(
     page.getByRole("heading", { name: "Stock availability" }),
