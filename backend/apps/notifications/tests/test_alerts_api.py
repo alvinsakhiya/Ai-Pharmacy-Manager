@@ -9,6 +9,7 @@ from apps.audit.models import AuditEvent
 from apps.blister.models import DosetteCycle, PatientMedication
 from apps.catalogue.models import Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem, StockMovement
+from apps.notifications.models import NotificationDismissal
 from apps.patients.models import Patient, PatientNote
 from apps.tenancy import permissions
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
@@ -339,6 +340,14 @@ def alerts_url() -> str:
     return "/api/notifications/alerts/"
 
 
+def dismiss_url() -> str:
+    return "/api/notifications/alerts/dismiss/"
+
+
+def clear_url() -> str:
+    return "/api/notifications/alerts/clear/"
+
+
 def alerts(response) -> list[dict]:
     return response.json()["alerts"]
 
@@ -650,3 +659,159 @@ def test_alerts_endpoint_is_read_only_and_unaudited(client, alerts_data):
 
     assert response.status_code == 200
     assert AuditEvent.objects.count() == audit_count
+
+
+@pytest.mark.django_db
+def test_dismissed_alert_is_hidden_for_that_user_only(client, alerts_data):
+    fingerprint = f"stock:stockout:{alerts_data['stockout'].id}"
+    authenticate(client, alerts_data["stock_employee"])
+
+    dismissed = client.post(
+        dismiss_url(),
+        {"fingerprint": fingerprint},
+        format="json",
+    )
+    response = client.get(alerts_url())
+
+    assert dismissed.status_code == 200
+    assert dismissed.json()["fingerprint"] == fingerprint
+    assert dismissed.json()["dismissed"] is True
+    assert dismissed.json()["created"] is True
+    assert NotificationDismissal.objects.filter(
+        user=alerts_data["stock_employee"],
+        alert_fingerprint=fingerprint,
+    ).exists()
+    assert fingerprint not in alert_ids(response)
+
+    client.logout()
+    authenticate(client, alerts_data["pharmacist"])
+    other_user_response = client.get(alerts_url())
+    assert fingerprint in alert_ids(other_user_response)
+
+
+@pytest.mark.django_db
+def test_dismiss_alert_is_idempotent_and_does_not_mutate_source_stock(
+    client,
+    alerts_data,
+):
+    fingerprint = f"stock:low_stock:{alerts_data['low_stock'].id}"
+    batch = StockBatch.objects.get(stock_item=alerts_data["low_stock"])
+    original_quantity = batch.quantity
+    original_movement_count = StockMovement.objects.count()
+    authenticate(client, alerts_data["stock_employee"])
+
+    first = client.post(dismiss_url(), {"fingerprint": fingerprint}, format="json")
+    second = client.post(dismiss_url(), {"fingerprint": fingerprint}, format="json")
+    batch.refresh_from_db()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["created"] is True
+    assert second.json()["created"] is False
+    assert (
+        NotificationDismissal.objects.filter(
+            user=alerts_data["stock_employee"],
+            alert_fingerprint=fingerprint,
+        ).count()
+        == 1
+    )
+    assert batch.quantity == original_quantity
+    assert StockMovement.objects.count() == original_movement_count
+
+
+@pytest.mark.django_db
+def test_clear_all_dismisses_current_visible_alerts(client, alerts_data):
+    authenticate(client, alerts_data["stock_employee"])
+    before = client.get(alerts_url())
+    visible_ids = alert_ids(before)
+
+    cleared = client.post(clear_url(), {}, format="json")
+    after = client.get(alerts_url())
+
+    assert cleared.status_code == 200
+    assert cleared.json()["dismissed_count"] == len(visible_ids)
+    assert cleared.json()["summary"]["total"] == 0
+    assert after.json()["alerts"] == []
+    assert (
+        set(
+            NotificationDismissal.objects.filter(
+                user=alerts_data["stock_employee"]
+            ).values_list("alert_fingerprint", flat=True)
+        )
+        == visible_ids
+    )
+
+
+@pytest.mark.django_db
+def test_clear_specific_alerts_validates_current_scope(client, alerts_data):
+    visible_fingerprint = f"stock:stockout:{alerts_data['stockout'].id}"
+    hidden_fingerprint = f"stock:dead_stock:{alerts_data['cross_pharmacy_stock'].id}"
+    authenticate(client, alerts_data["pharmacist"])
+
+    response = client.post(
+        clear_url(),
+        {"fingerprints": [visible_fingerprint]},
+        format="json",
+    )
+    invalid = client.post(
+        clear_url(),
+        {"fingerprints": [hidden_fingerprint]},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert NotificationDismissal.objects.filter(
+        user=alerts_data["pharmacist"],
+        alert_fingerprint=visible_fingerprint,
+    ).exists()
+    assert invalid.status_code == 400
+    assert not NotificationDismissal.objects.filter(
+        user=alerts_data["pharmacist"],
+        alert_fingerprint=hidden_fingerprint,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_cannot_dismiss_alert_outside_current_scope(client, alerts_data):
+    authenticate(client, alerts_data["pharmacist"])
+    out_of_scope = f"stock:dead_stock:{alerts_data['cross_pharmacy_stock'].id}"
+
+    response = client.post(
+        dismiss_url(),
+        {"fingerprint": out_of_scope},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "fingerprint": ["Alert is not visible in your current scope."]
+    }
+    assert NotificationDismissal.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_dismissal_response_and_model_are_pii_free(client, alerts_data):
+    authenticate(client, alerts_data["dispenser"])
+    fingerprint = f"dosette:prepared_not_deducted:{alerts_data['prepared_cycle'].id}"
+
+    response = client.post(
+        dismiss_url(),
+        {"fingerprint": fingerprint},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    dismissal = NotificationDismissal.objects.get(user=alerts_data["dispenser"])
+    combined = f"{response.json()} {dismissal.alert_fingerprint} {dismissal}"
+    for forbidden in [
+        "patient_reference",
+        "first_name",
+        "last_name",
+        "date_of_birth",
+        "address",
+        "phone",
+        "P1-ALERT-001",
+        "PrivateFirst",
+        "PrivateLast",
+    ]:
+        assert forbidden not in combined

@@ -41,6 +41,39 @@ export interface AlertsResponse {
   alerts: Alert[];
 }
 
+export interface AlertDismissResponse {
+  fingerprint: string;
+  dismissed: boolean;
+  created: boolean;
+  summary: AlertSummary;
+}
+
+export interface AlertClearResponse {
+  dismissed_count: number;
+  created_count: number;
+  summary: AlertSummary;
+}
+
 export function getAlerts(): Promise<AlertsResponse> {
   return requestJson<AlertsResponse>("/api/notifications/alerts/");
+}
+
+export function dismissAlert(fingerprint: string): Promise<AlertDismissResponse> {
+  return requestJson<AlertDismissResponse>("/api/notifications/alerts/dismiss/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ fingerprint }),
+  });
+}
+
+export function clearAlerts(fingerprints?: string[]): Promise<AlertClearResponse> {
+  return requestJson<AlertClearResponse>("/api/notifications/alerts/clear/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(fingerprints ? { fingerprints } : {}),
+  });
 }

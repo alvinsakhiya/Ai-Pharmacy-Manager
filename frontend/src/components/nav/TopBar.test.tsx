@@ -1,14 +1,29 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AuthContextValue } from "../../auth/AuthContext";
 import {
-  AuthContext,
-  type AuthContextValue,
-} from "../../auth/AuthContext";
+  makeAuthContext,
+  renderWithProviders,
+} from "../../test/providers";
 import type { MePayload } from "../../types/auth";
+import type { AlertsResponse } from "../../features/notifications/notificationsApi";
+import * as notificationsApi from "../../features/notifications/notificationsApi";
 import { TopBar } from "./TopBar";
+
+vi.mock("../../features/notifications/notificationsApi", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../features/notifications/notificationsApi")>();
+  return {
+    ...actual,
+    getAlerts: vi.fn(),
+    dismissAlert: vi.fn(),
+    clearAlerts: vi.fn(),
+  };
+});
+
+const getAlertsMock = vi.mocked(notificationsApi.getAlerts);
 
 function makeUser(overrides: Partial<MePayload> = {}): MePayload {
   return {
@@ -28,29 +43,41 @@ function makeUser(overrides: Partial<MePayload> = {}): MePayload {
   };
 }
 
-function renderTopBar(authOverrides: Partial<AuthContextValue> = {}) {
-  const auth: AuthContextValue = {
-    user: makeUser(),
-    loading: false,
-    login: vi.fn(),
-    logout: vi.fn().mockResolvedValue(undefined),
-    changePassword: vi.fn(),
-    refreshMe: vi.fn(),
-    ...authOverrides,
+function emptyAlerts(): AlertsResponse {
+  return {
+    generated_at: "2026-06-22T10:00:00Z",
+    summary: {
+      total: 0,
+      critical: 0,
+      warning: 0,
+      info: 0,
+      by_category: {
+        stock: 0,
+        dosette: 0,
+      },
+    },
+    alerts: [],
   };
+}
 
-  render(
-    <AuthContext.Provider value={auth}>
-      <MemoryRouter>
-        <TopBar />
-      </MemoryRouter>
-    </AuthContext.Provider>,
-  );
+function renderTopBar(authOverrides: Partial<AuthContextValue> = {}) {
+  const auth = makeAuthContext({
+    user: makeUser(),
+    logout: vi.fn().mockResolvedValue(undefined),
+    ...authOverrides,
+  });
+
+  renderWithProviders(<TopBar />, { auth });
 
   return auth;
 }
 
 describe("TopBar", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    getAlertsMock.mockResolvedValue(emptyAlerts());
+  });
+
   it("renders user name, role, and scope label", () => {
     renderTopBar({
       user: makeUser({
@@ -101,5 +128,13 @@ describe("TopBar", () => {
     await waitFor(() => {
       expect(logout).toHaveBeenCalled();
     });
+  });
+
+  it("renders the notification centre bell", async () => {
+    renderTopBar();
+
+    expect(
+      await screen.findByRole("button", { name: "Open notification centre" }),
+    ).toBeInTheDocument();
   });
 });

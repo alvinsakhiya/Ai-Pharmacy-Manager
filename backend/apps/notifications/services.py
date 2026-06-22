@@ -11,6 +11,8 @@ from apps.analytics.services import stock_overview_for
 from apps.blister.models import CycleStatus, DosetteCycle
 from apps.tenancy.permissions import Action, can
 
+from .models import NotificationDismissal
+
 SEVERITY_RANK = {
     "critical": 0,
     "warning": 1,
@@ -24,6 +26,12 @@ STOCK_FLAG_ALERTS = [
     ("dead_stock", "dead_stock", "info", "Dead stock"),
     ("slow_moving", "slow_moving", "info", "Slow moving"),
 ]
+
+
+class AlertNotVisible(ValueError):
+    def __init__(self, fingerprint: str):
+        self.fingerprint = fingerprint
+        super().__init__(f"Alert is not visible: {fingerprint}")
 
 
 def _reason_for(item: dict, title: str) -> str | None:
@@ -112,7 +120,7 @@ def _summary(alerts: list[dict]) -> dict:
     }
 
 
-def alerts_for(user, *, pharmacy_id: int | None = None) -> dict:
+def _computed_alerts_for(user, *, pharmacy_id: int | None = None) -> list[dict]:
     alerts = []
 
     if can(user, Action.STOCK_VIEW):
@@ -127,9 +135,86 @@ def alerts_for(user, *, pharmacy_id: int | None = None) -> dict:
             alert["title"],
         )
     )
+    return alerts
+
+
+def _dismissed_fingerprints_for(user) -> set[str]:
+    return set(
+        NotificationDismissal.objects.filter(user=user).values_list(
+            "alert_fingerprint",
+            flat=True,
+        )
+    )
+
+
+def _alert_fingerprints(alerts: list[dict]) -> set[str]:
+    return {alert["id"] for alert in alerts}
+
+
+def _create_dismissals(user, fingerprints: set[str]) -> int:
+    created_count = 0
+    for fingerprint in sorted(fingerprints):
+        _dismissal, created = NotificationDismissal.objects.get_or_create(
+            user=user,
+            alert_fingerprint=fingerprint,
+        )
+        if created:
+            created_count += 1
+    return created_count
+
+
+def alerts_for(
+    user,
+    *,
+    pharmacy_id: int | None = None,
+    include_dismissed: bool = False,
+) -> dict:
+    alerts = _computed_alerts_for(user, pharmacy_id=pharmacy_id)
+
+    if not include_dismissed:
+        dismissed = _dismissed_fingerprints_for(user)
+        alerts = [alert for alert in alerts if alert["id"] not in dismissed]
 
     return {
         "generated_at": timezone.now(),
         "summary": _summary(alerts),
         "alerts": alerts,
+    }
+
+
+def dismiss_alert(user, *, fingerprint: str) -> dict:
+    current_alerts = _computed_alerts_for(user)
+    if fingerprint not in _alert_fingerprints(current_alerts):
+        raise AlertNotVisible(fingerprint)
+
+    created_count = _create_dismissals(user, {fingerprint})
+    visible = alerts_for(user)
+    return {
+        "fingerprint": fingerprint,
+        "dismissed": True,
+        "created": created_count == 1,
+        "summary": visible["summary"],
+    }
+
+
+def clear_alerts(user, *, fingerprints: list[str] | None = None) -> dict:
+    current_alerts = _computed_alerts_for(user)
+    current_fingerprints = _alert_fingerprints(current_alerts)
+
+    if fingerprints:
+        requested = set(fingerprints)
+        invalid = sorted(requested - current_fingerprints)
+        if invalid:
+            raise AlertNotVisible(invalid[0])
+        to_dismiss = requested
+    else:
+        visible = alerts_for(user)
+        to_dismiss = _alert_fingerprints(visible["alerts"])
+
+    created_count = _create_dismissals(user, to_dismiss)
+    visible_after = alerts_for(user)
+    return {
+        "dismissed_count": len(to_dismiss),
+        "created_count": created_count,
+        "summary": visible_after["summary"],
     }

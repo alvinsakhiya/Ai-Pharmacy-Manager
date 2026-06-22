@@ -1,7 +1,13 @@
 from django.urls import path
 
-from .views import AlertsView
+from .views import AlertClearView, AlertDismissView, AlertsView
 
 urlpatterns = [
     path("alerts/", AlertsView.as_view(), name="notifications-alerts"),
+    path(
+        "alerts/dismiss/",
+        AlertDismissView.as_view(),
+        name="notifications-alert-dismiss",
+    ),
+    path("alerts/clear/", AlertClearView.as_view(), name="notifications-alert-clear"),
 ]

@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../auth/AuthContext";
+import { NotificationCentre } from "../../features/notifications/NotificationCentre";
 import { scopeLabel } from "../../lib/scope";
 
 interface TopBarProps {
@@ -54,6 +55,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        <NotificationCentre />
         <div className="hidden text-right sm:block">
           <p className="text-sm font-semibold text-slate-950">
             {displayName}
