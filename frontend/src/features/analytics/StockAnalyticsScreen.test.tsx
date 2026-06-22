@@ -8,7 +8,11 @@ import {
   makeAuthUser,
   renderWithProviders,
 } from "../../test/providers";
-import type { ForecastRun, StockOverview } from "./analyticsApi";
+import type {
+  ForecastRun,
+  StockOverview,
+  TransferSuggestion,
+} from "./analyticsApi";
 import * as analyticsApi from "./analyticsApi";
 import { StockAnalyticsScreen } from "./StockAnalyticsScreen";
 
@@ -16,16 +20,28 @@ vi.mock("./analyticsApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./analyticsApi")>();
   return {
     ...actual,
+    dismissTransferSuggestion: vi.fn(),
     generateForecast: vi.fn(),
+    generateTransferSuggestions: vi.fn(),
     getLatestForecast: vi.fn(),
     getStockAnalyticsOverview: vi.fn(),
+    listTransferSuggestions: vi.fn(),
   };
 });
 
+const dismissTransferSuggestionMock = vi.mocked(
+  analyticsApi.dismissTransferSuggestion,
+);
 const generateForecastMock = vi.mocked(analyticsApi.generateForecast);
+const generateTransferSuggestionsMock = vi.mocked(
+  analyticsApi.generateTransferSuggestions,
+);
 const getLatestForecastMock = vi.mocked(analyticsApi.getLatestForecast);
 const getStockAnalyticsOverviewMock = vi.mocked(
   analyticsApi.getStockAnalyticsOverview,
+);
+const listTransferSuggestionsMock = vi.mocked(
+  analyticsApi.listTransferSuggestions,
 );
 
 function makeOverview(overrides: Partial<StockOverview> = {}): StockOverview {
@@ -138,6 +154,37 @@ function makeForecast(overrides: Partial<ForecastRun> = {}): ForecastRun {
   };
 }
 
+function makeTransferSuggestion(
+  overrides: Partial<TransferSuggestion> = {},
+): TransferSuggestion {
+  return {
+    id: 51,
+    group: 1,
+    catalogue_product: 201,
+    medication_label: "Ibuprofen 400mg tablets — pack of 48 tablets",
+    source_pharmacy: 1,
+    source_pharmacy_name: "JMW Sutton",
+    destination_pharmacy: 2,
+    destination_pharmacy_name: "JMW Wimbledon",
+    source_stock_item: 11,
+    destination_stock_item: 12,
+    suggested_quantity_units: 160,
+    suggested_quantity_packs: 4,
+    current_source_stock_units: 240,
+    destination_recent_usage_units: 160,
+    dead_days: 30,
+    confidence: "0.65",
+    reason:
+      "JMW Sutton has 240 units with no outbound usage for 30 days. JMW Wimbledon used 160 units in the last 30 days. Human review required before transfer.",
+    status: "OPEN",
+    model_version: "transfer-baseline-1",
+    generated_by: 10,
+    created_at: "2026-06-20T10:00:00Z",
+    updated_at: "2026-06-20T10:00:00Z",
+    ...overrides,
+  };
+}
+
 function analyticsAuth() {
   return makeAuthContext({
     user: makeAuthUser({
@@ -151,18 +198,50 @@ function analyticsAuth() {
   });
 }
 
-function renderAnalytics() {
+function transferAuth(
+  permissions: Record<string, boolean> = {
+    "forecast.run": true,
+    "forecast.view": true,
+    "stock.view": true,
+    "transfer_suggestion.dismiss": true,
+    "transfer_suggestion.generate": true,
+    "transfer_suggestion.view": true,
+  },
+) {
+  return makeAuthContext({
+    user: makeAuthUser({
+      permissions,
+      role: "SUPERINTENDENT",
+      scope: {
+        is_global: false,
+        group_ids: [1],
+        pharmacy_ids: [1, 2],
+      },
+      pharmacies: [
+        { id: 1, name: "JMW Sutton" },
+        { id: 2, name: "JMW Wimbledon" },
+      ],
+    }),
+  });
+}
+
+function renderAnalytics(auth = analyticsAuth()) {
   return renderWithProviders(<StockAnalyticsScreen />, {
-    auth: analyticsAuth(),
+    auth,
   });
 }
 
 describe("StockAnalyticsScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    dismissTransferSuggestionMock.mockResolvedValue(
+      makeTransferSuggestion({ status: "DISMISSED" }),
+    );
     generateForecastMock.mockResolvedValue(makeForecast());
+    generateTransferSuggestionsMock.mockResolvedValue([makeTransferSuggestion()]);
     getLatestForecastMock.mockResolvedValue(makeForecast());
     getStockAnalyticsOverviewMock.mockResolvedValue(makeOverview());
+    listTransferSuggestionsMock.mockResolvedValue([]);
   });
 
   it("renders summary counters", async () => {
@@ -304,6 +383,106 @@ describe("StockAnalyticsScreen", () => {
     renderAnalytics();
 
     expect(await screen.findByText("No forecast generated yet.")).toBeInTheDocument();
+  });
+
+  it("shows transfer suggestions panel for group-level users", async () => {
+    listTransferSuggestionsMock.mockResolvedValue([makeTransferSuggestion()]);
+
+    renderAnalytics(transferAuth());
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Cross-branch stock suggestions",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Transfer suggestion")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Human review required before transfer/),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Ibuprofen 400mg tablets — pack of 48 tablets"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/JMW Sutton.*JMW Wimbledon/).length).toBeGreaterThan(0);
+    expect(screen.getByText("4 packs / 160 units")).toBeInTheDocument();
+    expect(screen.getByText("65% confidence")).toBeInTheDocument();
+  });
+
+  it("hides transfer suggestions panel without group-level permission", async () => {
+    renderAnalytics(
+      transferAuth({
+        "forecast.run": true,
+        "forecast.view": true,
+        "stock.view": true,
+      }),
+    );
+
+    expect(await screen.findByText("Reorder forecasting")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Cross-branch stock suggestions" }),
+    ).toBeNull();
+    expect(listTransferSuggestionsMock).not.toHaveBeenCalled();
+  });
+
+  it("generates transfer suggestions for the selected group and dead window", async () => {
+    const user = userEvent.setup();
+    renderAnalytics(transferAuth());
+
+    await screen.findByRole("heading", {
+      name: "Cross-branch stock suggestions",
+    });
+    await user.selectOptions(screen.getByLabelText("Dead stock window"), "60");
+    await user.click(
+      screen.getByRole("button", { name: "Generate transfer suggestions" }),
+    );
+
+    await waitFor(() => {
+      expect(generateTransferSuggestionsMock.mock.calls[0]?.[0]).toEqual({
+        group: 1,
+        dead_days: 60,
+      });
+    });
+  });
+
+  it("dismisses transfer suggestions and refreshes the list", async () => {
+    const user = userEvent.setup();
+    listTransferSuggestionsMock
+      .mockResolvedValueOnce([makeTransferSuggestion()])
+      .mockResolvedValueOnce([]);
+
+    renderAnalytics(transferAuth());
+
+    await screen.findByText("Ibuprofen 400mg tablets — pack of 48 tablets");
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    await waitFor(() => {
+      expect(dismissTransferSuggestionMock.mock.calls[0]?.[0]).toBe(51);
+    });
+    expect(
+      await screen.findByText("No transfer suggestions to review."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders transfer suggestion loading error and empty states", async () => {
+    listTransferSuggestionsMock.mockReturnValueOnce(new Promise(() => undefined));
+    const loadingRender = renderAnalytics(transferAuth());
+
+    expect(screen.getByText("Loading transfer suggestions...")).toBeInTheDocument();
+    loadingRender.unmount();
+
+    listTransferSuggestionsMock.mockRejectedValueOnce(new Error("No suggestions"));
+    const errorRender = renderAnalytics(transferAuth());
+
+    expect(
+      await screen.findByText("Could not load transfer suggestions."),
+    ).toBeInTheDocument();
+    errorRender.unmount();
+
+    listTransferSuggestionsMock.mockResolvedValueOnce([]);
+    renderAnalytics(transferAuth());
+
+    expect(
+      await screen.findByText("No transfer suggestions to review."),
+    ).toBeInTheDocument();
   });
 
   it("does not render patient data fields or values", async () => {

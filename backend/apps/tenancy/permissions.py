@@ -41,6 +41,9 @@ class Action(StrEnum):
 
     FORECAST_VIEW = "forecast.view"
     FORECAST_RUN = "forecast.run"
+    TRANSFER_SUGGESTION_VIEW = "transfer_suggestion.view"
+    TRANSFER_SUGGESTION_GENERATE = "transfer_suggestion.generate"
+    TRANSFER_SUGGESTION_DISMISS = "transfer_suggestion.dismiss"
 
 
 PATIENT_CLASS_ACTIONS = frozenset(
@@ -65,6 +68,9 @@ ROLE_CAPABILITIES = {
             Action.STOCK_TRANSFER,
             Action.FORECAST_VIEW,
             Action.FORECAST_RUN,
+            Action.TRANSFER_SUGGESTION_VIEW,
+            Action.TRANSFER_SUGGESTION_GENERATE,
+            Action.TRANSFER_SUGGESTION_DISMISS,
             Action.AUDIT_VIEW,
             Action.MEDICATION_VIEW,
             Action.MEDICATION_MANAGE,

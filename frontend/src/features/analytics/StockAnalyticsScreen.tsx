@@ -6,11 +6,15 @@ import type {
   ForecastItem,
   StockAnalyticsFlags,
   StockAnalyticsItem,
+  TransferSuggestion,
 } from "./analyticsApi";
 import {
+  useDismissTransferSuggestion,
   useGenerateForecast,
+  useGenerateTransferSuggestions,
   useLatestForecastQuery,
   useStockAnalyticsOverviewQuery,
+  useTransferSuggestionsQuery,
 } from "./useAnalytics";
 
 const SUMMARY_LABELS: Array<{
@@ -114,6 +118,10 @@ function ForecastConfidence({ confidence }: { confidence: string }) {
   );
 }
 
+function ConfidenceChip({ confidence }: { confidence: string }) {
+  return <ForecastConfidence confidence={confidence} />;
+}
+
 function ForecastRow({ item }: { item: ForecastItem }) {
   return (
     <tr>
@@ -148,6 +156,54 @@ function ForecastRow({ item }: { item: ForecastItem }) {
           </summary>
           <p className="mt-2 leading-6">{item.explanation}</p>
         </details>
+      </td>
+    </tr>
+  );
+}
+
+function TransferSuggestionRow({
+  canDismiss,
+  onDismiss,
+  suggestion,
+}: {
+  canDismiss: boolean;
+  onDismiss: (suggestionId: number) => void;
+  suggestion: TransferSuggestion;
+}) {
+  return (
+    <tr>
+      <td className="min-w-64 px-4 py-4 text-sm font-medium text-slate-950">
+        {suggestion.medication_label}
+        <span className="mt-1 block text-xs font-normal text-slate-500">
+          Status: {suggestion.status}
+        </span>
+      </td>
+      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+        {suggestion.source_pharmacy_name} -&gt;{" "}
+        {suggestion.destination_pharmacy_name}
+      </td>
+      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-950">
+        {formatForecastQuantity(
+          suggestion.suggested_quantity_units,
+          suggestion.suggested_quantity_packs,
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-4 text-sm">
+        <ConfidenceChip confidence={suggestion.confidence} />
+      </td>
+      <td className="min-w-96 px-4 py-4 text-sm text-slate-700">
+        {suggestion.reason}
+      </td>
+      <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+        {canDismiss ? (
+          <button
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            onClick={() => onDismiss(suggestion.id)}
+            type="button"
+          >
+            Dismiss
+          </button>
+        ) : null}
       </td>
     </tr>
   );
@@ -240,10 +296,24 @@ export function StockAnalyticsScreen() {
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | undefined>(
     undefined,
   );
+  const groupIds = useMemo(() => user?.scope.group_ids ?? [], [user?.scope.group_ids]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>(
+    undefined,
+  );
   const [horizonDays, setHorizonDays] = useState(30);
+  const [deadDays, setDeadDays] = useState(30);
   const stockOverviewQuery = useStockAnalyticsOverviewQuery(selectedPharmacyId);
   const latestForecastQuery = useLatestForecastQuery(selectedPharmacyId);
   const generateForecast = useGenerateForecast();
+  const canViewTransferSuggestions = can("transfer_suggestion.view");
+  const canGenerateTransferSuggestions = can("transfer_suggestion.generate");
+  const canDismissTransferSuggestions = can("transfer_suggestion.dismiss");
+  const transferSuggestionsQuery = useTransferSuggestionsQuery(
+    selectedGroupId,
+    canViewTransferSuggestions,
+  );
+  const generateTransferSuggestions = useGenerateTransferSuggestions();
+  const dismissTransferSuggestion = useDismissTransferSuggestion(selectedGroupId);
   const canRunForecast = can("forecast.run");
 
   useEffect(() => {
@@ -251,6 +321,12 @@ export function StockAnalyticsScreen() {
       setSelectedPharmacyId(pharmacies[0].id);
     }
   }, [pharmacies, selectedPharmacyId]);
+
+  useEffect(() => {
+    if (selectedGroupId === undefined && groupIds.length > 0) {
+      setSelectedGroupId(groupIds[0]);
+    }
+  }, [groupIds, selectedGroupId]);
 
   async function handleGenerateForecast() {
     if (selectedPharmacyId === undefined) {
@@ -261,6 +337,21 @@ export function StockAnalyticsScreen() {
       pharmacy: selectedPharmacyId,
       horizon_days: horizonDays,
     });
+  }
+
+  async function handleGenerateTransferSuggestions() {
+    if (selectedGroupId === undefined) {
+      return;
+    }
+
+    await generateTransferSuggestions.mutateAsync({
+      group: selectedGroupId,
+      dead_days: deadDays,
+    });
+  }
+
+  function handleDismissTransferSuggestion(suggestionId: number) {
+    void dismissTransferSuggestion.mutateAsync(suggestionId);
   }
 
   return (
@@ -277,6 +368,169 @@ export function StockAnalyticsScreen() {
           movement history.
         </p>
       </section>
+
+      {canViewTransferSuggestions ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-teal-700">
+                Transfer suggestion
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-slate-950">
+                Cross-branch stock suggestions
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                Operational suggestions based on stock movement history. Human
+                review required before transfer.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="min-w-44 text-sm font-medium text-slate-700">
+                Group
+                {groupIds.length > 0 ? (
+                  <select
+                    className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    onChange={(event) =>
+                      setSelectedGroupId(
+                        event.target.value ? Number(event.target.value) : undefined,
+                      )
+                    }
+                    value={selectedGroupId ?? ""}
+                  >
+                    {groupIds.map((groupId) => (
+                      <option key={groupId} value={groupId}>
+                        Group {groupId}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    min="1"
+                    onChange={(event) =>
+                      setSelectedGroupId(
+                        event.target.value ? Number(event.target.value) : undefined,
+                      )
+                    }
+                    placeholder="Group ID"
+                    type="number"
+                    value={selectedGroupId ?? ""}
+                  />
+                )}
+              </label>
+
+              <label className="min-w-40 text-sm font-medium text-slate-700">
+                Dead stock window
+                <select
+                  className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  onChange={(event) => setDeadDays(Number(event.target.value))}
+                  value={deadDays}
+                >
+                  <option value={30}>30 days</option>
+                  <option value={60}>60 days</option>
+                  <option value={90}>90 days</option>
+                </select>
+              </label>
+
+              {canGenerateTransferSuggestions ? (
+                <button
+                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={
+                    selectedGroupId === undefined ||
+                    generateTransferSuggestions.isPending
+                  }
+                  onClick={() => void handleGenerateTransferSuggestions()}
+                  type="button"
+                >
+                  {generateTransferSuggestions.isPending
+                    ? "Generating..."
+                    : "Generate transfer suggestions"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {generateTransferSuggestions.isError ? (
+            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              Could not generate transfer suggestions. Check your group scope and
+              try again.
+            </p>
+          ) : null}
+
+          {dismissTransferSuggestion.isError ? (
+            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              Could not dismiss transfer suggestion.
+            </p>
+          ) : null}
+
+          {selectedGroupId === undefined ? (
+            <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Select a group to view transfer suggestions.
+            </p>
+          ) : null}
+
+          {transferSuggestionsQuery.isLoading ? (
+            <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Loading transfer suggestions...
+            </p>
+          ) : null}
+
+          {transferSuggestionsQuery.isError ? (
+            <p className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              Could not load transfer suggestions.
+            </p>
+          ) : null}
+
+          {transferSuggestionsQuery.isSuccess &&
+          transferSuggestionsQuery.data.length === 0 ? (
+            <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              No transfer suggestions to review.
+            </p>
+          ) : null}
+
+          {transferSuggestionsQuery.isSuccess &&
+          transferSuggestionsQuery.data.length > 0 ? (
+            <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Product
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Route
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Suggested quantity
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Confidence
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Reason
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {transferSuggestionsQuery.data.map((suggestion) => (
+                      <TransferSuggestionRow
+                        canDismiss={canDismissTransferSuggestions}
+                        key={suggestion.id}
+                        onDismiss={handleDismissTransferSuggestion}
+                        suggestion={suggestion}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

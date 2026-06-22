@@ -9,18 +9,23 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.tenancy.models import Pharmacy
+from apps.tenancy.models import Group, Pharmacy
 from apps.tenancy.permissions import Action, can, require
 
-from .models import ForecastRun
+from .models import ForecastRun, TransferSuggestion
 from .serializers import (
     ForecastGenerateSerializer,
     ForecastRunSerializer,
     StockOverviewSerializer,
+    TransferSuggestionGenerateSerializer,
+    TransferSuggestionSerializer,
 )
 from .services import (
+    dismiss_transfer_suggestion,
     generate_stock_forecast,
+    generate_transfer_suggestions,
     latest_stock_forecast_for,
+    list_transfer_suggestions,
     stock_overview_for,
 )
 
@@ -52,6 +57,13 @@ def _pharmacy_from_id(pharmacy_id):
         raise serializers.ValidationError(
             {"pharmacy": ["Pharmacy is invalid."]}
         ) from exc
+
+
+def _group_from_id(group_id):
+    try:
+        return Group.objects.get(pk=group_id, is_active=True)
+    except Group.DoesNotExist as exc:
+        raise serializers.ValidationError({"group": ["Group is invalid."]}) from exc
 
 
 class ForecastGenerateView(APIView):
@@ -89,6 +101,75 @@ class ForecastLatestView(APIView):
         if run is None:
             return Response({"detail": "No forecast generated yet."})
         return Response(ForecastRunSerializer(run).data, status=status.HTTP_200_OK)
+
+
+class TransferSuggestionListCreateView(APIView):
+    def get_permissions(self):
+        action = (
+            Action.TRANSFER_SUGGESTION_GENERATE
+            if self.request.method == "POST"
+            else Action.TRANSFER_SUGGESTION_VIEW
+        )
+        return [require(action)()]
+
+    def get(self, request):
+        group_id = request.query_params.get("group")
+        if group_id is None:
+            raise serializers.ValidationError(
+                {"group": ["Group query parameter is required."]}
+            )
+        try:
+            group = _group_from_id(int(group_id))
+        except ValueError:
+            raise serializers.ValidationError(
+                {"group": ["Group filter must be an integer."]}
+            ) from None
+
+        suggestions = list_transfer_suggestions(request.user, group=group)
+        return Response(
+            TransferSuggestionSerializer(suggestions, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = TransferSuggestionGenerateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        group = _group_from_id(serializer.validated_data["group"])
+        suggestions = generate_transfer_suggestions(
+            request.user,
+            group=group,
+            dead_days=serializer.validated_data["dead_days"],
+        )
+        return Response(
+            TransferSuggestionSerializer(suggestions, many=True).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TransferSuggestionDismissView(APIView):
+    permission_classes = [require(Action.TRANSFER_SUGGESTION_DISMISS)]
+
+    def post(self, request, pk):
+        try:
+            suggestion = TransferSuggestion.objects.select_related(
+                "group",
+                "catalogue_product",
+                "source_pharmacy",
+                "destination_pharmacy",
+                "source_stock_item",
+                "destination_stock_item",
+                "generated_by",
+            ).get(pk=pk)
+        except TransferSuggestion.DoesNotExist as exc:
+            raise serializers.ValidationError(
+                {"suggestion": ["Transfer suggestion is invalid."]}
+            ) from exc
+
+        suggestion = dismiss_transfer_suggestion(request.user, suggestion=suggestion)
+        return Response(
+            TransferSuggestionSerializer(suggestion).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class ForecastDetailView(APIView):

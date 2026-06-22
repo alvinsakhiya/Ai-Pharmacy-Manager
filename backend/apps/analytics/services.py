@@ -17,10 +17,10 @@ from rest_framework import serializers
 
 from apps.inventory.models import StockItem, StockMovement
 from apps.inventory.selectors import stock_items_for
-from apps.tenancy.models import Pharmacy
+from apps.tenancy.models import Group, Pharmacy
 from apps.tenancy.permissions import Action, can
 
-from .models import ForecastItem, ForecastRun
+from .models import ForecastItem, ForecastRun, TransferSuggestion
 
 NEAR_EXPIRY_DAYS = 90
 DEAD_STOCK_DAYS = 90
@@ -29,6 +29,9 @@ FORECAST_MODEL_VERSION = "baseline-1"
 DEFAULT_FORECAST_HORIZON_DAYS = 30
 DEFAULT_FORECAST_LOOKBACK_DAYS = 90
 DEFAULT_SAFETY_BUFFER_RATIO = Decimal("0.15")
+TRANSFER_SUGGESTION_MODEL_VERSION = "transfer-baseline-1"
+DEFAULT_TRANSFER_DEAD_DAYS = 30
+SOURCE_BUFFER_RATIO = Decimal("0.20")
 
 
 def _days_to_expiry(today: date, earliest_expiry: date | None) -> int | None:
@@ -351,3 +354,216 @@ def latest_stock_forecast_for(user, *, pharmacy: Pharmacy) -> ForecastRun | None
         .filter(pharmacy=pharmacy)
         .first()
     )
+
+
+def _active_group_stock_items(user, group: Group, *, today):
+    return list(
+        stock_items_for(user)
+        .filter(
+            pharmacy__group=group,
+            is_active=True,
+            medication__catalogue_product__isnull=False,
+        )
+        .select_related("pharmacy", "medication__catalogue_product")
+        .annotate(
+            unexpired_stock_units=Coalesce(
+                Sum(
+                    "batches__quantity",
+                    filter=Q(
+                        batches__is_active=True,
+                        batches__quantity__gt=0,
+                        batches__expiry_date__gte=today,
+                    ),
+                ),
+                Value(0),
+                output_field=IntegerField(),
+            )
+        )
+    )
+
+
+def _recent_usage_by_stock_item(stock_items: list[StockItem], *, window_start):
+    stock_item_ids = [stock_item.id for stock_item in stock_items]
+    if not stock_item_ids:
+        return {}
+
+    return {
+        row["stock_item_id"]: abs(row["consumed_quantity"])
+        for row in (
+            StockMovement.objects.filter(
+                stock_item_id__in=stock_item_ids,
+                created_at__gte=window_start,
+                quantity_delta__lt=0,
+            )
+            .values("stock_item_id")
+            .annotate(
+                consumed_quantity=Coalesce(
+                    Sum("quantity_delta"),
+                    Value(0),
+                    output_field=IntegerField(),
+                )
+            )
+        )
+    }
+
+
+def _pack_count(units: int, pack_size: int | None) -> int | None:
+    if not pack_size:
+        return None
+    return int(ceil(units / pack_size))
+
+
+def _transfer_confidence(destination_usage_units: int, suggested_units: int) -> Decimal:
+    if destination_usage_units >= suggested_units * 2:
+        return Decimal("0.75")
+    if destination_usage_units >= suggested_units:
+        return Decimal("0.65")
+    return Decimal("0.55")
+
+
+def generate_transfer_suggestions(
+    user,
+    *,
+    group: Group,
+    dead_days: int = DEFAULT_TRANSFER_DEAD_DAYS,
+) -> list[TransferSuggestion]:
+    if not can(user, Action.TRANSFER_SUGGESTION_GENERATE, target=group):
+        raise serializers.ValidationError(
+            {"group": ["This group is outside your transfer suggestion scope."]}
+        )
+
+    today = timezone.now().date()
+    window_start = timezone.now() - timedelta(days=dead_days)
+    stock_items = _active_group_stock_items(user, group, today=today)
+    usage_by_stock_item = _recent_usage_by_stock_item(
+        stock_items,
+        window_start=window_start,
+    )
+
+    stock_items_by_product: dict[int, list[StockItem]] = {}
+    for stock_item in stock_items:
+        product_id = stock_item.medication.catalogue_product_id
+        if product_id is None:
+            continue
+        stock_items_by_product.setdefault(product_id, []).append(stock_item)
+
+    suggestions = []
+    for source in stock_items:
+        product = source.medication.catalogue_product
+        if product is None:
+            continue
+
+        source_stock_units = int(source.unexpired_stock_units or 0)
+        source_recent_usage = usage_by_stock_item.get(source.id, 0)
+        if source_stock_units <= 0 or source_recent_usage > 0:
+            continue
+
+        destinations = [
+            stock_item
+            for stock_item in stock_items_by_product.get(product.id, [])
+            if stock_item.pharmacy_id != source.pharmacy_id
+            and usage_by_stock_item.get(stock_item.id, 0) > 0
+        ]
+        if not destinations:
+            continue
+
+        destination = max(
+            destinations,
+            key=lambda stock_item: usage_by_stock_item.get(stock_item.id, 0),
+        )
+        destination_usage_units = usage_by_stock_item[destination.id]
+        source_buffer_units = int(
+            (Decimal(source_stock_units) * SOURCE_BUFFER_RATIO).to_integral_value(
+                rounding=ROUND_HALF_UP
+            )
+        )
+        source_buffer_units = max(source_buffer_units, 1)
+        transferable_units = max(0, source_stock_units - source_buffer_units)
+        suggested_units = min(transferable_units, destination_usage_units)
+        if suggested_units <= 0:
+            continue
+
+        suggested_packs = _pack_count(suggested_units, product.pack_size)
+        reason = (
+            f"{source.pharmacy.name} has {source_stock_units} units with no outbound "
+            f"usage for {dead_days} days. {destination.pharmacy.name} used "
+            f"{destination_usage_units} units in the last {dead_days} days. "
+            "Human review required before transfer."
+        )
+        if product.pack_size:
+            reason = (
+                f"{reason} Pack size is {product.pack_size}, so the suggested "
+                f"quantity is approximately {suggested_packs} pack"
+                f"{'' if suggested_packs == 1 else 's'}."
+            )
+
+        suggestions.append(
+            TransferSuggestion(
+                group=group,
+                catalogue_product=product,
+                medication_label=product.full_label,
+                source_pharmacy=source.pharmacy,
+                destination_pharmacy=destination.pharmacy,
+                source_stock_item=source,
+                destination_stock_item=destination,
+                suggested_quantity_units=suggested_units,
+                suggested_quantity_packs=suggested_packs,
+                current_source_stock_units=source_stock_units,
+                destination_recent_usage_units=destination_usage_units,
+                dead_days=dead_days,
+                confidence=_transfer_confidence(
+                    destination_usage_units, suggested_units
+                ),
+                reason=reason,
+                status=TransferSuggestion.Status.OPEN,
+                model_version=TRANSFER_SUGGESTION_MODEL_VERSION,
+                generated_by=user,
+            )
+        )
+
+    with transaction.atomic():
+        TransferSuggestion.objects.filter(
+            group=group,
+            model_version=TRANSFER_SUGGESTION_MODEL_VERSION,
+            status=TransferSuggestion.Status.OPEN,
+        ).update(status=TransferSuggestion.Status.DISMISSED)
+        created = TransferSuggestion.objects.bulk_create(suggestions)
+
+    return list_transfer_suggestions(user, group=group) if created else []
+
+
+def list_transfer_suggestions(user, *, group: Group) -> list[TransferSuggestion]:
+    if not can(user, Action.TRANSFER_SUGGESTION_VIEW, target=group):
+        raise serializers.ValidationError(
+            {"group": ["This group is outside your transfer suggestion scope."]}
+        )
+
+    return list(
+        TransferSuggestion.objects.select_related(
+            "group",
+            "catalogue_product",
+            "source_pharmacy",
+            "destination_pharmacy",
+            "source_stock_item",
+            "destination_stock_item",
+            "generated_by",
+        )
+        .filter(
+            group=group,
+            model_version=TRANSFER_SUGGESTION_MODEL_VERSION,
+            status=TransferSuggestion.Status.OPEN,
+        )
+        .order_by("-created_at", "-suggested_quantity_units", "medication_label")
+    )
+
+
+def dismiss_transfer_suggestion(user, *, suggestion: TransferSuggestion):
+    if not can(user, Action.TRANSFER_SUGGESTION_DISMISS, target=suggestion.group):
+        raise serializers.ValidationError(
+            {"group": ["This group is outside your transfer suggestion scope."]}
+        )
+
+    if suggestion.status != TransferSuggestion.Status.DISMISSED:
+        suggestion.status = TransferSuggestion.Status.DISMISSED
+        suggestion.save(update_fields=["status", "updated_at"])
+    return suggestion

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ForecastItem, ForecastRun
+from .models import ForecastItem, ForecastRun, TransferSuggestion
 
 
 class ForecastItemSerializer(serializers.ModelSerializer):
@@ -63,6 +63,74 @@ class ForecastGenerateSerializer(serializers.Serializer):
         default=30,
         required=False,
     )
+
+
+class TransferSuggestionSerializer(serializers.ModelSerializer):
+    group = serializers.IntegerField(source="group_id", read_only=True)
+    catalogue_product = serializers.IntegerField(
+        source="catalogue_product_id",
+        allow_null=True,
+        read_only=True,
+    )
+    source_pharmacy = serializers.IntegerField(
+        source="source_pharmacy_id",
+        read_only=True,
+    )
+    source_pharmacy_name = serializers.CharField(
+        source="source_pharmacy.name",
+        read_only=True,
+    )
+    destination_pharmacy = serializers.IntegerField(
+        source="destination_pharmacy_id",
+        read_only=True,
+    )
+    destination_pharmacy_name = serializers.CharField(
+        source="destination_pharmacy.name",
+        read_only=True,
+    )
+    source_stock_item = serializers.IntegerField(
+        source="source_stock_item_id",
+        allow_null=True,
+        read_only=True,
+    )
+    destination_stock_item = serializers.IntegerField(
+        source="destination_stock_item_id",
+        allow_null=True,
+        read_only=True,
+    )
+    generated_by = serializers.IntegerField(source="generated_by_id", read_only=True)
+
+    class Meta:
+        model = TransferSuggestion
+        fields = [
+            "id",
+            "group",
+            "catalogue_product",
+            "medication_label",
+            "source_pharmacy",
+            "source_pharmacy_name",
+            "destination_pharmacy",
+            "destination_pharmacy_name",
+            "source_stock_item",
+            "destination_stock_item",
+            "suggested_quantity_units",
+            "suggested_quantity_packs",
+            "current_source_stock_units",
+            "destination_recent_usage_units",
+            "dead_days",
+            "confidence",
+            "reason",
+            "status",
+            "model_version",
+            "generated_by",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class TransferSuggestionGenerateSerializer(serializers.Serializer):
+    group = serializers.IntegerField()
+    dead_days = serializers.IntegerField(min_value=7, max_value=180, default=30)
 
 
 class StockAnalyticsFlagsSerializer(serializers.Serializer):

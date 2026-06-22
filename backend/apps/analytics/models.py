@@ -100,3 +100,83 @@ class ForecastItem(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.medication_label}: {self.suggested_reorder_units} units"
+
+
+class TransferSuggestion(TimeStampedModel):
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        DISMISSED = "DISMISSED", "Dismissed"
+        ACTIONED = "ACTIONED", "Actioned"
+
+    tenant_group_id_field = "group"
+
+    group = models.ForeignKey(
+        "tenancy.Group",
+        on_delete=models.PROTECT,
+        related_name="transfer_suggestions",
+    )
+    catalogue_product = models.ForeignKey(
+        "catalogue.CatalogueProduct",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="transfer_suggestions",
+    )
+    medication_label = models.CharField(max_length=255)
+    source_pharmacy = models.ForeignKey(
+        "tenancy.Pharmacy",
+        on_delete=models.PROTECT,
+        related_name="source_transfer_suggestions",
+    )
+    destination_pharmacy = models.ForeignKey(
+        "tenancy.Pharmacy",
+        on_delete=models.PROTECT,
+        related_name="destination_transfer_suggestions",
+    )
+    source_stock_item = models.ForeignKey(
+        "inventory.StockItem",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="source_transfer_suggestions",
+    )
+    destination_stock_item = models.ForeignKey(
+        "inventory.StockItem",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="destination_transfer_suggestions",
+    )
+    suggested_quantity_units = models.PositiveIntegerField(default=0)
+    suggested_quantity_packs = models.PositiveIntegerField(null=True, blank=True)
+    current_source_stock_units = models.PositiveIntegerField(default=0)
+    destination_recent_usage_units = models.PositiveIntegerField(default=0)
+    dead_days = models.PositiveIntegerField(default=30)
+    confidence = models.DecimalField(max_digits=3, decimal_places=2)
+    reason = models.TextField()
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.OPEN,
+    )
+    model_version = models.CharField(max_length=32, default="transfer-baseline-1")
+    generated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="transfer_suggestions",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-suggested_quantity_units", "medication_label"]
+        indexes = [
+            models.Index(fields=["group", "status", "-created_at"]),
+            models.Index(fields=["catalogue_product", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.medication_label}: {self.source_pharmacy} to "
+            f"{self.destination_pharmacy}"
+        )

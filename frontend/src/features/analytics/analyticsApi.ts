@@ -80,6 +80,31 @@ export interface ForecastRun {
   items: ForecastItem[];
 }
 
+export interface TransferSuggestion {
+  id: number;
+  group: number;
+  catalogue_product: number | null;
+  medication_label: string;
+  source_pharmacy: number;
+  source_pharmacy_name: string;
+  destination_pharmacy: number;
+  destination_pharmacy_name: string;
+  source_stock_item: number | null;
+  destination_stock_item: number | null;
+  suggested_quantity_units: number;
+  suggested_quantity_packs: number | null;
+  current_source_stock_units: number;
+  destination_recent_usage_units: number;
+  dead_days: number;
+  confidence: string;
+  reason: string;
+  status: "OPEN" | "DISMISSED" | "ACTIONED";
+  model_version: string;
+  generated_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export function getStockAnalyticsOverview(
   pharmacyId?: number,
 ): Promise<StockOverview> {
@@ -107,4 +132,36 @@ export function generateForecast(body: {
     },
     body: JSON.stringify(body),
   });
+}
+
+export function listTransferSuggestions(
+  groupId: number,
+): Promise<TransferSuggestion[]> {
+  return requestJson<TransferSuggestion[]>(
+    `/api/analytics/transfer-suggestions/?group=${groupId}`,
+  );
+}
+
+export function generateTransferSuggestions(body: {
+  group: number;
+  dead_days: number;
+}): Promise<TransferSuggestion[]> {
+  return requestJson<TransferSuggestion[]>("/api/analytics/transfer-suggestions/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export function dismissTransferSuggestion(
+  suggestionId: number,
+): Promise<TransferSuggestion> {
+  return requestJson<TransferSuggestion>(
+    `/api/analytics/transfer-suggestions/${suggestionId}/dismiss/`,
+    {
+      method: "POST",
+    },
+  );
 }
