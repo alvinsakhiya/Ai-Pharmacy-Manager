@@ -39,6 +39,67 @@ MOVEMENT_CSV_COLUMNS = [
     "reference",
 ]
 
+EXPIRY_CSV_COLUMNS = [
+    "pharmacy_id",
+    "pharmacy_name",
+    "medication_label",
+    "batch_number",
+    "expiry_date",
+    "quantity",
+    "days_until_expiry",
+    "severity",
+]
+
+DEAD_STOCK_CSV_COLUMNS = [
+    "pharmacy_id",
+    "medication_label",
+    "quantity_on_hand",
+    "days_since_last_outbound",
+    "status",
+    "suggested_action",
+]
+
+FORECAST_REORDER_CSV_COLUMNS = [
+    "pharmacy_id",
+    "pharmacy_name",
+    "medication_label",
+    "predicted_usage_units",
+    "current_stock_units",
+    "suggested_reorder_units",
+    "suggested_reorder_packs",
+    "confidence",
+    "explanation_summary",
+    "human_review_required",
+    "forecast_run_id",
+    "forecast_created_at",
+]
+
+TRANSFER_SUGGESTIONS_CSV_COLUMNS = [
+    "group_id",
+    "group_name",
+    "source_pharmacy_id",
+    "source_pharmacy_name",
+    "destination_pharmacy_id",
+    "destination_pharmacy_name",
+    "medication_label",
+    "suggested_quantity_units",
+    "suggested_quantity_packs",
+    "confidence",
+    "status",
+    "reason",
+    "created_at",
+    "human_review_required",
+]
+
+MDS_WORKLOAD_CSV_COLUMNS = [
+    "pharmacy_id",
+    "pharmacy_name",
+    "cycle_status",
+    "due_count",
+    "overdue_count",
+    "upcoming_cycles",
+]
+
 
 def _format_date(value) -> str:
     if value is None:
@@ -110,3 +171,46 @@ def stock_movements_report_csv(report: dict) -> str:
         )
 
     return output.getvalue()
+
+
+def _rows_to_csv(report: dict, columns: list[str]) -> str:
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=columns)
+    writer.writeheader()
+
+    for row in report["rows"]:
+        writer.writerow(
+            {column: _format_csv_value(row.get(column)) for column in columns}
+        )
+
+    return output.getvalue()
+
+
+def _format_csv_value(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return _format_bool(value)
+    if isinstance(value, datetime) or hasattr(value, "isoformat"):
+        return _format_date(value)
+    return str(value)
+
+
+def expiry_report_csv(report: dict) -> str:
+    return _rows_to_csv(report, EXPIRY_CSV_COLUMNS)
+
+
+def dead_stock_report_csv(report: dict) -> str:
+    return _rows_to_csv(report, DEAD_STOCK_CSV_COLUMNS)
+
+
+def forecast_reorder_report_csv(report: dict) -> str:
+    return _rows_to_csv(report, FORECAST_REORDER_CSV_COLUMNS)
+
+
+def transfer_suggestions_report_csv(report: dict) -> str:
+    return _rows_to_csv(report, TRANSFER_SUGGESTIONS_CSV_COLUMNS)
+
+
+def mds_workload_report_csv(report: dict) -> str:
+    return _rows_to_csv(report, MDS_WORKLOAD_CSV_COLUMNS)

@@ -10,8 +10,11 @@ import {
 } from "../../test/providers";
 import { ReportsScreen } from "./ReportsScreen";
 import type {
+  ExpiryReport,
+  ReportId,
+  ReportPreview,
+  ReportsDashboard,
   StockAttentionReport,
-  StockMovementsReport,
 } from "./reportsApi";
 import * as reportsApi from "./reportsApi";
 
@@ -19,19 +22,56 @@ vi.mock("./reportsApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./reportsApi")>();
   return {
     ...actual,
-    getStockAttentionReport: vi.fn(),
-    getStockMovementsReport: vi.fn(),
+    getReportsDashboard: vi.fn(),
+    getReportPreview: vi.fn(),
     downloadReportCsv: vi.fn(),
   };
 });
 
-const getStockAttentionReportMock = vi.mocked(
-  reportsApi.getStockAttentionReport,
-);
-const getStockMovementsReportMock = vi.mocked(
-  reportsApi.getStockMovementsReport,
-);
+const getReportsDashboardMock = vi.mocked(reportsApi.getReportsDashboard);
+const getReportPreviewMock = vi.mocked(reportsApi.getReportPreview);
 const downloadReportCsvMock = vi.mocked(reportsApi.downloadReportCsv);
+
+function makeDashboard(): ReportsDashboard {
+  return {
+    report: "dashboard",
+    generated_at: "2026-06-20T10:00:00Z",
+    filters: {
+      pharmacy_id: 7,
+      group_id: 3,
+    },
+    cards: [
+      {
+        report: "stock_attention",
+        title: "Stock attention",
+        row_count: 1,
+        available_exports: ["csv"],
+        human_review_required: false,
+      },
+      {
+        report: "expiry",
+        title: "Expiry risk",
+        row_count: 1,
+        available_exports: ["csv"],
+        human_review_required: false,
+      },
+      {
+        report: "forecast_reorder",
+        title: "Forecast & reorder",
+        row_count: 1,
+        available_exports: ["csv"],
+        human_review_required: true,
+      },
+      {
+        report: "transfer_suggestions",
+        title: "Transfer suggestions",
+        row_count: 1,
+        available_exports: ["csv"],
+        human_review_required: true,
+      },
+    ],
+  };
+}
 
 function makeAttentionReport(
   overrides: Partial<StockAttentionReport> = {},
@@ -45,7 +85,7 @@ function makeAttentionReport(
       slow_moving_threshold: 5,
     },
     filters: {
-      pharmacy_id: null,
+      pharmacy_id: 7,
       flag: null,
       needs_attention: false,
     },
@@ -79,207 +119,173 @@ function makeAttentionReport(
         },
         attention_score: 40,
         suggested_reorder_quantity: 12,
-        reasons: [
-          "Low stock: 8 on hand at or below reorder level 20",
-          "Near expiry: earliest batch expires in 11 days",
-        ],
+        reasons: ["Low stock"],
       },
     ],
     ...overrides,
   };
 }
 
-function makeMovementsReport(
-  overrides: Partial<StockMovementsReport> = {},
-): StockMovementsReport {
+function makeExpiryReport(): ExpiryReport {
   return {
-    report: "stock_movements",
+    report: "expiry",
     generated_at: "2026-06-20T10:00:00Z",
     filters: {
-      pharmacy_id: null,
-      medication_id: null,
-      stock_item_id: null,
-      movement_type: null,
-      date_from: null,
-      date_to: null,
-      limit: 500,
+      pharmacy_id: 7,
+      window_days: 30,
     },
     row_count: 1,
-    limited: true,
     rows: [
       {
-        movement_id: 21,
-        created_at: "2026-06-20T09:30:00Z",
-        stock_item_id: 1,
-        medication_id: 10,
-        medication_name: "Ibuprofen",
-        pharmacy_id: 8,
-        batch_id: 5,
-        batch_number: "CRO-IBU-001",
-        movement_type: "RECEIPT",
-        quantity_delta: 100,
-        balance_after: 100,
-        reference: "receipt-001",
+        pharmacy_id: 7,
+        pharmacy_name: "Sutton Pharmacy",
+        medication_label: "Paracetamol 500mg tablets",
+        batch_number: "CRO-PAR-001",
+        expiry_date: "2026-07-01",
+        quantity: 24,
+        days_until_expiry: 9,
+        severity: "warning",
       },
     ],
-    ...overrides,
   };
 }
 
-function reportsAuth() {
+function reportFor(reportId: ReportId): ReportPreview {
+  if (reportId === "expiry") {
+    return makeExpiryReport();
+  }
+  return makeAttentionReport();
+}
+
+function reportsAuth(permissions: Record<string, boolean> = {}) {
   return makeAuthContext({
     user: makeAuthUser({
       permissions: {
         "stock.view": true,
+        "forecast.view": true,
+        "transfer_suggestion.view": true,
+        "blister.view": true,
+        ...permissions,
+      },
+      pharmacies: [{ id: 7, name: "Sutton Pharmacy" }],
+      scope: {
+        is_global: false,
+        group_ids: [3],
+        pharmacy_ids: [7],
       },
     }),
   });
 }
 
-function renderReports() {
+function renderReports(permissions?: Record<string, boolean>) {
   return renderWithProviders(<ReportsScreen />, {
-    auth: reportsAuth(),
+    auth: reportsAuth(permissions),
   });
 }
 
 describe("ReportsScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    getStockAttentionReportMock.mockResolvedValue(makeAttentionReport());
-    getStockMovementsReportMock.mockResolvedValue(makeMovementsReport());
+    getReportsDashboardMock.mockResolvedValue(makeDashboard());
+    getReportPreviewMock.mockImplementation((reportId) =>
+      Promise.resolve(reportFor(reportId)),
+    );
     downloadReportCsvMock.mockResolvedValue(undefined);
   });
 
-  it("renders the page header", async () => {
+  it("renders the reports dashboard cards and header", async () => {
     renderReports();
 
     expect(
       await screen.findByRole("heading", { name: "Reports" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Read-only stock reports and CSV exports."),
+      screen.getByText("Operational exports and pharmacy intelligence reports."),
     ).toBeInTheDocument();
-  });
-
-  it("renders the stock attention report section", async () => {
-    renderReports();
-
-    expect(
-      await screen.findByRole("heading", { name: "Stock attention report" }),
-    ).toBeInTheDocument();
-    expect(await screen.findByText("Total items")).toBeInTheDocument();
-    expect(screen.getByText("Paracetamol")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Download CSV" })).toHaveLength(
-      2,
-    );
-  });
-
-  it("renders the stock movements report section", async () => {
-    renderReports();
-
-    expect(
-      await screen.findByRole("heading", { name: "Stock movements report" }),
-    ).toBeInTheDocument();
-    expect(await screen.findByText("Ibuprofen")).toBeInTheDocument();
-    expect(screen.getByText("CRO-IBU-001")).toBeInTheDocument();
-    expect(screen.getByText("Showing the most recent 500 movements."))
+    expect(screen.getByRole("button", { name: /Stock attention/ }))
       .toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Download CSV" })).toHaveLength(
-      2,
-    );
+    expect(screen.getByRole("button", { name: /Expiry risk/ }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Forecast & reorder/ }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Transfer suggestions/ }))
+      .toBeInTheDocument();
   });
 
-  it("downloads stock attention and movement CSV files through the API helper", async () => {
+  it("selects a report and loads the preview table", async () => {
     const user = userEvent.setup();
     renderReports();
 
-    await screen.findByText("Paracetamol");
-    const buttons = screen.getAllByRole("button", { name: "Download CSV" });
+    await user.click(await screen.findByRole("button", { name: /Expiry risk/ }));
 
-    await user.click(buttons[0]);
+    expect(await screen.findByText("CRO-PAR-001")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Expiry risk" }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("warning")).toBeInTheDocument();
+    expect(getReportPreviewMock).toHaveBeenCalledWith(
+      "expiry",
+      expect.objectContaining({ days: 30, pharmacyId: 7 }),
+    );
+  });
+
+  it("downloads the selected report CSV with current filters", async () => {
+    const user = userEvent.setup();
+    renderReports();
+
+    await user.click(await screen.findByRole("button", { name: /Expiry risk/ }));
+    await screen.findByText("CRO-PAR-001");
+    await user.click(screen.getByRole("button", { name: "Download CSV" }));
+
     await waitFor(() => {
       expect(downloadReportCsvMock).toHaveBeenCalledWith(
-        reportsApi.STOCK_ATTENTION_CSV_PATH,
-        "stock-attention-report.csv",
-      );
-    });
-
-    await user.click(buttons[1]);
-    await waitFor(() => {
-      expect(downloadReportCsvMock).toHaveBeenCalledWith(
-        reportsApi.STOCK_MOVEMENTS_CSV_PATH,
-        "stock-movements-report.csv",
+        "/api/reports/expiry.csv?pharmacy=7&days=30",
+        "expiry-report.csv",
       );
     });
   });
 
-  it("renders independent loading states", () => {
-    getStockAttentionReportMock.mockReturnValue(
-      new Promise<StockAttentionReport>(() => undefined),
-    );
-    getStockMovementsReportMock.mockReturnValue(
-      new Promise<StockMovementsReport>(() => undefined),
-    );
+  it("hides transfer suggestions for users without transfer permissions", async () => {
+    renderReports({
+      "transfer_suggestion.view": false,
+    });
 
+    expect(await screen.findByRole("button", { name: /Stock attention/ }))
+      .toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Transfer suggestions/ }),
+    ).toBeNull();
+  });
+
+  it("renders the preview loading state", () => {
+    getReportPreviewMock.mockReturnValue(
+      new Promise<ReportPreview>(() => undefined),
+    );
+    renderReports();
+
+    expect(screen.getByText("Loading report preview...")).toBeInTheDocument();
+  });
+
+  it("renders the preview empty state", async () => {
+    getReportPreviewMock.mockResolvedValue(
+      makeAttentionReport({ row_count: 0, rows: [] }),
+    );
     renderReports();
 
     expect(
-      screen.getByText("Loading stock attention report..."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Loading stock movements report..."),
+      await screen.findByText("No rows to display for this report."),
     ).toBeInTheDocument();
   });
 
-  it("renders independent error states", async () => {
-    getStockAttentionReportMock.mockRejectedValue(new Error("No attention"));
-    getStockMovementsReportMock.mockRejectedValue(new Error("No movements"));
-
+  it("renders the preview error state", async () => {
+    getReportPreviewMock.mockRejectedValue(new Error("No report"));
     renderReports();
 
-    expect(
-      await screen.findByText("Could not load stock attention report."),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText("Could not load stock movements report."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Could not load report preview."))
+      .toBeInTheDocument();
   });
 
-  it("renders empty states", async () => {
-    getStockAttentionReportMock.mockResolvedValue(
-      makeAttentionReport({
-        row_count: 0,
-        rows: [],
-        summary: {
-          total_items: 0,
-          stockout: 0,
-          low_stock: 0,
-          near_expiry: 0,
-          dead_stock: 0,
-          slow_moving: 0,
-          needs_attention: 0,
-        },
-      }),
-    );
-    getStockMovementsReportMock.mockResolvedValue(
-      makeMovementsReport({
-        row_count: 0,
-        limited: false,
-        rows: [],
-      }),
-    );
-
-    renderReports();
-
-    expect(
-      await screen.findByText("No stock attention rows to display."),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText("No stock movements to display."),
-    ).toBeInTheDocument();
-  });
-
-  it("adds reports to navigation for stock view users", () => {
+  it("keeps existing reports navigation available for stock view users", () => {
     expect(NAV_ITEMS).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -291,7 +297,7 @@ describe("ReportsScreen", () => {
     );
   });
 
-  it("does not render patient staff or free-text stock movement fields", async () => {
+  it("does not render patient identifiers or unsafe report columns", async () => {
     renderReports();
 
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
@@ -304,18 +310,13 @@ describe("ReportsScreen", () => {
       "address",
       "phone",
       "dose_instructions",
-      "note",
-      "reason",
-      "actor",
-      "actor_id",
-      "actor_email",
+      "diagnosis",
+      "NHS",
+      "clinically recommended",
+      "automatic order",
+      "automatic transfer",
     ]) {
       expect(documentBody.queryByText(forbidden)).toBeNull();
-      expect(
-        screen
-          .queryAllByRole("columnheader")
-          .some((header) => header.textContent === forbidden),
-      ).toBe(false);
     }
   });
 });
