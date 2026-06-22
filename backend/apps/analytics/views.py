@@ -9,10 +9,20 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.tenancy.permissions import Action, require
+from apps.tenancy.models import Pharmacy
+from apps.tenancy.permissions import Action, can, require
 
-from .serializers import StockOverviewSerializer
-from .services import stock_overview_for
+from .models import ForecastRun
+from .serializers import (
+    ForecastGenerateSerializer,
+    ForecastRunSerializer,
+    StockOverviewSerializer,
+)
+from .services import (
+    generate_stock_forecast,
+    latest_stock_forecast_for,
+    stock_overview_for,
+)
 
 
 class StockOverviewView(APIView):
@@ -33,3 +43,76 @@ class StockOverviewView(APIView):
             StockOverviewSerializer(overview).data,
             status=status.HTTP_200_OK,
         )
+
+
+def _pharmacy_from_id(pharmacy_id):
+    try:
+        return Pharmacy.objects.get(pk=pharmacy_id, is_active=True)
+    except Pharmacy.DoesNotExist as exc:
+        raise serializers.ValidationError(
+            {"pharmacy": ["Pharmacy is invalid."]}
+        ) from exc
+
+
+class ForecastGenerateView(APIView):
+    permission_classes = [require(Action.FORECAST_RUN)]
+
+    def post(self, request):
+        serializer = ForecastGenerateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        pharmacy = _pharmacy_from_id(serializer.validated_data["pharmacy"])
+        run = generate_stock_forecast(
+            request.user,
+            pharmacy=pharmacy,
+            horizon_days=int(serializer.validated_data["horizon_days"]),
+        )
+        return Response(ForecastRunSerializer(run).data, status=status.HTTP_201_CREATED)
+
+
+class ForecastLatestView(APIView):
+    permission_classes = [require(Action.FORECAST_VIEW)]
+
+    def get(self, request):
+        pharmacy_id = request.query_params.get("pharmacy")
+        if pharmacy_id is None:
+            raise serializers.ValidationError(
+                {"pharmacy": ["Pharmacy query parameter is required."]}
+            )
+        try:
+            pharmacy = _pharmacy_from_id(int(pharmacy_id))
+        except ValueError:
+            raise serializers.ValidationError(
+                {"pharmacy": ["Pharmacy filter must be an integer."]}
+            ) from None
+
+        run = latest_stock_forecast_for(request.user, pharmacy=pharmacy)
+        if run is None:
+            return Response({"detail": "No forecast generated yet."})
+        return Response(ForecastRunSerializer(run).data, status=status.HTTP_200_OK)
+
+
+class ForecastDetailView(APIView):
+    permission_classes = [require(Action.FORECAST_VIEW)]
+
+    def get(self, request, pk):
+        try:
+            run = (
+                ForecastRun.objects.select_related("pharmacy", "group", "generated_by")
+                .prefetch_related(
+                    "items",
+                    "items__stock_item",
+                    "items__catalogue_product",
+                )
+                .get(pk=pk)
+            )
+        except ForecastRun.DoesNotExist as exc:
+            raise serializers.ValidationError(
+                {"forecast": ["Forecast run is invalid."]}
+            ) from exc
+
+        if not can(request.user, Action.FORECAST_VIEW, target=run.pharmacy):
+            raise serializers.ValidationError(
+                {"pharmacy": ["This pharmacy is outside your forecasting scope."]}
+            )
+
+        return Response(ForecastRunSerializer(run).data, status=status.HTTP_200_OK)

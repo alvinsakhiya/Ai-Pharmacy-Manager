@@ -6,17 +6,29 @@ makes no compliance claim.
 """
 
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
+from math import ceil
 
+from django.db import transaction
 from django.db.models import IntegerField, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from rest_framework import serializers
 
-from apps.inventory.models import StockMovement
+from apps.inventory.models import StockItem, StockMovement
 from apps.inventory.selectors import stock_items_for
+from apps.tenancy.models import Pharmacy
+from apps.tenancy.permissions import Action, can
+
+from .models import ForecastItem, ForecastRun
 
 NEAR_EXPIRY_DAYS = 90
 DEAD_STOCK_DAYS = 90
 SLOW_MOVING_THRESHOLD = 5
+FORECAST_MODEL_VERSION = "baseline-1"
+DEFAULT_FORECAST_HORIZON_DAYS = 30
+DEFAULT_FORECAST_LOOKBACK_DAYS = 90
+DEFAULT_SAFETY_BUFFER_RATIO = Decimal("0.15")
 
 
 def _days_to_expiry(today: date, earliest_expiry: date | None) -> int | None:
@@ -163,3 +175,179 @@ def stock_overview_for(user, *, pharmacy_id=None, today=None) -> dict:
         "summary": summary,
         "items": items,
     }
+
+
+def _decimal_packs(units: int, pack_size: int | None) -> Decimal | None:
+    if not pack_size:
+        return None
+    return (Decimal(units) / Decimal(pack_size)).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP,
+    )
+
+
+def _confidence_for(history_points_count: int) -> Decimal:
+    if history_points_count == 0:
+        return Decimal("0.10")
+    if history_points_count < 3:
+        return Decimal("0.35")
+    if history_points_count < 8:
+        return Decimal("0.60")
+    return Decimal("0.80")
+
+
+def _movement_history(stock_item: StockItem, *, window_start):
+    return list(
+        StockMovement.objects.filter(
+            stock_item=stock_item,
+            created_at__gte=window_start,
+            quantity_delta__lt=0,
+        ).order_by("created_at", "id")
+    )
+
+
+def _forecast_values_for_stock_item(
+    stock_item,
+    *,
+    horizon_days: int,
+    lookback_days: int,
+    generated_at,
+) -> dict:
+    movements = _movement_history(
+        stock_item,
+        window_start=generated_at - timedelta(days=lookback_days),
+    )
+    consumed_units = sum(abs(movement.quantity_delta) for movement in movements)
+    history_points_count = len(movements)
+    average_daily_usage = Decimal(consumed_units) / Decimal(lookback_days)
+    predicted_usage_units = int(
+        (average_daily_usage * Decimal(horizon_days)).quantize(
+            Decimal("1"),
+            rounding=ROUND_HALF_UP,
+        )
+    )
+    current_stock_units = int(stock_item.quantity_on_hand or 0)
+    safety_stock_units = (
+        stock_item.reorder_level
+        if stock_item.reorder_level > 0
+        else int(ceil(predicted_usage_units * DEFAULT_SAFETY_BUFFER_RATIO))
+    )
+    needed_units = predicted_usage_units + safety_stock_units - current_stock_units
+    suggested_reorder_units = max(0, needed_units)
+    confidence = _confidence_for(history_points_count)
+
+    product = stock_item.medication.catalogue_product
+    pack_size = product.pack_size if product and product.pack_size else None
+    pack_unit = (product.pack_unit if product else "") or stock_item.medication.form
+    suggested_reorder_packs = (
+        int(ceil(suggested_reorder_units / pack_size)) if pack_size else None
+    )
+
+    explanation = (
+        f"Based on {history_points_count} outbound stock movement"
+        f"{'' if history_points_count == 1 else 's'} over the last "
+        f"{lookback_days} days, average usage is "
+        f"{average_daily_usage.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} "
+        f"units/day. For the next {horizon_days} days, predicted usage is "
+        f"{predicted_usage_units} units. Current stock is {current_stock_units} "
+        f"units and safety stock is {safety_stock_units} units, so suggested "
+        f"reorder is {suggested_reorder_units} units."
+    )
+    if pack_size:
+        explanation = (
+            f"{explanation} Pack size is {pack_size} {pack_unit}, so this is "
+            f"approximately {suggested_reorder_packs} pack"
+            f"{'' if suggested_reorder_packs == 1 else 's'}."
+        )
+    explanation = (
+        f"{explanation} Forecast suggestion only; human review required before "
+        "ordering."
+    )
+
+    return {
+        "stock_item": stock_item,
+        "catalogue_product": product,
+        "medication_label": (
+            product.full_label if product is not None else stock_item.medication.name
+        ),
+        "predicted_usage_units": max(predicted_usage_units, 0),
+        "predicted_usage_packs": _decimal_packs(predicted_usage_units, pack_size),
+        "current_stock_units": current_stock_units,
+        "current_stock_packs": _decimal_packs(current_stock_units, pack_size),
+        "safety_stock_units": safety_stock_units,
+        "suggested_reorder_units": suggested_reorder_units,
+        "suggested_reorder_packs": suggested_reorder_packs,
+        "confidence": confidence,
+        "explanation": explanation,
+        "history_points_count": history_points_count,
+        "window_days": lookback_days,
+    }
+
+
+def generate_stock_forecast(
+    user,
+    *,
+    pharmacy: Pharmacy,
+    horizon_days: int = DEFAULT_FORECAST_HORIZON_DAYS,
+    lookback_days: int = DEFAULT_FORECAST_LOOKBACK_DAYS,
+) -> ForecastRun:
+    if not can(user, Action.FORECAST_RUN, target=pharmacy):
+        raise serializers.ValidationError(
+            {"pharmacy": ["This pharmacy is outside your forecasting scope."]}
+        )
+
+    generated_at = timezone.now()
+    stock_items = list(
+        stock_items_for(user)
+        .filter(pharmacy=pharmacy, is_active=True)
+        .select_related("medication__catalogue_product", "pharmacy")
+    )
+
+    with transaction.atomic():
+        run = ForecastRun.objects.create(
+            pharmacy=pharmacy,
+            group=pharmacy.group,
+            horizon_days=horizon_days,
+            lookback_days=lookback_days,
+            model_version=FORECAST_MODEL_VERSION,
+            generated_by=user,
+            status=ForecastRun.Status.COMPLETED,
+        )
+        ForecastItem.objects.bulk_create(
+            [
+                ForecastItem(
+                    run=run,
+                    **_forecast_values_for_stock_item(
+                        stock_item,
+                        horizon_days=horizon_days,
+                        lookback_days=lookback_days,
+                        generated_at=generated_at,
+                    ),
+                )
+                for stock_item in stock_items
+            ]
+        )
+
+    return (
+        ForecastRun.objects.select_related("pharmacy", "group", "generated_by")
+        .prefetch_related(
+            "items",
+            "items__stock_item",
+            "items__catalogue_product",
+        )
+        .get(pk=run.pk)
+    )
+
+
+def latest_stock_forecast_for(user, *, pharmacy: Pharmacy) -> ForecastRun | None:
+    if not can(user, Action.FORECAST_VIEW, target=pharmacy):
+        raise serializers.ValidationError(
+            {"pharmacy": ["This pharmacy is outside your forecasting scope."]}
+        )
+
+    return (
+        ForecastRun.objects.select_related("pharmacy", "group", "generated_by")
+        .prefetch_related("items", "items__stock_item", "items__catalogue_product")
+        .filter(pharmacy=pharmacy)
+        .first()
+    )

@@ -1,4 +1,5 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NAV_ITEMS } from "../../app/navConfig";
@@ -7,7 +8,7 @@ import {
   makeAuthUser,
   renderWithProviders,
 } from "../../test/providers";
-import type { StockOverview } from "./analyticsApi";
+import type { ForecastRun, StockOverview } from "./analyticsApi";
 import * as analyticsApi from "./analyticsApi";
 import { StockAnalyticsScreen } from "./StockAnalyticsScreen";
 
@@ -15,10 +16,14 @@ vi.mock("./analyticsApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./analyticsApi")>();
   return {
     ...actual,
+    generateForecast: vi.fn(),
+    getLatestForecast: vi.fn(),
     getStockAnalyticsOverview: vi.fn(),
   };
 });
 
+const generateForecastMock = vi.mocked(analyticsApi.generateForecast);
+const getLatestForecastMock = vi.mocked(analyticsApi.getLatestForecast);
 const getStockAnalyticsOverviewMock = vi.mocked(
   analyticsApi.getStockAnalyticsOverview,
 );
@@ -96,12 +101,52 @@ function makeOverview(overrides: Partial<StockOverview> = {}): StockOverview {
   };
 }
 
+function makeForecast(overrides: Partial<ForecastRun> = {}): ForecastRun {
+  return {
+    id: 30,
+    pharmacy: 1,
+    group: 1,
+    horizon_days: 30,
+    lookback_days: 90,
+    model_version: "baseline-1",
+    is_demo: false,
+    generated_by: 10,
+    status: "COMPLETED",
+    created_at: "2026-06-20T10:00:00Z",
+    items: [
+      {
+        id: 41,
+        stock_item: 1,
+        catalogue_product: 101,
+        medication_label: "Paracetamol 500mg tablets — pack of 100 tablets",
+        predicted_usage_units: 200,
+        predicted_usage_packs: "2.00",
+        current_stock_units: 50,
+        current_stock_packs: "0.50",
+        safety_stock_units: 50,
+        suggested_reorder_units: 200,
+        suggested_reorder_packs: 2,
+        confidence: "0.60",
+        explanation:
+          "Based on 6 outbound stock movements over the last 90 days, average usage is 6.7 units/day. Forecast suggestion only; human review required before ordering.",
+        history_points_count: 6,
+        window_days: 90,
+        created_at: "2026-06-20T10:00:00Z",
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function analyticsAuth() {
   return makeAuthContext({
     user: makeAuthUser({
       permissions: {
+        "forecast.run": true,
+        "forecast.view": true,
         "stock.view": true,
       },
+      pharmacies: [{ id: 1, name: "JMW Sutton" }],
     }),
   });
 }
@@ -115,6 +160,8 @@ function renderAnalytics() {
 describe("StockAnalyticsScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    generateForecastMock.mockResolvedValue(makeForecast());
+    getLatestForecastMock.mockResolvedValue(makeForecast());
     getStockAnalyticsOverviewMock.mockResolvedValue(makeOverview());
   });
 
@@ -139,7 +186,11 @@ describe("StockAnalyticsScreen", () => {
     renderAnalytics();
 
     expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
-    const rows = screen.getAllByRole("row");
+    const attentionSection = screen
+      .getByRole("heading", { name: "Attention table" })
+      .closest("section");
+    expect(attentionSection).not.toBeNull();
+    const rows = within(attentionSection as HTMLElement).getAllByRole("row");
     const medicationRows = rows.slice(1);
     expect(within(medicationRows[0]).getByText("Amlodipine")).toBeInTheDocument();
     expect(within(medicationRows[1]).getByText("Bisoprolol")).toBeInTheDocument();
@@ -175,7 +226,7 @@ describe("StockAnalyticsScreen", () => {
     expect(screen.getByText("Loading stock intelligence...")).toBeInTheDocument();
     loadingRender.unmount();
 
-    getStockAnalyticsOverviewMock.mockRejectedValueOnce(new Error("No analytics"));
+    getStockAnalyticsOverviewMock.mockRejectedValue(new Error("No analytics"));
     const errorRender = renderAnalytics();
 
     expect(
@@ -183,7 +234,7 @@ describe("StockAnalyticsScreen", () => {
     ).toBeInTheDocument();
     errorRender.unmount();
 
-    getStockAnalyticsOverviewMock.mockResolvedValueOnce(
+    getStockAnalyticsOverviewMock.mockResolvedValue(
       makeOverview({
         summary: {
           total_items: 0,
@@ -202,6 +253,57 @@ describe("StockAnalyticsScreen", () => {
     expect(
       await screen.findByText("No stock analytics to display."),
     ).toBeInTheDocument();
+  });
+
+  it("renders latest forecast suggestions with confidence packs and explanation", async () => {
+    renderAnalytics();
+
+    expect(await screen.findByText("Reorder forecasting")).toBeInTheDocument();
+    expect(screen.getByText("Forecast suggestion")).toBeInTheDocument();
+    expect(screen.getByText(/Human review required before ordering/)).toBeInTheDocument();
+    expect(
+      await screen.findByText("Paracetamol 500mg tablets — pack of 100 tablets"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("2 packs / 200 units").length).toBeGreaterThan(0);
+    expect(screen.getByText("0.50 packs / 50 units")).toBeInTheDocument();
+    expect(screen.getByText("60% confidence")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Explanation"));
+    expect(screen.getByText(/average usage is 6.7 units\/day/)).toBeInTheDocument();
+  });
+
+  it("generates a forecast for the selected pharmacy and horizon", async () => {
+    const user = userEvent.setup();
+    renderAnalytics();
+
+    await screen.findByText("Paracetamol 500mg tablets — pack of 100 tablets");
+    await user.selectOptions(screen.getByLabelText("Horizon"), "60");
+    await user.click(screen.getByRole("button", { name: "Generate forecast" }));
+
+    await waitFor(() => {
+      expect(generateForecastMock.mock.calls[0]?.[0]).toEqual({
+        pharmacy: 1,
+        horizon_days: 60,
+      });
+    });
+  });
+
+  it("renders forecast empty loading and error states", async () => {
+    getLatestForecastMock.mockReturnValueOnce(new Promise(() => undefined));
+    const loadingRender = renderAnalytics();
+
+    expect(screen.getByText("Loading latest forecast...")).toBeInTheDocument();
+    loadingRender.unmount();
+
+    getLatestForecastMock.mockRejectedValueOnce(new Error("No forecast"));
+    const errorRender = renderAnalytics();
+
+    expect(await screen.findByText("Could not load latest forecast.")).toBeInTheDocument();
+    errorRender.unmount();
+
+    getLatestForecastMock.mockResolvedValueOnce(null);
+    renderAnalytics();
+
+    expect(await screen.findByText("No forecast generated yet.")).toBeInTheDocument();
   });
 
   it("does not render patient data fields or values", async () => {

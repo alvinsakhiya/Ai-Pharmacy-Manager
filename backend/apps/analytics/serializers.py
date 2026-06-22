@@ -1,5 +1,69 @@
 from rest_framework import serializers
 
+from .models import ForecastItem, ForecastRun
+
+
+class ForecastItemSerializer(serializers.ModelSerializer):
+    stock_item = serializers.IntegerField(source="stock_item_id", read_only=True)
+    catalogue_product = serializers.IntegerField(
+        source="catalogue_product_id",
+        allow_null=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = ForecastItem
+        fields = [
+            "id",
+            "stock_item",
+            "catalogue_product",
+            "medication_label",
+            "predicted_usage_units",
+            "predicted_usage_packs",
+            "current_stock_units",
+            "current_stock_packs",
+            "safety_stock_units",
+            "suggested_reorder_units",
+            "suggested_reorder_packs",
+            "confidence",
+            "explanation",
+            "history_points_count",
+            "window_days",
+            "created_at",
+        ]
+
+
+class ForecastRunSerializer(serializers.ModelSerializer):
+    pharmacy = serializers.IntegerField(source="pharmacy_id", read_only=True)
+    group = serializers.IntegerField(source="group_id", read_only=True)
+    generated_by = serializers.IntegerField(source="generated_by_id", read_only=True)
+    items = ForecastItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ForecastRun
+        fields = [
+            "id",
+            "pharmacy",
+            "group",
+            "horizon_days",
+            "lookback_days",
+            "model_version",
+            "is_demo",
+            "generated_by",
+            "status",
+            "created_at",
+            "items",
+        ]
+
+
+class ForecastGenerateSerializer(serializers.Serializer):
+    pharmacy = serializers.IntegerField()
+    horizon_days = serializers.ChoiceField(
+        choices=(30, 60, 90),
+        default=30,
+        required=False,
+    )
+
 
 class StockAnalyticsFlagsSerializer(serializers.Serializer):
     near_expiry = serializers.BooleanField(read_only=True)

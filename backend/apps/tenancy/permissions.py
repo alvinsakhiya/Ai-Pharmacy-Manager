@@ -39,6 +39,9 @@ class Action(StrEnum):
     MEDICATION_VIEW = "medication.view"
     MEDICATION_MANAGE = "medication.manage"
 
+    FORECAST_VIEW = "forecast.view"
+    FORECAST_RUN = "forecast.run"
+
 
 PATIENT_CLASS_ACTIONS = frozenset(
     {
@@ -60,6 +63,8 @@ ROLE_CAPABILITIES = {
             Action.STOCK_MANAGE,
             Action.STOCK_RECEIVE,
             Action.STOCK_TRANSFER,
+            Action.FORECAST_VIEW,
+            Action.FORECAST_RUN,
             Action.AUDIT_VIEW,
             Action.MEDICATION_VIEW,
             Action.MEDICATION_MANAGE,
@@ -71,6 +76,8 @@ ROLE_CAPABILITIES = {
             Action.STOCK_MANAGE,
             Action.STOCK_RECEIVE,
             Action.STOCK_TRANSFER,
+            Action.FORECAST_VIEW,
+            Action.FORECAST_RUN,
             Action.MEDICATION_VIEW,
         }
     ),
@@ -79,6 +86,8 @@ ROLE_CAPABILITIES = {
             Action.STOCK_VIEW,
             Action.STOCK_MANAGE,
             Action.STOCK_RECEIVE,
+            Action.FORECAST_VIEW,
+            Action.FORECAST_RUN,
             Action.PATIENT_VIEW,
             Action.PATIENT_MANAGE,
             Action.BLISTER_VIEW,
@@ -101,6 +110,7 @@ ROLE_CAPABILITIES = {
         {
             Action.STOCK_VIEW,
             Action.STOCK_RECEIVE,
+            Action.FORECAST_VIEW,
             Action.PATIENT_VIEW,
             Action.BLISTER_VIEW,
             Action.REVIEW_VIEW,
