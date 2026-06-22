@@ -8,12 +8,15 @@ import {
 import { MedicationFormModal } from "./MedicationFormModal";
 import { useMedicationsQuery } from "./useCatalogue";
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+function packLabel(medication: Medication): string {
+  if (medication.catalogue_product_pack_size == null) {
+    return "—";
+  }
+  return `${medication.catalogue_product_pack_size}${
+    medication.catalogue_product_pack_unit
+      ? ` ${medication.catalogue_product_pack_unit}`
+      : ""
+  }`;
 }
 
 export function MedicationsScreen() {
@@ -98,22 +101,19 @@ export function MedicationsScreen() {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Name
+                    Medication
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Form
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Strength
+                    Pack
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Manufacturer
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Created
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Actions
@@ -124,13 +124,23 @@ export function MedicationsScreen() {
                 {medicationsQuery.data.map((medication) => (
                   <tr key={medication.id}>
                     <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
-                      {medication.name}
+                      <div className="flex items-center gap-2">
+                        <span>
+                          {medication.catalogue_product_full_label ??
+                            medication.name}
+                        </span>
+                        {medication.catalogue_product === null ? (
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                            Legacy
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
                       {formLabel(medication.form)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                      {medication.strength}
+                      {packLabel(medication)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
                       {medication.manufacturer || "—"}
@@ -146,9 +156,6 @@ export function MedicationsScreen() {
                       >
                         {medication.is_active ? "Active" : "Inactive"}
                       </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                      {formatDate(medication.created_at)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
                       {canManage ? (

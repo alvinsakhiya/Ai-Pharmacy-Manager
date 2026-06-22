@@ -1,8 +1,23 @@
 from django.urls import path
 
-from .views import MedicationDetailView, MedicationListCreateView
+from .views import (
+    CatalogueProductDetailView,
+    CatalogueProductListView,
+    MedicationDetailView,
+    MedicationListCreateView,
+)
 
 urlpatterns = [
+    path(
+        "products/",
+        CatalogueProductListView.as_view(),
+        name="catalogue-product-list",
+    ),
+    path(
+        "products/<int:pk>/",
+        CatalogueProductDetailView.as_view(),
+        name="catalogue-product-detail",
+    ),
     path(
         "medications/",
         MedicationListCreateView.as_view(),

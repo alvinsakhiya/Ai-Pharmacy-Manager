@@ -26,6 +26,10 @@ function makeMedication(overrides: Partial<Medication> = {}): Medication {
   return {
     id: 20,
     group: 1,
+    catalogue_product: null,
+    catalogue_product_full_label: null,
+    catalogue_product_pack_size: null,
+    catalogue_product_pack_unit: "",
     name: "Paracetamol",
     form: "TABLET",
     strength: "500 mg",
@@ -56,6 +60,9 @@ describe("MedicationsScreen", () => {
       makeMedication(),
       makeMedication({
         id: 21,
+        catalogue_product: 101,
+        catalogue_product_full_label: "Salbutamol 100mcg inhaler — pack of 1",
+        catalogue_product_pack_size: 1,
         name: "Salbutamol",
         form: "INHALER",
         strength: "100 micrograms/dose",
@@ -70,10 +77,13 @@ describe("MedicationsScreen", () => {
 
     expect(screen.getByText("Loading medications...")).toBeInTheDocument();
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(screen.getByText("Legacy")).toBeInTheDocument();
     expect(screen.getByText("Tablet")).toBeInTheDocument();
-    expect(screen.getByText("500 mg")).toBeInTheDocument();
-    expect(screen.getByText("Salbutamol")).toBeInTheDocument();
+    expect(
+      screen.getByText("Salbutamol 100mcg inhaler — pack of 1"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Inhaler")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("Respira")).toBeInTheDocument();
   });
 

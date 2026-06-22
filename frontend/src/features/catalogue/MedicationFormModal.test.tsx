@@ -19,6 +19,7 @@ vi.mock("./catalogueApi", async (importOriginal) => {
   return {
     ...actual,
     listMedications: vi.fn(),
+    listCatalogueProducts: vi.fn(),
     createMedication: vi.fn(),
     updateMedication: vi.fn(),
   };
@@ -33,6 +34,7 @@ vi.mock("../tenancy/tenancyApi", async (importOriginal) => {
 });
 
 const listMedicationsMock = vi.mocked(catalogueApi.listMedications);
+const listCatalogueProductsMock = vi.mocked(catalogueApi.listCatalogueProducts);
 const createMedicationMock = vi.mocked(catalogueApi.createMedication);
 const updateMedicationMock = vi.mocked(catalogueApi.updateMedication);
 const listGroupsMock = vi.mocked(tenancyApi.listGroups);
@@ -41,11 +43,42 @@ function makeMedication(overrides: Partial<Medication> = {}): Medication {
   return {
     id: 20,
     group: 1,
+    catalogue_product: null,
+    catalogue_product_full_label: null,
+    catalogue_product_pack_size: null,
+    catalogue_product_pack_unit: "",
     name: "Paracetamol",
     form: "TABLET",
     strength: "500 mg",
     manufacturer: "Generic",
     notes: "Keep in catalogue",
+    is_active: true,
+    created_at: "2026-06-19T09:00:00Z",
+    updated_at: "2026-06-19T09:00:00Z",
+    ...overrides,
+  };
+}
+
+function makeProduct(
+  overrides: Partial<catalogueApi.CatalogueProduct> = {},
+): catalogueApi.CatalogueProduct {
+  return {
+    id: 101,
+    dmd_code: "SEED-AMLO-5",
+    source: "SEED",
+    vmp_name: "Amlodipine 5mg tablets",
+    amp_name: "",
+    display_name: "Amlodipine 5mg tablets",
+    ingredient: "Amlodipine",
+    strength: "5mg",
+    dose_form: "tablets",
+    pack_size: 28,
+    pack_unit: "",
+    manufacturer: "",
+    appearance_colour: "",
+    appearance_shape: "",
+    appearance_form: "tablets",
+    full_label: "Amlodipine 5mg tablets — pack of 28",
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
@@ -92,6 +125,7 @@ describe("MedicationFormModal", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     listMedicationsMock.mockResolvedValue([makeMedication()]);
+    listCatalogueProductsMock.mockResolvedValue([makeProduct()]);
     listGroupsMock.mockResolvedValue([
       makeGroup(),
       makeGroup({ id: 2, name: "South Group", slug: "south-group" }),
@@ -100,7 +134,7 @@ describe("MedicationFormModal", () => {
     updateMedicationMock.mockResolvedValue(makeMedication());
   });
 
-  it("create submit calls createMedication with the write body", async () => {
+  it("create submit calls createMedication with the selected catalogue product", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <MedicationFormModal medication={null} isOpen onClose={vi.fn()} />,
@@ -109,67 +143,65 @@ describe("MedicationFormModal", () => {
 
     await screen.findByRole("option", { name: "North Group" });
     await user.selectOptions(screen.getByLabelText("Group"), "1");
-    await user.type(screen.getByLabelText("Name"), "Amlodipine");
-    await user.selectOptions(screen.getByLabelText("Form"), "TABLET");
-    await user.type(screen.getByLabelText("Strength"), "5 mg");
-    await user.type(screen.getByLabelText("Manufacturer"), "Generic");
+    await user.type(screen.getByLabelText("Catalogue product"), "amlo");
+    await user.click(
+      await screen.findByRole("option", {
+        name: /Amlodipine 5mg tablets — pack of 28/,
+      }),
+    );
     await user.type(screen.getByLabelText("Notes"), "Once daily");
     await user.click(screen.getByRole("button", { name: "Save medication" }));
 
     await waitFor(() => {
       expect(createMedicationMock).toHaveBeenCalledWith({
         group: 1,
-        name: "Amlodipine",
-        form: "TABLET",
-        strength: "5 mg",
-        manufacturer: "Generic",
+        catalogue_product: 101,
         notes: "Once daily",
         is_active: true,
       });
     });
   });
 
-  it("edit form pre-fills and submits updateMedication with the write body", async () => {
+  it("edit form shows derived fields read-only and submits only editable fields", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <MedicationFormModal medication={makeMedication()} isOpen onClose={vi.fn()} />,
+      <MedicationFormModal
+        medication={makeMedication({
+          catalogue_product: 101,
+          catalogue_product_full_label: "Paracetamol 500mg tablets — pack of 100",
+          catalogue_product_pack_size: 100,
+        })}
+        isOpen
+        onClose={vi.fn()}
+      />,
       { auth: medicationAuth() },
     );
 
     expect(screen.getByLabelText("Group")).toHaveValue("1");
     expect(screen.getByLabelText("Group")).toBeDisabled();
-    expect(screen.getByLabelText("Name")).toHaveValue("Paracetamol");
-    expect(screen.getByLabelText("Form")).toHaveValue("TABLET");
-    expect(screen.getByLabelText("Strength")).toHaveValue("500 mg");
-    expect(screen.getByLabelText("Manufacturer")).toHaveValue("Generic");
+    expect(screen.getByText("Paracetamol 500mg tablets — pack of 100")).toBeInTheDocument();
+    expect(screen.getByText("Tablet")).toBeInTheDocument();
+    expect(screen.getByText("500 mg")).toBeInTheDocument();
+    expect(screen.getByText("Generic")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.queryByLabelText("Strength")).toBeNull();
     expect(screen.getByLabelText("Notes")).toHaveValue("Keep in catalogue");
 
-    await user.clear(screen.getByLabelText("Name"));
-    await user.type(screen.getByLabelText("Name"), "Paracetamol Caplets");
-    await user.clear(screen.getByLabelText("Strength"));
-    await user.type(screen.getByLabelText("Strength"), "500 mg");
     await user.click(screen.getByLabelText("Active"));
     await user.click(screen.getByRole("button", { name: "Save medication" }));
 
     await waitFor(() => {
       expect(updateMedicationMock).toHaveBeenCalledWith(20, {
-        group: 1,
-        name: "Paracetamol Caplets",
-        form: "TABLET",
-        strength: "500 mg",
-        manufacturer: "Generic",
         notes: "Keep in catalogue",
         is_active: false,
       });
     });
   });
 
-  it("renders duplicate backend non-field errors", async () => {
+  it("renders backend catalogue product errors", async () => {
     createMedicationMock.mockRejectedValue(
       new ApiError(400, {
-        non_field_errors: [
-          "A medication with this name, form, and strength already exists.",
-        ],
+        catalogue_product: ["Select a catalogue product."],
       }),
     );
     const user = userEvent.setup();
@@ -180,18 +212,20 @@ describe("MedicationFormModal", () => {
 
     await screen.findByRole("option", { name: "North Group" });
     await user.selectOptions(screen.getByLabelText("Group"), "1");
-    await user.type(screen.getByLabelText("Name"), "Paracetamol");
-    await user.type(screen.getByLabelText("Strength"), "500 mg");
+    await user.type(screen.getByLabelText("Catalogue product"), "amlo");
+    await user.click(
+      await screen.findByRole("option", {
+        name: /Amlodipine 5mg tablets — pack of 28/,
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Save medication" }));
 
     expect(
-      await screen.findByText(
-        "A medication with this name, form, and strength already exists.",
-      ),
+      await screen.findByText("Select a catalogue product."),
     ).toBeInTheDocument();
   });
 
-  it("required-field validation blocks blank name and strength", async () => {
+  it("required-field validation blocks missing catalogue product", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <MedicationFormModal medication={null} isOpen onClose={vi.fn()} />,
@@ -202,9 +236,24 @@ describe("MedicationFormModal", () => {
     await user.selectOptions(screen.getByLabelText("Group"), "1");
     await user.click(screen.getByRole("button", { name: "Save medication" }));
 
-    expect(await screen.findByText("Name is required.")).toBeInTheDocument();
-    expect(screen.getByText("Strength is required.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Select a catalogue product."),
+    ).toBeInTheDocument();
     expect(createMedicationMock).not.toHaveBeenCalled();
+  });
+
+  it("does not expose free-text medicine fields in create mode", async () => {
+    renderWithProviders(
+      <MedicationFormModal medication={null} isOpen onClose={vi.fn()} />,
+      { auth: medicationAuth() },
+    );
+
+    await screen.findByRole("option", { name: "North Group" });
+
+    expect(screen.getByLabelText("Catalogue product")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.queryByLabelText("Strength")).toBeNull();
+    expect(screen.queryByLabelText("Manufacturer")).toBeNull();
   });
 
   it("non-admin create derives a single group without calling listGroups", async () => {
@@ -216,17 +265,18 @@ describe("MedicationFormModal", () => {
 
     expect(screen.getByLabelText("Group")).toHaveValue("7");
     expect(screen.getByLabelText("Group")).toBeDisabled();
-    await user.type(screen.getByLabelText("Name"), "Metformin");
-    await user.type(screen.getByLabelText("Strength"), "500 mg");
+    await user.type(screen.getByLabelText("Catalogue product"), "amlo");
+    await user.click(
+      await screen.findByRole("option", {
+        name: /Amlodipine 5mg tablets — pack of 28/,
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Save medication" }));
 
     await waitFor(() => {
       expect(createMedicationMock).toHaveBeenCalledWith({
         group: 7,
-        name: "Metformin",
-        form: "TABLET",
-        strength: "500 mg",
-        manufacturer: "",
+        catalogue_product: 101,
         notes: "",
         is_active: true,
       });

@@ -6,7 +6,7 @@ from apps.audit.models import AuditAction, AuditEvent
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 from apps.tenancy.permissions import ROLE_CAPABILITIES, Action
 
-from .models import Medication, MedicationForm
+from .models import CatalogueProduct, Medication, MedicationForm
 from .selectors import effective_group_ids
 
 PASSWORD = "Initial-pass-123!"
@@ -63,6 +63,15 @@ def catalogue_api_data():
         form=MedicationForm.TABLET,
         strength="200 mg",
     )
+    amlodipine_product = CatalogueProduct.objects.create(
+        dmd_code="SEED-TEST-AMLO-5",
+        source="SEED",
+        display_name="Amlodipine 5mg tablets",
+        ingredient="Amlodipine",
+        strength="5mg",
+        dose_form="tablets",
+        pack_size=28,
+    )
 
     admin = make_user("catalogue-admin@example.com")
     superintendent = make_user("catalogue-superintendent@example.com")
@@ -88,6 +97,7 @@ def catalogue_api_data():
         "pharmacy_two": pharmacy_two,
         "medication_one": medication_one,
         "medication_two": medication_two,
+        "amlodipine_product": amlodipine_product,
         "admin": admin,
         "superintendent": superintendent,
         "stock_employee": stock_employee,
@@ -103,10 +113,7 @@ def authenticate(client, user):
 def medication_payload(group: Group, **overrides):
     payload = {
         "group": group.id,
-        "name": "Amlodipine",
-        "form": MedicationForm.TABLET,
-        "strength": "5 mg",
-        "manufacturer": "",
+        "catalogue_product": overrides.pop("catalogue_product", None),
         "notes": "",
         "is_active": True,
     }
@@ -143,16 +150,20 @@ def test_manage_roles_can_create_medications(client, catalogue_api_data, actor_k
 
     response = client.post(
         "/api/catalogue/medications/",
-        medication_payload(catalogue_api_data["group_one"]),
+        medication_payload(
+            catalogue_api_data["group_one"],
+            catalogue_product=catalogue_api_data["amlodipine_product"].id,
+        ),
         format="json",
     )
 
     assert response.status_code == 201
     assert Medication.objects.filter(
         group=catalogue_api_data["group_one"],
-        name="Amlodipine",
+        catalogue_product=catalogue_api_data["amlodipine_product"],
+        name="Amlodipine 5mg tablets",
         form=MedicationForm.TABLET,
-        strength="5 mg",
+        strength="5mg",
     ).exists()
 
 
@@ -164,13 +175,14 @@ def test_manage_roles_can_patch_medications(client, catalogue_api_data, actor_ke
 
     response = client.patch(
         f"/api/catalogue/medications/{medication.id}/",
-        {"manufacturer": "Updated Manufacturer"},
+        {"notes": "Updated notes", "is_active": False},
         format="json",
     )
 
     assert response.status_code == 200
     medication.refresh_from_db()
-    assert medication.manufacturer == "Updated Manufacturer"
+    assert medication.notes == "Updated notes"
+    assert medication.is_active is False
 
 
 @pytest.mark.django_db
@@ -184,7 +196,10 @@ def test_non_manage_roles_cannot_create_medications(
 
     response = client.post(
         "/api/catalogue/medications/",
-        medication_payload(catalogue_api_data["group_one"]),
+        medication_payload(
+            catalogue_api_data["group_one"],
+            catalogue_product=catalogue_api_data["amlodipine_product"].id,
+        ),
         format="json",
     )
 
@@ -262,6 +277,25 @@ def test_admin_sees_all_medication_groups(client, catalogue_api_data):
 
 
 @pytest.mark.django_db
+def test_legacy_medications_without_catalogue_product_still_load(
+    client,
+    catalogue_api_data,
+):
+    authenticate(client, catalogue_api_data["admin"])
+
+    response = client.get(
+        f"/api/catalogue/medications/{catalogue_api_data['medication_one'].id}/",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["catalogue_product"] is None
+    assert response.json()["catalogue_product_full_label"] is None
+    assert response.json()["catalogue_product_pack_size"] is None
+    assert response.json()["catalogue_product_pack_unit"] == ""
+    assert response.json()["name"] == "Paracetamol"
+
+
+@pytest.mark.django_db
 def test_detail_access_to_out_of_scope_medication_returns_404(
     client,
     catalogue_api_data,
@@ -276,23 +310,54 @@ def test_detail_access_to_out_of_scope_medication_returns_404(
 
 
 @pytest.mark.django_db
-def test_duplicate_medication_tuple_returns_clean_400(client, catalogue_api_data):
+def test_create_medication_without_catalogue_product_returns_400(
+    client,
+    catalogue_api_data,
+):
     authenticate(client, catalogue_api_data["admin"])
-    medication = catalogue_api_data["medication_one"]
 
     response = client.post(
         "/api/catalogue/medications/",
-        medication_payload(
-            catalogue_api_data["group_one"],
-            name=medication.name,
-            form=medication.form,
-            strength=medication.strength,
-        ),
+        {"group": catalogue_api_data["group_one"].id, "notes": ""},
         format="json",
     )
 
     assert response.status_code == 400
-    assert "non_field_errors" in response.json()
+    assert "catalogue_product" in response.json()
+
+
+@pytest.mark.django_db
+def test_create_medication_with_catalogue_product_is_idempotent(
+    client,
+    catalogue_api_data,
+):
+    authenticate(client, catalogue_api_data["admin"])
+    payload = medication_payload(
+        catalogue_api_data["group_one"],
+        catalogue_product=catalogue_api_data["amlodipine_product"].id,
+    )
+
+    first_response = client.post(
+        "/api/catalogue/medications/",
+        payload,
+        format="json",
+    )
+    second_response = client.post(
+        "/api/catalogue/medications/",
+        payload,
+        format="json",
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert first_response.json()["id"] == second_response.json()["id"]
+    assert (
+        Medication.objects.filter(
+            group=catalogue_api_data["group_one"],
+            catalogue_product=catalogue_api_data["amlodipine_product"],
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db
@@ -304,7 +369,10 @@ def test_create_with_group_outside_effective_scope_returns_400(
 
     response = client.post(
         "/api/catalogue/medications/",
-        medication_payload(catalogue_api_data["group_two"]),
+        medication_payload(
+            catalogue_api_data["group_two"],
+            catalogue_product=catalogue_api_data["amlodipine_product"].id,
+        ),
         format="json",
     )
 
@@ -352,7 +420,10 @@ def test_create_medication_writes_audit_event(client, catalogue_api_data):
 
     response = client.post(
         "/api/catalogue/medications/",
-        medication_payload(catalogue_api_data["group_one"]),
+        medication_payload(
+            catalogue_api_data["group_one"],
+            catalogue_product=catalogue_api_data["amlodipine_product"].id,
+        ),
         format="json",
     )
 
@@ -360,9 +431,9 @@ def test_create_medication_writes_audit_event(client, catalogue_api_data):
     event = AuditEvent.objects.get(action=AuditAction.MEDICATION_CREATED)
     assert event.metadata == {
         "group_id": catalogue_api_data["group_one"].id,
-        "name": "Amlodipine",
+        "name": "Amlodipine 5mg tablets",
         "form": MedicationForm.TABLET,
-        "strength": "5 mg",
+        "strength": "5mg",
     }
     assert event.group == catalogue_api_data["group_one"]
 
@@ -374,7 +445,7 @@ def test_update_medication_writes_audit_event(client, catalogue_api_data):
 
     response = client.patch(
         f"/api/catalogue/medications/{medication.id}/",
-        {"name": "Paracetamol Caplets"},
+        {"notes": "Updated catalogue note"},
         format="json",
     )
 
@@ -382,7 +453,7 @@ def test_update_medication_writes_audit_event(client, catalogue_api_data):
     event = AuditEvent.objects.get(action=AuditAction.MEDICATION_UPDATED)
     assert event.metadata == {
         "group_id": catalogue_api_data["group_one"].id,
-        "name": "Paracetamol Caplets",
+        "name": "Paracetamol",
         "form": MedicationForm.TABLET,
         "strength": "500 mg",
     }
@@ -405,11 +476,14 @@ def test_create_rolls_back_when_audit_recording_fails(
     with pytest.raises(RuntimeError, match="audit failed"):
         client.post(
             "/api/catalogue/medications/",
-            medication_payload(catalogue_api_data["group_one"]),
+            medication_payload(
+                catalogue_api_data["group_one"],
+                catalogue_product=catalogue_api_data["amlodipine_product"].id,
+            ),
             format="json",
         )
 
-    assert not Medication.objects.filter(name="Amlodipine").exists()
+    assert not Medication.objects.filter(name="Amlodipine 5mg tablets").exists()
 
 
 @pytest.mark.django_db
@@ -429,12 +503,12 @@ def test_update_rolls_back_when_audit_recording_fails(
     with pytest.raises(RuntimeError, match="audit failed"):
         client.patch(
             f"/api/catalogue/medications/{medication.id}/",
-            {"name": "Rollback Name"},
+            {"notes": "Rollback note"},
             format="json",
         )
 
     medication.refresh_from_db()
-    assert medication.name == "Paracetamol"
+    assert medication.notes == ""
 
 
 @pytest.mark.django_db

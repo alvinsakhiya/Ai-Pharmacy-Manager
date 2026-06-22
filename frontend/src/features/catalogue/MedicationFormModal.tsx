@@ -10,11 +10,8 @@ import {
   type FieldErrors,
 } from "../../lib/apiErrors";
 import { listGroups } from "../tenancy/tenancyApi";
-import {
-  FORM_OPTIONS,
-  type Medication,
-  type MedicationWriteBody,
-} from "./catalogueApi";
+import { CatalogueProductSelect } from "./CatalogueProductSelect";
+import { formLabel, type CatalogueProduct, type Medication } from "./catalogueApi";
 import {
   useCreateMedication,
   useMedicationsQuery,
@@ -61,10 +58,9 @@ export function MedicationFormModal({
   const createMedication = useCreateMedication();
   const updateMedication = useUpdateMedication();
   const [group, setGroup] = useState("");
-  const [name, setName] = useState("");
-  const [form, setForm] = useState("");
-  const [strength, setStrength] = useState("");
-  const [manufacturer, setManufacturer] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<CatalogueProduct | null>(
+    null,
+  );
   const [notes, setNotes] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -91,10 +87,7 @@ export function MedicationFormModal({
     }
 
     setGroup(medication ? String(medication.group) : "");
-    setName(medication?.name ?? "");
-    setForm(medication?.form ?? FORM_OPTIONS[0].value);
-    setStrength(medication?.strength ?? "");
-    setManufacturer(medication?.manufacturer ?? "");
+    setSelectedProduct(null);
     setNotes(medication?.notes ?? "");
     setIsActive(medication?.is_active ?? true);
     setErrors({});
@@ -120,14 +113,8 @@ export function MedicationFormModal({
     if (!resolvedGroup) {
       nextErrors.group = ["Group is required."];
     }
-    if (!name.trim()) {
-      nextErrors.name = ["Name is required."];
-    }
-    if (!form) {
-      nextErrors.form = ["Form is required."];
-    }
-    if (!strength.trim()) {
-      nextErrors.strength = ["Strength is required."];
+    if (!medication && selectedProduct === null) {
+      nextErrors.catalogue_product = ["Select a catalogue product."];
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -135,19 +122,22 @@ export function MedicationFormModal({
       return;
     }
 
-    const body: MedicationWriteBody = {
+    const body = {
       group: resolvedGroup,
-      name: name.trim(),
-      form,
-      strength: strength.trim(),
-      manufacturer: manufacturer.trim(),
+      catalogue_product: selectedProduct?.id,
       notes: notes.trim(),
       is_active: isActive,
     };
 
     try {
       if (medication) {
-        await updateMedication.mutateAsync({ id: medication.id, body });
+        await updateMedication.mutateAsync({
+          id: medication.id,
+          body: {
+            notes: notes.trim(),
+            is_active: isActive,
+          },
+        });
       } else {
         await createMedication.mutateAsync(body);
       }
@@ -207,57 +197,67 @@ export function MedicationFormModal({
           </p>
         ) : null}
 
-        <label className="block text-sm font-medium text-slate-700">
-          Name
-          <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-            onChange={(event) => setName(event.target.value)}
-            required
-            type="text"
-            value={name}
-          />
-          <FieldErrorList messages={errorMessages(errors, "name")} />
-        </label>
-
-        <label className="block text-sm font-medium text-slate-700">
-          Form
-          <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-            onChange={(event) => setForm(event.target.value)}
-            required
-            value={form}
-          >
-            {FORM_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <FieldErrorList messages={errorMessages(errors, "form")} />
-        </label>
-
-        <label className="block text-sm font-medium text-slate-700">
-          Strength
-          <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-            onChange={(event) => setStrength(event.target.value)}
-            required
-            type="text"
-            value={strength}
-          />
-          <FieldErrorList messages={errorMessages(errors, "strength")} />
-        </label>
-
-        <label className="block text-sm font-medium text-slate-700">
-          Manufacturer
-          <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-            onChange={(event) => setManufacturer(event.target.value)}
-            type="text"
-            value={manufacturer}
-          />
-          <FieldErrorList messages={errorMessages(errors, "manufacturer")} />
-        </label>
+        {medication ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">
+              {medication.catalogue_product_full_label ?? medication.name}
+            </p>
+            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-slate-500">Form</dt>
+                <dd className="font-medium text-slate-800">
+                  {formLabel(medication.form)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Strength</dt>
+                <dd className="font-medium text-slate-800">
+                  {medication.strength}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Manufacturer</dt>
+                <dd className="font-medium text-slate-800">
+                  {medication.manufacturer || "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Pack</dt>
+                <dd className="font-medium text-slate-800">
+                  {medication.catalogue_product_pack_size == null
+                    ? "—"
+                    : `${medication.catalogue_product_pack_size}${
+                        medication.catalogue_product_pack_unit
+                          ? ` ${medication.catalogue_product_pack_unit}`
+                          : ""
+                      }`}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        ) : (
+          <div>
+            <CatalogueProductSelect
+              onSelect={setSelectedProduct}
+              selectedProduct={selectedProduct}
+            />
+            <FieldErrorList messages={errorMessages(errors, "catalogue_product")} />
+            {selectedProduct ? (
+              <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm">
+                <p className="font-semibold text-teal-900">
+                  {selectedProduct.full_label}
+                </p>
+                <p className="mt-1 text-teal-800">
+                  {selectedProduct.dose_form}
+                  {selectedProduct.strength ? `, ${selectedProduct.strength}` : ""}
+                  {selectedProduct.manufacturer
+                    ? `, ${selectedProduct.manufacturer}`
+                    : ""}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
 
         <label className="block text-sm font-medium text-slate-700">
           Notes

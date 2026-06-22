@@ -65,6 +65,10 @@ function makeMedication(overrides: Partial<Medication> = {}): Medication {
   return {
     id: 10,
     group: 1,
+    catalogue_product: null,
+    catalogue_product_full_label: null,
+    catalogue_product_pack_size: null,
+    catalogue_product_pack_unit: "",
     name: "Amlodipine",
     form: "TABLET",
     strength: "5 mg",
