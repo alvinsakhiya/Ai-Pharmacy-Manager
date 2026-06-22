@@ -5,48 +5,86 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('catalogue', '0001_initial'),
-        ('tenancy', '0001_initial'),
+        ("catalogue", "0001_initial"),
+        ("tenancy", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='CatalogueProduct',
+            name="CatalogueProduct",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),  # noqa: E501
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('dmd_code', models.CharField(blank=True, db_index=True, max_length=64)),  # noqa: E501
-                ('source', models.CharField(choices=[('DMD', 'dm+d'), ('SEED', 'Seed'), ('MANUAL', 'Manual')], default='SEED', max_length=16)),  # noqa: E501
-                ('vmp_name', models.CharField(blank=True, max_length=255)),
-                ('amp_name', models.CharField(blank=True, max_length=255)),
-                ('display_name', models.CharField(max_length=255)),
-                ('ingredient', models.CharField(blank=True, max_length=255)),
-                ('strength', models.CharField(blank=True, max_length=64)),
-                ('dose_form', models.CharField(max_length=64)),
-                ('pack_size', models.PositiveIntegerField(blank=True, null=True)),
-                ('pack_unit', models.CharField(blank=True, max_length=64)),
-                ('manufacturer', models.CharField(blank=True, max_length=255)),
-                ('appearance_colour', models.CharField(blank=True, max_length=64)),
-                ('appearance_shape', models.CharField(blank=True, max_length=64)),
-                ('appearance_form', models.CharField(blank=True, max_length=64)),
-                ('search_text', models.TextField(blank=True, db_index=True)),
-                ('is_active', models.BooleanField(default=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "dmd_code",
+                    models.CharField(blank=True, db_index=True, max_length=64),
+                ),
+                (
+                    "source",
+                    models.CharField(
+                        choices=[
+                            ("DMD", "dm+d"),
+                            ("SEED", "Seed"),
+                            ("MANUAL", "Manual"),
+                        ],
+                        default="SEED",
+                        max_length=16,
+                    ),
+                ),
+                ("vmp_name", models.CharField(blank=True, max_length=255)),
+                ("amp_name", models.CharField(blank=True, max_length=255)),
+                ("display_name", models.CharField(max_length=255)),
+                ("ingredient", models.CharField(blank=True, max_length=255)),
+                ("strength", models.CharField(blank=True, max_length=64)),
+                ("dose_form", models.CharField(max_length=64)),
+                ("pack_size", models.PositiveIntegerField(blank=True, null=True)),
+                ("pack_unit", models.CharField(blank=True, max_length=64)),
+                ("manufacturer", models.CharField(blank=True, max_length=255)),
+                ("appearance_colour", models.CharField(blank=True, max_length=64)),
+                ("appearance_shape", models.CharField(blank=True, max_length=64)),
+                ("appearance_form", models.CharField(blank=True, max_length=64)),
+                ("search_text", models.TextField(blank=True, db_index=True)),
+                ("is_active", models.BooleanField(default=True)),
             ],
             options={
-                'ordering': ['display_name', 'pack_size'],
-                'indexes': [models.Index(fields=['display_name'], name='catalogue_product_name_idx'), models.Index(fields=['ingredient'], name='catalogue_product_ing_idx')],  # noqa: E501
+                "ordering": ["display_name", "pack_size"],
+                "indexes": [
+                    models.Index(
+                        fields=["display_name"], name="catalogue_product_name_idx"
+                    ),
+                    models.Index(
+                        fields=["ingredient"], name="catalogue_product_ing_idx"
+                    ),
+                ],
             },
         ),
         migrations.AddField(
-            model_name='medication',
-            name='catalogue_product',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='medications', to='catalogue.catalogueproduct'),  # noqa: E501
+            model_name="medication",
+            name="catalogue_product",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="medications",
+                to="catalogue.catalogueproduct",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='medication',
-            constraint=models.UniqueConstraint(condition=models.Q(('catalogue_product__isnull', False)), fields=('group', 'catalogue_product'), name='unique_medication_catalogue_product_per_group'),  # noqa: E501
+            model_name="medication",
+            constraint=models.UniqueConstraint(
+                condition=models.Q(("catalogue_product__isnull", False)),
+                fields=("group", "catalogue_product"),
+                name="unique_medication_catalogue_product_per_group",
+            ),
         ),
     ]

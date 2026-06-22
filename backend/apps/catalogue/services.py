@@ -9,18 +9,21 @@ def _medication_form_from_product(product: CatalogueProduct) -> str:
     dose_form = product.dose_form.lower()
 
     if "tablet" in dose_form or "caplet" in dose_form or "dispersible" in dose_form:
-        return MedicationForm.TABLET
-    if "capsule" in dose_form:
-        return MedicationForm.CAPSULE
-    if "inhaler" in dose_form:
-        return MedicationForm.INHALER
-    if "injection" in dose_form:
-        return MedicationForm.INJECTION
-    if "cream" in dose_form or "ointment" in dose_form or "gel" in dose_form:
-        return MedicationForm.CREAM
-    if "liquid" in dose_form or "solution" in dose_form or "suspension" in dose_form:
-        return MedicationForm.LIQUID
-    return MedicationForm.OTHER
+        form = MedicationForm.TABLET
+    elif "capsule" in dose_form:
+        form = MedicationForm.CAPSULE
+    elif "inhaler" in dose_form:
+        form = MedicationForm.INHALER
+    elif "injection" in dose_form:
+        form = MedicationForm.INJECTION
+    elif "cream" in dose_form or "ointment" in dose_form or "gel" in dose_form:
+        form = MedicationForm.CREAM
+    elif "liquid" in dose_form or "solution" in dose_form or "suspension" in dose_form:
+        form = MedicationForm.LIQUID
+    else:
+        form = MedicationForm.OTHER
+
+    return str(form)
 
 
 def _medication_defaults_from_product(product: CatalogueProduct) -> dict[str, str]:
