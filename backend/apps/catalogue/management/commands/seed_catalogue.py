@@ -2,7 +2,6 @@ from django.core.management.base import BaseCommand
 
 from apps.catalogue.models import CatalogueProduct, CatalogueProductSource
 
-
 SEED_PRODUCTS = [
     ("Amlodipine", "5mg", "tablets", 28, ""),
     ("Amlodipine", "10mg", "tablets", 28, ""),

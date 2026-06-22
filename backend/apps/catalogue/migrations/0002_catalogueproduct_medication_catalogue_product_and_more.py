@@ -15,11 +15,11 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='CatalogueProduct',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),  # noqa: E501
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('dmd_code', models.CharField(blank=True, db_index=True, max_length=64)),
-                ('source', models.CharField(choices=[('DMD', 'dm+d'), ('SEED', 'Seed'), ('MANUAL', 'Manual')], default='SEED', max_length=16)),
+                ('dmd_code', models.CharField(blank=True, db_index=True, max_length=64)),  # noqa: E501
+                ('source', models.CharField(choices=[('DMD', 'dm+d'), ('SEED', 'Seed'), ('MANUAL', 'Manual')], default='SEED', max_length=16)),  # noqa: E501
                 ('vmp_name', models.CharField(blank=True, max_length=255)),
                 ('amp_name', models.CharField(blank=True, max_length=255)),
                 ('display_name', models.CharField(max_length=255)),
@@ -37,16 +37,16 @@ class Migration(migrations.Migration):
             ],
             options={
                 'ordering': ['display_name', 'pack_size'],
-                'indexes': [models.Index(fields=['display_name'], name='catalogue_product_name_idx'), models.Index(fields=['ingredient'], name='catalogue_product_ing_idx')],
+                'indexes': [models.Index(fields=['display_name'], name='catalogue_product_name_idx'), models.Index(fields=['ingredient'], name='catalogue_product_ing_idx')],  # noqa: E501
             },
         ),
         migrations.AddField(
             model_name='medication',
             name='catalogue_product',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='medications', to='catalogue.catalogueproduct'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='medications', to='catalogue.catalogueproduct'),  # noqa: E501
         ),
         migrations.AddConstraint(
             model_name='medication',
-            constraint=models.UniqueConstraint(condition=models.Q(('catalogue_product__isnull', False)), fields=('group', 'catalogue_product'), name='unique_medication_catalogue_product_per_group'),
+            constraint=models.UniqueConstraint(condition=models.Q(('catalogue_product__isnull', False)), fields=('group', 'catalogue_product'), name='unique_medication_catalogue_product_per_group'),  # noqa: E501
         ),
     ]
