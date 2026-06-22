@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../../auth/AuthContext";
+import { usePermissions } from "../../auth/usePermissions";
+import { AddStockModal } from "./AddStockModal";
 import type { StockItem } from "./inventoryApi";
 import { useStockItemsQuery } from "./useInventory";
 import { usePharmacyNames } from "./usePharmacyNames";
@@ -72,10 +74,13 @@ function StockRow({
 
 export function InventoryScreen() {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const pharmacies = user?.pharmacies ?? [];
+  const canReceiveStock = can("stock.receive");
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<
     number | undefined
   >(undefined);
+  const [addStockOpen, setAddStockOpen] = useState(false);
   const stockItemsQuery = useStockItemsQuery(selectedPharmacyId);
   const { pharmacyName } = usePharmacyNames();
 
@@ -93,26 +98,40 @@ export function InventoryScreen() {
           </p>
         </div>
 
-        {pharmacies.length > 1 ? (
-          <label className="min-w-56 text-sm font-medium text-slate-700">
-            Pharmacy
-            <select
-              className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-              onChange={(event) =>
-                setSelectedPharmacyId(
-                  event.target.value ? Number(event.target.value) : undefined,
-                )
-              }
-              value={selectedPharmacyId ?? ""}
-            >
-              <option value="">All pharmacies</option>
-              {pharmacies.map((pharmacy) => (
-                <option key={pharmacy.id} value={pharmacy.id}>
-                  {pharmacy.name}
-                </option>
-              ))}
-            </select>
-          </label>
+        {pharmacies.length > 1 || canReceiveStock ? (
+          <div className="flex flex-col gap-3 sm:items-end">
+            {canReceiveStock ? (
+              <button
+                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                onClick={() => setAddStockOpen(true)}
+                type="button"
+              >
+                Add Stock
+              </button>
+            ) : null}
+
+            {pharmacies.length > 1 ? (
+              <label className="min-w-56 text-sm font-medium text-slate-700">
+                Pharmacy
+                <select
+                  className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  onChange={(event) =>
+                    setSelectedPharmacyId(
+                      event.target.value ? Number(event.target.value) : undefined,
+                    )
+                  }
+                  value={selectedPharmacyId ?? ""}
+                >
+                  <option value="">All pharmacies</option>
+                  {pharmacies.map((pharmacy) => (
+                    <option key={pharmacy.id} value={pharmacy.id}>
+                      {pharmacy.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
         ) : null}
       </section>
 
@@ -188,6 +207,12 @@ export function InventoryScreen() {
           </div>
         </section>
       ) : null}
+
+      <AddStockModal
+        defaultPharmacyId={selectedPharmacyId}
+        isOpen={addStockOpen}
+        onClose={() => setAddStockOpen(false)}
+      />
     </div>
   );
 }

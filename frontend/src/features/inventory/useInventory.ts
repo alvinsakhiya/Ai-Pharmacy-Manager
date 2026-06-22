@@ -5,9 +5,11 @@ import {
   countBatch,
   getStockItem,
   listStockItems,
+  receiveCatalogueStock,
   receiveStock,
   transferBatch,
   type AdjustBatchBody,
+  type CatalogueStockIntakeBody,
   type CountBatchBody,
   type ReceiveStockBody,
   type TransferBatchBody,
@@ -34,6 +36,17 @@ export function useReceiveStock() {
 
   return useMutation({
     mutationFn: (body: ReceiveStockBody) => receiveStock(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["stock-items"] });
+    },
+  });
+}
+
+export function useReceiveCatalogueStock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: CatalogueStockIntakeBody) => receiveCatalogueStock(body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["stock-items"] });
     },

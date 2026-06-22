@@ -5,6 +5,8 @@ from rest_framework import serializers
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record
+from apps.catalogue.models import CatalogueProduct
+from apps.catalogue.services import get_or_create_medication_from_product
 
 from .models import MovementType, StockBatch, StockItem, StockMovement
 
@@ -105,6 +107,42 @@ def receive_stock(
         )
 
         return stock_item, movement
+
+
+def receive_catalogue_stock(
+    *,
+    actor,
+    pharmacy,
+    catalogue_product: CatalogueProduct,
+    batch_number,
+    expiry_date,
+    packs_received,
+    quantity,
+    received_at,
+    reason="",
+    reference="",
+    request=None,
+) -> tuple[StockItem, StockMovement]:
+    medication = get_or_create_medication_from_product(
+        pharmacy.group,
+        catalogue_product,
+    )
+    return receive_stock(
+        actor=actor,
+        pharmacy=pharmacy,
+        medication=medication,
+        batch_number=batch_number,
+        expiry_date=expiry_date,
+        quantity=quantity,
+        received_at=received_at,
+        reason=reason
+        or (
+            f"Catalogue intake: {packs_received} pack(s) received "
+            f"for catalogue product {catalogue_product.id}"
+        ),
+        reference=reference,
+        request=request,
+    )
 
 
 def adjust_stock(

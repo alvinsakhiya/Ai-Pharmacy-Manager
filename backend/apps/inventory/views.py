@@ -11,13 +11,20 @@ from .models import StockBatch
 from .selectors import stock_items_for
 from .serializers import (
     AdjustStockSerializer,
+    CatalogueStockIntakeSerializer,
     CountStockSerializer,
     ReceiveStockSerializer,
     StockItemDetailSerializer,
     StockItemSerializer,
     TransferStockSerializer,
 )
-from .services import adjust_stock, receive_stock, reconcile_count, transfer_stock
+from .services import (
+    adjust_stock,
+    receive_catalogue_stock,
+    receive_stock,
+    reconcile_count,
+    transfer_stock,
+)
 
 
 def _reload_stock_item_for_response(stock_item, user):
@@ -85,6 +92,39 @@ class StockReceiveView(APIView):
             {
                 "stock_item": StockItemDetailSerializer(reloaded_stock_item).data,
                 "movement": _movement_summary(movement),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class StockIntakeView(APIView):
+    permission_classes = [require(Action.STOCK_RECEIVE)]
+
+    def post(self, request):
+        serializer = CatalogueStockIntakeSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        validated_data = dict(serializer.validated_data)
+        pack_size = validated_data.pop("pack_size_snapshot")
+        pack_unit = validated_data.pop("pack_unit_snapshot")
+        stock_item, movement = receive_catalogue_stock(
+            actor=request.user,
+            request=request,
+            **validated_data,
+        )
+        reloaded_stock_item = _reload_stock_item_for_response(stock_item, request.user)
+        return Response(
+            {
+                "stock_item": StockItemDetailSerializer(reloaded_stock_item).data,
+                "movement": _movement_summary(movement),
+                "intake": {
+                    "packs_received": serializer.validated_data["packs_received"],
+                    "pack_size": pack_size,
+                    "pack_unit": pack_unit,
+                    "quantity_received": serializer.validated_data["quantity"],
+                },
             },
             status=status.HTTP_201_CREATED,
         )

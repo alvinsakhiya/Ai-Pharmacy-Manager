@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     StockAdjustView,
     StockCountView,
+    StockIntakeView,
     StockItemDetailView,
     StockItemListView,
     StockReceiveView,
@@ -18,6 +19,7 @@ urlpatterns = [
         name="stock-transfer",
     ),
     path("receipts/", StockReceiveView.as_view(), name="stock-receive"),
+    path("stock/intake/", StockIntakeView.as_view(), name="stock-intake"),
     path("stock-items/", StockItemListView.as_view(), name="stock-item-list"),
     path(
         "stock-items/<int:pk>/",

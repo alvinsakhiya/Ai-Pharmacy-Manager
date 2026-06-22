@@ -334,6 +334,61 @@ def test_prepared_cycle_deducts_stock_with_fefo_movements_and_audit(
 
 
 @pytest.mark.django_db
+def test_dosette_deduction_uses_fefo_even_when_earlier_expiry_received_later(
+    client,
+):
+    group = Group.objects.create(name="FEFO Group", slug="fefo-group")
+    pharmacy = Pharmacy.objects.create(group=group, name="FEFO Pharmacy", code="FEFO")
+    patient = make_patient(pharmacy, "FEFO-P1")
+    cycle = make_cycle(patient, "FEFO-CYCLE")
+    medication = make_medication(group, "Amlodipine 5mg tablets", "5mg")
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=medication,
+        dose_instructions="Private dose text",
+        quantity_morning=1,
+    )
+    stock_item = StockItem.objects.create(pharmacy=pharmacy, medication=medication)
+    later_expiry_batch = StockBatch.objects.create(
+        stock_item=stock_item,
+        batch_number="AMLO123",
+        expiry_date=date(2027, 3, 31),
+        quantity=20,
+        quantity_received=20,
+        received_at=date(2026, 1, 15),
+    )
+    earlier_expiry_batch = StockBatch.objects.create(
+        stock_item=stock_item,
+        batch_number="AMLO124",
+        expiry_date=date(2027, 1, 31),
+        quantity=20,
+        quantity_received=20,
+        received_at=date(2026, 2, 15),
+    )
+    pharmacist = make_user("fefo-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.post(deduct_url(patient, cycle), {}, format="json")
+
+    assert response.status_code == 200
+    assert movement_rows(response) == [
+        {
+            "movement_id": movement_rows(response)[0]["movement_id"],
+            "batch_id": earlier_expiry_batch.id,
+            "batch_number": "AMLO124",
+            "expiry_date": "2027-01-31",
+            "quantity_deducted": 7,
+            "balance_after": 13,
+        },
+    ]
+    earlier_expiry_batch.refresh_from_db()
+    later_expiry_batch.refresh_from_db()
+    assert earlier_expiry_batch.quantity == 13
+    assert later_expiry_batch.quantity == 20
+
+
+@pytest.mark.django_db
 def test_expired_batches_are_excluded_and_only_expired_stock_returns_shortage(
     client,
     stock_deduction_data,

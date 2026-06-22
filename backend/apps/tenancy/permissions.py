@@ -10,6 +10,7 @@ from .policy import _target_in_scope, get_active_membership
 class Action(StrEnum):
     STOCK_VIEW = "stock.view"
     STOCK_MANAGE = "stock.manage"
+    STOCK_RECEIVE = "stock.receive"
     STOCK_TRANSFER = "stock.transfer"
 
     PATIENT_VIEW = "patient.view"
@@ -57,6 +58,7 @@ ROLE_CAPABILITIES = {
         {
             Action.STOCK_VIEW,
             Action.STOCK_MANAGE,
+            Action.STOCK_RECEIVE,
             Action.STOCK_TRANSFER,
             Action.AUDIT_VIEW,
             Action.MEDICATION_VIEW,
@@ -67,6 +69,7 @@ ROLE_CAPABILITIES = {
         {
             Action.STOCK_VIEW,
             Action.STOCK_MANAGE,
+            Action.STOCK_RECEIVE,
             Action.STOCK_TRANSFER,
             Action.MEDICATION_VIEW,
         }
@@ -75,6 +78,7 @@ ROLE_CAPABILITIES = {
         {
             Action.STOCK_VIEW,
             Action.STOCK_MANAGE,
+            Action.STOCK_RECEIVE,
             Action.PATIENT_VIEW,
             Action.PATIENT_MANAGE,
             Action.BLISTER_VIEW,
@@ -96,6 +100,7 @@ ROLE_CAPABILITIES = {
     Role.DISPENSER: frozenset(
         {
             Action.STOCK_VIEW,
+            Action.STOCK_RECEIVE,
             Action.PATIENT_VIEW,
             Action.BLISTER_VIEW,
             Action.REVIEW_VIEW,

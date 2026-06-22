@@ -53,6 +53,28 @@ export interface ReceiveStockResponse {
   movement: MovementSummary;
 }
 
+export interface CatalogueStockIntakeBody {
+  pharmacy: number;
+  catalogue_product: number;
+  packs_received: number;
+  batch_number: string;
+  expiry_date: string;
+  received_at?: string;
+  reason?: string;
+  reference?: string;
+}
+
+export interface CatalogueStockIntakeResponse {
+  stock_item: StockItemDetail;
+  movement: MovementSummary;
+  intake: {
+    packs_received: number;
+    pack_size: number;
+    pack_unit: string;
+    quantity_received: number;
+  };
+}
+
 export interface AdjustBatchBody {
   delta: number;
   reason: string;
@@ -115,6 +137,18 @@ export function receiveStock(
   body: ReceiveStockBody,
 ): Promise<ReceiveStockResponse> {
   return requestJson<ReceiveStockResponse>("/api/inventory/receipts/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export function receiveCatalogueStock(
+  body: CatalogueStockIntakeBody,
+): Promise<CatalogueStockIntakeResponse> {
+  return requestJson<CatalogueStockIntakeResponse>("/api/inventory/stock/intake/", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
