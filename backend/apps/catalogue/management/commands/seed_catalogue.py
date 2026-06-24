@@ -114,7 +114,7 @@ class Command(BaseCommand):
         created_count = 0
         updated_count = 0
 
-        # TODO: Add a separate dm+d import command for full reference catalogue loads.
+        # Full dm+d reference catalogue loads use the separate import_dmd command.
         for index, (ingredient, strength, dose_form, pack_size, pack_unit) in enumerate(
             SEED_PRODUCTS,
             start=1,
