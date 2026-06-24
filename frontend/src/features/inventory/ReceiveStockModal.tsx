@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import { cn } from "../../lib/cn";
+import { inputClass, labelClass } from "../../components/ui/forms";
 import {
   errorMessages,
   normalizeErrors,
@@ -22,11 +26,13 @@ export function ReceiveStockModal({
   onClose,
 }: ReceiveStockModalProps) {
   const receiveStock = useReceiveStock();
+  const toast = useToast();
   const [batchNumber, setBatchNumber] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [quantity, setQuantity] = useState("");
   const [receivedAt, setReceivedAt] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
+  const [packPrice, setPackPrice] = useState("");
   const [reason, setReason] = useState("");
   const [reference, setReference] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -41,6 +47,7 @@ export function ReceiveStockModal({
     setQuantity("");
     setReceivedAt("");
     setUnitPrice("");
+    setPackPrice("");
     setReason("");
     setReference("");
     setErrors({});
@@ -76,12 +83,15 @@ export function ReceiveStockModal({
         quantity: parsedQuantity,
         received_at: receivedAt || undefined,
         unit_price: unitPrice || undefined,
+        pack_price: packPrice || undefined,
         reason: reason.trim() || undefined,
         reference: reference.trim() || undefined,
       });
+      toast.success("Stock received", `Batch ${batchNumber.trim()} added to ${stockItem.medication_name}.`);
       onClose();
     } catch (error) {
       setErrors(normalizeErrors(error));
+      toast.error("Could not receive stock", "Check the highlighted fields and try again.");
     }
   }
 
@@ -91,10 +101,10 @@ export function ReceiveStockModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Batch number
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setBatchNumber(event.target.value)}
             required
             type="text"
@@ -103,10 +113,10 @@ export function ReceiveStockModal({
           <FieldErrorList messages={errorMessages(errors, "batch_number")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Expiry date
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={cn(inputClass, "tnum")}
             onChange={(event) => setExpiryDate(event.target.value)}
             required
             type="date"
@@ -115,10 +125,10 @@ export function ReceiveStockModal({
           <FieldErrorList messages={errorMessages(errors, "expiry_date")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Quantity
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={cn(inputClass, "tnum")}
             min="1"
             onChange={(event) => setQuantity(event.target.value)}
             required
@@ -128,10 +138,10 @@ export function ReceiveStockModal({
           <FieldErrorList messages={errorMessages(errors, "quantity")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Received at
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={cn(inputClass, "tnum")}
             onChange={(event) => setReceivedAt(event.target.value)}
             type="date"
             value={receivedAt}
@@ -139,23 +149,38 @@ export function ReceiveStockModal({
           <FieldErrorList messages={errorMessages(errors, "received_at")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
-          Unit price
-          <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-            min="0"
-            onChange={(event) => setUnitPrice(event.target.value)}
-            step="0.01"
-            type="number"
-            value={unitPrice}
-          />
-          <FieldErrorList messages={errorMessages(errors, "unit_price")} />
-        </label>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <label className={labelClass}>
+            Unit price
+            <input
+              className={cn(inputClass, "tnum")}
+              min="0"
+              onChange={(event) => setUnitPrice(event.target.value)}
+              step="0.01"
+              type="number"
+              value={unitPrice}
+            />
+            <FieldErrorList messages={errorMessages(errors, "unit_price")} />
+          </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
+            Box price
+            <input
+              className={cn(inputClass, "tnum")}
+              min="0"
+              onChange={(event) => setPackPrice(event.target.value)}
+              step="0.01"
+              type="number"
+              value={packPrice}
+            />
+            <FieldErrorList messages={errorMessages(errors, "pack_price")} />
+          </label>
+        </div>
+
+        <label className={labelClass}>
           Reason
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setReason(event.target.value)}
             type="text"
             value={reason}
@@ -163,10 +188,10 @@ export function ReceiveStockModal({
           <FieldErrorList messages={errorMessages(errors, "reason")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Reference
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setReference(event.target.value)}
             type="text"
             value={reference}
@@ -174,21 +199,17 @@ export function ReceiveStockModal({
           <FieldErrorList messages={errorMessages(errors, "reference")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          </Button>
+          <Button
+            variant="primary"
             disabled={receiveStock.isPending}
             type="submit"
           >
             {receiveStock.isPending ? "Saving..." : "Receive stock"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

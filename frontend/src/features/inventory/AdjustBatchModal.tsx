@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import { cn } from "../../lib/cn";
+import { inputClass, labelClass } from "../../components/ui/forms";
 import {
   errorMessages,
   normalizeErrors,
@@ -22,6 +26,7 @@ export function AdjustBatchModal({
   onClose,
 }: AdjustBatchModalProps) {
   const adjustBatch = useAdjustBatch();
+  const toast = useToast();
   const [delta, setDelta] = useState("");
   const [reason, setReason] = useState("");
   const [reference, setReference] = useState("");
@@ -67,9 +72,11 @@ export function AdjustBatchModal({
           reference: reference.trim() || undefined,
         },
       });
+      toast.success("Batch adjusted", `Batch ${batch.batch_number} updated.`);
       onClose();
     } catch (error) {
       setErrors(normalizeErrors(error));
+      toast.error("Could not adjust batch", "Check the highlighted fields and try again.");
     }
   }
 
@@ -84,10 +91,10 @@ export function AdjustBatchModal({
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
         <FieldErrorList messages={errorMessages(errors, "batch")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Delta
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={cn(inputClass, "tnum")}
             onChange={(event) => setDelta(event.target.value)}
             required
             type="number"
@@ -96,10 +103,10 @@ export function AdjustBatchModal({
           <FieldErrorList messages={errorMessages(errors, "delta")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Reason
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setReason(event.target.value)}
             required
             type="text"
@@ -108,10 +115,10 @@ export function AdjustBatchModal({
           <FieldErrorList messages={errorMessages(errors, "reason")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Reference
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setReference(event.target.value)}
             type="text"
             value={reference}
@@ -119,21 +126,17 @@ export function AdjustBatchModal({
           <FieldErrorList messages={errorMessages(errors, "reference")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          </Button>
+          <Button
+            variant="primary"
             disabled={adjustBatch.isPending}
             type="submit"
           >
             {adjustBatch.isPending ? "Saving..." : "Adjust batch"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

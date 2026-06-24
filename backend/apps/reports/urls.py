@@ -14,6 +14,8 @@ from .views import (
     StockAttentionReportView,
     StockMovementsReportCsvView,
     StockMovementsReportView,
+    StockValuationReportCsvView,
+    StockValuationReportView,
     TransferSuggestionsReportCsvView,
     TransferSuggestionsReportView,
 )
@@ -47,6 +49,16 @@ urlpatterns = [
         "dead-stock.csv",
         DeadStockReportCsvView.as_view(),
         name="reports-dead-stock-csv",
+    ),
+    path(
+        "stock/valuation/",
+        StockValuationReportView.as_view(),
+        name="reports-stock-valuation",
+    ),
+    path(
+        "stock/valuation.csv",
+        StockValuationReportCsvView.as_view(),
+        name="reports-stock-valuation-csv",
     ),
     path(
         "forecast-reorder/",

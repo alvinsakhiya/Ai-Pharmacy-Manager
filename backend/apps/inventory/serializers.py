@@ -28,6 +28,7 @@ class StockItemSerializer(serializers.ModelSerializer):
     medication_name = serializers.CharField(source="medication.name", read_only=True)
     quantity_on_hand = serializers.IntegerField(read_only=True)
     earliest_expiry = serializers.DateField(allow_null=True, read_only=True)
+    stock_value = serializers.SerializerMethodField()
 
     class Meta:
         model = StockItem
@@ -37,14 +38,22 @@ class StockItemSerializer(serializers.ModelSerializer):
             "medication",
             "medication_name",
             "unit_price",
+            "pack_price",
             "reorder_level",
             "is_active",
             "quantity_on_hand",
             "earliest_expiry",
+            "stock_value",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_stock_value(self, obj: StockItem) -> str | None:
+        quantity = getattr(obj, "quantity_on_hand", None)
+        if obj.unit_price is None or quantity is None:
+            return None
+        return str(obj.unit_price * quantity)
 
 
 class StockItemDetailSerializer(StockItemSerializer):
@@ -63,6 +72,12 @@ class ReceiveStockSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(min_value=1)
     received_at = serializers.DateField(required=False)
     unit_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
+    pack_price = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
         required=False,

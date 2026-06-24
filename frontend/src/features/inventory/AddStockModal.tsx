@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { useAuth } from "../../auth/AuthContext";
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import {
+  inputClass,
+  labelClass,
+  selectClass,
+} from "../../components/ui/forms";
 import {
   CatalogueProductSelect,
 } from "../catalogue/CatalogueProductSelect";
@@ -11,6 +18,7 @@ import {
   normalizeErrors,
   type FieldErrors,
 } from "../../lib/apiErrors";
+import { cn } from "../../lib/cn";
 import { FieldErrorList } from "./FieldErrorList";
 import { useReceiveCatalogueStock } from "./useInventory";
 
@@ -36,6 +44,7 @@ export function AddStockModal({
   const { user } = useAuth();
   const pharmacies = useMemo(() => user?.pharmacies ?? [], [user?.pharmacies]);
   const receiveStock = useReceiveCatalogueStock();
+  const toast = useToast();
   const [pharmacy, setPharmacy] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<CatalogueProduct | null>(
     null,
@@ -110,9 +119,11 @@ export function AddStockModal({
         received_at: receivedAt || undefined,
         reference: reference.trim() || undefined,
       });
+      toast.success("Stock added", `${selectedProduct.full_label} received.`);
       onClose();
     } catch (error) {
       setErrors(normalizeErrors(error));
+      toast.error("Could not add stock", "Check the highlighted fields and try again.");
     }
   }
 
@@ -122,10 +133,10 @@ export function AddStockModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Pharmacy
           <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={selectClass}
             onChange={(event) => setPharmacy(event.target.value)}
             required
             value={pharmacy}
@@ -149,11 +160,11 @@ export function AddStockModal({
         </div>
 
         {selectedProduct ? (
-          <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm">
-            <p className="font-semibold text-teal-900">
+          <div className="rounded-xl bg-brand-soft p-3 text-sm">
+            <p className="font-semibold text-brand-ink">
               {selectedProduct.full_label}
             </p>
-            <p className="mt-1 text-teal-800">
+            <p className="mt-1 text-brand-ink">
               Pack size:{" "}
               {selectedProduct.pack_size
                 ? `${selectedProduct.pack_size} ${unitLabel(selectedProduct)}`
@@ -162,10 +173,10 @@ export function AddStockModal({
           </div>
         ) : null}
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Packs received
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={cn(inputClass, "tnum")}
             min="1"
             onChange={(event) => setPacksReceived(event.target.value)}
             required
@@ -176,17 +187,17 @@ export function AddStockModal({
         </label>
 
         {selectedProduct && totalUnits !== null ? (
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-700">
+          <p className="tnum rounded-xl border border-line bg-surface-subtle p-3 text-sm font-medium text-ink-soft">
             {formatNumber(parsedPacks)} packs x {packSize}{" "}
             {unitLabel(selectedProduct)} = {formatNumber(totalUnits)}{" "}
             {unitLabel(selectedProduct)} added
           </p>
         ) : null}
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Batch number
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setBatchNumber(event.target.value)}
             required
             type="text"
@@ -195,10 +206,10 @@ export function AddStockModal({
           <FieldErrorList messages={errorMessages(errors, "batch_number")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Expiry date
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={cn(inputClass, "tnum")}
             onChange={(event) => setExpiryDate(event.target.value)}
             required
             type="date"
@@ -207,10 +218,10 @@ export function AddStockModal({
           <FieldErrorList messages={errorMessages(errors, "expiry_date")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Received at
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={cn(inputClass, "tnum")}
             onChange={(event) => setReceivedAt(event.target.value)}
             type="date"
             value={receivedAt}
@@ -218,10 +229,10 @@ export function AddStockModal({
           <FieldErrorList messages={errorMessages(errors, "received_at")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Reference
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setReference(event.target.value)}
             type="text"
             value={reference}
@@ -229,21 +240,17 @@ export function AddStockModal({
           <FieldErrorList messages={errorMessages(errors, "reference")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          </Button>
+          <Button
+            variant="primary"
             disabled={receiveStock.isPending}
             type="submit"
           >
             {receiveStock.isPending ? "Saving..." : "Add stock"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

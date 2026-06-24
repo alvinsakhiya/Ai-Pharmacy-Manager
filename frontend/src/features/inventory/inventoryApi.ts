@@ -16,10 +16,12 @@ export interface StockItem {
   medication: number;
   medication_name: string;
   unit_price: string | null;
+  pack_price: string | null;
   reorder_level: number;
   is_active: boolean;
   quantity_on_hand: number;
   earliest_expiry: string | null;
+  stock_value: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +46,7 @@ export interface ReceiveStockBody {
   quantity: number;
   received_at?: string;
   unit_price?: string | null;
+  pack_price?: string | null;
   reason?: string;
   reference?: string;
 }

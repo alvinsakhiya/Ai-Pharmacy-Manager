@@ -6,15 +6,17 @@ decision-making, and make no compliance claim.
 """
 
 from datetime import timedelta
+from decimal import Decimal
 from typing import cast
 
-from django.db.models import Max
+from django.db.models import Max, Q, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.analytics.models import ForecastRun, TransferSuggestion
 from apps.analytics.services import stock_overview_for
 from apps.blister.models import CycleStatus, DosetteCycle
-from apps.inventory.models import MovementType, StockBatch, StockMovement
+from apps.inventory.models import MovementType, StockBatch, StockItem, StockMovement
 from apps.tenancy.models import Group, Pharmacy
 from apps.tenancy.permissions import Action, can
 from apps.tenancy.policy import resolve_scope
@@ -457,6 +459,84 @@ def transfer_suggestions_report(
     }
 
 
+def stock_valuation_report(
+    user,
+    *,
+    pharmacy_id: int | None = None,
+) -> dict:
+    """Stock valuation: quantity on hand x unit price, per stock item.
+
+    Read-only. Items without a unit price are listed with a null value and
+    counted as unpriced so the figure is never silently understated.
+    """
+    queryset = (
+        StockItem.scoped.for_user(user)
+        .filter(is_active=True)
+        .select_related("medication", "pharmacy")
+        .annotate(
+            quantity_on_hand=Coalesce(
+                Sum("batches__quantity", filter=Q(batches__is_active=True)),
+                0,
+            )
+        )
+        .order_by("pharmacy__name", "medication__name", "id")
+    )
+    if pharmacy_id is not None:
+        queryset = queryset.filter(pharmacy_id=pharmacy_id)
+
+    rows = []
+    total_value = Decimal("0")
+    total_units = 0
+    priced_items = 0
+    unpriced_items = 0
+    for item in queryset:
+        quantity = item.quantity_on_hand or 0
+        total_units += quantity
+        value = None
+        if item.unit_price is not None:
+            value = item.unit_price * quantity
+            total_value += value
+            priced_items += 1
+        else:
+            unpriced_items += 1
+        rows.append(
+            {
+                "stock_item_id": item.id,
+                "pharmacy_id": item.pharmacy_id,
+                "pharmacy_name": item.pharmacy.name,
+                "medication_label": item.medication.name,
+                "quantity_on_hand": quantity,
+                "unit_price": (
+                    None if item.unit_price is None else str(item.unit_price)
+                ),
+                "pack_price": (
+                    None if item.pack_price is None else str(item.pack_price)
+                ),
+                "stock_value": None if value is None else str(value),
+            }
+        )
+
+    rows.sort(key=lambda row: (-_value_or_zero(row), row["medication_label"]))
+    return {
+        "report": "stock_valuation",
+        "generated_at": timezone.now(),
+        "filters": {"pharmacy_id": pharmacy_id},
+        "summary": {
+            "total_units": total_units,
+            "total_value": str(total_value),
+            "priced_items": priced_items,
+            "unpriced_items": unpriced_items,
+        },
+        "row_count": len(rows),
+        "rows": rows,
+    }
+
+
+def _value_or_zero(row: dict) -> Decimal:
+    value = row.get("stock_value")
+    return Decimal("0") if value is None else Decimal(value)
+
+
 def mds_workload_report(
     user,
     *,
@@ -561,6 +641,16 @@ def reports_dashboard(
                     )["row_count"],
                     "available_exports": ["csv"],
                     "human_review_required": True,
+                },
+                {
+                    "report": "stock_valuation",
+                    "title": "Stock valuation",
+                    "row_count": stock_valuation_report(
+                        user,
+                        pharmacy_id=pharmacy_id,
+                    )["row_count"],
+                    "available_exports": ["csv"],
+                    "human_review_required": False,
                 },
             ]
         )

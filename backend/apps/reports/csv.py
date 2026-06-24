@@ -100,6 +100,17 @@ MDS_WORKLOAD_CSV_COLUMNS = [
     "upcoming_cycles",
 ]
 
+STOCK_VALUATION_CSV_COLUMNS = [
+    "stock_item_id",
+    "pharmacy_id",
+    "pharmacy_name",
+    "medication_label",
+    "quantity_on_hand",
+    "unit_price",
+    "pack_price",
+    "stock_value",
+]
+
 
 def _format_date(value) -> str:
     if value is None:
@@ -214,3 +225,7 @@ def transfer_suggestions_report_csv(report: dict) -> str:
 
 def mds_workload_report_csv(report: dict) -> str:
     return _rows_to_csv(report, MDS_WORKLOAD_CSV_COLUMNS)
+
+
+def stock_valuation_report_csv(report: dict) -> str:
+    return _rows_to_csv(report, STOCK_VALUATION_CSV_COLUMNS)

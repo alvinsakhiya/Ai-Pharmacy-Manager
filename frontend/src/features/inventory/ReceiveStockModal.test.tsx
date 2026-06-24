@@ -78,6 +78,7 @@ describe("ReceiveStockModal", () => {
         quantity: 12,
         received_at: undefined,
         unit_price: undefined,
+        pack_price: undefined,
         reason: undefined,
         reference: undefined,
       });

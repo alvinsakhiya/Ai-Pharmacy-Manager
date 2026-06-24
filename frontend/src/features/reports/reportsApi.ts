@@ -185,6 +185,33 @@ export interface MdsWorkloadReport {
   rows: MdsWorkloadReportRow[];
 }
 
+export interface StockValuationReportRow {
+  stock_item_id: number;
+  pharmacy_id: number;
+  pharmacy_name: string;
+  medication_label: string;
+  quantity_on_hand: number;
+  unit_price: string | null;
+  pack_price: string | null;
+  stock_value: string | null;
+}
+
+export interface StockValuationReport {
+  report: "stock_valuation";
+  generated_at: string;
+  filters: {
+    pharmacy_id: number | null;
+  };
+  summary: {
+    total_units: number;
+    total_value: string;
+    priced_items: number;
+    unpriced_items: number;
+  };
+  row_count: number;
+  rows: StockValuationReportRow[];
+}
+
 export type ReportPreview =
   | StockAttentionReport
   | StockMovementsReport
@@ -192,13 +219,15 @@ export type ReportPreview =
   | DeadStockReport
   | ForecastReorderReport
   | TransferSuggestionsReport
-  | MdsWorkloadReport;
+  | MdsWorkloadReport
+  | StockValuationReport;
 
 export type ReportId =
   | "stock_attention"
   | "stock_movements"
   | "expiry"
   | "dead_stock"
+  | "stock_valuation"
   | "forecast_reorder"
   | "transfer_suggestions"
   | "mds_workload";
@@ -218,6 +247,7 @@ export const FORECAST_REORDER_CSV_PATH = "/api/reports/forecast-reorder.csv";
 export const TRANSFER_SUGGESTIONS_CSV_PATH =
   "/api/reports/transfer-suggestions.csv";
 export const MDS_WORKLOAD_CSV_PATH = "/api/reports/mds-workload.csv";
+export const STOCK_VALUATION_CSV_PATH = "/api/reports/stock/valuation.csv";
 
 export function getStockAttentionReport(): Promise<StockAttentionReport> {
   return requestJson<StockAttentionReport>("/api/reports/stock/attention/");
@@ -250,6 +280,7 @@ const REPORT_PATHS: Record<ReportId, string> = {
   stock_movements: "/api/reports/stock/movements/",
   expiry: "/api/reports/expiry/",
   dead_stock: "/api/reports/dead-stock/",
+  stock_valuation: "/api/reports/stock/valuation/",
   forecast_reorder: "/api/reports/forecast-reorder/",
   transfer_suggestions: "/api/reports/transfer-suggestions/",
   mds_workload: "/api/reports/mds-workload/",
@@ -260,6 +291,7 @@ export const REPORT_CSV_PATHS: Record<ReportId, string> = {
   stock_movements: STOCK_MOVEMENTS_CSV_PATH,
   expiry: EXPIRY_CSV_PATH,
   dead_stock: DEAD_STOCK_CSV_PATH,
+  stock_valuation: STOCK_VALUATION_CSV_PATH,
   forecast_reorder: FORECAST_REORDER_CSV_PATH,
   transfer_suggestions: TRANSFER_SUGGESTIONS_CSV_PATH,
   mds_workload: MDS_WORKLOAD_CSV_PATH,

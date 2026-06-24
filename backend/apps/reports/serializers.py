@@ -163,6 +163,33 @@ class TransferSuggestionsReportSerializer(serializers.Serializer):
     rows = TransferSuggestionsReportRowSerializer(many=True, read_only=True)
 
 
+class StockValuationReportRowSerializer(serializers.Serializer):
+    stock_item_id = serializers.IntegerField(read_only=True)
+    pharmacy_id = serializers.IntegerField(read_only=True)
+    pharmacy_name = serializers.CharField(read_only=True)
+    medication_label = serializers.CharField(read_only=True)
+    quantity_on_hand = serializers.IntegerField(read_only=True)
+    unit_price = serializers.CharField(allow_null=True, read_only=True)
+    pack_price = serializers.CharField(allow_null=True, read_only=True)
+    stock_value = serializers.CharField(allow_null=True, read_only=True)
+
+
+class StockValuationSummarySerializer(serializers.Serializer):
+    total_units = serializers.IntegerField(read_only=True)
+    total_value = serializers.CharField(read_only=True)
+    priced_items = serializers.IntegerField(read_only=True)
+    unpriced_items = serializers.IntegerField(read_only=True)
+
+
+class StockValuationReportSerializer(serializers.Serializer):
+    report = serializers.CharField(read_only=True)
+    generated_at = serializers.DateTimeField(read_only=True)
+    filters = PharmacyFiltersSerializer(read_only=True)
+    summary = StockValuationSummarySerializer(read_only=True)
+    row_count = serializers.IntegerField(read_only=True)
+    rows = StockValuationReportRowSerializer(many=True, read_only=True)
+
+
 class MdsWorkloadReportRowSerializer(serializers.Serializer):
     pharmacy_id = serializers.IntegerField(read_only=True)
     pharmacy_name = serializers.CharField(read_only=True)

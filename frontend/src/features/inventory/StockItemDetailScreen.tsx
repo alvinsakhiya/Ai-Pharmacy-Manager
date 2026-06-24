@@ -1,7 +1,29 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Boxes,
+  PackagePlus,
+} from "lucide-react";
 
 import { usePermissions } from "../../auth/usePermissions";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { Skeleton } from "../../components/ui/Skeleton";
+import {
+  Table,
+  TableScroll,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "../../components/ui/Table";
+import { cn } from "../../lib/cn";
 import { AdjustBatchModal } from "./AdjustBatchModal";
 import { CountBatchModal } from "./CountBatchModal";
 import { ReceiveStockModal } from "./ReceiveStockModal";
@@ -22,32 +44,58 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
-function StatusPill({ active }: { active: boolean }) {
+function fefoToneClass(value: string | null): string {
+  if (!value) {
+    return "text-muted";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(value);
+  const days = Math.round(
+    (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (days <= 0) {
+    return "text-fefo-expired";
+  }
+  if (days <= 30) {
+    return "text-fefo-d30";
+  }
+  if (days <= 90) {
+    return "text-fefo-d90";
+  }
+  if (days <= 180) {
+    return "text-fefo-d180";
+  }
+  return "text-fefo-fresh";
+}
+
+function StatusBadge({ active }: { active: boolean }) {
   return (
-    <span
-      className={[
-        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500",
-      ].join(" ")}
-    >
+    <Badge variant={active ? "success" : "neutral"} dot>
       {active ? "Active" : "Inactive"}
-    </span>
+    </Badge>
   );
 }
 
 function DetailValue({
   label,
   value,
+  valueClassName,
 }: {
   label: string;
   value: string | number;
+  valueClassName?: string;
 }) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
         {label}
       </dt>
-      <dd className="mt-1 text-sm font-semibold text-slate-950">{value}</dd>
+      <dd className={cn("mt-1 text-sm font-bold text-ink", valueClassName)}>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -68,59 +116,39 @@ function BatchRow({
   onTransfer: (batch: StockBatch) => void;
 }) {
   return (
-    <tr>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
-        {batch.batch_number}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+    <TR>
+      <TD className="font-semibold text-ink">{batch.batch_number}</TD>
+      <TD className={cn("tnum font-medium", fefoToneClass(batch.expiry_date))}>
         {formatDate(batch.expiry_date)}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {batch.quantity}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {batch.quantity_received}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {formatDate(batch.received_at)}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm">
-        <StatusPill active={batch.is_active} />
-      </td>
+      </TD>
+      <TD className="tnum">{batch.quantity}</TD>
+      <TD className="tnum">{batch.quantity_received}</TD>
+      <TD className="tnum">{formatDate(batch.received_at)}</TD>
+      <TD>
+        <StatusBadge active={batch.is_active} />
+      </TD>
       {canManage || canTransfer ? (
-        <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+        <TD className="text-right">
           <div className="flex justify-end gap-2">
             {canManage ? (
               <>
-                <button
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                  onClick={() => onAdjust(batch)}
-                  type="button"
-                >
+                <Button size="sm" variant="secondary" onClick={() => onAdjust(batch)}>
                   Adjust
-                </button>
-                <button
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                  onClick={() => onCount(batch)}
-                  type="button"
-                >
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => onCount(batch)}>
                   Count
-                </button>
+                </Button>
               </>
             ) : null}
             {canTransfer ? (
-              <button
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                onClick={() => onTransfer(batch)}
-                type="button"
-              >
+              <Button size="sm" variant="secondary" onClick={() => onTransfer(batch)}>
                 Transfer
-              </button>
+              </Button>
             ) : null}
           </div>
-        </td>
+        </TD>
       ) : null}
-    </tr>
+    </TR>
   );
 }
 
@@ -141,137 +169,156 @@ export function StockItemDetailScreen() {
 
   if (!isValidStockItemId) {
     return (
-      <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-        <h1 className="text-lg font-bold text-red-900">
-          This stock item was not found or is outside your access.
-        </h1>
-        <Link
-          className="mt-4 inline-flex rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          to="/inventory"
-        >
-          Back to inventory
-        </Link>
-      </section>
+      <EmptyState
+        tone="danger"
+        icon={<AlertTriangle className="h-6 w-6" />}
+        title="This stock item was not found or is outside your access."
+        action={
+          <Link to="/inventory">
+            <Button variant="secondary" leadingIcon={<ArrowLeft className="h-4 w-4" />}>
+              Back to inventory
+            </Button>
+          </Link>
+        }
+      />
     );
   }
 
   if (stockItemQuery.isLoading) {
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-        Loading stock...
-      </section>
+      <div className="space-y-5">
+        <span className="sr-only">Loading stock...</span>
+        <Panel>
+          <PanelBody className="space-y-4">
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-40" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+      </div>
     );
   }
 
   if (stockItemQuery.isError || !stockItemQuery.data) {
     return (
-      <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-        <h1 className="text-lg font-bold text-red-900">
-          This stock item was not found or is outside your access.
-        </h1>
-        <p className="mt-2 text-sm text-red-700">
-          Please return to the inventory list or retry after refreshing your
-          session.
-        </p>
-        <Link
-          className="mt-4 inline-flex rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          to="/inventory"
-        >
-          Back to inventory
-        </Link>
-      </section>
+      <EmptyState
+        tone="danger"
+        icon={<AlertTriangle className="h-6 w-6" />}
+        title="This stock item was not found or is outside your access."
+        description="Please return to the inventory list or retry after refreshing your session."
+        action={
+          <Link to="/inventory">
+            <Button variant="secondary" leadingIcon={<ArrowLeft className="h-4 w-4" />}>
+              Back to inventory
+            </Button>
+          </Link>
+        }
+      />
     );
   }
 
   const stockItem = stockItemQuery.data;
 
   return (
-    <div className="space-y-6">
+    <div className="stagger space-y-5">
       <Link
-        className="inline-flex text-sm font-semibold text-teal-700 transition hover:text-teal-900"
+        className="inline-flex items-center gap-1.5 rounded-full text-sm font-semibold text-brand transition-colors duration-150 ease-soft hover:text-brand-hover focus-ring"
         to="/inventory"
       >
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         Back to inventory
       </Link>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-teal-700">
-              {pharmacyName(stockItem.pharmacy)}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-              {stockItem.medication_name}
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusPill active={stockItem.is_active} />
+      <PageHeader
+        className="animate-fade-in-up"
+        eyebrow={pharmacyName(stockItem.pharmacy)}
+        title={stockItem.medication_name}
+        actions={
+          <>
+            <StatusBadge active={stockItem.is_active} />
             {canManage ? (
-              <button
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              <Button
+                variant="primary"
+                leadingIcon={<PackagePlus className="h-4 w-4" />}
                 onClick={() => setReceiveOpen(true)}
-                type="button"
               >
                 Receive stock
-              </button>
+              </Button>
             ) : null}
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <DetailValue label="On hand" value={stockItem.quantity_on_hand} />
-          <DetailValue
-            label="Earliest expiry"
-            value={formatDate(stockItem.earliest_expiry)}
-          />
-          <DetailValue label="Reorder level" value={stockItem.reorder_level} />
-          <DetailValue label="Unit price" value={stockItem.unit_price ?? "—"} />
-          <DetailValue
-            label="Pharmacy"
-            value={pharmacyName(stockItem.pharmacy)}
-          />
-        </dl>
-      </section>
+      <Panel>
+        <PanelBody>
+          <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <DetailValue
+              label="On hand"
+              value={stockItem.quantity_on_hand}
+              valueClassName="tnum"
+            />
+            <DetailValue
+              label="Earliest expiry"
+              value={formatDate(stockItem.earliest_expiry)}
+              valueClassName={cn("tnum", fefoToneClass(stockItem.earliest_expiry))}
+            />
+            <DetailValue
+              label="Reorder level"
+              value={stockItem.reorder_level}
+              valueClassName="tnum"
+            />
+            <DetailValue
+              label="Unit price"
+              value={stockItem.unit_price ? `£${stockItem.unit_price}` : "—"}
+              valueClassName="tnum"
+            />
+            <DetailValue
+              label="Box price"
+              value={stockItem.pack_price ? `£${stockItem.pack_price}` : "—"}
+              valueClassName="tnum"
+            />
+            <DetailValue
+              label="Stock value"
+              value={stockItem.stock_value ? `£${stockItem.stock_value}` : "—"}
+              valueClassName="tnum font-bold text-ink"
+            />
+            <DetailValue
+              label="Pharmacy"
+              value={pharmacyName(stockItem.pharmacy)}
+            />
+          </dl>
+        </PanelBody>
+      </Panel>
 
       {stockItem.batches.length === 0 ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          No batches recorded for this stock item.
-        </section>
+        <EmptyState
+          icon={<Boxes className="h-6 w-6" />}
+          title="No batches recorded for this stock item."
+          description="Batches appear here once stock is received against this item."
+        />
       ) : (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-4">
-            <h2 className="text-lg font-bold text-slate-950">Batches</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Batch number
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Expiry date
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Quantity
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Quantity received
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Received at
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Status
-                  </th>
+        <Panel>
+          <PanelHeader title="Batches" />
+          <TableScroll className="rounded-none border-0 shadow-none">
+            <Table>
+              <THead>
+                <TR className="hover:bg-transparent">
+                  <TH>Batch number</TH>
+                  <TH>Expiry date</TH>
+                  <TH>Quantity</TH>
+                  <TH>Quantity received</TH>
+                  <TH>Received at</TH>
+                  <TH>Status</TH>
                   {canManage || canTransfer ? (
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Actions
-                    </th>
+                    <TH className="text-right">Actions</TH>
                   ) : null}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+                </TR>
+              </THead>
+              <TBody>
                 {stockItem.batches.map((batch) => (
                   <BatchRow
                     batch={batch}
@@ -289,10 +336,10 @@ export function StockItemDetailScreen() {
                     }
                   />
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+              </TBody>
+            </Table>
+          </TableScroll>
+        </Panel>
       )}
 
       <ReceiveStockModal

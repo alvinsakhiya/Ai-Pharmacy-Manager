@@ -21,6 +21,7 @@ def receive_stock(
     quantity,
     received_at,
     unit_price=None,
+    pack_price=None,
     reason="",
     reference="",
     request=None,
@@ -38,6 +39,9 @@ def receive_stock(
             if unit_price is not None and stock_item.unit_price != unit_price:
                 stock_item.unit_price = unit_price
                 changed_fields.append("unit_price")
+            if pack_price is not None and stock_item.pack_price != pack_price:
+                stock_item.pack_price = pack_price
+                changed_fields.append("pack_price")
             if changed_fields:
                 stock_item.save(update_fields=[*changed_fields, "updated_at"])
         except StockItem.DoesNotExist:
@@ -46,6 +50,7 @@ def receive_stock(
                 medication=medication,
                 is_active=True,
                 unit_price=unit_price,
+                pack_price=pack_price,
             )
 
         try:
@@ -318,14 +323,34 @@ def transfer_stock(
                 pharmacy=destination_pharmacy,
                 medication=source_item.medication,
                 is_active=True,
+                unit_price=source_item.unit_price,
+                pack_price=source_item.pack_price,
             )
             destination_stock_item = StockItem.objects.select_for_update().get(
                 pk=destination_stock_item.pk,
             )
 
+        # Carry the source price into the receiving pharmacy. New destinations are
+        # created with it above; existing destinations adopt it only when unset, so
+        # a pharmacy's own established price is never silently overwritten.
+        dest_changed: list[str] = []
         if not destination_stock_item.is_active:
             destination_stock_item.is_active = True
-            destination_stock_item.save(update_fields=["is_active", "updated_at"])
+            dest_changed.append("is_active")
+        if (
+            destination_stock_item.unit_price is None
+            and source_item.unit_price is not None
+        ):
+            destination_stock_item.unit_price = source_item.unit_price
+            dest_changed.append("unit_price")
+        if (
+            destination_stock_item.pack_price is None
+            and source_item.pack_price is not None
+        ):
+            destination_stock_item.pack_price = source_item.pack_price
+            dest_changed.append("pack_price")
+        if dest_changed:
+            destination_stock_item.save(update_fields=[*dest_changed, "updated_at"])
 
         try:
             destination_batch = StockBatch.objects.select_for_update().get(
@@ -382,6 +407,9 @@ def transfer_stock(
             reference=reference,
         )
 
+        unit_price = source_item.unit_price
+        transfer_value = None if unit_price is None else unit_price * quantity
+
         record(
             action=AuditAction.STOCK_TRANSFERRED,
             actor=actor,
@@ -396,6 +424,10 @@ def transfer_stock(
                 "source_batch_id": source_batch.id,
                 "destination_batch_id": destination_batch.id,
                 "quantity": quantity,
+                "unit_price": None if unit_price is None else str(unit_price),
+                "transfer_value": (
+                    None if transfer_value is None else str(transfer_value)
+                ),
                 "source_balance_after": source_batch.quantity,
                 "destination_balance_after": destination_batch.quantity,
                 "out_movement_id": out_movement.id,
@@ -409,4 +441,6 @@ def transfer_stock(
             "out_movement": out_movement,
             "in_movement": in_movement,
             "quantity": quantity,
+            "unit_price": unit_price,
+            "transfer_value": transfer_value,
         }

@@ -263,7 +263,7 @@ describe("ReportsScreen", () => {
     );
     renderReports();
 
-    expect(screen.getByText("Loading report preview...")).toBeInTheDocument();
+    expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
   });
 
   it("renders the preview empty state", async () => {

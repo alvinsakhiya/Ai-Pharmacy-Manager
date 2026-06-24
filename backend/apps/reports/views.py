@@ -19,6 +19,7 @@ from .csv import (
     mds_workload_report_csv,
     stock_attention_report_csv,
     stock_movements_report_csv,
+    stock_valuation_report_csv,
     transfer_suggestions_report_csv,
 )
 from .serializers import (
@@ -29,6 +30,7 @@ from .serializers import (
     ReportDashboardSerializer,
     StockAttentionReportSerializer,
     StockMovementsReportSerializer,
+    StockValuationReportSerializer,
     TransferSuggestionsReportSerializer,
 )
 from .services import (
@@ -43,6 +45,7 @@ from .services import (
     reports_dashboard,
     stock_attention_report,
     stock_movements_report,
+    stock_valuation_report,
     transfer_suggestions_report,
 )
 
@@ -344,6 +347,34 @@ class TransferSuggestionsReportCsvView(APIView):
         return _csv_response(
             transfer_suggestions_report_csv(report),
             "transfer-suggestions-report.csv",
+        )
+
+
+class StockValuationReportView(APIView):
+    permission_classes = [require(Action.STOCK_VIEW)]
+
+    def get(self, request):
+        report = stock_valuation_report(
+            request.user,
+            pharmacy_id=_parse_int_query(request, "pharmacy", "Pharmacy filter"),
+        )
+        return Response(
+            StockValuationReportSerializer(report).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class StockValuationReportCsvView(APIView):
+    permission_classes = [require(Action.STOCK_VIEW)]
+
+    def get(self, request):
+        report = stock_valuation_report(
+            request.user,
+            pharmacy_id=_parse_int_query(request, "pharmacy", "Pharmacy filter"),
+        )
+        return _csv_response(
+            stock_valuation_report_csv(report),
+            "stock-valuation-report.csv",
         )
 
 

@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { useAuth } from "../../auth/AuthContext";
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import { cn } from "../../lib/cn";
+import {
+  inputClass,
+  labelClass,
+  selectClass,
+} from "../../components/ui/forms";
 import {
   errorMessages,
   normalizeErrors,
@@ -26,6 +34,7 @@ export function TransferBatchModal({
 }: TransferBatchModalProps) {
   const { user } = useAuth();
   const transferBatch = useTransferBatch();
+  const toast = useToast();
   const [destinationPharmacy, setDestinationPharmacy] = useState("");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
@@ -80,9 +89,11 @@ export function TransferBatchModal({
           reference: reference.trim() || undefined,
         },
       });
+      toast.success("Stock transferred", `Batch ${batch.batch_number} moved.`);
       onClose();
     } catch (error) {
       setErrors(normalizeErrors(error));
+      toast.error("Could not transfer stock", "Check the highlighted fields and try again.");
     }
   }
 
@@ -100,15 +111,15 @@ export function TransferBatchModal({
         <FieldErrorList messages={errorMessages(errors, "batch")} />
 
         {!hasDestinations ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="rounded-xl border border-warning-border bg-warning-soft p-3 text-sm text-warning-ink">
             No other pharmacy is available to transfer to.
           </p>
         ) : null}
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Destination pharmacy
           <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={selectClass}
             disabled={!hasDestinations}
             onChange={(event) => setDestinationPharmacy(event.target.value)}
             required
@@ -126,10 +137,10 @@ export function TransferBatchModal({
           />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Quantity
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={cn(inputClass, "tnum")}
             min="1"
             onChange={(event) => setQuantity(event.target.value)}
             required
@@ -139,10 +150,10 @@ export function TransferBatchModal({
           <FieldErrorList messages={errorMessages(errors, "quantity")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Reason
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setReason(event.target.value)}
             type="text"
             value={reason}
@@ -150,10 +161,10 @@ export function TransferBatchModal({
           <FieldErrorList messages={errorMessages(errors, "reason")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Reference
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setReference(event.target.value)}
             type="text"
             value={reference}
@@ -161,21 +172,17 @@ export function TransferBatchModal({
           <FieldErrorList messages={errorMessages(errors, "reference")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          </Button>
+          <Button
+            variant="primary"
             disabled={transferBatch.isPending || !hasDestinations}
             type="submit"
           >
             {transferBatch.isPending ? "Saving..." : "Transfer stock"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

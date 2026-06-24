@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from rest_framework.test import APIClient
@@ -536,6 +537,8 @@ def test_transfer_writes_one_audit_event(client, transfer_api_data):
         "source_batch_id": source_batch.id,
         "destination_batch_id": destination_batch.id,
         "quantity": 3,
+        "unit_price": None,
+        "transfer_value": None,
         "source_balance_after": 17,
         "destination_balance_after": 7,
         "out_movement_id": out_movement.id,
@@ -639,3 +642,31 @@ def test_inventory_mutation_and_read_regressions_still_work(
     assert adjust_response.status_code == 200
     assert count_response.status_code == 200
     assert movement_history_response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_transfer_propagates_price_to_new_destination(client, transfer_api_data):
+    authenticate(client, transfer_api_data["admin"])
+    source_item = transfer_api_data["source_stock"]
+    source_item.unit_price = Decimal("0.50")
+    source_item.pack_price = Decimal("14.00")
+    source_item.save(update_fields=["unit_price", "pack_price"])
+    source_batch = batch_for(source_item)
+
+    response = post_transfer(
+        client,
+        source_batch,
+        transfer_payload(transfer_api_data["pharmacy_three"], quantity=5),
+    )
+    assert response.status_code == 200
+
+    destination_item = StockItem.objects.get(
+        pharmacy=transfer_api_data["pharmacy_three"],
+        medication=transfer_api_data["medication_one"],
+    )
+    assert destination_item.unit_price == Decimal("0.50")
+    assert destination_item.pack_price == Decimal("14.00")
+
+    event = AuditEvent.objects.get(action=AuditAction.STOCK_TRANSFERRED)
+    assert event.metadata["unit_price"] == "0.50"
+    assert event.metadata["transfer_value"] == "2.50"

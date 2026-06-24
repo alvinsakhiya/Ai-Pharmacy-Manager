@@ -1,8 +1,26 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { AlertTriangle, Boxes, PlusCircle } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Panel, PanelBody } from "../../components/ui/Card";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import {
+  Table,
+  TableScroll,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "../../components/ui/Table";
+import { cn } from "../../lib/cn";
+import { labelClass, selectClass } from "../../components/ui/forms";
 import { AddStockModal } from "./AddStockModal";
 import type { StockItem } from "./inventoryApi";
 import { useStockItemsQuery } from "./useInventory";
@@ -20,16 +38,42 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
-function StatusPill({ active }: { active: boolean }) {
+/**
+ * FEFO expiry heat scale — colour the earliest-expiry date by days-to-expiry,
+ * always paired with the date text itself (never colour alone).
+ */
+function fefoToneClass(value: string | null): string {
+  if (!value) {
+    return "text-muted";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(value);
+  const days = Math.round(
+    (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (days <= 0) {
+    return "text-fefo-expired";
+  }
+  if (days <= 30) {
+    return "text-fefo-d30";
+  }
+  if (days <= 90) {
+    return "text-fefo-d90";
+  }
+  if (days <= 180) {
+    return "text-fefo-d180";
+  }
+  return "text-fefo-fresh";
+}
+
+function StatusBadge({ active }: { active: boolean }) {
   return (
-    <span
-      className={[
-        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500",
-      ].join(" ")}
-    >
+    <Badge variant={active ? "success" : "neutral"} dot>
       {active ? "Active" : "Inactive"}
-    </span>
+    </Badge>
   );
 }
 
@@ -41,34 +85,26 @@ function StockRow({
   pharmacyName: (id: number) => string;
 }) {
   return (
-    <tr>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
-        {item.medication_name}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {pharmacyName(item.pharmacy)}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {item.quantity_on_hand}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+    <TR>
+      <TD className="font-semibold text-ink">{item.medication_name}</TD>
+      <TD>{pharmacyName(item.pharmacy)}</TD>
+      <TD className="tnum">{item.quantity_on_hand}</TD>
+      <TD className={cn("tnum font-medium", fefoToneClass(item.earliest_expiry))}>
         {formatDate(item.earliest_expiry)}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {item.reorder_level}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm">
-        <StatusPill active={item.is_active} />
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+      </TD>
+      <TD className="tnum">{item.reorder_level}</TD>
+      <TD>
+        <StatusBadge active={item.is_active} />
+      </TD>
+      <TD className="text-right">
         <Link
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+          className="inline-flex h-8 items-center rounded-full border border-line-strong bg-surface px-3 text-[13px] font-semibold text-ink-soft shadow-elev-1 transition-colors duration-150 ease-soft hover:bg-surface-subtle hover:text-ink focus-ring active:scale-[0.97]"
           to={`/inventory/${item.id}`}
         >
           View
         </Link>
-      </td>
-    </tr>
+      </TD>
+    </TR>
   );
 }
 
@@ -85,127 +121,120 @@ export function InventoryScreen() {
   const { pharmacyName } = usePharmacyNames();
 
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-teal-700">Stock overview</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-            Inventory
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Review pharmacy stock levels, earliest expiry dates, and batch
-            status across the pharmacies in your permitted scope.
-          </p>
+    <div className="stagger space-y-5">
+      <PageHeader
+        className="animate-fade-in-up"
+        eyebrow="Stock overview"
+        title="Inventory"
+        subtitle="Review pharmacy stock levels, earliest expiry dates, and batch status across the pharmacies in your permitted scope."
+        actions={
+          canReceiveStock ? (
+            <Button
+              variant="primary"
+              leadingIcon={<PlusCircle className="h-4 w-4" />}
+              onClick={() => setAddStockOpen(true)}
+            >
+              Add Stock
+            </Button>
+          ) : null
+        }
+      />
+
+      {pharmacies.length > 1 ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <label className={cn(labelClass, "min-w-56")} htmlFor="inventory-pharmacy-filter">
+            Pharmacy
+            <select
+              id="inventory-pharmacy-filter"
+              className={selectClass}
+              onChange={(event) =>
+                setSelectedPharmacyId(
+                  event.target.value ? Number(event.target.value) : undefined,
+                )
+              }
+              value={selectedPharmacyId ?? ""}
+            >
+              <option value="">All pharmacies</option>
+              {pharmacies.map((pharmacy) => (
+                <option key={pharmacy.id} value={pharmacy.id}>
+                  {pharmacy.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-
-        {pharmacies.length > 1 || canReceiveStock ? (
-          <div className="flex flex-col gap-3 sm:items-end">
-            {canReceiveStock ? (
-              <button
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                onClick={() => setAddStockOpen(true)}
-                type="button"
-              >
-                Add Stock
-              </button>
-            ) : null}
-
-            {pharmacies.length > 1 ? (
-              <label className="min-w-56 text-sm font-medium text-slate-700">
-                Pharmacy
-                <select
-                  className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  onChange={(event) =>
-                    setSelectedPharmacyId(
-                      event.target.value ? Number(event.target.value) : undefined,
-                    )
-                  }
-                  value={selectedPharmacyId ?? ""}
-                >
-                  <option value="">All pharmacies</option>
-                  {pharmacies.map((pharmacy) => (
-                    <option key={pharmacy.id} value={pharmacy.id}>
-                      {pharmacy.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
+      ) : null}
 
       {stockItemsQuery.isLoading ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Loading stock...
-        </section>
+        <Panel>
+          <PanelBody>
+            <span className="sr-only">Loading stock...</span>
+            <SkeletonRows rows={6} />
+          </PanelBody>
+        </Panel>
       ) : null}
 
       {stockItemsQuery.isError ? (
-        <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <h2 className="text-lg font-bold text-red-900">
-            Could not load inventory.
-          </h2>
-          <p className="mt-2 text-sm text-red-700">
-            Please retry. Your session or permissions may need refreshing.
-          </p>
-          <button
-            className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            onClick={() => void stockItemsQuery.refetch()}
-            type="button"
-          >
-            Retry
-          </button>
-        </section>
+        <EmptyState
+          tone="danger"
+          icon={<AlertTriangle className="h-6 w-6" />}
+          title="Could not load inventory."
+          description="Please retry. Your session or permissions may need refreshing."
+          action={
+            <Button
+              variant="danger"
+              onClick={() => void stockItemsQuery.refetch()}
+            >
+              Retry
+            </Button>
+          }
+        />
       ) : null}
 
       {stockItemsQuery.isSuccess && stockItemsQuery.data.length === 0 ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          No stock items yet.
-        </section>
+        <EmptyState
+          icon={<Boxes className="h-6 w-6" />}
+          title="No stock items yet."
+          description="Stock items appear here once they are received into a pharmacy in your scope."
+          action={
+            canReceiveStock ? (
+              <Button
+                variant="primary"
+                leadingIcon={<PlusCircle className="h-4 w-4" />}
+                onClick={() => setAddStockOpen(true)}
+              >
+                Add Stock
+              </Button>
+            ) : undefined
+          }
+        />
       ) : null}
 
       {stockItemsQuery.isSuccess && stockItemsQuery.data.length > 0 ? (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Medication
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Pharmacy
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    On hand
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Earliest expiry
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Reorder level
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    View
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {stockItemsQuery.data.map((item) => (
-                  <StockRow
-                    item={item}
-                    key={item.id}
-                    pharmacyName={pharmacyName}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <TableScroll>
+          <Table>
+            <THead>
+              <TR className="hover:bg-transparent">
+                <TH>Medication</TH>
+                <TH>Pharmacy</TH>
+                <TH>On hand</TH>
+                <TH>Earliest expiry</TH>
+                <TH>Reorder level</TH>
+                <TH>Status</TH>
+                <TH className="text-right">View</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {stockItemsQuery.data.map((item) => (
+                <StockRow
+                  item={item}
+                  key={item.id}
+                  pharmacyName={pharmacyName}
+                />
+              ))}
+            </TBody>
+          </Table>
+        </TableScroll>
       ) : null}
 
       <AddStockModal

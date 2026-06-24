@@ -107,7 +107,7 @@ describe("StockItemDetailScreen", () => {
     expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
     expect(screen.getByText("18")).toBeInTheDocument();
     expect(screen.getAllByText("31 Jan 2027").length).toBeGreaterThan(0);
-    expect(screen.getByText("0.03")).toBeInTheDocument();
+    expect(screen.getByText("£0.03")).toBeInTheDocument();
     expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
   });
 
