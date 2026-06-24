@@ -19,6 +19,7 @@ class Action(StrEnum):
     BLISTER_VIEW = "blister.view"
     BLISTER_MANAGE = "blister.manage"
     BLISTER_MARK_PREPARED = "blister.mark_prepared"
+    BLISTER_MARK_STATUS = "blister.mark_status"
     BLISTER_DEDUCT = "blister.deduct"
 
     REVIEW_VIEW = "review.view"
@@ -53,6 +54,7 @@ PATIENT_CLASS_ACTIONS = frozenset(
         Action.BLISTER_VIEW,
         Action.BLISTER_MANAGE,
         Action.BLISTER_MARK_PREPARED,
+        Action.BLISTER_MARK_STATUS,
         Action.BLISTER_DEDUCT,
         Action.REVIEW_VIEW,
         Action.REVIEW_MANAGE,
@@ -99,6 +101,7 @@ ROLE_CAPABILITIES = {
             Action.BLISTER_VIEW,
             Action.BLISTER_MANAGE,
             Action.BLISTER_MARK_PREPARED,
+            Action.BLISTER_MARK_STATUS,
             Action.BLISTER_DEDUCT,
             Action.REVIEW_VIEW,
             Action.REVIEW_MANAGE,
@@ -119,6 +122,7 @@ ROLE_CAPABILITIES = {
             Action.FORECAST_VIEW,
             Action.PATIENT_VIEW,
             Action.BLISTER_VIEW,
+            Action.BLISTER_MARK_STATUS,
             Action.REVIEW_VIEW,
             Action.MEDICATION_VIEW,
         }

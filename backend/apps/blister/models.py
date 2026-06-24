@@ -4,6 +4,7 @@ This module makes no clinical, NHS, GDPR, or production-readiness compliance
 claim.
 """
 
+from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
 
@@ -19,9 +20,12 @@ class CycleFrequency(models.TextChoices):
 
 
 class CycleStatus(models.TextChoices):
-    DRAFT = "DRAFT", "Draft"
+    DRAFT = "DRAFT", "Needs preparation"
+    NEEDS_CHANGES = "NEEDS_CHANGES", "Needs changes"
     PREPARED = "PREPARED", "Prepared"
     CHECKED = "CHECKED", "Checked"
+    COLLECTED = "COLLECTED", "Collected"
+    DELIVERED = "DELIVERED", "Delivered"
     COMPLETED = "COMPLETED", "Completed"
     CANCELLED = "CANCELLED", "Cancelled"
 
@@ -45,6 +49,10 @@ class PatientMedication(TimeStampedModel, SoftDeleteModel):
     quantity_evening = models.PositiveSmallIntegerField(default=0)
     quantity_bedtime = models.PositiveSmallIntegerField(default=0)
     start_date = models.DateField(null=True, blank=True)
+    # Free-text appearance for the printed pack label. Filled by the dispenser
+    # so staff can visually verify tablets against the label.
+    colour = models.CharField(max_length=64, blank=True, default="")
+    shape = models.CharField(max_length=64, blank=True, default="")
 
     objects = models.Manager()
     scoped = TenantScopedManager()
@@ -82,6 +90,23 @@ class DosetteCycle(TimeStampedModel):
     )
     stock_deducted = models.BooleanField(default=False)
     deducted_at = models.DateTimeField(null=True, blank=True)
+    # Pack accountability: who made (prepared) and who checked the pack, and when.
+    prepared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="prepared_dosette_cycles",
+    )
+    prepared_at = models.DateTimeField(null=True, blank=True)
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="checked_dosette_cycles",
+    )
+    checked_at = models.DateTimeField(null=True, blank=True)
 
     objects = models.Manager()
     scoped = TenantScopedManager()

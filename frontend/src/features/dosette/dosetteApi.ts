@@ -12,6 +12,8 @@ export interface PatientMedicationLine {
   quantity_evening: number;
   quantity_bedtime: number;
   start_date: string | null;
+  colour: string;
+  shape: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -25,7 +27,21 @@ export interface PatientMedicationWriteBody {
   quantity_evening: number;
   quantity_bedtime: number;
   start_date: string | null;
+  colour?: string;
+  shape?: string;
 }
+
+export interface MedicationAppearanceBody {
+  colour?: string;
+  shape?: string;
+}
+
+/** Cycle lifecycle statuses the status endpoint accepts. */
+export type CycleStatusTransition =
+  | "CHECKED"
+  | "COLLECTED"
+  | "DELIVERED"
+  | "NEEDS_CHANGES";
 
 export interface DosetteCycle {
   id: number;
@@ -36,6 +52,10 @@ export interface DosetteCycle {
   status: string;
   stock_deducted: boolean;
   deducted_at: string | null;
+  prepared_by_email: string | null;
+  prepared_at: string | null;
+  checked_by_email: string | null;
+  checked_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +84,8 @@ export interface PickingListRow {
   quantity_evening: number;
   quantity_bedtime: number;
   total_daily: number;
+  colour: string;
+  shape: string;
 }
 
 export interface PickingListTotals {
@@ -273,6 +295,36 @@ export function prepareDosetteCycle(
     `/api/patients/${patientId}/cycles/${id}/prepare/`,
     {
       method: "POST",
+    },
+  );
+}
+
+export function updateCycleStatus(
+  patientId: number,
+  id: number,
+  status: CycleStatusTransition,
+): Promise<DosetteCycle> {
+  return requestJson<DosetteCycle>(
+    `/api/patients/${patientId}/cycles/${id}/status/`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    },
+  );
+}
+
+export function updateMedicationAppearance(
+  patientId: number,
+  id: number,
+  body: MedicationAppearanceBody,
+): Promise<PatientMedicationLine> {
+  return requestJson<PatientMedicationLine>(
+    `/api/patients/${patientId}/medications/${id}/appearance/`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     },
   );
 }

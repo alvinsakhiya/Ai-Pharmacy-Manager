@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, TypedDict
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -13,7 +13,7 @@ from apps.audit.models import AuditAction
 from apps.audit.services import record
 from apps.inventory.models import StockBatch, StockItem
 from apps.patients.selectors import patients_for
-from apps.tenancy.permissions import Action, require
+from apps.tenancy.permissions import Action, can, require
 
 from .models import CycleStatus, DosetteCycle, PatientMedication
 from .serializers import (
@@ -209,7 +209,16 @@ class DosetteCyclePrepareView(APIView):
 
         with transaction.atomic():
             cycle.status = CycleStatus.PREPARED
-            cycle.save(update_fields=["status", "updated_at"])
+            cycle.prepared_by = request.user
+            cycle.prepared_at = timezone.now()
+            cycle.save(
+                update_fields=[
+                    "status",
+                    "prepared_by",
+                    "prepared_at",
+                    "updated_at",
+                ]
+            )
             record(
                 action=AuditAction.BLISTER_CYCLE_PREPARED,
                 actor=request.user,
@@ -282,6 +291,163 @@ class DosetteCycleCancelView(APIView):
         )
 
 
+# Pack lifecycle transitions handled by the generic status endpoint. "prepared"
+# stays on its own pharmacist-only endpoint; "checked" is pharmacist-only here.
+# collected / delivered / needs_changes are operational and dispenser-allowed.
+class _StatusRule(TypedDict):
+    allowed_from: set[str]
+    action: Action
+
+
+_STATUS_RULES: dict[str, _StatusRule] = {
+    "CHECKED": {
+        "allowed_from": {"PREPARED"},
+        "action": Action.BLISTER_MARK_PREPARED,
+    },
+    "COLLECTED": {
+        "allowed_from": {"CHECKED", "PREPARED"},
+        "action": Action.BLISTER_MARK_STATUS,
+    },
+    "DELIVERED": {
+        "allowed_from": {"COLLECTED", "CHECKED"},
+        "action": Action.BLISTER_MARK_STATUS,
+    },
+    "NEEDS_CHANGES": {
+        "allowed_from": {"DRAFT", "PREPARED", "CHECKED", "NEEDS_CHANGES"},
+        "action": Action.BLISTER_MARK_STATUS,
+    },
+}
+
+
+class DosetteCycleStatusView(APIView):
+    """Move a cycle along its lifecycle (checked / collected / delivered /
+    needs changes). Capability depends on the target status: 'checked' is
+    pharmacist-only; the rest are dispenser-allowed."""
+
+    permission_classes = [require(Action.BLISTER_VIEW)]
+
+    def _get_patient(self, request, patient_pk):
+        return get_object_or_404(patients_for(request.user), pk=patient_pk)
+
+    def _get_cycle(self, request, patient, pk):
+        return get_object_or_404(
+            DosetteCycle.scoped.for_user(request.user)
+            .filter(patient=patient)
+            .select_related("patient", "patient__pharmacy"),
+            pk=pk,
+        )
+
+    def post(self, request, patient_pk, pk):
+        patient = self._get_patient(request, patient_pk)
+        cycle = self._get_cycle(request, patient, pk)
+
+        target = request.data.get("status")
+        rule = _STATUS_RULES.get(target)
+        if rule is None:
+            return Response(
+                {
+                    "status": [
+                        "Unsupported status. Use checked, collected, delivered, "
+                        "or needs_changes."
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not can(request.user, rule["action"]):
+            return Response(
+                {"detail": ["You do not have permission to set this status."]},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if cycle.status not in rule["allowed_from"]:
+            return Response(
+                {
+                    "detail": [
+                        f"Cannot move a {cycle.status} pack to {target}.",
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        update_fields = ["status", "updated_at"]
+        with transaction.atomic():
+            cycle.status = target
+            if target == "CHECKED":
+                cycle.checked_by = request.user
+                cycle.checked_at = timezone.now()
+                update_fields += ["checked_by", "checked_at"]
+            cycle.save(update_fields=update_fields)
+            metadata = _cycle_audit_metadata(cycle)
+            metadata["new_status"] = target
+            record(
+                action=AuditAction.BLISTER_CYCLE_UPDATED,
+                actor=request.user,
+                pharmacy=patient.pharmacy,
+                target=cycle,
+                request=request,
+                metadata=metadata,
+            )
+
+        return Response(
+            DosetteCycleSerializer(
+                cycle,
+                context={"request": request, "patient": patient},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class PatientMedicationAppearanceView(APIView):
+    """Dispenser-editable colour/shape for the printed pack label. Pharmacists
+    can also edit these via the full medication update."""
+
+    permission_classes = [require(Action.BLISTER_VIEW)]
+
+    def patch(self, request, patient_pk, pk):
+        if not can(request.user, Action.BLISTER_MARK_STATUS):
+            return Response(
+                {"detail": ["You do not have permission to edit label appearance."]},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        patient = get_object_or_404(patients_for(request.user), pk=patient_pk)
+        line = get_object_or_404(
+            PatientMedication.scoped.for_user(request.user)
+            .filter(patient=patient)
+            .select_related("patient", "patient__pharmacy", "medication"),
+            pk=pk,
+        )
+
+        changed_fields = []
+        for field in ("colour", "shape"):
+            if field in request.data:
+                setattr(line, field, str(request.data[field])[:64])
+                changed_fields.append(field)
+
+        if changed_fields:
+            with transaction.atomic():
+                line.save(update_fields=[*changed_fields, "updated_at"])
+                metadata = _audit_metadata(line)
+                metadata["changed_fields"] = changed_fields
+                record(
+                    action=AuditAction.BLISTER_MEDICATION_UPDATED,
+                    actor=request.user,
+                    pharmacy=patient.pharmacy,
+                    target=line,
+                    request=request,
+                    metadata=metadata,
+                )
+
+        return Response(
+            PatientMedicationSerializer(
+                line,
+                context={"request": request, "patient": patient},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+
 class PickingListView(APIView):
     permission_classes = [require(Action.BLISTER_VIEW)]
 
@@ -331,6 +497,8 @@ class PickingListView(APIView):
                     "quantity_evening": line.quantity_evening,
                     "quantity_bedtime": line.quantity_bedtime,
                     "total_daily": total_daily,
+                    "colour": line.colour,
+                    "shape": line.shape,
                 }
             )
             totals["morning"] += line.quantity_morning

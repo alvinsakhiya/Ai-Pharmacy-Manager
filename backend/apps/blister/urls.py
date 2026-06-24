@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    PatientMedicationAppearanceView,
     PatientMedicationDetailView,
     PatientMedicationDiscontinueView,
     PatientMedicationListCreateView,
@@ -12,6 +13,11 @@ urlpatterns = [
         "<int:pk>/",
         PatientMedicationDetailView.as_view(),
         name="patient-medication-detail",
+    ),
+    path(
+        "<int:pk>/appearance/",
+        PatientMedicationAppearanceView.as_view(),
+        name="patient-medication-appearance",
     ),
     path(
         "<int:pk>/discontinue/",

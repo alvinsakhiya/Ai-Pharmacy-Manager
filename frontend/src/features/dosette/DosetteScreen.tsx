@@ -1,8 +1,42 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarRange,
+  CheckCircle2,
+  ClipboardList,
+  Grid3x3,
+  Moon,
+  PackageCheck,
+  Pill,
+  Plus,
+  Sun,
+  Sunrise,
+  Sunset,
+} from "lucide-react";
 
 import { usePermissions } from "../../auth/usePermissions";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import {
+  Table,
+  TableScroll,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "../../components/ui/Table";
+import { useToast } from "../../components/ui/Toast";
+import { StatusTrack, type TrackStep } from "../../components/ui/StatusTrack";
+import { inputClass, labelClass } from "../../components/ui/forms";
+import { cn } from "../../lib/cn";
 import { ApiError } from "../../lib/apiClient";
 import { DosetteCycleFormModal } from "./DosetteCycleFormModal";
 import { PatientMedicationFormModal } from "./PatientMedicationFormModal";
@@ -14,6 +48,7 @@ import type {
   StockPreview,
   StockPreviewRow,
 } from "./dosetteApi";
+import type { CycleStatusTransition } from "./dosetteApi";
 import {
   useCancelDosetteCycle,
   useDeductDosetteStock,
@@ -23,6 +58,8 @@ import {
   usePickingListQuery,
   usePrepareDosetteCycle,
   useStockPreviewQuery,
+  useUpdateCycleStatus,
+  useUpdateMedicationAppearance,
 } from "./useDosette";
 
 function formatDate(value: string): string {
@@ -63,25 +100,133 @@ function statusLabel(value: boolean | string): string {
     .join(" ");
 }
 
-function StatusPill({ value }: { value: boolean | string }) {
-  const active =
-    value === true || value === "DRAFT" || value === "PREPARED" || value === "CHECKED";
+type StatusTone = "neutral" | "brand" | "success" | "warning" | "danger" | "info";
+
+function cycleStatusTone(status: string): StatusTone {
+  switch (status) {
+    case "DRAFT":
+      return "info";
+    case "NEEDS_CHANGES":
+      return "warning";
+    case "PREPARED":
+      return "brand";
+    case "CHECKED":
+    case "DELIVERED":
+    case "COMPLETED":
+      return "success";
+    case "COLLECTED":
+      return "info";
+    case "CANCELLED":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function MedicationStatusBadge({ value }: { value: boolean | string }) {
+  const tone: StatusTone =
+    typeof value === "boolean"
+      ? value
+        ? "success"
+        : "neutral"
+      : cycleStatusTone(value);
+
+  return (
+    <Badge dot variant={tone}>
+      {statusLabel(value)}
+    </Badge>
+  );
+}
+
+// Pack lifecycle as a ShipMates-style route track.
+const PACK_STEPS: TrackStep[] = [
+  { key: "DRAFT", label: "Needs prep" },
+  { key: "PREPARED", label: "Prepared" },
+  { key: "CHECKED", label: "Checked" },
+  { key: "COLLECTED", label: "Collected" },
+  { key: "DELIVERED", label: "Delivered" },
+];
+
+function packStatusIndex(status: string): number {
+  if (status === "NEEDS_CHANGES") return 0;
+  if (status === "COMPLETED" || status === "DELIVERED") {
+    return PACK_STEPS.length - 1;
+  }
+  const index = PACK_STEPS.findIndex((step) => step.key === status);
+  return index < 0 ? 0 : index;
+}
+
+const SLOT_META = [
+  { key: "quantity_morning", label: "Morning", short: "AM", Icon: Sunrise },
+  { key: "quantity_lunchtime", label: "Noon", short: "Noon", Icon: Sun },
+  { key: "quantity_evening", label: "Evening", short: "PM", Icon: Sunset },
+  { key: "quantity_bedtime", label: "Night", short: "Night", Icon: Moon },
+] as const;
+
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/** A single tactile blister pocket — fills with a satisfying pop when occupied. */
+function Pocket({ count }: { count: number }) {
+  if (count <= 0) {
+    return (
+      <span
+        aria-hidden="true"
+        className="grid h-7 w-7 place-items-center rounded-full border border-dashed border-line bg-surface-sunken/60"
+      />
+    );
+  }
 
   return (
     <span
-      className={[
-        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500",
-      ].join(" ")}
+      aria-hidden="true"
+      className="tnum grid h-7 w-7 animate-scale-in place-items-center rounded-full border border-brand bg-brand-soft text-[11px] font-bold text-brand-ink shadow-elev-1 ease-soft"
     >
-      {statusLabel(value)}
+      {count}
     </span>
   );
 }
 
-function QuantityCell({ value }: { value: number }) {
+/**
+ * Blister tray — the emotional centrepiece. Rows are time slots (Morning / Noon /
+ * Evening / Night), columns are the seven days of the pack. Filled pockets pop in
+ * so assembling a pack feels physical, like loading a real tray.
+ */
+function BlisterTray({ row }: { row: PickingListRow }) {
   return (
-    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">{value}</td>
+    <div className="rounded-xl border border-line bg-surface-subtle/70 p-3">
+      <div className="grid grid-cols-[auto_repeat(7,minmax(0,1fr))] items-center gap-x-2 gap-y-1.5">
+        <span aria-hidden="true" />
+        {DAY_LABELS.map((day) => (
+          <span
+            key={day}
+            aria-hidden="true"
+            className="text-center text-[10px] font-bold uppercase tracking-[0.06em] text-muted"
+          >
+            {day}
+          </span>
+        ))}
+        {SLOT_META.map((slot) => {
+          const count = row[slot.key];
+          const SlotIcon = slot.Icon;
+          return (
+            <div key={slot.key} className="contents">
+              <span
+                className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold text-ink-soft"
+                title={slot.label}
+              >
+                <SlotIcon aria-hidden="true" className="h-3.5 w-3.5 text-muted" />
+                {slot.short}
+              </span>
+              {DAY_LABELS.map((day) => (
+                <div key={`${slot.key}-${day}`} className="flex justify-center">
+                  <Pocket count={count} />
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -153,51 +298,59 @@ function isDeductStockShortage(value: unknown): value is DeductStockShortage {
 
 function DeductStockError({ error }: { error: DeductStockErrorState }) {
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-      <p className="text-sm font-semibold text-red-900">{error.detail}</p>
+    <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+      <p className="flex items-center gap-2 text-sm font-bold text-danger-ink">
+        <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0" />
+        {error.detail}
+      </p>
       {error.deductedAt ? (
-        <p className="mt-2 text-sm text-red-700">
+        <p className="mt-2 text-sm text-danger-ink">
           Deducted at {formatDate(error.deductedAt)}
         </p>
       ) : null}
       {error.shortages.length > 0 ? (
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full divide-y divide-red-200">
-            <thead>
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-red-700">
-                  Medication
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-red-700">
-                  Required
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-red-700">
-                  Available
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-red-700">
-                  Shortage
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-red-100">
-              {error.shortages.map((shortage) => (
-                <tr key={shortage.medication_id}>
-                  <td className="whitespace-nowrap px-3 py-2 text-sm font-medium text-red-950">
-                    {shortage.medication_name}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-sm text-red-800">
-                    {shortage.required_quantity}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-sm text-red-800">
-                    {shortage.available_quantity}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-sm text-red-800">
-                    {shortage.shortage_quantity}
-                  </td>
+        <div className="mt-4 overflow-hidden rounded-xl border border-danger-border bg-surface">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm tnum">
+              <thead className="border-b border-danger-border">
+                <tr>
+                  <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-danger-ink">
+                    Medication
+                  </th>
+                  <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-danger-ink">
+                    Required
+                  </th>
+                  <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-danger-ink">
+                    Available
+                  </th>
+                  <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-danger-ink">
+                    Shortage
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {error.shortages.map((shortage) => (
+                  <tr
+                    key={shortage.medication_id}
+                    className="border-b border-danger-border/60 last:border-0"
+                  >
+                    <td className="whitespace-nowrap px-3 py-2 text-[13px] font-semibold text-ink">
+                      {shortage.medication_name}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-[13px] text-ink-soft">
+                      {shortage.required_quantity}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-[13px] text-ink-soft">
+                      {shortage.available_quantity}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-[13px] font-semibold text-danger-ink">
+                      {shortage.shortage_quantity}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
     </div>
@@ -206,76 +359,111 @@ function DeductStockError({ error }: { error: DeductStockErrorState }) {
 
 function MedicationRow({
   canManage,
+  canMarkStatus,
   line,
   onDiscontinue,
   onEdit,
+  onEditAppearance,
 }: {
   canManage: boolean;
+  canMarkStatus: boolean;
   line: PatientMedicationLine;
   onDiscontinue: (line: PatientMedicationLine) => void;
   onEdit: (line: PatientMedicationLine) => void;
+  onEditAppearance: (line: PatientMedicationLine) => void;
 }) {
+  const appearance = [line.colour, line.shape].filter(Boolean).join(" · ");
   return (
-    <tr>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
-        {line.medication_name}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+    <TR className={cn(!line.is_active && "opacity-70")}>
+      <TD className="font-semibold text-ink">
+        <span className="whitespace-nowrap">{line.medication_name}</span>
+        <span className="mt-0.5 block text-[11px] font-medium text-muted">
+          Label: {appearance || "not set"}
+        </span>
+      </TD>
+      <TD className="whitespace-nowrap">
         {fallback([line.strength, line.form].filter(Boolean).join(" / "))}
-      </td>
-      <QuantityCell value={line.quantity_morning} />
-      <QuantityCell value={line.quantity_lunchtime} />
-      <QuantityCell value={line.quantity_evening} />
-      <QuantityCell value={line.quantity_bedtime} />
-      <QuantityCell value={totalDaily(line)} />
-      <td className="whitespace-nowrap px-4 py-4 text-sm">
-        <StatusPill value={line.is_active} />
-      </td>
-      {canManage ? (
-        <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {line.quantity_morning}
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {line.quantity_lunchtime}
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {line.quantity_evening}
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {line.quantity_bedtime}
+      </TD>
+      <TD className="tnum whitespace-nowrap font-bold text-ink">
+        {totalDaily(line)}
+      </TD>
+      <TD className="whitespace-nowrap">
+        <MedicationStatusBadge value={line.is_active} />
+      </TD>
+      {canManage || canMarkStatus ? (
+        <TD className="whitespace-nowrap text-right">
           <div className="flex justify-end gap-2">
-            <button
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => onEdit(line)}
-              type="button"
-            >
-              Edit
-            </button>
-            {line.is_active ? (
-              <button
-                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+            {canMarkStatus ? (
+              <Button
+                onClick={() => onEditAppearance(line)}
+                size="sm"
+                variant="secondary"
+              >
+                Appearance
+              </Button>
+            ) : null}
+            {canManage ? (
+              <Button onClick={() => onEdit(line)} size="sm" variant="secondary">
+                Edit
+              </Button>
+            ) : null}
+            {canManage && line.is_active ? (
+              <Button
                 onClick={() => onDiscontinue(line)}
-                type="button"
+                size="sm"
+                variant="danger"
               >
                 Discontinue
-              </button>
+              </Button>
             ) : null}
           </div>
-        </td>
+        </TD>
       ) : null}
-    </tr>
+    </TR>
   );
 }
 
 function PickingListRowView({ row }: { row: PickingListRow }) {
   return (
-    <tr>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
+    <TR>
+      <TD className="whitespace-nowrap font-semibold text-ink">
         {row.medication_name}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="whitespace-nowrap">
         {row.strength} / {row.form}
-      </td>
-      <QuantityCell value={row.quantity_morning} />
-      <QuantityCell value={row.quantity_lunchtime} />
-      <QuantityCell value={row.quantity_evening} />
-      <QuantityCell value={row.quantity_bedtime} />
-      <QuantityCell value={row.total_daily} />
-    </tr>
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {row.quantity_morning}
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {row.quantity_lunchtime}
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {row.quantity_evening}
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {row.quantity_bedtime}
+      </TD>
+      <TD className="tnum whitespace-nowrap font-bold text-ink">
+        {row.total_daily}
+      </TD>
+    </TR>
   );
 }
 
-function TableHeader({
+function MedicationTableHeader({
   includeStatus = false,
   includeAction = false,
 }: {
@@ -283,49 +471,36 @@ function TableHeader({
   includeAction?: boolean;
 }) {
   return (
-    <thead className="bg-slate-50">
+    <THead>
       <tr>
-        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Medication
-        </th>
-        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Strength/Form
-        </th>
-        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Morning
-        </th>
-        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Lunchtime
-        </th>
-        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Evening
-        </th>
-        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Bedtime
-        </th>
-        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Total daily
-        </th>
-        {includeStatus ? (
-          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Status
-          </th>
-        ) : null}
-        {includeAction ? (
-          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Action
-          </th>
-        ) : null}
+        <TH>Medication</TH>
+        <TH>Strength/Form</TH>
+        <TH>Morning</TH>
+        <TH>Lunchtime</TH>
+        <TH>Evening</TH>
+        <TH>Bedtime</TH>
+        <TH>Total daily</TH>
+        {includeStatus ? <TH>Status</TH> : null}
+        {includeAction ? <TH className="text-right">Action</TH> : null}
       </tr>
-    </thead>
+    </THead>
   );
 }
 
 function LoadingSection({ text }: { text: string }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-      {text}
-    </section>
+    <Panel>
+      <PanelBody>
+        <p className="mb-4 flex items-center gap-2 text-sm font-medium text-muted">
+          <span
+            aria-hidden="true"
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand"
+          />
+          {text}
+        </p>
+        <SkeletonRows rows={4} />
+      </PanelBody>
+    </Panel>
   );
 }
 
@@ -337,185 +512,278 @@ function ErrorSection({
   title: string;
 }) {
   return (
-    <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-      <h2 className="text-lg font-bold text-red-900">{title}</h2>
-      <p className="mt-2 text-sm text-red-700">
-        Please retry. Your session or permissions may need refreshing.
-      </p>
-      <button
-        className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-        onClick={onRetry}
-        type="button"
-      >
-        Retry
-      </button>
-    </section>
+    <EmptyState
+      action={
+        <Button onClick={onRetry} variant="primary">
+          Retry
+        </Button>
+      }
+      description="Please retry. Your session or permissions may need refreshing."
+      icon={<AlertTriangle className="h-5 w-5" />}
+      title={title}
+      tone="danger"
+    />
   );
 }
 
-function PickingListSection({
-  pickingList,
-}: {
-  pickingList: PickingList;
-}) {
+function PickingListSection({ pickingList }: { pickingList: PickingList }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-6 py-5">
-        <p className="text-sm font-semibold text-teal-700">
-          {pickingList.patient_reference}
-        </p>
-        <h2 className="mt-1 text-lg font-bold text-slate-950">
-          Picking list: {pickingList.cycle.reference}
-        </h2>
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft animate-fade-in-up">
+      <div className="flex flex-col gap-1 border-b border-line px-4 py-3.5 sm:px-5">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+          >
+            <Grid3x3 className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+              {pickingList.patient_reference}
+            </p>
+            <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
+              Picking list: {pickingList.cycle.reference}
+            </h2>
+          </div>
+        </div>
+      </div>
+      {/* Pack lifecycle route track (ShipMates-style). */}
+      <div className="border-b border-line px-4 py-5 sm:px-6">
+        <StatusTrack
+          steps={PACK_STEPS}
+          currentIndex={packStatusIndex(pickingList.cycle.status)}
+          tone={pickingList.cycle.status === "NEEDS_CHANGES" ? "danger" : "peach"}
+        />
       </div>
       {pickingList.medications.length === 0 ? (
-        <p className="p-6 text-sm text-slate-600">
-          No active medication lines for this cycle.
-        </p>
+        <div className="p-4 sm:p-5">
+          <EmptyState
+            icon={<ClipboardList className="h-5 w-5" />}
+            title="No active medication lines for this cycle."
+            description="Add an active medication line to build this pack."
+          />
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <TableHeader />
-            <tbody className="divide-y divide-slate-200 bg-white">
-              {pickingList.medications.map((row) => (
-                <PickingListRowView key={row.medication_id} row={row} />
-              ))}
-            </tbody>
-            <tfoot className="bg-slate-50">
-              <tr>
-                <td
-                  className="whitespace-nowrap px-4 py-4 text-sm font-bold text-slate-950"
-                  colSpan={2}
-                >
-                  Totals
-                </td>
-                <QuantityCell value={pickingList.totals.morning} />
-                <QuantityCell value={pickingList.totals.lunchtime} />
-                <QuantityCell value={pickingList.totals.evening} />
-                <QuantityCell value={pickingList.totals.bedtime} />
-                <QuantityCell value={pickingList.totals.total_daily} />
-              </tr>
-            </tfoot>
-          </table>
+        <div className="space-y-5 p-4 sm:p-5">
+          {/* Tactile blister trays — one per medication, slots × days. */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {pickingList.medications.map((row) => (
+              <article
+                key={`tray-${row.medication_id}`}
+                className="rounded-2xl border border-line bg-surface p-4 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2"
+              >
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-sm font-bold text-ink">
+                      <Pill
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0 text-brand"
+                      />
+                      <span>
+                        {`${row.medication_name} · ${row.strength} / ${row.form}`}
+                      </span>
+                    </p>
+                    {row.colour || row.shape ? (
+                      <p className="mt-1 text-[11px] font-medium text-muted">
+                        Label: {[row.colour, row.shape].filter(Boolean).join(" · ")}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Badge variant="brand">
+                    <span className="tnum">{row.total_daily}</span>/day
+                  </Badge>
+                </div>
+                <BlisterTray row={row} />
+              </article>
+            ))}
+          </div>
+
+          {/* Per-medication breakdown the picking team works from. */}
+          <TableScroll>
+            <Table>
+              <MedicationTableHeader />
+              <TBody>
+                {pickingList.medications.map((row) => (
+                  <PickingListRowView key={row.medication_id} row={row} />
+                ))}
+              </TBody>
+              <tfoot className="border-t border-line bg-surface-subtle">
+                <tr>
+                  <td
+                    className="whitespace-nowrap px-3 py-3 text-[13px] font-bold text-ink"
+                    colSpan={2}
+                  >
+                    Totals
+                  </td>
+                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
+                    {pickingList.totals.morning}
+                  </td>
+                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
+                    {pickingList.totals.lunchtime}
+                  </td>
+                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
+                    {pickingList.totals.evening}
+                  </td>
+                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
+                    {pickingList.totals.bedtime}
+                  </td>
+                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
+                    {pickingList.totals.total_daily}
+                  </td>
+                </tr>
+              </tfoot>
+            </Table>
+          </TableScroll>
         </div>
       )}
     </section>
   );
 }
 
-function StockAvailabilityPill({ inStock }: { inStock: boolean }) {
-  return (
-    <span
-      className={[
-        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        inStock ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700",
-      ].join(" ")}
-    >
-      {inStock ? "In stock" : "Shortage"}
-    </span>
+function StockAvailabilityBadge({ inStock }: { inStock: boolean }) {
+  return inStock ? (
+    <Badge dot variant="success">
+      In stock
+    </Badge>
+  ) : (
+    <Badge dot variant="warning">
+      Shortage
+    </Badge>
   );
 }
 
 function StockPreviewRowView({ row }: { row: StockPreviewRow }) {
   return (
-    <tr>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
+    <TR>
+      <TD className="whitespace-nowrap font-semibold text-ink">
         {row.medication_name}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="whitespace-nowrap">
         {row.strength} / {row.form}
-      </td>
-      <QuantityCell value={row.required_quantity} />
-      <QuantityCell value={row.available_quantity} />
-      <QuantityCell value={row.shortage_quantity} />
-      <td className="whitespace-nowrap px-4 py-4 text-sm">
-        <StockAvailabilityPill inStock={row.in_stock} />
-      </td>
-      <td className="px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {row.required_quantity}
+      </TD>
+      <TD className="tnum whitespace-nowrap text-ink-soft">
+        {row.available_quantity}
+      </TD>
+      <TD
+        className={cn(
+          "tnum whitespace-nowrap font-semibold",
+          row.shortage_quantity > 0 ? "text-danger-ink" : "text-ink-soft",
+        )}
+      >
+        {row.shortage_quantity}
+      </TD>
+      <TD className="whitespace-nowrap">
+        <StockAvailabilityBadge inStock={row.in_stock} />
+      </TD>
+      <TD>
         {row.suggested_batches.length === 0 ? (
-          <span className="text-slate-500">No batches suggested</span>
+          <span className="text-muted">No batches suggested</span>
         ) : (
           <ul className="space-y-1">
             {row.suggested_batches.map((batch) => (
-              <li key={batch.batch_id}>
-                <span className="font-medium text-slate-950">
+              <li key={batch.batch_id} className="flex flex-wrap items-center gap-1.5">
+                <span className="font-semibold text-ink">
                   {batch.batch_number}
-                </span>{" "}
-                <span>
+                </span>
+                <span className="tnum text-muted">
                   {formatDate(batch.expiry_date)} - pick {batch.quantity_to_pick}
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </td>
-    </tr>
+      </TD>
+    </TR>
   );
 }
 
 function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
+  const hasShortage = stockPreview.totals.shortage > 0;
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-6 py-5">
-        <p className="text-sm font-semibold text-teal-700">
-          {stockPreview.patient_reference}
-        </p>
-        <h2 className="mt-1 text-lg font-bold text-slate-950">
-          Stock availability
-        </h2>
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft animate-fade-in-up">
+      <div className="flex flex-col gap-2 border-b border-line px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+          >
+            <PackageCheck className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+              {stockPreview.patient_reference}
+            </p>
+            <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
+              Stock availability
+            </h2>
+          </div>
+        </div>
+        {stockPreview.medications.length > 0 ? (
+          hasShortage ? (
+            <Badge dot variant="warning">
+              <span className="tnum">{stockPreview.totals.shortage}</span> short
+            </Badge>
+          ) : (
+            <Badge dot variant="success">
+              Fully covered
+            </Badge>
+          )
+        ) : null}
       </div>
       {stockPreview.medications.length === 0 ? (
-        <p className="p-6 text-sm text-slate-600">
-          No active medication lines to preview.
-        </p>
+        <div className="p-4 sm:p-5">
+          <EmptyState
+            icon={<PackageCheck className="h-5 w-5" />}
+            title="No active medication lines to preview."
+            description="Add an active medication line to preview stock."
+          />
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Medication
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Strength/Form
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Required
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Available
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Shortage
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Suggested FEFO batches
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
-              {stockPreview.medications.map((row) => (
-                <StockPreviewRowView key={row.medication_id} row={row} />
-              ))}
-            </tbody>
-            <tfoot className="bg-slate-50">
-              <tr>
-                <td
-                  className="whitespace-nowrap px-4 py-4 text-sm font-bold text-slate-950"
-                  colSpan={2}
-                >
-                  Totals
-                </td>
-                <QuantityCell value={stockPreview.totals.required} />
-                <QuantityCell value={stockPreview.totals.available} />
-                <QuantityCell value={stockPreview.totals.shortage} />
-                <td className="px-4 py-4" colSpan={2} />
-              </tr>
-            </tfoot>
-          </table>
+        <div className="p-4 sm:p-5">
+          <TableScroll>
+            <Table>
+              <THead>
+                <tr>
+                  <TH>Medication</TH>
+                  <TH>Strength/Form</TH>
+                  <TH>Required</TH>
+                  <TH>Available</TH>
+                  <TH>Shortage</TH>
+                  <TH>Status</TH>
+                  <TH>Suggested FEFO batches</TH>
+                </tr>
+              </THead>
+              <TBody>
+                {stockPreview.medications.map((row) => (
+                  <StockPreviewRowView key={row.medication_id} row={row} />
+                ))}
+              </TBody>
+              <tfoot className="border-t border-line bg-surface-subtle">
+                <tr>
+                  <td
+                    className="whitespace-nowrap px-3 py-3 text-[13px] font-bold text-ink"
+                    colSpan={2}
+                  >
+                    Totals
+                  </td>
+                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
+                    {stockPreview.totals.required}
+                  </td>
+                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
+                    {stockPreview.totals.available}
+                  </td>
+                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
+                    {stockPreview.totals.shortage}
+                  </td>
+                  <td className="px-3 py-3" colSpan={2} />
+                </tr>
+              </tfoot>
+            </Table>
+          </TableScroll>
         </div>
       )}
     </section>
@@ -524,8 +792,10 @@ function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
 
 export function DosetteScreen() {
   const { can } = usePermissions();
+  const { success, error: toastError } = useToast();
   const canManage = can("blister.manage");
   const canMarkPrepared = can("blister.mark_prepared");
+  const canMarkStatus = can("blister.mark_status");
   const canDeduct = can("blister.deduct");
   const { patientId } = useParams();
   const parsedPatientId = Number(patientId);
@@ -542,6 +812,10 @@ export function DosetteScreen() {
   const [cycleToCancel, setCycleToCancel] = useState<DosetteCycle | null>(null);
   const [lineToDiscontinue, setLineToDiscontinue] =
     useState<PatientMedicationLine | null>(null);
+  const [appearanceLine, setAppearanceLine] =
+    useState<PatientMedicationLine | null>(null);
+  const [appearanceColour, setAppearanceColour] = useState("");
+  const [appearanceShape, setAppearanceShape] = useState("");
   const medicationsQuery = usePatientMedicationsQuery(parsedPatientId);
   const cyclesQuery = useDosetteCyclesQuery(parsedPatientId);
   const pickingListQuery = usePickingListQuery(parsedPatientId, selectedCycleId);
@@ -551,6 +825,27 @@ export function DosetteScreen() {
   const prepareCycle = usePrepareDosetteCycle(parsedPatientId);
   const deductCycle = useDeductDosetteStock(parsedPatientId);
   const cancelCycle = useCancelDosetteCycle(parsedPatientId);
+  const updateStatus = useUpdateCycleStatus(parsedPatientId);
+  const updateAppearance = useUpdateMedicationAppearance(parsedPatientId);
+
+  function openAppearanceModal(line: PatientMedicationLine) {
+    setAppearanceLine(line);
+    setAppearanceColour(line.colour ?? "");
+    setAppearanceShape(line.shape ?? "");
+  }
+
+  async function handleStatusChange(
+    cycle: DosetteCycle,
+    status: CycleStatusTransition,
+    label: string,
+  ) {
+    try {
+      await updateStatus.mutateAsync({ id: cycle.id, status });
+      success(`Marked ${label.toLowerCase()}`, cycle.reference);
+    } catch {
+      toastError(`Could not mark ${label.toLowerCase()}`, "Please try again.");
+    }
+  }
 
   function openCreateMedicationModal() {
     setEditingLine(null);
@@ -587,33 +882,61 @@ export function DosetteScreen() {
 
   if (!isValidPatientId) {
     return (
-      <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-        <h1 className="text-lg font-bold text-red-900">
-          This patient was not found or is outside your access.
-        </h1>
-        <Link
-          className="mt-4 inline-flex rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          to="/patients"
-        >
-          Back to patients
-        </Link>
-      </section>
+      <div className="space-y-5">
+        <EmptyState
+          action={
+            <Link to="/patients">
+              <Button variant="primary" leadingIcon={<ArrowLeft className="h-4 w-4" />}>
+                Back to patients
+              </Button>
+            </Link>
+          }
+          icon={<AlertTriangle className="h-5 w-5" />}
+          title="This patient was not found or is outside your access."
+          tone="danger"
+        />
+      </div>
     );
   }
 
+  const cycleCount = cyclesQuery.data?.length ?? 0;
+  const activeLineCount =
+    medicationsQuery.data?.filter((line) => line.is_active).length ?? 0;
+
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <Link
-          className="inline-flex text-sm font-semibold text-teal-700 transition hover:text-teal-900"
-          to={`/patients/${parsedPatientId}`}
-        >
-          Back to patient
-        </Link>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-950">
-          Dosette / MDS
-        </h1>
-      </section>
+    <div className="stagger space-y-5">
+      <PageHeader
+        className="animate-fade-in-up"
+        eyebrow={
+          <span className="inline-flex items-center gap-1.5">
+            <Link
+              className="inline-flex items-center gap-1 text-brand transition-colors duration-150 hover:text-brand-hover focus-ring rounded"
+              to={`/patients/${parsedPatientId}`}
+            >
+              <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
+              Back to patient
+            </Link>
+          </span>
+        }
+        title="Dosette / MDS"
+        subtitle="Assemble the patient's compliance pack by day and time slot, then preview FEFO stock before deduction."
+        meta={
+          medicationsQuery.isSuccess && cyclesQuery.isSuccess ? (
+            <span className="inline-flex items-center gap-3">
+              <span className="inline-flex items-center gap-1">
+                <Pill aria-hidden="true" className="h-3.5 w-3.5" />
+                <span className="tnum">{activeLineCount}</span> active line
+                {activeLineCount === 1 ? "" : "s"}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <CalendarRange aria-hidden="true" className="h-3.5 w-3.5" />
+                <span className="tnum">{cycleCount}</span> cycle
+                {cycleCount === 1 ? "" : "s"}
+              </span>
+            </span>
+          ) : null
+        }
+      />
 
       {medicationsQuery.isLoading ? (
         <LoadingSection text="Loading medication lines..." />
@@ -625,42 +948,70 @@ export function DosetteScreen() {
         />
       ) : null}
       {medicationsQuery.isSuccess ? (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-bold text-slate-950">
-              Medication lines
-            </h2>
-            {canManage ? (
-              <button
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                onClick={openCreateMedicationModal}
-                type="button"
-              >
-                Add medication
-              </button>
-            ) : null}
-          </div>
+        <Panel>
+          <PanelHeader
+            icon={<Pill className="h-4 w-4" />}
+            title="Medication lines"
+            subtitle="Per-slot doses that fill the pack each day."
+            actions={
+              canManage ? (
+                <Button
+                  leadingIcon={<Plus className="h-4 w-4" />}
+                  onClick={openCreateMedicationModal}
+                  variant="primary"
+                >
+                  Add medication
+                </Button>
+              ) : null
+            }
+          />
           {medicationsQuery.data.length === 0 ? (
-            <p className="p-6 text-sm text-slate-600">No medication lines yet.</p>
+            <PanelBody>
+              <EmptyState
+                icon={<Pill className="h-5 w-5" />}
+                title="No medication lines yet."
+                description={
+                  canManage
+                    ? "Add the first medication line to start building packs."
+                    : "Medication lines will appear here once added."
+                }
+                action={
+                  canManage ? (
+                    <Button
+                      leadingIcon={<Plus className="h-4 w-4" />}
+                      onClick={openCreateMedicationModal}
+                      variant="primary"
+                    >
+                      Add medication
+                    </Button>
+                  ) : undefined
+                }
+              />
+            </PanelBody>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <TableHeader includeAction={canManage} includeStatus />
-                <tbody className="divide-y divide-slate-200 bg-white">
+            <TableScroll className="rounded-none border-0 shadow-none">
+              <Table>
+                <MedicationTableHeader
+                  includeAction={canManage || canMarkStatus}
+                  includeStatus
+                />
+                <TBody>
                   {medicationsQuery.data.map((line) => (
                     <MedicationRow
                       canManage={canManage}
+                      canMarkStatus={canMarkStatus}
                       key={line.id}
                       line={line}
                       onDiscontinue={setLineToDiscontinue}
                       onEdit={openEditMedicationModal}
+                      onEditAppearance={openAppearanceModal}
                     />
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TBody>
+              </Table>
+            </TableScroll>
           )}
-        </section>
+        </Panel>
       ) : null}
 
       {cyclesQuery.isLoading ? <LoadingSection text="Loading cycles..." /> : null}
@@ -671,127 +1022,236 @@ export function DosetteScreen() {
         />
       ) : null}
       {cyclesQuery.isSuccess ? (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-bold text-slate-950">Cycles</h2>
-            {canManage ? (
-              <button
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                onClick={openCreateCycleModal}
-                type="button"
-              >
-                Add cycle
-              </button>
-            ) : null}
-          </div>
+        <Panel>
+          <PanelHeader
+            icon={<CalendarRange className="h-4 w-4" />}
+            title="Cycles"
+            subtitle="Pack runs by date range and frequency."
+            actions={
+              canManage ? (
+                <Button
+                  leadingIcon={<Plus className="h-4 w-4" />}
+                  onClick={openCreateCycleModal}
+                  variant="primary"
+                >
+                  Add cycle
+                </Button>
+              ) : null
+            }
+          />
           {cyclesQuery.data.length === 0 ? (
-            <p className="p-6 text-sm text-slate-600">No dosette cycles yet.</p>
+            <PanelBody>
+              <EmptyState
+                icon={<CalendarRange className="h-5 w-5" />}
+                title="No dosette cycles yet."
+                description={
+                  canManage
+                    ? "Create a cycle to schedule a compliance pack run."
+                    : "Cycles will appear here once scheduled."
+                }
+                action={
+                  canManage ? (
+                    <Button
+                      leadingIcon={<Plus className="h-4 w-4" />}
+                      onClick={openCreateCycleModal}
+                      variant="primary"
+                    >
+                      Add cycle
+                    </Button>
+                  ) : undefined
+                }
+              />
+            </PanelBody>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
+            <TableScroll className="rounded-none border-0 shadow-none">
+              <Table>
+                <THead>
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Reference
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Frequency
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Start - end date
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Action
-                    </th>
+                    <TH>Reference</TH>
+                    <TH>Frequency</TH>
+                    <TH>Start - end date</TH>
+                    <TH>Status</TH>
+                    <TH className="text-right">Action</TH>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {cyclesQuery.data.map((cycle: DosetteCycle) => (
-                    <tr key={cycle.id}>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
-                        {cycle.reference}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                        {statusLabel(cycle.frequency)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                        {formatDate(cycle.start_date)} - {formatDate(cycle.end_date)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm">
-                        <div className="flex flex-wrap gap-2">
-                          <StatusPill value={cycle.status} />
-                          {cycle.stock_deducted ? (
-                            <span className="inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
-                              Stock deducted
-                            </span>
+                </THead>
+                <TBody>
+                  {cyclesQuery.data.map((cycle: DosetteCycle) => {
+                    const isSelected = selectedCycleId === cycle.id;
+                    return (
+                      <TR
+                        key={cycle.id}
+                        className={cn(isSelected && "bg-brand-soft/40")}
+                      >
+                        <TD className="whitespace-nowrap font-semibold text-ink">
+                          {cycle.reference}
+                        </TD>
+                        <TD className="whitespace-nowrap">
+                          {statusLabel(cycle.frequency)}
+                        </TD>
+                        <TD className="tnum whitespace-nowrap">
+                          {formatDate(cycle.start_date)} -{" "}
+                          {formatDate(cycle.end_date)}
+                        </TD>
+                        <TD className="whitespace-nowrap">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge dot variant={cycleStatusTone(cycle.status)}>
+                              {statusLabel(cycle.status)}
+                            </Badge>
+                            {cycle.stock_deducted ? (
+                              <Badge
+                                icon={<CheckCircle2 className="h-3 w-3" />}
+                                variant="info"
+                              >
+                                Stock deducted
+                              </Badge>
+                            ) : null}
+                          </div>
+                          {cycle.prepared_by_email || cycle.checked_by_email ? (
+                            <div className="mt-1.5 space-y-0.5 text-[11px] text-muted">
+                              {cycle.prepared_by_email ? (
+                                <p>Made by {cycle.prepared_by_email}</p>
+                              ) : null}
+                              {cycle.checked_by_email ? (
+                                <p>Checked by {cycle.checked_by_email}</p>
+                              ) : null}
+                            </div>
                           ) : null}
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                            onClick={() => setSelectedCycleId(cycle.id)}
-                            type="button"
-                          >
-                            View picking list
-                          </button>
-                          {canManage && canEditCycle(cycle) ? (
-                            <button
-                              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                              onClick={() => openEditCycleModal(cycle)}
-                              type="button"
+                        </TD>
+                        <TD className="whitespace-nowrap text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              leadingIcon={<ClipboardList className="h-4 w-4" />}
+                              onClick={() => setSelectedCycleId(cycle.id)}
+                              size="sm"
+                              variant={isSelected ? "primary" : "secondary"}
                             >
-                              Edit
-                            </button>
-                          ) : null}
-                          {canMarkPrepared && cycle.status === "DRAFT" ? (
-                            <button
-                              className="rounded-lg border border-emerald-300 px-3 py-1.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                              onClick={() => setCycleToPrepare(cycle)}
-                              type="button"
-                            >
-                              Prepare
-                            </button>
-                          ) : null}
-                          {canDeduct &&
-                          cycle.status === "PREPARED" &&
-                          !cycle.stock_deducted ? (
-                            <button
-                              className="rounded-lg border border-sky-300 px-3 py-1.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-                              onClick={() => openDeductStockModal(cycle)}
-                              type="button"
-                            >
-                              Deduct stock
-                            </button>
-                          ) : null}
-                          {canManage && canCancelCycle(cycle) ? (
-                            <button
-                              className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                              onClick={() => setCycleToCancel(cycle)}
-                              type="button"
-                            >
-                              Cancel
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                              View picking list
+                            </Button>
+                            {canManage && canEditCycle(cycle) ? (
+                              <Button
+                                onClick={() => openEditCycleModal(cycle)}
+                                size="sm"
+                                variant="secondary"
+                              >
+                                Edit
+                              </Button>
+                            ) : null}
+                            {canMarkPrepared && cycle.status === "DRAFT" ? (
+                              <Button
+                                onClick={() => setCycleToPrepare(cycle)}
+                                size="sm"
+                                variant="secondary"
+                              >
+                                Prepare
+                              </Button>
+                            ) : null}
+                            {canMarkPrepared && cycle.status === "PREPARED" ? (
+                              <Button
+                                disabled={updateStatus.isPending}
+                                onClick={() =>
+                                  void handleStatusChange(
+                                    cycle,
+                                    "CHECKED",
+                                    "Checked",
+                                  )
+                                }
+                                size="sm"
+                                variant="secondary"
+                              >
+                                Mark checked
+                              </Button>
+                            ) : null}
+                            {canDeduct &&
+                            cycle.status === "PREPARED" &&
+                            !cycle.stock_deducted ? (
+                              <Button
+                                onClick={() => openDeductStockModal(cycle)}
+                                size="sm"
+                                variant="secondary"
+                              >
+                                Deduct stock
+                              </Button>
+                            ) : null}
+                            {canMarkStatus &&
+                            ["CHECKED", "PREPARED"].includes(cycle.status) ? (
+                              <Button
+                                disabled={updateStatus.isPending}
+                                onClick={() =>
+                                  void handleStatusChange(
+                                    cycle,
+                                    "COLLECTED",
+                                    "Collected",
+                                  )
+                                }
+                                size="sm"
+                                variant="secondary"
+                              >
+                                Collected
+                              </Button>
+                            ) : null}
+                            {canMarkStatus &&
+                            ["COLLECTED", "CHECKED"].includes(cycle.status) ? (
+                              <Button
+                                disabled={updateStatus.isPending}
+                                onClick={() =>
+                                  void handleStatusChange(
+                                    cycle,
+                                    "DELIVERED",
+                                    "Delivered",
+                                  )
+                                }
+                                size="sm"
+                                variant="secondary"
+                              >
+                                Delivered
+                              </Button>
+                            ) : null}
+                            {canMarkStatus &&
+                            ["DRAFT", "PREPARED", "CHECKED", "NEEDS_CHANGES"].includes(
+                              cycle.status,
+                            ) ? (
+                              <Button
+                                disabled={updateStatus.isPending}
+                                onClick={() =>
+                                  void handleStatusChange(
+                                    cycle,
+                                    "NEEDS_CHANGES",
+                                    "Needs changes",
+                                  )
+                                }
+                                size="sm"
+                                variant="ghost"
+                              >
+                                Needs changes
+                              </Button>
+                            ) : null}
+                            {canManage && canCancelCycle(cycle) ? (
+                              <Button
+                                onClick={() => setCycleToCancel(cycle)}
+                                size="sm"
+                                variant="danger"
+                              >
+                                Cancel
+                              </Button>
+                            ) : null}
+                          </div>
+                        </TD>
+                      </TR>
+                    );
+                  })}
+                </TBody>
+              </Table>
+            </TableScroll>
           )}
-        </section>
+        </Panel>
       ) : null}
 
       {selectedCycleId === null ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Select a cycle to view its picking list.
-        </section>
+        <EmptyState
+          icon={<Grid3x3 className="h-5 w-5" />}
+          title="Select a cycle to view its picking list."
+          description="Choose a cycle above to lay out its blister tray and preview stock."
+        />
       ) : null}
       {selectedCycleId !== null && pickingListQuery.isLoading ? (
         <LoadingSection text="Loading picking list..." />
@@ -835,34 +1295,35 @@ export function DosetteScreen() {
       <Modal
         isOpen={cycleToPrepare !== null}
         onClose={() => setCycleToPrepare(null)}
+        size="sm"
         title="Prepare this cycle?"
       >
         <div className="space-y-5">
-          <p className="text-sm leading-6 text-slate-700">
+          <p className="text-sm leading-6 text-ink-soft">
             This cycle will move from draft to prepared.
           </p>
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-            <button
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => setCycleToPrepare(null)}
-              type="button"
-            >
+          <div className="flex justify-end gap-3 border-t border-line pt-5">
+            <Button onClick={() => setCycleToPrepare(null)} variant="secondary">
               Cancel
-            </button>
-            <button
-              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            </Button>
+            <Button
               disabled={prepareCycle.isPending}
               onClick={async () => {
                 if (!cycleToPrepare) {
                   return;
                 }
-                await prepareCycle.mutateAsync(cycleToPrepare.id);
-                setCycleToPrepare(null);
+                try {
+                  await prepareCycle.mutateAsync(cycleToPrepare.id);
+                  success("Cycle prepared", cycleToPrepare.reference);
+                  setCycleToPrepare(null);
+                } catch {
+                  toastError("Could not prepare cycle", "Please try again.");
+                }
               }}
-              type="button"
+              variant="primary"
             >
               {prepareCycle.isPending ? "Preparing..." : "Prepare"}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -873,22 +1334,20 @@ export function DosetteScreen() {
         title="Deduct stock for this cycle?"
       >
         <div className="space-y-5">
-          <p className="text-sm leading-6 text-slate-700">
+          <p className="text-sm leading-6 text-ink-soft">
             This will permanently reduce inventory using FEFO allocation. It cannot
             be undone in the current version.
           </p>
           {deductStockError ? <DeductStockError error={deductStockError} /> : null}
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-            <button
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 disabled:cursor-not-allowed disabled:opacity-60"
+          <div className="flex justify-end gap-3 border-t border-line pt-5">
+            <Button
               disabled={deductCycle.isPending}
               onClick={closeDeductStockModal}
-              type="button"
+              variant="secondary"
             >
               Cancel
-            </button>
-            <button
-              className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            </Button>
+            <Button
               disabled={deductCycle.isPending}
               onClick={async () => {
                 if (!cycleToDeduct) {
@@ -897,15 +1356,16 @@ export function DosetteScreen() {
                 setDeductStockError(null);
                 try {
                   await deductCycle.mutateAsync(cycleToDeduct.id);
+                  success("Stock deducted", cycleToDeduct.reference);
                   setCycleToDeduct(null);
                 } catch (error) {
                   setDeductStockError(parseDeductStockError(error));
                 }
               }}
-              type="button"
+              variant="primary"
             >
               {deductCycle.isPending ? "Deducting..." : "Deduct stock"}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -913,34 +1373,35 @@ export function DosetteScreen() {
       <Modal
         isOpen={cycleToCancel !== null}
         onClose={() => setCycleToCancel(null)}
+        size="sm"
         title="Cancel this cycle?"
       >
         <div className="space-y-5">
-          <p className="text-sm leading-6 text-slate-700">
+          <p className="text-sm leading-6 text-ink-soft">
             This cycle will be marked cancelled.
           </p>
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-            <button
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => setCycleToCancel(null)}
-              type="button"
-            >
+          <div className="flex justify-end gap-3 border-t border-line pt-5">
+            <Button onClick={() => setCycleToCancel(null)} variant="secondary">
               Keep cycle
-            </button>
-            <button
-              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            </Button>
+            <Button
               disabled={cancelCycle.isPending}
               onClick={async () => {
                 if (!cycleToCancel) {
                   return;
                 }
-                await cancelCycle.mutateAsync(cycleToCancel.id);
-                setCycleToCancel(null);
+                try {
+                  await cancelCycle.mutateAsync(cycleToCancel.id);
+                  success("Cycle cancelled", cycleToCancel.reference);
+                  setCycleToCancel(null);
+                } catch {
+                  toastError("Could not cancel cycle", "Please try again.");
+                }
               }}
-              type="button"
+              variant="danger"
             >
               {cancelCycle.isPending ? "Cancelling..." : "Cancel cycle"}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -948,35 +1409,104 @@ export function DosetteScreen() {
       <Modal
         isOpen={lineToDiscontinue !== null}
         onClose={() => setLineToDiscontinue(null)}
+        size="sm"
         title="Discontinue medication line?"
       >
         <div className="space-y-5">
-          <p className="text-sm leading-6 text-slate-700">
+          <p className="text-sm leading-6 text-ink-soft">
             This medication line will be marked inactive and removed from active
             picking lists.
           </p>
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-            <button
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => setLineToDiscontinue(null)}
-              type="button"
-            >
+          <div className="flex justify-end gap-3 border-t border-line pt-5">
+            <Button onClick={() => setLineToDiscontinue(null)} variant="secondary">
               Cancel
-            </button>
-            <button
-              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            </Button>
+            <Button
               disabled={discontinueMedication.isPending}
               onClick={async () => {
                 if (!lineToDiscontinue) {
                   return;
                 }
-                await discontinueMedication.mutateAsync(lineToDiscontinue.id);
-                setLineToDiscontinue(null);
+                try {
+                  await discontinueMedication.mutateAsync(lineToDiscontinue.id);
+                  success(
+                    "Medication discontinued",
+                    lineToDiscontinue.medication_name,
+                  );
+                  setLineToDiscontinue(null);
+                } catch {
+                  toastError(
+                    "Could not discontinue medication",
+                    "Please try again.",
+                  );
+                }
               }}
-              type="button"
+              variant="danger"
             >
               {discontinueMedication.isPending ? "Discontinuing..." : "Discontinue"}
-            </button>
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={appearanceLine !== null}
+        onClose={() => setAppearanceLine(null)}
+        size="sm"
+        title="Label appearance"
+        description="Record the colour and shape printed on the pack label so staff can verify tablets by sight."
+      >
+        <div className="space-y-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <label className={labelClass}>
+              Colour
+              <input
+                className={inputClass}
+                onChange={(event) => setAppearanceColour(event.target.value)}
+                placeholder="e.g. White"
+                type="text"
+                value={appearanceColour}
+              />
+            </label>
+            <label className={labelClass}>
+              Shape
+              <input
+                className={inputClass}
+                onChange={(event) => setAppearanceShape(event.target.value)}
+                placeholder="e.g. Round"
+                type="text"
+                value={appearanceShape}
+              />
+            </label>
+          </div>
+          <div className="flex justify-end gap-3 border-t border-line pt-5">
+            <Button onClick={() => setAppearanceLine(null)} variant="secondary">
+              Cancel
+            </Button>
+            <Button
+              disabled={updateAppearance.isPending}
+              onClick={async () => {
+                if (!appearanceLine) {
+                  return;
+                }
+                try {
+                  await updateAppearance.mutateAsync({
+                    id: appearanceLine.id,
+                    body: {
+                      colour: appearanceColour.trim(),
+                      shape: appearanceShape.trim(),
+                    },
+                  });
+                  success("Label appearance saved", appearanceLine.medication_name);
+                  setAppearanceLine(null);
+                } catch {
+                  toastError("Could not save appearance", "Please try again.");
+                }
+              }}
+              variant="primary"
+            >
+              {updateAppearance.isPending ? "Saving..." : "Save appearance"}
+            </Button>
           </div>
         </div>
       </Modal>

@@ -295,6 +295,8 @@ def test_picking_list_contents_and_totals(client, picking_list_data):
             "quantity_evening": 0,
             "quantity_bedtime": 1,
             "total_daily": 4,
+            "colour": "",
+            "shape": "",
         },
         {
             "medication_id": picking_list_data["line_two"].medication_id,
@@ -306,6 +308,8 @@ def test_picking_list_contents_and_totals(client, picking_list_data):
             "quantity_evening": 1,
             "quantity_bedtime": 0,
             "total_daily": 2,
+            "colour": "",
+            "shape": "",
         },
         {
             "medication_id": picking_list_data["zero_line"].medication_id,
@@ -317,6 +321,8 @@ def test_picking_list_contents_and_totals(client, picking_list_data):
             "quantity_evening": 0,
             "quantity_bedtime": 0,
             "total_daily": 0,
+            "colour": "",
+            "shape": "",
         },
     ]
     assert data["totals"] == {

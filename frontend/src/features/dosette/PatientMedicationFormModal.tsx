@@ -1,6 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import {
+  fieldErrorClass,
+  inputClass,
+  labelClass,
+  selectClass,
+  textareaClass,
+} from "../../components/ui/forms";
+import { useToast } from "../../components/ui/Toast";
 import {
   errorMessages,
   normalizeErrors,
@@ -26,7 +35,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className={fieldErrorClass}>
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -51,6 +60,7 @@ export function PatientMedicationFormModal({
   const medicationsQuery = useMedicationsQuery();
   const createMedication = useCreatePatientMedication(patientId);
   const updateMedication = useUpdatePatientMedication(patientId);
+  const { success } = useToast();
   const [medication, setMedication] = useState("");
   const [doseInstructions, setDoseInstructions] = useState("");
   const [quantityMorning, setQuantityMorning] = useState("0");
@@ -101,8 +111,10 @@ export function PatientMedicationFormModal({
     try {
       if (line) {
         await updateMedication.mutateAsync({ id: line.id, body });
+        success("Medication line updated", line.medication_name);
       } else {
         await createMedication.mutateAsync(body);
+        success("Medication line added");
       }
       onClose();
     } catch (error) {
@@ -119,10 +131,10 @@ export function PatientMedicationFormModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Medication
           <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30 disabled:bg-slate-50 disabled:text-slate-600"
+            className={selectClass}
             disabled={line !== null || medicationsQuery.isLoading}
             onChange={(event) => setMedication(event.target.value)}
             required
@@ -139,75 +151,82 @@ export function PatientMedicationFormModal({
         </label>
 
         {medicationsQuery.isError ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
             Could not load medication options.
           </p>
         ) : null}
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Dose instructions
           <textarea
-            className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={textareaClass}
             onChange={(event) => setDoseInstructions(event.target.value)}
             value={doseInstructions}
           />
           <FieldErrorList messages={errorMessages(errors, "dose_instructions")} />
         </label>
 
-        <div className="grid gap-5 sm:grid-cols-2">
-          <label className="block text-sm font-medium text-slate-700">
-            Morning
-            <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-              min={0}
-              onChange={(event) => setQuantityMorning(event.target.value)}
-              type="number"
-              value={quantityMorning}
-            />
-            <FieldErrorList messages={errorMessages(errors, "quantity_morning")} />
-          </label>
+        <fieldset className="rounded-xl border border-line bg-surface-subtle/60 p-4">
+          <legend className="px-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+            Doses per slot
+          </legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className={labelClass}>
+              Morning
+              <input
+                className={`${inputClass} tnum`}
+                min={0}
+                onChange={(event) => setQuantityMorning(event.target.value)}
+                type="number"
+                value={quantityMorning}
+              />
+              <FieldErrorList messages={errorMessages(errors, "quantity_morning")} />
+            </label>
 
-          <label className="block text-sm font-medium text-slate-700">
-            Lunchtime
-            <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-              min={0}
-              onChange={(event) => setQuantityLunchtime(event.target.value)}
-              type="number"
-              value={quantityLunchtime}
-            />
-            <FieldErrorList messages={errorMessages(errors, "quantity_lunchtime")} />
-          </label>
+            <label className={labelClass}>
+              Lunchtime
+              <input
+                className={`${inputClass} tnum`}
+                min={0}
+                onChange={(event) => setQuantityLunchtime(event.target.value)}
+                type="number"
+                value={quantityLunchtime}
+              />
+              <FieldErrorList
+                messages={errorMessages(errors, "quantity_lunchtime")}
+              />
+            </label>
 
-          <label className="block text-sm font-medium text-slate-700">
-            Evening
-            <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-              min={0}
-              onChange={(event) => setQuantityEvening(event.target.value)}
-              type="number"
-              value={quantityEvening}
-            />
-            <FieldErrorList messages={errorMessages(errors, "quantity_evening")} />
-          </label>
+            <label className={labelClass}>
+              Evening
+              <input
+                className={`${inputClass} tnum`}
+                min={0}
+                onChange={(event) => setQuantityEvening(event.target.value)}
+                type="number"
+                value={quantityEvening}
+              />
+              <FieldErrorList messages={errorMessages(errors, "quantity_evening")} />
+            </label>
 
-          <label className="block text-sm font-medium text-slate-700">
-            Bedtime
-            <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-              min={0}
-              onChange={(event) => setQuantityBedtime(event.target.value)}
-              type="number"
-              value={quantityBedtime}
-            />
-            <FieldErrorList messages={errorMessages(errors, "quantity_bedtime")} />
-          </label>
-        </div>
+            <label className={labelClass}>
+              Bedtime
+              <input
+                className={`${inputClass} tnum`}
+                min={0}
+                onChange={(event) => setQuantityBedtime(event.target.value)}
+                type="number"
+                value={quantityBedtime}
+              />
+              <FieldErrorList messages={errorMessages(errors, "quantity_bedtime")} />
+            </label>
+          </div>
+        </fieldset>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Start date
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setStartDate(event.target.value)}
             type="date"
             value={startDate}
@@ -215,21 +234,17 @@ export function PatientMedicationFormModal({
           <FieldErrorList messages={errorMessages(errors, "start_date")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button onClick={onClose} variant="secondary">
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          </Button>
+          <Button
             disabled={isSaving || medicationsQuery.isLoading}
             type="submit"
+            variant="primary"
           >
             {isSaving ? "Saving..." : "Save"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

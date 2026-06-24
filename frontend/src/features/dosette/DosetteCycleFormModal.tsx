@@ -1,6 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import {
+  fieldErrorClass,
+  inputClass,
+  labelClass,
+  selectClass,
+} from "../../components/ui/forms";
+import { useToast } from "../../components/ui/Toast";
 import {
   errorMessages,
   normalizeErrors,
@@ -26,7 +34,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className={fieldErrorClass}>
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -42,6 +50,7 @@ export function DosetteCycleFormModal({
 }: DosetteCycleFormModalProps) {
   const createCycle = useCreateDosetteCycle(patientId);
   const updateCycle = useUpdateDosetteCycle(patientId);
+  const { success } = useToast();
   const [reference, setReference] = useState("");
   const [frequency, setFrequency] = useState("WEEKLY");
   const [startDate, setStartDate] = useState("");
@@ -89,8 +98,10 @@ export function DosetteCycleFormModal({
     try {
       if (cycle) {
         await updateCycle.mutateAsync({ id: cycle.id, body });
+        success("Cycle updated", body.reference);
       } else {
         await createCycle.mutateAsync(body);
+        success("Cycle created", body.reference);
       }
       onClose();
     } catch (error) {
@@ -107,10 +118,10 @@ export function DosetteCycleFormModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Reference
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setReference(event.target.value)}
             required
             type="text"
@@ -119,10 +130,10 @@ export function DosetteCycleFormModal({
           <FieldErrorList messages={errorMessages(errors, "reference")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Frequency
           <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={selectClass}
             onChange={(event) => setFrequency(event.target.value)}
             value={frequency}
           >
@@ -136,10 +147,10 @@ export function DosetteCycleFormModal({
         </label>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Start date
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={inputClass}
               onChange={(event) => setStartDate(event.target.value)}
               required
               type="date"
@@ -148,10 +159,10 @@ export function DosetteCycleFormModal({
             <FieldErrorList messages={errorMessages(errors, "start_date")} />
           </label>
 
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             End date
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={inputClass}
               onChange={(event) => setEndDate(event.target.value)}
               required
               type="date"
@@ -161,21 +172,13 @@ export function DosetteCycleFormModal({
           </label>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button onClick={onClose} variant="secondary">
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isSaving}
-            type="submit"
-          >
+          </Button>
+          <Button disabled={isSaving} type="submit" variant="primary">
             {isSaving ? "Saving..." : "Save"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

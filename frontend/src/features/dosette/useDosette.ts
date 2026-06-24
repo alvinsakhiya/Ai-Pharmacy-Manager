@@ -11,9 +11,13 @@ import {
   listDosetteCycles,
   listPatientMedications,
   prepareDosetteCycle,
+  updateCycleStatus,
   updateDosetteCycle,
+  updateMedicationAppearance,
   updatePatientMedication,
+  type CycleStatusTransition,
   type DosetteCycleWriteBody,
+  type MedicationAppearanceBody,
   type PatientMedicationWriteBody,
 } from "./dosetteApi";
 
@@ -158,6 +162,32 @@ export function useCancelDosetteCycle(patientId: number) {
   return useMutation({
     mutationFn: (id: number) => cancelDosetteCycle(patientId, id),
     onSuccess: invalidateDosetteCycleData,
+  });
+}
+
+export function useUpdateCycleStatus(patientId: number) {
+  const invalidateDosetteCycleData = useInvalidateDosetteCycleData(patientId);
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: number;
+      status: CycleStatusTransition;
+    }) => updateCycleStatus(patientId, id, status),
+    onSuccess: invalidateDosetteCycleData,
+  });
+}
+
+export function useUpdateMedicationAppearance(patientId: number) {
+  const invalidateDosetteMedicationData =
+    useInvalidateDosetteMedicationData(patientId);
+
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: MedicationAppearanceBody }) =>
+      updateMedicationAppearance(patientId, id, body),
+    onSuccess: invalidateDosetteMedicationData,
   });
 }
 

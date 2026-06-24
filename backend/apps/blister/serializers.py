@@ -18,6 +18,8 @@ class PatientMedicationSerializer(serializers.ModelSerializer):
             "quantity_evening",
             "quantity_bedtime",
             "start_date",
+            "colour",
+            "shape",
             "is_active",
             "created_at",
             "updated_at",
@@ -74,6 +76,9 @@ class PatientMedicationSerializer(serializers.ModelSerializer):
 
 
 class DosetteCycleSerializer(serializers.ModelSerializer):
+    prepared_by_email = serializers.SerializerMethodField()
+    checked_by_email = serializers.SerializerMethodField()
+
     class Meta:
         model = DosetteCycle
         fields = [
@@ -85,6 +90,10 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
             "status",
             "stock_deducted",
             "deducted_at",
+            "prepared_by_email",
+            "prepared_at",
+            "checked_by_email",
+            "checked_at",
             "created_at",
             "updated_at",
         ]
@@ -93,10 +102,18 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
             "status",
             "stock_deducted",
             "deducted_at",
+            "prepared_at",
+            "checked_at",
             "created_at",
             "updated_at",
         ]
         validators: list[object] = []
+
+    def get_prepared_by_email(self, obj: DosetteCycle) -> str | None:
+        return obj.prepared_by.email if obj.prepared_by_id else None
+
+    def get_checked_by_email(self, obj: DosetteCycle) -> str | None:
+        return obj.checked_by.email if obj.checked_by_id else None
 
     def validate(self, attrs):
         patient = self.context["patient"]
@@ -142,6 +159,8 @@ class PickingListRowSerializer(serializers.Serializer):
     quantity_evening = serializers.IntegerField(read_only=True)
     quantity_bedtime = serializers.IntegerField(read_only=True)
     total_daily = serializers.IntegerField(read_only=True)
+    colour = serializers.CharField(read_only=True)
+    shape = serializers.CharField(read_only=True)
 
 
 class _PickingListCycleSerializer(serializers.Serializer):
