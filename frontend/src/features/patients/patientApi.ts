@@ -1,16 +1,32 @@
 import { requestJson } from "../../lib/apiClient";
 
+export interface PatientGp {
+  doctor_name: string;
+  practice_name: string;
+  practice_address: string;
+  practice_postcode: string;
+  practice_phone: string;
+  practice_email: string;
+  updated_at?: string;
+}
+
+export type PatientGpWriteBody = Omit<PatientGp, "updated_at">;
+
 export interface Patient {
   id: number;
   pharmacy: number;
   patient_reference: string;
+  title?: string | null;
   first_name: string;
   last_name: string;
   date_of_birth: string;
+  gender?: string | null;
   address: string;
   postcode: string;
   phone: string;
+  email?: string | null;
   notes: string;
+  gp?: PatientGp | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -36,12 +52,15 @@ export interface PatientListParams {
 export interface PatientWriteBody {
   pharmacy: number;
   patient_reference: string;
+  title: string;
   first_name: string;
   last_name: string;
   date_of_birth: string;
+  gender: string;
   address: string;
   postcode: string;
   phone: string;
+  email: string;
   notes: string;
 }
 
@@ -106,6 +125,23 @@ export function createPatientNote(
 ): Promise<PatientNote> {
   return requestJson<PatientNote>(`/api/patients/${patientId}/notes/`, {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export function getPatientGp(patientId: number): Promise<PatientGp> {
+  return requestJson<PatientGp>(`/api/patients/${patientId}/gp/`);
+}
+
+export function updatePatientGp(
+  patientId: number,
+  body: PatientGpWriteBody,
+): Promise<PatientGp> {
+  return requestJson<PatientGp>(`/api/patients/${patientId}/gp/`, {
+    method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },

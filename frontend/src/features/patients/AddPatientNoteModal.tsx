@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import { labelClass, textareaClass } from "../../components/ui/forms";
 import {
   errorMessages,
   normalizeErrors,
@@ -20,7 +23,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className="mt-1.5 space-y-1 text-xs font-medium text-danger-ink">
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -34,6 +37,7 @@ export function AddPatientNoteModal({
   onClose,
 }: AddPatientNoteModalProps) {
   const createPatientNote = useCreatePatientNote();
+  const { success } = useToast();
   const [body, setBody] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -63,6 +67,7 @@ export function AddPatientNoteModal({
       });
       setBody("");
       setErrors({});
+      success("Note added");
       onClose();
     } catch (error) {
       setErrors(normalizeErrors(error));
@@ -75,31 +80,27 @@ export function AddPatientNoteModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Note body
           <textarea
-            className="mt-2 min-h-32 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={`${textareaClass} min-h-32`}
             onChange={(event) => setBody(event.target.value)}
             value={body}
           />
           <FieldErrorList messages={errorMessages(errors, "body")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={createPatientNote.isPending}
+          </Button>
+          <Button
+            variant="primary"
             type="submit"
+            disabled={createPatientNote.isPending}
           >
             {createPatientNote.isPending ? "Adding..." : "Add note"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

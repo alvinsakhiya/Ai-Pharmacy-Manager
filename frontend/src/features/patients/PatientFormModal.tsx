@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { AlertTriangle } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import {
+  inputClass,
+  labelClass,
+  selectClass,
+  textareaClass,
+} from "../../components/ui/forms";
 import {
   errorMessages,
   normalizeErrors,
@@ -23,7 +32,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className="mt-1.5 space-y-1 text-xs font-medium text-danger-ink">
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -39,16 +48,20 @@ export function PatientFormModal({
   const { user } = useAuth();
   const pharmacies = useMemo(() => user?.pharmacies ?? [], [user?.pharmacies]);
   const { pharmacyName } = usePharmacyNames();
+  const { success } = useToast();
   const createPatient = useCreatePatient();
   const updatePatient = useUpdatePatient();
   const [pharmacy, setPharmacy] = useState("");
   const [patientReference, setPatientReference] = useState("");
+  const [title, setTitle] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [gender, setGender] = useState("");
   const [address, setAddress] = useState("");
   const [postcode, setPostcode] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -65,12 +78,15 @@ export function PatientFormModal({
           : "",
     );
     setPatientReference(patient?.patient_reference ?? "");
+    setTitle(patient?.title ?? "");
     setFirstName(patient?.first_name ?? "");
     setLastName(patient?.last_name ?? "");
     setDateOfBirth(patient?.date_of_birth ?? "");
+    setGender(patient?.gender ?? "");
     setAddress(patient?.address ?? "");
     setPostcode(patient?.postcode ?? "");
     setPhone(patient?.phone ?? "");
+    setEmail(patient?.email ?? "");
     setNotes(patient?.notes ?? "");
     setErrors({});
   }, [isOpen, patient, pharmacies]);
@@ -103,24 +119,29 @@ export function PatientFormModal({
 
     const body: PatientUpdateBody = {
       patient_reference: patientReference.trim(),
+      title: title.trim(),
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       date_of_birth: dateOfBirth,
+      gender: gender.trim(),
       address: address.trim(),
       postcode: postcode.trim(),
       phone: phone.trim(),
+      email: email.trim(),
       notes: notes.trim(),
     };
 
     try {
       if (patient) {
         await updatePatient.mutateAsync({ id: patient.id, body });
+        success("Patient updated");
       } else {
         const createBody: PatientWriteBody = {
           pharmacy: Number(pharmacy),
           ...body,
         };
         await createPatient.mutateAsync(createBody);
+        success("Patient created");
       }
       onClose();
     } catch (error) {
@@ -141,11 +162,11 @@ export function PatientFormModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Pharmacy
           {patient || pharmacies.length === 1 ? (
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-700 shadow-sm"
+              className={inputClass}
               disabled
               readOnly
               type="text"
@@ -157,7 +178,7 @@ export function PatientFormModal({
             />
           ) : (
             <select
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={selectClass}
               onChange={(event) => setPharmacy(event.target.value)}
               required
               value={pharmacy}
@@ -174,16 +195,17 @@ export function PatientFormModal({
         </label>
 
         {!hasPharmacyScope ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-soft p-3 text-sm text-warning-ink">
+            <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
             No pharmacies are available for patient creation in your current
             scope.
           </p>
         ) : null}
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Patient reference
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setPatientReference(event.target.value)}
             required
             type="text"
@@ -194,11 +216,28 @@ export function PatientFormModal({
           />
         </label>
 
-        <div className="grid gap-5 sm:grid-cols-2">
-          <label className="block text-sm font-medium text-slate-700">
+        <div className="grid gap-5 sm:grid-cols-[140px_1fr_1fr]">
+          <label className={labelClass}>
+            Title
+            <select
+              className={selectClass}
+              onChange={(event) => setTitle(event.target.value)}
+              value={title}
+            >
+              <option value="">—</option>
+              {["Mr", "Mrs", "Miss", "Ms", "Dr", "Mx"].map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <FieldErrorList messages={errorMessages(errors, "title")} />
+          </label>
+
+          <label className={labelClass}>
             First name
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={inputClass}
               onChange={(event) => setFirstName(event.target.value)}
               required
               type="text"
@@ -207,10 +246,10 @@ export function PatientFormModal({
             <FieldErrorList messages={errorMessages(errors, "first_name")} />
           </label>
 
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Last name
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={inputClass}
               onChange={(event) => setLastName(event.target.value)}
               required
               type="text"
@@ -220,22 +259,41 @@ export function PatientFormModal({
           </label>
         </div>
 
-        <label className="block text-sm font-medium text-slate-700">
-          Date of birth
-          <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-            onChange={(event) => setDateOfBirth(event.target.value)}
-            required
-            type="date"
-            value={dateOfBirth}
-          />
-          <FieldErrorList messages={errorMessages(errors, "date_of_birth")} />
-        </label>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <label className={labelClass}>
+            Date of birth
+            <input
+              className={`${inputClass} tnum`}
+              onChange={(event) => setDateOfBirth(event.target.value)}
+              required
+              type="date"
+              value={dateOfBirth}
+            />
+            <FieldErrorList messages={errorMessages(errors, "date_of_birth")} />
+          </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
+            Gender
+            <select
+              className={selectClass}
+              onChange={(event) => setGender(event.target.value)}
+              value={gender}
+            >
+              <option value="">Prefer not to say</option>
+              {["Female", "Male", "Other"].map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <FieldErrorList messages={errorMessages(errors, "gender")} />
+          </label>
+        </div>
+
+        <label className={labelClass}>
           Address
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setAddress(event.target.value)}
             type="text"
             value={address}
@@ -244,10 +302,10 @@ export function PatientFormModal({
         </label>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Postcode
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={inputClass}
               onChange={(event) => setPostcode(event.target.value)}
               type="text"
               value={postcode}
@@ -255,10 +313,10 @@ export function PatientFormModal({
             <FieldErrorList messages={errorMessages(errors, "postcode")} />
           </label>
 
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Phone
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={`${inputClass} tnum`}
               onChange={(event) => setPhone(event.target.value)}
               type="tel"
               value={phone}
@@ -267,31 +325,38 @@ export function PatientFormModal({
           </label>
         </div>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
+          Email
+          <input
+            className={inputClass}
+            onChange={(event) => setEmail(event.target.value)}
+            type="email"
+            value={email}
+          />
+          <FieldErrorList messages={errorMessages(errors, "email")} />
+        </label>
+
+        <label className={labelClass}>
           Notes
           <textarea
-            className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={textareaClass}
             onChange={(event) => setNotes(event.target.value)}
             value={notes}
           />
           <FieldErrorList messages={errorMessages(errors, "notes")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isSaving || !hasPharmacyScope}
+          </Button>
+          <Button
+            variant="primary"
             type="submit"
+            disabled={isSaving || !hasPharmacyScope}
           >
             {isSaving ? "Saving..." : "Save patient"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

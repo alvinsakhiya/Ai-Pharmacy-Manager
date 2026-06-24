@@ -93,6 +93,10 @@ export async function openFirstPatientDetail(page: Page) {
   await expect(
     page.getByRole("link", { name: "Back to patients" }),
   ).toBeVisible();
+  // The record uses a side-panel of pages; open the Notes page so note history
+  // and the Add note control are in view. Header actions stay visible on every
+  // page, so this does not affect Edit/Deactivate/Dosette assertions.
+  await page.getByRole("button", { name: "Notes" }).click();
 }
 
 export async function openDosette(page: Page) {

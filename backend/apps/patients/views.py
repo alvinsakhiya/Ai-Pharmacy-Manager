@@ -12,9 +12,13 @@ from apps.audit.services import record
 from apps.tenancy.permissions import Action, require
 
 from .crypto import blind_index
-from .models import Patient
+from .models import Patient, PatientGp
 from .selectors import patients_for
-from .serializers import PatientNoteSerializer, PatientSerializer
+from .serializers import (
+    PatientGpSerializer,
+    PatientNoteSerializer,
+    PatientSerializer,
+)
 
 
 def _audit_metadata(patient: Patient) -> dict[str, object]:
@@ -125,6 +129,60 @@ class PatientDeactivateView(APIView):
             PatientSerializer(patient, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+
+class PatientGpView(APIView):
+    """Doctor / GP details for a patient. View with PATIENT_VIEW, edit with
+    PATIENT_MANAGE. Returns empty defaults when no GP record exists yet."""
+
+    def get_permissions(self):
+        action = (
+            Action.PATIENT_VIEW
+            if self.request.method in SAFE_METHODS
+            else Action.PATIENT_MANAGE
+        )
+        return [require(action)()]
+
+    def _get_patient(self, request, pk) -> Patient:
+        return get_object_or_404(patients_for(request.user), pk=pk)
+
+    def get(self, request, pk):
+        patient = self._get_patient(request, pk)
+        gp = PatientGp.objects.filter(patient=patient).first() or PatientGp(
+            patient=patient
+        )
+        return Response(PatientGpSerializer(gp).data)
+
+    def put(self, request, pk):
+        return self._update(request, pk, partial=False)
+
+    def patch(self, request, pk):
+        return self._update(request, pk, partial=True)
+
+    def _update(self, request, pk, *, partial: bool):
+        patient = self._get_patient(request, pk)
+        serializer = PatientGpSerializer(data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        changed_fields = sorted(serializer.validated_data.keys())
+
+        with transaction.atomic():
+            gp, _ = PatientGp.objects.get_or_create(patient=patient)
+            for field, value in serializer.validated_data.items():
+                setattr(gp, field, value)
+            gp.save()
+            metadata = _audit_metadata(patient)
+            metadata["section"] = "gp"
+            metadata["changed_fields"] = changed_fields
+            record(
+                action=AuditAction.PATIENT_UPDATED,
+                actor=request.user,
+                pharmacy=patient.pharmacy,
+                target=patient,
+                request=request,
+                metadata=metadata,
+            )
+
+        return Response(PatientGpSerializer(gp).data)
 
 
 class PatientNoteListCreateView(ListCreateAPIView):

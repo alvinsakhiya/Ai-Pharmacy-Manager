@@ -2,11 +2,36 @@ from rest_framework import serializers
 
 from apps.tenancy.permissions import Action, can
 
-from .models import Patient, PatientNote
+from .models import Patient, PatientGp, PatientNote
+
+
+class PatientGpSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PatientGp
+        fields = [
+            "doctor_name",
+            "practice_name",
+            "practice_address",
+            "practice_postcode",
+            "practice_phone",
+            "practice_email",
+            "updated_at",
+        ]
+        read_only_fields = ["updated_at"]
 
 
 class PatientSerializer(serializers.ModelSerializer):
     date_of_birth = serializers.DateField()
+    title = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=20
+    )
+    gender = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=40
+    )
+    email = serializers.EmailField(
+        required=False, allow_blank=True, allow_null=True, max_length=254
+    )
+    gp = serializers.SerializerMethodField()
 
     class Meta:
         model = Patient
@@ -14,19 +39,29 @@ class PatientSerializer(serializers.ModelSerializer):
             "id",
             "pharmacy",
             "patient_reference",
+            "title",
             "first_name",
             "last_name",
             "date_of_birth",
+            "gender",
             "address",
             "postcode",
             "phone",
+            "email",
             "notes",
+            "gp",
             "is_active",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
         validators: list[object] = []
+
+    def get_gp(self, obj: Patient) -> dict | None:
+        gp = PatientGp.objects.filter(patient=obj).first()
+        if gp is None:
+            return None
+        return PatientGpSerializer(gp).data
 
     def validate(self, attrs):
         request = self.context.get("request")

@@ -5,9 +5,12 @@ import {
   createPatientNote,
   deactivatePatient,
   getPatient,
+  getPatientGp,
   listPatientNotes,
   listPatients,
   updatePatient,
+  updatePatientGp,
+  type PatientGpWriteBody,
   type PatientListParams,
   type PatientNoteWriteBody,
   type PatientUpdateBody,
@@ -65,6 +68,36 @@ export function useDeactivatePatient() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
     },
+  });
+}
+
+export function useUpdatePatientGp() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      patientId,
+      body,
+    }: {
+      patientId: number;
+      body: PatientGpWriteBody;
+    }) => updatePatientGp(patientId, body),
+    onSuccess: (_gp, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["patients", "detail", variables.patientId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["patients", "gp", variables.patientId],
+      });
+    },
+  });
+}
+
+export function usePatientGpQuery(patientId: number, enabled = true) {
+  return useQuery({
+    queryKey: ["patients", "gp", patientId],
+    queryFn: () => getPatientGp(patientId),
+    enabled: enabled && Number.isFinite(patientId),
   });
 }
 

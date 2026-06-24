@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -105,9 +106,11 @@ describe("PatientDetailScreen", () => {
   });
 
   it("renders note history without write controls for read-only users", async () => {
+    const user = userEvent.setup();
     renderDetail();
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Notes" }));
     expect(screen.getByText("Note history")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /deactivate/i })).toBeNull();

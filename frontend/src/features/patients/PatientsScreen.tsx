@@ -1,8 +1,25 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { AlertTriangle, Plus, Search, Users } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { Panel } from "../../components/ui/Card";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import {
+  Table,
+  TableScroll,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "../../components/ui/Table";
+import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import type { Patient } from "./patientApi";
 import { PatientFormModal } from "./PatientFormModal";
 import { usePatientsQuery } from "./usePatients";
@@ -21,16 +38,11 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
-function StatusPill({ active }: { active: boolean }) {
+function StatusBadge({ active }: { active: boolean }) {
   return (
-    <span
-      className={[
-        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500",
-      ].join(" ")}
-    >
+    <Badge dot variant={active ? "success" : "neutral"}>
       {active ? "Active" : "Inactive"}
-    </span>
+    </Badge>
   );
 }
 
@@ -42,31 +54,28 @@ function PatientRow({
   pharmacyName: (id: number) => string;
 }) {
   return (
-    <tr>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
+    <TR>
+      <TD className="whitespace-nowrap font-semibold tnum text-ink">
         {patient.patient_reference}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="whitespace-nowrap text-ink">
         {patient.first_name} {patient.last_name}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="whitespace-nowrap tnum">
         {formatDate(patient.date_of_birth)}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {pharmacyName(patient.pharmacy)}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm">
-        <StatusPill active={patient.is_active} />
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
-        <Link
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-          to={`/patients/${patient.id}`}
-        >
-          View
+      </TD>
+      <TD className="whitespace-nowrap">{pharmacyName(patient.pharmacy)}</TD>
+      <TD className="whitespace-nowrap">
+        <StatusBadge active={patient.is_active} />
+      </TD>
+      <TD className="whitespace-nowrap text-right">
+        <Link to={`/patients/${patient.id}`}>
+          <Button variant="secondary" size="sm">
+            View
+          </Button>
         </Link>
-      </td>
-    </tr>
+      </TD>
+    </TR>
   );
 }
 
@@ -87,48 +96,48 @@ export function PatientsScreen() {
   const { pharmacyName } = usePharmacyNames();
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-teal-700">
-              Patient records
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-              Patients
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-              View fictional patient records for your assigned pharmacy scope.
-            </p>
-          </div>
-          {canManage ? (
-            <button
-              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Patient records"
+        title="Patients"
+        subtitle="View fictional patient records for your assigned pharmacy scope."
+        actions={
+          canManage ? (
+            <Button
+              variant="primary"
+              leadingIcon={<Plus className="h-4 w-4" />}
               onClick={() => setCreateModalOpen(true)}
-              type="button"
             >
               Create patient
-            </button>
-          ) : null}
-        </div>
+            </Button>
+          ) : undefined
+        }
+      />
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-slate-700">
+      <Panel className="p-4 sm:p-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className={labelClass}>
             Search
-            <input
-              className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by reference or exact last name"
-              type="search"
-              value={search}
-            />
+            <div className="relative">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              />
+              <input
+                className={`${inputClass} pl-9`}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by reference or exact last name"
+                type="search"
+                value={search}
+              />
+            </div>
           </label>
 
           {pharmacies.length > 1 ? (
-            <label className="text-sm font-medium text-slate-700">
+            <label className={labelClass}>
               Pharmacy
               <select
-                className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className={selectClass}
                 onChange={(event) =>
                   setSelectedPharmacyId(
                     event.target.value ? Number(event.target.value) : undefined,
@@ -146,76 +155,74 @@ export function PatientsScreen() {
             </label>
           ) : null}
         </div>
-      </section>
+      </Panel>
 
       {patientsQuery.isLoading ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Loading patients...
-        </section>
+        <Panel className="p-4 sm:p-5">
+          <SkeletonRows rows={5} />
+        </Panel>
       ) : null}
 
       {patientsQuery.isError ? (
-        <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <h2 className="text-lg font-bold text-red-900">
-            Could not load patients.
-          </h2>
-          <p className="mt-2 text-sm text-red-700">
-            Please retry. Your session or permissions may need refreshing.
-          </p>
-          <button
-            className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            onClick={() => void patientsQuery.refetch()}
-            type="button"
-          >
-            Retry
-          </button>
-        </section>
+        <EmptyState
+          tone="danger"
+          icon={<AlertTriangle className="h-6 w-6" />}
+          title="Could not load patients."
+          description="Please retry. Your session or permissions may need refreshing."
+          action={
+            <Button
+              variant="danger"
+              onClick={() => void patientsQuery.refetch()}
+            >
+              Retry
+            </Button>
+          }
+        />
       ) : null}
 
       {patientsQuery.isSuccess && patientsQuery.data.length === 0 ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          No patients yet.
-        </section>
+        <EmptyState
+          icon={<Users className="h-6 w-6" />}
+          title="No patients yet."
+          description="Patient records in your scope will appear here once added."
+          action={
+            canManage ? (
+              <Button
+                variant="primary"
+                leadingIcon={<Plus className="h-4 w-4" />}
+                onClick={() => setCreateModalOpen(true)}
+              >
+                Create patient
+              </Button>
+            ) : undefined
+          }
+        />
       ) : null}
 
       {patientsQuery.isSuccess && patientsQuery.data.length > 0 ? (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Reference
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Date of birth
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Pharmacy
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    View
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {patientsQuery.data.map((patient) => (
-                  <PatientRow
-                    key={patient.id}
-                    patient={patient}
-                    pharmacyName={pharmacyName}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <TableScroll>
+          <Table>
+            <THead>
+              <TR className="hover:bg-transparent">
+                <TH>Reference</TH>
+                <TH>Name</TH>
+                <TH>Date of birth</TH>
+                <TH>Pharmacy</TH>
+                <TH>Status</TH>
+                <TH className="text-right">View</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {patientsQuery.data.map((patient) => (
+                <PatientRow
+                  key={patient.id}
+                  patient={patient}
+                  pharmacyName={pharmacyName}
+                />
+              ))}
+            </TBody>
+          </Table>
+        </TableScroll>
       ) : null}
 
       <PatientFormModal

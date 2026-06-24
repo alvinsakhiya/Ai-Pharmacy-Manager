@@ -79,6 +79,13 @@ function renderDetail(permissions: Record<string, boolean>) {
   );
 }
 
+// The patient record uses a side-panel of pages; notes live on the "Notes" page.
+async function openNotesTab() {
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Notes" }));
+  return user;
+}
+
 describe("PatientDetailScreen note history", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -99,6 +106,7 @@ describe("PatientDetailScreen note history", () => {
     renderDetail({ "patient.view": true });
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await openNotesTab();
     expect(screen.getByText("Note history")).toBeInTheDocument();
 
     const newest = await screen.findByText("Newest note");
@@ -117,6 +125,7 @@ describe("PatientDetailScreen note history", () => {
     listPatientNotesMock.mockResolvedValue([]);
 
     renderDetail({ "patient.view": true });
+    await openNotesTab();
 
     expect(await screen.findByText("No notes recorded yet.")).toBeInTheDocument();
   });
@@ -128,12 +137,14 @@ describe("PatientDetailScreen note history", () => {
     });
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await openNotesTab();
     expect(screen.getByRole("button", { name: "Add note" })).toBeInTheDocument();
 
     unmount();
     renderDetail({ "patient.view": true });
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await openNotesTab();
     expect(screen.getByText("Note history")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add note" })).toBeNull();
   });
@@ -143,6 +154,7 @@ describe("PatientDetailScreen note history", () => {
     renderDetail({ "patient.view": true, "patient.manage": true });
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Notes" }));
     await user.click(screen.getByRole("button", { name: "Add note" }));
 
     const dialog = screen.getByRole("dialog", { name: "Add note" });
@@ -165,6 +177,7 @@ describe("PatientDetailScreen note history", () => {
     renderDetail({ "patient.view": true, "patient.manage": true });
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Notes" }));
     await user.click(screen.getByRole("button", { name: "Add note" }));
 
     const dialog = screen.getByRole("dialog", { name: "Add note" });
@@ -183,6 +196,7 @@ describe("PatientDetailScreen note history", () => {
     renderDetail({ "patient.view": true, "patient.manage": true });
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Notes" }));
     await user.click(screen.getByRole("button", { name: "Add note" }));
 
     const dialog = screen.getByRole("dialog", { name: "Add note" });

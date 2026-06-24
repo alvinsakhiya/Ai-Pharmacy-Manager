@@ -95,12 +95,15 @@ describe("PatientFormModal", () => {
       expect(createPatientMock).toHaveBeenCalledWith({
         pharmacy: 1,
         patient_reference: "SUT-P2",
+        title: "",
         first_name: "Clara",
         last_name: "Demo",
         date_of_birth: "1990-02-03",
+        gender: "",
         address: "2 Demo Street",
         postcode: "SM2 2AA",
         phone: "020 0000 0002",
+        email: "",
         notes: "Create note",
       });
     });
@@ -125,12 +128,15 @@ describe("PatientFormModal", () => {
     await waitFor(() => {
       expect(updatePatientMock).toHaveBeenCalledWith(20, {
         patient_reference: "SUT-P1",
+        title: "",
         first_name: "Alice",
         last_name: "Updated",
         date_of_birth: "1980-01-01",
+        gender: "",
         address: "1 Demo Street",
         postcode: "SM1 1AA",
         phone: "020 0000 0001",
+        email: "",
         notes: "Fictional patient note",
       });
     });

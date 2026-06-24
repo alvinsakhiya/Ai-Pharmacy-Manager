@@ -1,10 +1,36 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ClipboardList,
+  Info,
+  Lock,
+  MessageSquarePlus,
+  Pencil,
+  Pill,
+  Stethoscope,
+  UserRound,
+  UserX,
+} from "lucide-react";
 
 import { usePermissions } from "../../auth/usePermissions";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { Skeleton } from "../../components/ui/Skeleton";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import { cn } from "../../lib/cn";
+import {
+  listDosetteCycles,
+  listPatientMedications,
+} from "../dosette/dosetteApi";
 import { AddPatientNoteModal } from "./AddPatientNoteModal";
 import { PatientFormModal } from "./PatientFormModal";
+import { PatientGpFormModal } from "./PatientGpFormModal";
 import {
   useDeactivatePatient,
   usePatientNotesQuery,
@@ -12,13 +38,22 @@ import {
 } from "./usePatients";
 import { usePharmacyNames } from "./usePharmacyNames";
 import { PatientReviewsSection } from "../reviews/PatientReviewsSection";
+import type { Patient } from "./patientApi";
+
+type DetailPage = "info" | "gp" | "medication" | "notes";
+
+const PAGES: { id: DetailPage; label: string; icon: typeof Info }[] = [
+  { id: "info", label: "Patient info", icon: Info },
+  { id: "gp", label: "Doctor & GP", icon: Stethoscope },
+  { id: "medication", label: "Medication history", icon: Pill },
+  { id: "notes", label: "Notes", icon: ClipboardList },
+];
 
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
@@ -31,7 +66,6 @@ function formatDateTime(value: string): string {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
@@ -41,31 +75,41 @@ function formatDateTime(value: string): string {
   }).format(date);
 }
 
-function fallback(value: string): string {
-  return value.trim() ? value : "-";
+function fallback(value: string | null | undefined): string {
+  return value && value.trim() ? value : "-";
 }
 
-function StatusPill({ active }: { active: boolean }) {
+function StatusBadge({ active }: { active: boolean }) {
   return (
-    <span
-      className={[
-        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500",
-      ].join(" ")}
-    >
+    <Badge dot variant={active ? "success" : "neutral"}>
       {active ? "Active" : "Inactive"}
-    </span>
+    </Badge>
   );
 }
 
-function DetailValue({ label, value }: { label: string; value: string }) {
+function DetailValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
         {label}
       </dt>
-      <dd className="mt-1 text-sm font-semibold text-slate-950">{value}</dd>
+      <dd className="mt-1 text-sm font-semibold text-ink">{value}</dd>
     </div>
+  );
+}
+
+function PharmacistOnlyHint() {
+  return (
+    <p className="flex items-start gap-2 rounded-xl border border-info-border bg-info-soft p-3 text-[13px] text-info-ink">
+      <Lock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+      Only a pharmacist can edit patient details, GP information, and notes.
+    </p>
   );
 }
 
@@ -80,185 +124,195 @@ export function PatientDetailScreen() {
   const notesQuery = usePatientNotesQuery(parsedPatientId);
   const deactivatePatient = useDeactivatePatient();
   const { pharmacyName } = usePharmacyNames();
+  const { success, error } = useToast();
+  const [activePage, setActivePage] = useState<DetailPage>("info");
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isGpModalOpen, setGpModalOpen] = useState(false);
   const [isDeactivateModalOpen, setDeactivateModalOpen] = useState(false);
   const [isAddNoteModalOpen, setAddNoteModalOpen] = useState(false);
 
   if (!isValidPatientId) {
     return (
-      <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-        <h1 className="text-lg font-bold text-red-900">
-          This patient was not found or is outside your access.
-        </h1>
-        <Link
-          className="mt-4 inline-flex rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          to="/patients"
-        >
-          Back to patients
-        </Link>
-      </section>
+      <EmptyState
+        tone="danger"
+        icon={<AlertTriangle className="h-6 w-6" />}
+        title="This patient was not found or is outside your access."
+        action={
+          <Link to="/patients">
+            <Button variant="danger" leadingIcon={<ArrowLeft className="h-4 w-4" />}>
+              Back to patients
+            </Button>
+          </Link>
+        }
+      />
     );
   }
 
   if (patientQuery.isLoading) {
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-        Loading patient...
-      </section>
+      <div className="space-y-5">
+        <Skeleton className="h-4 w-32" />
+        <Panel>
+          <PanelBody className="space-y-4">
+            <Skeleton className="h-7 w-56" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+      </div>
     );
   }
 
   if (patientQuery.isError || !patientQuery.data) {
     return (
-      <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-        <h1 className="text-lg font-bold text-red-900">
-          This patient was not found or is outside your access.
-        </h1>
-        <p className="mt-2 text-sm text-red-700">
-          Please return to the patient list or retry after refreshing your
-          session.
-        </p>
-        <button
-          className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          onClick={() => void patientQuery.refetch()}
-          type="button"
-        >
-          Retry
-        </button>
-      </section>
+      <EmptyState
+        tone="danger"
+        icon={<AlertTriangle className="h-6 w-6" />}
+        title="This patient was not found or is outside your access."
+        description="Please return to the patient list or retry after refreshing your session."
+        action={
+          <Button variant="danger" onClick={() => void patientQuery.refetch()}>
+            Retry
+          </Button>
+        }
+      />
     );
   }
 
   const patient = patientQuery.data;
+  const displayName = [patient.title, patient.first_name, patient.last_name]
+    .filter((part) => part && String(part).trim())
+    .join(" ");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Link
-        className="inline-flex text-sm font-semibold text-teal-700 transition hover:text-teal-900"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand transition-colors duration-150 ease-soft hover:text-brand-hover"
         to="/patients"
       >
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         Back to patients
       </Link>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-teal-700">
-              {pharmacyName(patient.pharmacy)}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-              {patient.first_name} {patient.last_name}
-            </h1>
+      {/* Header — always visible, actions gated by permission. */}
+      <Panel>
+        <PanelBody>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <span
+                aria-hidden="true"
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-lilac-soft text-brand"
+              >
+                <UserRound className="h-6 w-6" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+                  {pharmacyName(patient.pharmacy)} · {patient.patient_reference}
+                </p>
+                <h1 className="mt-1 text-2xl font-extrabold tracking-[-0.02em] text-ink">
+                  {displayName}
+                </h1>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+              <StatusBadge active={patient.is_active} />
+              {canViewDosette ? (
+                <Link to={`/patients/${patient.id}/dosette`}>
+                  <Button
+                    variant="secondary"
+                    leadingIcon={<Pill className="h-4 w-4" />}
+                  >
+                    Dosette / MDS
+                  </Button>
+                </Link>
+              ) : null}
+              {canManage ? (
+                <Button
+                  variant="secondary"
+                  leadingIcon={<Pencil className="h-4 w-4" />}
+                  onClick={() => setEditModalOpen(true)}
+                >
+                  Edit
+                </Button>
+              ) : null}
+              {canManage && patient.is_active ? (
+                <Button
+                  variant="danger"
+                  leadingIcon={<UserX className="h-4 w-4" />}
+                  onClick={() => setDeactivateModalOpen(true)}
+                >
+                  Deactivate
+                </Button>
+              ) : null}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusPill active={patient.is_active} />
-            {canViewDosette ? (
-              <Link
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                to={`/patients/${patient.id}/dosette`}
-              >
-                Dosette / MDS
-              </Link>
-            ) : null}
-            {canManage ? (
+        </PanelBody>
+      </Panel>
+
+      {/* Record: side-panel of pages + a constant-size content area. */}
+      <div className="grid gap-5 lg:grid-cols-[230px_1fr]">
+        <nav
+          aria-label="Patient record sections"
+          className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-1.5 lg:overflow-visible"
+        >
+          {PAGES.map((page) => {
+            const Icon = page.icon;
+            const isActive = activePage === page.id;
+            return (
               <button
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                onClick={() => setEditModalOpen(true)}
+                key={page.id}
                 type="button"
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => setActivePage(page.id)}
+                className={cn(
+                  "flex shrink-0 items-center gap-2.5 rounded-full px-3.5 py-2.5 text-left text-[13px] font-semibold transition-all duration-150 ease-soft active:scale-[0.97] focus-ring lg:w-full",
+                  isActive
+                    ? "bg-brand-soft text-brand-ink"
+                    : "text-ink-soft hover:bg-surface-sunken",
+                )}
               >
-                Edit
+                <Icon
+                  aria-hidden="true"
+                  className={cn(
+                    "h-[18px] w-[18px] shrink-0",
+                    isActive ? "text-brand" : "text-muted",
+                  )}
+                />
+                {page.label}
               </button>
-            ) : null}
-            {canManage && patient.is_active ? (
-              <button
-                className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                onClick={() => setDeactivateModalOpen(true)}
-                type="button"
-              >
-                Deactivate
-              </button>
-            ) : null}
-          </div>
-        </div>
+            );
+          })}
+        </nav>
 
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <DetailValue label="Reference" value={patient.patient_reference} />
-          <DetailValue
-            label="Pharmacy"
-            value={pharmacyName(patient.pharmacy)}
-          />
-          <DetailValue
-            label="Date of birth"
-            value={formatDate(patient.date_of_birth)}
-          />
-          <DetailValue label="Address" value={fallback(patient.address)} />
-          <DetailValue label="Postcode" value={fallback(patient.postcode)} />
-          <DetailValue label="Phone" value={fallback(patient.phone)} />
-        </dl>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-950">Patient notes</h2>
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-          {fallback(patient.notes)}
-        </p>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-bold text-slate-950">Note history</h2>
-          {canManage ? (
-            <button
-              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-              onClick={() => setAddNoteModalOpen(true)}
-              type="button"
-            >
-              Add note
-            </button>
+        <Panel className="lg:min-h-[440px]">
+          {activePage === "info" ? (
+            <InfoPage patient={patient} pharmacyName={pharmacyName} />
           ) : null}
-        </div>
-
-        {notesQuery.isLoading ? (
-          <p className="mt-4 text-sm text-slate-600">Loading notes...</p>
-        ) : null}
-
-        {notesQuery.isError ? (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm font-semibold text-red-900">
-              Could not load notes.
-            </p>
-            <button
-              className="mt-3 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-              onClick={() => void notesQuery.refetch()}
-              type="button"
-            >
-              Retry
-            </button>
-          </div>
-        ) : null}
-
-        {notesQuery.isSuccess && notesQuery.data.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-600">No notes recorded yet.</p>
-        ) : null}
-
-        {notesQuery.isSuccess && notesQuery.data.length > 0 ? (
-          <div className="mt-4 space-y-4">
-            {notesQuery.data.map((note) => (
-              <article
-                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
-                key={note.id}
-              >
-                <p className="whitespace-pre-wrap text-sm leading-6 text-slate-800">
-                  {note.body}
-                </p>
-                <p className="mt-3 text-xs font-medium text-slate-500">
-                  {note.author_email} - {formatDateTime(note.created_at)}
-                </p>
-              </article>
-            ))}
-          </div>
-        ) : null}
-      </section>
+          {activePage === "gp" ? (
+            <GpPage
+              patient={patient}
+              canManage={canManage}
+              onEdit={() => setGpModalOpen(true)}
+            />
+          ) : null}
+          {activePage === "medication" ? (
+            <MedicationHistoryPage
+              patientId={patient.id}
+              canViewDosette={canViewDosette}
+            />
+          ) : null}
+          {activePage === "notes" ? (
+            <NotesPage
+              canManage={canManage}
+              notesQuery={notesQuery}
+              onAddNote={() => setAddNoteModalOpen(true)}
+            />
+          ) : null}
+        </Panel>
+      </div>
 
       <PatientReviewsSection patientId={parsedPatientId} />
 
@@ -266,6 +320,13 @@ export function PatientDetailScreen() {
         isOpen={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
         patient={patient}
+      />
+
+      <PatientGpFormModal
+        isOpen={isGpModalOpen}
+        onClose={() => setGpModalOpen(false)}
+        patientId={patient.id}
+        gp={patient.gp}
       />
 
       <AddPatientNoteModal
@@ -278,34 +339,346 @@ export function PatientDetailScreen() {
         isOpen={isDeactivateModalOpen}
         onClose={() => setDeactivateModalOpen(false)}
         title="Deactivate this patient?"
+        description="This patient will be marked inactive. Their existing record remains visible in your permitted scope."
       >
-        <div className="space-y-5">
-          <p className="text-sm leading-6 text-slate-700">
-            This patient will be marked inactive. Their existing record remains
-            visible in your permitted scope.
-          </p>
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-            <button
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => setDeactivateModalOpen(false)}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={deactivatePatient.isPending}
-              onClick={async () => {
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={() => setDeactivateModalOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            disabled={deactivatePatient.isPending}
+            onClick={async () => {
+              try {
                 await deactivatePatient.mutateAsync(patient.id);
                 setDeactivateModalOpen(false);
-              }}
-              type="button"
-            >
-              {deactivatePatient.isPending ? "Deactivating..." : "Deactivate"}
-            </button>
-          </div>
+                success("Patient deactivated");
+              } catch {
+                error("Could not deactivate patient");
+              }
+            }}
+          >
+            {deactivatePatient.isPending ? "Deactivating..." : "Deactivate"}
+          </Button>
         </div>
       </Modal>
     </div>
+  );
+}
+
+function InfoPage({
+  patient,
+  pharmacyName,
+}: {
+  patient: Patient;
+  pharmacyName: (id: number) => string;
+}) {
+  return (
+    <>
+      <PanelHeader title="Patient info" icon={<Info className="h-4 w-4" />} />
+      <PanelBody>
+        <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <DetailValue label="Title" value={fallback(patient.title)} />
+          <DetailValue label="Reference" value={patient.patient_reference} />
+          <DetailValue label="Pharmacy" value={pharmacyName(patient.pharmacy)} />
+          <DetailValue
+            label="Date of birth"
+            value={formatDate(patient.date_of_birth)}
+          />
+          <DetailValue label="Gender" value={fallback(patient.gender)} />
+          <DetailValue label="Phone" value={fallback(patient.phone)} />
+          <DetailValue label="Email" value={fallback(patient.email)} />
+          <DetailValue label="Postcode" value={fallback(patient.postcode)} />
+          <DetailValue label="Address" value={fallback(patient.address)} />
+        </dl>
+        <div className="mt-6 border-t border-line pt-5">
+          <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+            Summary note
+          </dt>
+          <dd className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
+            {fallback(patient.notes)}
+          </dd>
+        </div>
+      </PanelBody>
+    </>
+  );
+}
+
+function GpPage({
+  patient,
+  canManage,
+  onEdit,
+}: {
+  patient: Patient;
+  canManage: boolean;
+  onEdit: () => void;
+}) {
+  const gp = patient.gp ?? null;
+  const hasGp =
+    gp !== null &&
+    Object.values(gp).some((value) => value && String(value).trim());
+
+  return (
+    <>
+      <PanelHeader
+        title="Doctor & GP"
+        icon={<Stethoscope className="h-4 w-4" />}
+        actions={
+          canManage ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              leadingIcon={<Pencil className="h-4 w-4" />}
+              onClick={onEdit}
+            >
+              Edit GP details
+            </Button>
+          ) : undefined
+        }
+      />
+      <PanelBody className="space-y-5">
+        {!canManage ? <PharmacistOnlyHint /> : null}
+        {hasGp ? (
+          <dl className="grid gap-5 sm:grid-cols-2">
+            <DetailValue label="Doctor" value={fallback(gp?.doctor_name)} />
+            <DetailValue label="Practice" value={fallback(gp?.practice_name)} />
+            <DetailValue
+              label="Practice address"
+              value={fallback(gp?.practice_address)}
+            />
+            <DetailValue
+              label="Practice postcode"
+              value={fallback(gp?.practice_postcode)}
+            />
+            <DetailValue
+              label="Practice phone"
+              value={fallback(gp?.practice_phone)}
+            />
+            <DetailValue
+              label="Practice email"
+              value={fallback(gp?.practice_email)}
+            />
+          </dl>
+        ) : (
+          <EmptyState
+            icon={<Stethoscope className="h-6 w-6" />}
+            title="No doctor or GP details recorded yet."
+            description={
+              canManage ? "Use “Edit GP details” to add them." : undefined
+            }
+          />
+        )}
+      </PanelBody>
+    </>
+  );
+}
+
+function MedicationHistoryPage({
+  patientId,
+  canViewDosette,
+}: {
+  patientId: number;
+  canViewDosette: boolean;
+}) {
+  const medicationsQuery = useQuery({
+    queryKey: ["patients", "medications", patientId],
+    queryFn: () => listPatientMedications(patientId),
+    enabled: canViewDosette,
+  });
+  const cyclesQuery = useQuery({
+    queryKey: ["patients", "cycles", patientId],
+    queryFn: () => listDosetteCycles(patientId),
+    enabled: canViewDosette,
+  });
+
+  return (
+    <>
+      <PanelHeader
+        title="Medication history"
+        subtitle="Read-only record of dispensed and compliance-pack medication."
+        icon={<Pill className="h-4 w-4" />}
+      />
+      <PanelBody className="space-y-6">
+        {!canViewDosette ? (
+          <EmptyState
+            icon={<Lock className="h-6 w-6" />}
+            title="Dosette / MDS access is required"
+            description="Medication history is derived from the patient's compliance-pack records."
+          />
+        ) : medicationsQuery.isLoading || cyclesQuery.isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : medicationsQuery.isError || cyclesQuery.isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<AlertTriangle className="h-6 w-6" />}
+            title="Could not load medication history."
+          />
+        ) : (
+          <>
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-subtle px-3 py-2 text-xs font-semibold text-muted">
+              <Info aria-hidden="true" className="h-4 w-4 shrink-0" />
+              This is a read-only history and cannot be edited here.
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-[13px] font-bold text-ink">
+                Current medication lines
+              </h3>
+              {(medicationsQuery.data ?? []).length === 0 ? (
+                <EmptyState
+                  icon={<Pill className="h-6 w-6" />}
+                  title="No medication lines recorded."
+                />
+              ) : (
+                <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line">
+                  {(medicationsQuery.data ?? []).map((line) => (
+                    <li
+                      key={line.id}
+                      className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">
+                          {line.medication_name}
+                          {line.strength ? ` ${line.strength}` : ""}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {line.dose_instructions || "No dose instructions"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="tnum text-xs font-semibold text-ink-soft">
+                          M {line.quantity_morning} · L{" "}
+                          {line.quantity_lunchtime} · E {line.quantity_evening} ·
+                          N {line.quantity_bedtime}
+                        </span>
+                        <Badge
+                          dot
+                          variant={line.is_active ? "success" : "neutral"}
+                        >
+                          {line.is_active ? "Active" : "Stopped"}
+                        </Badge>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-[13px] font-bold text-ink">
+                Pack cycle history
+              </h3>
+              {(cyclesQuery.data ?? []).length === 0 ? (
+                <EmptyState
+                  icon={<Pill className="h-6 w-6" />}
+                  title="No pack cycles recorded."
+                />
+              ) : (
+                <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line">
+                  {(cyclesQuery.data ?? []).map((cycle) => (
+                    <li
+                      key={cycle.id}
+                      className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">
+                          {cycle.reference}
+                        </p>
+                        <p className="tnum text-xs text-muted">
+                          {formatDate(cycle.start_date)} –{" "}
+                          {formatDate(cycle.end_date)} · {cycle.frequency}
+                        </p>
+                      </div>
+                      <Badge variant="neutral">{cycle.status}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
+      </PanelBody>
+    </>
+  );
+}
+
+function NotesPage({
+  canManage,
+  notesQuery,
+  onAddNote,
+}: {
+  canManage: boolean;
+  notesQuery: ReturnType<typeof usePatientNotesQuery>;
+  onAddNote: () => void;
+}) {
+  return (
+    <>
+      <PanelHeader
+        title="Note history"
+        icon={<ClipboardList className="h-4 w-4" />}
+        actions={
+          canManage ? (
+            <Button
+              variant="primary"
+              size="sm"
+              leadingIcon={<MessageSquarePlus className="h-4 w-4" />}
+              onClick={onAddNote}
+            >
+              Add note
+            </Button>
+          ) : undefined
+        }
+      />
+      <PanelBody className="space-y-4">
+        {!canManage ? <PharmacistOnlyHint /> : null}
+
+        {notesQuery.isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : null}
+
+        {notesQuery.isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<AlertTriangle className="h-6 w-6" />}
+            title="Could not load notes."
+            action={
+              <Button variant="danger" onClick={() => void notesQuery.refetch()}>
+                Retry
+              </Button>
+            }
+          />
+        ) : null}
+
+        {notesQuery.isSuccess && notesQuery.data.length === 0 ? (
+          <EmptyState
+            icon={<ClipboardList className="h-6 w-6" />}
+            title="No notes recorded yet."
+          />
+        ) : null}
+
+        {notesQuery.isSuccess && notesQuery.data.length > 0 ? (
+          <ol className="space-y-3">
+            {notesQuery.data.map((note) => (
+              <li key={note.id}>
+                <article className="rounded-xl border border-line bg-surface-subtle p-4">
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
+                    {note.body}
+                  </p>
+                  <p className="mt-3 text-xs font-medium text-muted tnum">
+                    {note.author_email} - {formatDateTime(note.created_at)}
+                  </p>
+                </article>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+      </PanelBody>
+    </>
   );
 }
