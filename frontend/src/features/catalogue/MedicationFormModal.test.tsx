@@ -141,6 +141,10 @@ describe("MedicationFormModal", () => {
       { auth: medicationAuth() },
     );
 
+    expect(screen.getByText("Add product from catalogue")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Select a canonical catalogue product/),
+    ).toBeInTheDocument();
     await screen.findByRole("option", { name: "North Group" });
     await user.selectOptions(screen.getByLabelText("Group"), "1");
     await user.type(screen.getByLabelText("Catalogue product"), "amlo");
@@ -150,7 +154,7 @@ describe("MedicationFormModal", () => {
       }),
     );
     await user.type(screen.getByLabelText("Notes"), "Once daily");
-    await user.click(screen.getByRole("button", { name: "Save medication" }));
+    await user.click(screen.getByRole("button", { name: "Add from catalogue" }));
 
     await waitFor(() => {
       expect(createMedicationMock).toHaveBeenCalledWith({
@@ -188,7 +192,7 @@ describe("MedicationFormModal", () => {
     expect(screen.getByLabelText("Notes")).toHaveValue("Keep in catalogue");
 
     await user.click(screen.getByLabelText("Active"));
-    await user.click(screen.getByRole("button", { name: "Save medication" }));
+    await user.click(screen.getByRole("button", { name: "Save local settings" }));
 
     await waitFor(() => {
       expect(updateMedicationMock).toHaveBeenCalledWith(20, {
@@ -218,7 +222,7 @@ describe("MedicationFormModal", () => {
         name: /Amlodipine 5mg tablets — pack of 28/,
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Save medication" }));
+    await user.click(screen.getByRole("button", { name: "Add from catalogue" }));
 
     expect(
       await screen.findByText("Select a catalogue product."),
@@ -234,7 +238,7 @@ describe("MedicationFormModal", () => {
 
     await screen.findByRole("option", { name: "North Group" });
     await user.selectOptions(screen.getByLabelText("Group"), "1");
-    await user.click(screen.getByRole("button", { name: "Save medication" }));
+    await user.click(screen.getByRole("button", { name: "Add from catalogue" }));
 
     expect(
       await screen.findByText("Select a catalogue product."),
@@ -271,7 +275,7 @@ describe("MedicationFormModal", () => {
         name: /Amlodipine 5mg tablets — pack of 28/,
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Save medication" }));
+    await user.click(screen.getByRole("button", { name: "Add from catalogue" }));
 
     await waitFor(() => {
       expect(createMedicationMock).toHaveBeenCalledWith({
@@ -294,10 +298,12 @@ describe("MedicationFormModal", () => {
 
     expect(
       await screen.findByText(
-        "Ask an administrator or superintendent to add the first medication for this group.",
+        "Ask an administrator or superintendent to add the first catalogue product for this group.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save medication" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Add from catalogue" }),
+    ).toBeDisabled();
     expect(listGroupsMock).not.toHaveBeenCalled();
   });
 });

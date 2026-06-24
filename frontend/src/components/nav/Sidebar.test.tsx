@@ -109,7 +109,7 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: "Organisation" })).toBeNull();
   });
 
-  it("user with medication.view sees Medications", () => {
+  it("user with medication.view sees Medication Library", () => {
     renderSidebar(
       makeUser({
         role: "PHARMACIST",
@@ -124,7 +124,9 @@ describe("Sidebar", () => {
       }),
     );
 
-    expect(screen.getByRole("link", { name: "Medications" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Medication Library" }),
+    ).toBeInTheDocument();
   });
 
   it("user with stock.view sees Inventory", () => {
@@ -192,10 +194,12 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: "Inventory" })).toBeNull();
   });
 
-  it("user without medication.view does not see Medications", () => {
+  it("user without medication.view does not see Medication Library", () => {
     renderSidebar(makeUser());
 
-    expect(screen.queryByRole("link", { name: "Medications" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Medication Library" }),
+    ).toBeNull();
   });
 
   it("future items appear disabled and non-clickable", () => {

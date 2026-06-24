@@ -38,19 +38,24 @@ export function MedicationsScreen() {
     setModalOpen(true);
   }
 
+  const medications = medicationsQuery.data ?? [];
+  const hasLegacyMedications = medications.some(
+    (medication) => medication.catalogue_product === null,
+  );
+
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-teal-700">
-            Medication catalogue
+            Catalogue / local library
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-            Medications
+            Medication Library
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Manage the group-shared medication catalogue used across pharmacies
-            in your permitted scope.
+            Search and enable catalogue products used for stock, MDS/Dosette,
+            and reports.
           </p>
         </div>
         {canManage ? (
@@ -59,9 +64,15 @@ export function MedicationsScreen() {
             onClick={openCreateModal}
             type="button"
           >
-            Create medication
+            Add from catalogue
           </button>
         ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600 shadow-sm">
+        This library shows catalogue products that are enabled for this
+        pharmacy/group. Stock intake and MDS/Dosette workflows use this same
+        catalogue, so staff do not need to type medicine names manually.
       </section>
 
       {medicationsQuery.isLoading ? (
@@ -90,7 +101,14 @@ export function MedicationsScreen() {
 
       {medicationsQuery.isSuccess && medicationsQuery.data.length === 0 ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          No medications yet.
+          No catalogue products enabled yet.
+        </section>
+      ) : null}
+
+      {medicationsQuery.isSuccess && hasLegacyMedications ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800 shadow-sm">
+          Legacy records were created before catalogue selection and should be
+          reviewed.
         </section>
       ) : null}
 
@@ -101,7 +119,7 @@ export function MedicationsScreen() {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Medication
+                    Catalogue product
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Form
@@ -164,7 +182,7 @@ export function MedicationsScreen() {
                           onClick={() => openEditModal(medication)}
                           type="button"
                         >
-                          Edit
+                          Local settings
                         </button>
                       ) : null}
                     </td>

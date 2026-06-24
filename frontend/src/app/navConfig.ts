@@ -24,7 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
     requiredAnyOf: ["group.manage", "pharmacy.manage"],
   },
   {
-    label: "Medications",
+    label: "Medication Library",
     path: "/catalogue",
     requiredAnyOf: ["medication.view"],
   },

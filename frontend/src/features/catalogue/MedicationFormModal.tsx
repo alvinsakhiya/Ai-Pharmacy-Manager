@@ -156,11 +156,19 @@ export function MedicationFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={medication ? "Edit medication" : "Create medication"}
+      title={medication ? "Edit local library settings" : "Add product from catalogue"}
     >
       <form className="space-y-5" noValidate onSubmit={handleSubmit}>
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
+
+        {!medication ? (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+            Select a canonical catalogue product. Name, strength, form, pack
+            size, and manufacturer are controlled by the catalogue to reduce
+            spelling and strength errors.
+          </p>
+        ) : null}
 
         <label className="block text-sm font-medium text-slate-700">
           Group
@@ -192,8 +200,8 @@ export function MedicationFormModal({
 
         {!hasResolvableGroup ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Ask an administrator or superintendent to add the first medication
-            for this group.
+            Ask an administrator or superintendent to add the first catalogue
+            product for this group.
           </p>
         ) : null}
 
@@ -292,7 +300,11 @@ export function MedicationFormModal({
             disabled={submitDisabled}
             type="submit"
           >
-            {isSaving ? "Saving..." : "Save medication"}
+            {isSaving
+              ? "Saving..."
+              : medication
+                ? "Save local settings"
+                : "Add from catalogue"}
           </button>
         </div>
       </form>

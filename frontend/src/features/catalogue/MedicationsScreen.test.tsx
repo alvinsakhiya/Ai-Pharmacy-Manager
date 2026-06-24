@@ -76,8 +76,22 @@ describe("MedicationsScreen", () => {
     renderWithProviders(<MedicationsScreen />, { auth: medicationAuth() });
 
     expect(screen.getByText("Loading medications...")).toBeInTheDocument();
+    expect(await screen.findByText("Medication Library")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Search and enable catalogue products used for stock, MDS/Dosette, and reports.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/This library shows catalogue products that are enabled/),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
     expect(screen.getByText("Legacy")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Legacy records were created before catalogue selection and should be reviewed.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("Tablet")).toBeInTheDocument();
     expect(
       screen.getByText("Salbutamol 100mcg inhaler — pack of 1"),
@@ -92,29 +106,33 @@ describe("MedicationsScreen", () => {
 
     renderWithProviders(<MedicationsScreen />, { auth: medicationAuth() });
 
-    expect(await screen.findByText("No medications yet.")).toBeInTheDocument();
-  });
-
-  it("shows create button for users with medication.manage", async () => {
-    renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(true) });
-
     expect(
-      await screen.findByRole("button", { name: "Create medication" }),
+      await screen.findByText("No catalogue products enabled yet."),
     ).toBeInTheDocument();
   });
 
-  it("hides create button for view-only users", async () => {
+  it("shows add from catalogue button for users with medication.manage", async () => {
+    renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(true) });
+
+    expect(
+      await screen.findByRole("button", { name: "Add from catalogue" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides add from catalogue button for view-only users", async () => {
     renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(false) });
 
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Create medication" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Add from catalogue" }),
+    ).toBeNull();
   });
 
   it("hides row edit for view-only users", async () => {
     renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(false) });
 
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Local settings" })).toBeNull();
   });
 
   it("does not render a delete control", async () => {
