@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type SelectHTMLAttributes } from "react";
+import {
+  ArrowRightLeft,
+  ChevronDown,
+  LineChart,
+  PackageSearch,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
@@ -16,6 +24,24 @@ import {
   useStockAnalyticsOverviewQuery,
   useTransferSuggestionsQuery,
 } from "./useAnalytics";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { KpiCard } from "../../components/ui/KpiCard";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import {
+  Table,
+  TableScroll,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "../../components/ui/Table";
+import { labelClass, selectClass } from "../../components/ui/forms";
+import { cn } from "../../lib/cn";
 
 const SUMMARY_LABELS: Array<{
   key:
@@ -91,30 +117,34 @@ function formatForecastQuantity(
   return `${formattedPacks} packs / ${formatNumber(units)} units`;
 }
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
+/** A select that adopts house styling but keeps the label↔control wiring intact. */
+function FieldSelect({
+  className,
+  children,
+  ...rest
+}: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
-    </article>
+    <div className="relative">
+      <select className={cn(selectClass, "appearance-none pr-9", className)} {...rest}>
+        {children}
+      </select>
+      <ChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+      />
+    </div>
   );
 }
 
 function ForecastConfidence({ confidence }: { confidence: string }) {
   const percentage = Math.round(Number(confidence) * 100);
-  const tone =
-    percentage >= 75
-      ? "bg-emerald-50 text-emerald-700"
-      : percentage >= 50
-        ? "bg-sky-50 text-sky-700"
-        : "bg-amber-50 text-amber-700";
+  const variant =
+    percentage >= 75 ? "success" : percentage >= 50 ? "info" : "warning";
 
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
-      {percentage}% confidence
-    </span>
+    <Badge variant={variant} dot>
+      <span className="tnum">{percentage}% confidence</span>
+    </Badge>
   );
 }
 
@@ -124,40 +154,44 @@ function ConfidenceChip({ confidence }: { confidence: string }) {
 
 function ForecastRow({ item }: { item: ForecastItem }) {
   return (
-    <tr>
-      <td className="min-w-64 px-4 py-4 text-sm font-medium text-slate-950">
-        {item.medication_label}
-        <span className="mt-1 block text-xs font-normal text-slate-500">
+    <TR>
+      <TD className="min-w-64">
+        <span className="font-semibold text-ink">{item.medication_label}</span>
+        <span className="mt-1 block text-xs text-muted">
           {item.history_points_count} history points over {item.window_days} days
         </span>
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="tnum whitespace-nowrap">
         {formatForecastQuantity(
           item.predicted_usage_units,
           item.predicted_usage_packs,
         )}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="tnum whitespace-nowrap">
         {formatForecastQuantity(item.current_stock_units, item.current_stock_packs)}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-950">
+      </TD>
+      <TD className="tnum whitespace-nowrap font-semibold text-ink">
         {formatForecastQuantity(
           item.suggested_reorder_units,
           item.suggested_reorder_packs,
         )}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm">
+      </TD>
+      <TD className="whitespace-nowrap">
         <ForecastConfidence confidence={item.confidence} />
-      </td>
-      <td className="min-w-96 px-4 py-4 text-sm text-slate-700">
-        <details>
-          <summary className="cursor-pointer font-semibold text-teal-700">
+      </TD>
+      <TD className="min-w-96">
+        <details className="group">
+          <summary className="inline-flex cursor-pointer select-none items-center gap-1.5 font-semibold text-brand transition-colors hover:text-brand-hover">
+            <ChevronDown
+              aria-hidden="true"
+              className="h-3.5 w-3.5 transition-transform duration-150 ease-soft group-open:rotate-180"
+            />
             Explanation
           </summary>
-          <p className="mt-2 leading-6">{item.explanation}</p>
+          <p className="mt-2 leading-relaxed text-ink-soft">{item.explanation}</p>
         </details>
-      </td>
-    </tr>
+      </TD>
+    </TR>
   );
 }
 
@@ -171,41 +205,44 @@ function TransferSuggestionRow({
   suggestion: TransferSuggestion;
 }) {
   return (
-    <tr>
-      <td className="min-w-64 px-4 py-4 text-sm font-medium text-slate-950">
-        {suggestion.medication_label}
-        <span className="mt-1 block text-xs font-normal text-slate-500">
+    <TR>
+      <TD className="min-w-64">
+        <span className="font-semibold text-ink">
+          {suggestion.medication_label}
+        </span>
+        <span className="mt-1 block text-xs text-muted">
           Status: {suggestion.status}
         </span>
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {suggestion.source_pharmacy_name} -&gt;{" "}
-        {suggestion.destination_pharmacy_name}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-950">
+      </TD>
+      <TD className="whitespace-nowrap">
+        <span className="inline-flex items-center gap-1.5">
+          {suggestion.source_pharmacy_name}
+          <ArrowRightLeft aria-hidden="true" className="h-3.5 w-3.5 text-muted" />
+          {suggestion.destination_pharmacy_name}
+        </span>
+      </TD>
+      <TD className="tnum whitespace-nowrap font-semibold text-ink">
         {formatForecastQuantity(
           suggestion.suggested_quantity_units,
           suggestion.suggested_quantity_packs,
         )}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm">
+      </TD>
+      <TD className="whitespace-nowrap">
         <ConfidenceChip confidence={suggestion.confidence} />
-      </td>
-      <td className="min-w-96 px-4 py-4 text-sm text-slate-700">
-        {suggestion.reason}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+      </TD>
+      <TD className="min-w-96 leading-relaxed">{suggestion.reason}</TD>
+      <TD className="whitespace-nowrap text-right">
         {canDismiss ? (
-          <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onDismiss(suggestion.id)}
-            type="button"
           >
             Dismiss
-          </button>
+          </Button>
         ) : null}
-      </td>
-    </tr>
+      </TD>
+    </TR>
   );
 }
 
@@ -213,18 +250,15 @@ function FlagBadges({ flags }: { flags: StockAnalyticsFlags }) {
   const activeFlags = FLAG_LABELS.filter((flag) => flags[flag.key]);
 
   if (activeFlags.length === 0) {
-    return <span className="text-sm text-slate-500">-</span>;
+    return <span className="text-muted">-</span>;
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {activeFlags.map((flag) => (
-        <span
-          className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"
-          key={flag.key}
-        >
+        <Badge key={flag.key} variant="warning">
           {flag.label}
-        </span>
+        </Badge>
       ))}
     </div>
   );
@@ -232,15 +266,29 @@ function FlagBadges({ flags }: { flags: StockAnalyticsFlags }) {
 
 function ExpiryCell({ item }: { item: StockAnalyticsItem }) {
   if (!item.earliest_expiry) {
-    return <span>-</span>;
+    return <span className="text-muted">-</span>;
   }
+
+  const days = item.days_to_expiry;
+  const heat =
+    days === null
+      ? "text-ink-soft"
+      : days <= 0
+        ? "text-fefo-expired"
+        : days <= 30
+          ? "text-fefo-d30"
+          : days <= 90
+            ? "text-fefo-d90"
+            : days <= 180
+              ? "text-fefo-d180"
+              : "text-fefo-fresh";
 
   return (
     <span>
-      {formatDate(item.earliest_expiry)}
-      {item.days_to_expiry !== null ? (
-        <span className="block text-xs text-slate-500">
-          {item.days_to_expiry} days
+      <span className="tnum">{formatDate(item.earliest_expiry)}</span>
+      {days !== null ? (
+        <span className={cn("tnum block text-xs font-semibold", heat)}>
+          {days} days
         </span>
       ) : null}
     </span>
@@ -249,43 +297,37 @@ function ExpiryCell({ item }: { item: StockAnalyticsItem }) {
 
 function AnalyticsRow({ item }: { item: StockAnalyticsItem }) {
   return (
-    <tr>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
+    <TR>
+      <TD className="whitespace-nowrap font-semibold text-ink">
         {item.medication_name}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {item.pharmacy_id}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {item.quantity_on_hand}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-        {item.reorder_level}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="tnum whitespace-nowrap">{item.pharmacy_id}</TD>
+      <TD className="tnum whitespace-nowrap">{item.quantity_on_hand}</TD>
+      <TD className="tnum whitespace-nowrap">{item.reorder_level}</TD>
+      <TD className="whitespace-nowrap">
         <ExpiryCell item={item} />
-      </td>
-      <td className="px-4 py-4 text-sm">
+      </TD>
+      <TD>
         <FlagBadges flags={item.flags} />
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-950">
+      </TD>
+      <TD className="tnum whitespace-nowrap font-semibold text-ink">
         {item.attention_score}
-      </td>
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD className="tnum whitespace-nowrap">
         {item.suggested_reorder_quantity}
-      </td>
-      <td className="px-4 py-4 text-sm text-slate-700">
+      </TD>
+      <TD>
         {item.reasons.length > 0 ? (
-          <ul className="space-y-1">
+          <ul className="space-y-1 leading-relaxed">
             {item.reasons.map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
           </ul>
         ) : (
-          <span className="text-slate-500">-</span>
+          <span className="text-muted">-</span>
         )}
-      </td>
-    </tr>
+      </TD>
+    </TR>
   );
 }
 
@@ -355,167 +397,163 @@ export function StockAnalyticsScreen() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold text-teal-700">
-          Inventory analytics
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-          Stock Intelligence
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          Explainable stock analytics based on inventory levels, expiry dates, and
-          movement history.
-        </p>
-      </section>
+    <div className="stagger space-y-5">
+      <PageHeader
+        className="animate-fade-in-up"
+        eyebrow="Inventory analytics"
+        title="Stock Intelligence"
+        subtitle="Explainable stock analytics based on inventory levels, expiry dates, and movement history."
+      />
 
       {canViewTransferSuggestions ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-teal-700">
-                Transfer suggestion
-              </p>
-              <h2 className="mt-2 text-xl font-bold text-slate-950">
-                Cross-branch stock suggestions
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Operational suggestions based on stock movement history. Human
-                review required before transfer.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <label className="min-w-44 text-sm font-medium text-slate-700">
-                Group
-                {groupIds.length > 0 ? (
-                  <select
-                    className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    onChange={(event) =>
-                      setSelectedGroupId(
-                        event.target.value ? Number(event.target.value) : undefined,
-                      )
-                    }
-                    value={selectedGroupId ?? ""}
+        <Panel>
+          <PanelHeader>
+            <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+                >
+                  <ArrowRightLeft className="h-[18px] w-[18px]" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+                    Transfer suggestion
+                  </p>
+                  <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
+                    Cross-branch stock suggestions
+                  </h2>
+                  <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
+                    Operational suggestions based on stock movement history. Human
+                    review required before transfer.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <label className="min-w-44">
+                  <span className={labelClass}>Group</span>
+                  {groupIds.length > 0 ? (
+                    <FieldSelect
+                      onChange={(event) =>
+                        setSelectedGroupId(
+                          event.target.value
+                            ? Number(event.target.value)
+                            : undefined,
+                        )
+                      }
+                      value={selectedGroupId ?? ""}
+                    >
+                      {groupIds.map((groupId) => (
+                        <option key={groupId} value={groupId}>
+                          Group {groupId}
+                        </option>
+                      ))}
+                    </FieldSelect>
+                  ) : (
+                    <input
+                      className={cn(selectClass)}
+                      min="1"
+                      onChange={(event) =>
+                        setSelectedGroupId(
+                          event.target.value
+                            ? Number(event.target.value)
+                            : undefined,
+                        )
+                      }
+                      placeholder="Group ID"
+                      type="number"
+                      value={selectedGroupId ?? ""}
+                    />
+                  )}
+                </label>
+
+                <label className="min-w-40">
+                  <span className={labelClass}>Dead stock window</span>
+                  <FieldSelect
+                    onChange={(event) => setDeadDays(Number(event.target.value))}
+                    value={deadDays}
                   >
-                    {groupIds.map((groupId) => (
-                      <option key={groupId} value={groupId}>
-                        Group {groupId}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    min="1"
-                    onChange={(event) =>
-                      setSelectedGroupId(
-                        event.target.value ? Number(event.target.value) : undefined,
-                      )
+                    <option value={30}>30 days</option>
+                    <option value={60}>60 days</option>
+                    <option value={90}>90 days</option>
+                  </FieldSelect>
+                </label>
+
+                {canGenerateTransferSuggestions ? (
+                  <Button
+                    variant="primary"
+                    leadingIcon={<Sparkles className="h-4 w-4" />}
+                    disabled={
+                      selectedGroupId === undefined ||
+                      generateTransferSuggestions.isPending
                     }
-                    placeholder="Group ID"
-                    type="number"
-                    value={selectedGroupId ?? ""}
-                  />
-                )}
-              </label>
-
-              <label className="min-w-40 text-sm font-medium text-slate-700">
-                Dead stock window
-                <select
-                  className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  onChange={(event) => setDeadDays(Number(event.target.value))}
-                  value={deadDays}
-                >
-                  <option value={30}>30 days</option>
-                  <option value={60}>60 days</option>
-                  <option value={90}>90 days</option>
-                </select>
-              </label>
-
-              {canGenerateTransferSuggestions ? (
-                <button
-                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={
-                    selectedGroupId === undefined ||
-                    generateTransferSuggestions.isPending
-                  }
-                  onClick={() => void handleGenerateTransferSuggestions()}
-                  type="button"
-                >
-                  {generateTransferSuggestions.isPending
-                    ? "Generating..."
-                    : "Generate transfer suggestions"}
-                </button>
-              ) : null}
+                    onClick={() => void handleGenerateTransferSuggestions()}
+                  >
+                    {generateTransferSuggestions.isPending
+                      ? "Generating..."
+                      : "Generate transfer suggestions"}
+                  </Button>
+                ) : null}
+              </div>
             </div>
-          </div>
+          </PanelHeader>
 
-          {generateTransferSuggestions.isError ? (
-            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              Could not generate transfer suggestions. Check your group scope and
-              try again.
-            </p>
-          ) : null}
+          <PanelBody className="space-y-4">
+            {generateTransferSuggestions.isError ? (
+              <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
+                Could not generate transfer suggestions. Check your group scope and
+                try again.
+              </p>
+            ) : null}
 
-          {dismissTransferSuggestion.isError ? (
-            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              Could not dismiss transfer suggestion.
-            </p>
-          ) : null}
+            {dismissTransferSuggestion.isError ? (
+              <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
+                Could not dismiss transfer suggestion.
+              </p>
+            ) : null}
 
-          {selectedGroupId === undefined ? (
-            <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              Select a group to view transfer suggestions.
-            </p>
-          ) : null}
+            {selectedGroupId === undefined ? (
+              <EmptyState
+                icon={<ArrowRightLeft className="h-5 w-5" />}
+                title="Select a group to view transfer suggestions."
+              />
+            ) : null}
 
-          {transferSuggestionsQuery.isLoading ? (
-            <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              Loading transfer suggestions...
-            </p>
-          ) : null}
+            {transferSuggestionsQuery.isLoading ? (
+              <SkeletonRows rows={4} />
+            ) : null}
 
-          {transferSuggestionsQuery.isError ? (
-            <p className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              Could not load transfer suggestions.
-            </p>
-          ) : null}
+            {transferSuggestionsQuery.isError ? (
+              <EmptyState
+                tone="danger"
+                icon={<ArrowRightLeft className="h-5 w-5" />}
+                title="Could not load transfer suggestions."
+              />
+            ) : null}
 
-          {transferSuggestionsQuery.isSuccess &&
-          transferSuggestionsQuery.data.length === 0 ? (
-            <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              No transfer suggestions to review.
-            </p>
-          ) : null}
+            {transferSuggestionsQuery.isSuccess &&
+            transferSuggestionsQuery.data.length === 0 ? (
+              <EmptyState
+                icon={<ArrowRightLeft className="h-5 w-5" />}
+                title="No transfer suggestions to review."
+              />
+            ) : null}
 
-          {transferSuggestionsQuery.isSuccess &&
-          transferSuggestionsQuery.data.length > 0 ? (
-            <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Product
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Route
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Suggested quantity
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Confidence
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Reason
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white">
+            {transferSuggestionsQuery.isSuccess &&
+            transferSuggestionsQuery.data.length > 0 ? (
+              <TableScroll>
+                <Table>
+                  <THead>
+                    <TR className="hover:bg-transparent">
+                      <TH>Product</TH>
+                      <TH>Route</TH>
+                      <TH>Suggested quantity</TH>
+                      <TH>Confidence</TH>
+                      <TH>Reason</TH>
+                      <TH className="text-right">Action</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
                     {transferSuggestionsQuery.data.map((suggestion) => (
                       <TransferSuggestionRow
                         canDismiss={canDismissTransferSuggestions}
@@ -524,191 +562,199 @@ export function StockAnalyticsScreen() {
                         suggestion={suggestion}
                       />
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
-        </section>
+                  </TBody>
+                </Table>
+              </TableScroll>
+            ) : null}
+          </PanelBody>
+        </Panel>
       ) : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-teal-700">
-              Forecast suggestion
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-slate-950">
-              Reorder forecasting
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              Estimated demand based on stock movement history. Human review
-              required before ordering.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            {pharmacies.length > 0 ? (
-              <label className="min-w-56 text-sm font-medium text-slate-700">
-                Pharmacy
-                <select
-                  className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  onChange={(event) =>
-                    setSelectedPharmacyId(
-                      event.target.value ? Number(event.target.value) : undefined,
-                    )
-                  }
-                  value={selectedPharmacyId ?? ""}
-                >
-                  {pharmacies.map((pharmacy) => (
-                    <option key={pharmacy.id} value={pharmacy.id}>
-                      {pharmacy.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-
-            <label className="min-w-40 text-sm font-medium text-slate-700">
-              Horizon
-              <select
-                className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                onChange={(event) => setHorizonDays(Number(event.target.value))}
-                value={horizonDays}
+      <Panel>
+        <PanelHeader>
+          <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span
+                aria-hidden="true"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
               >
-                <option value={30}>30 days</option>
-                <option value={60}>60 days</option>
-                <option value={90}>90 days</option>
-              </select>
-            </label>
-
-            {canRunForecast ? (
-              <button
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={
-                  selectedPharmacyId === undefined || generateForecast.isPending
-                }
-                onClick={() => void handleGenerateForecast()}
-                type="button"
-              >
-                {generateForecast.isPending
-                  ? "Generating..."
-                  : "Generate forecast"}
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {generateForecast.isError ? (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            Could not generate forecast. Check your pharmacy scope and try again.
-          </p>
-        ) : null}
-
-        {selectedPharmacyId === undefined ? (
-          <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            Select a pharmacy to view forecasting suggestions.
-          </p>
-        ) : null}
-
-        {latestForecastQuery.isLoading ? (
-          <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            Loading latest forecast...
-          </p>
-        ) : null}
-
-        {latestForecastQuery.isError ? (
-          <p className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            Could not load latest forecast.
-          </p>
-        ) : null}
-
-        {latestForecastQuery.isSuccess && latestForecastQuery.data === null ? (
-          <p className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            No forecast generated yet.
-          </p>
-        ) : null}
-
-        {latestForecastQuery.isSuccess && latestForecastQuery.data !== null ? (
-          <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
-            <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-950">
-                Latest forecast: {latestForecastQuery.data.horizon_days} days,
-                model {latestForecastQuery.data.model_version}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Generated {formatDate(latestForecastQuery.data.created_at)}
-              </p>
+                <LineChart className="h-[18px] w-[18px]" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+                  Forecast suggestion
+                </p>
+                <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
+                  Reorder forecasting
+                </h2>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
+                  Estimated demand based on stock movement history. Human review
+                  required before ordering.
+                </p>
+              </div>
             </div>
-            {latestForecastQuery.data.items.length === 0 ? (
-              <p className="p-4 text-sm text-slate-600">
-                No active stock items found for this pharmacy.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-white">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Product
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Predicted usage
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Current stock
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Suggested reorder
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Confidence
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Rationale
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              {pharmacies.length > 0 ? (
+                <label className="min-w-56">
+                  <span className={labelClass}>Pharmacy</span>
+                  <FieldSelect
+                    onChange={(event) =>
+                      setSelectedPharmacyId(
+                        event.target.value
+                          ? Number(event.target.value)
+                          : undefined,
+                      )
+                    }
+                    value={selectedPharmacyId ?? ""}
+                  >
+                    {pharmacies.map((pharmacy) => (
+                      <option key={pharmacy.id} value={pharmacy.id}>
+                        {pharmacy.name}
+                      </option>
+                    ))}
+                  </FieldSelect>
+                </label>
+              ) : null}
+
+              <label className="min-w-40">
+                <span className={labelClass}>Horizon</span>
+                <FieldSelect
+                  onChange={(event) => setHorizonDays(Number(event.target.value))}
+                  value={horizonDays}
+                >
+                  <option value={30}>30 days</option>
+                  <option value={60}>60 days</option>
+                  <option value={90}>90 days</option>
+                </FieldSelect>
+              </label>
+
+              {canRunForecast ? (
+                <Button
+                  variant="primary"
+                  leadingIcon={<Sparkles className="h-4 w-4" />}
+                  disabled={
+                    selectedPharmacyId === undefined || generateForecast.isPending
+                  }
+                  onClick={() => void handleGenerateForecast()}
+                >
+                  {generateForecast.isPending
+                    ? "Generating..."
+                    : "Generate forecast"}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </PanelHeader>
+
+        <PanelBody className="space-y-4">
+          {generateForecast.isError ? (
+            <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
+              Could not generate forecast. Check your pharmacy scope and try again.
+            </p>
+          ) : null}
+
+          {selectedPharmacyId === undefined ? (
+            <EmptyState
+              icon={<LineChart className="h-5 w-5" />}
+              title="Select a pharmacy to view forecasting suggestions."
+            />
+          ) : null}
+
+          {latestForecastQuery.isLoading ? (
+            <SkeletonRows rows={4} />
+          ) : null}
+
+          {latestForecastQuery.isError ? (
+            <EmptyState
+              tone="danger"
+              icon={<LineChart className="h-5 w-5" />}
+              title="Could not load latest forecast."
+            />
+          ) : null}
+
+          {latestForecastQuery.isSuccess && latestForecastQuery.data === null ? (
+            <EmptyState
+              icon={<LineChart className="h-5 w-5" />}
+              title="No forecast generated yet."
+            />
+          ) : null}
+
+          {latestForecastQuery.isSuccess && latestForecastQuery.data !== null ? (
+            <TableScroll>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-subtle px-4 py-3">
+                <div>
+                  <p className="text-[13px] font-bold text-ink">
+                    Latest forecast: {latestForecastQuery.data.horizon_days} days,
+                    model {latestForecastQuery.data.model_version}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    Generated {formatDate(latestForecastQuery.data.created_at)}
+                  </p>
+                </div>
+              </div>
+              {latestForecastQuery.data.items.length === 0 ? (
+                <EmptyState
+                  icon={<LineChart className="h-5 w-5" />}
+                  title="No active stock items found for this pharmacy."
+                />
+              ) : (
+                <Table>
+                  <THead>
+                    <TR className="hover:bg-transparent">
+                      <TH>Product</TH>
+                      <TH>Predicted usage</TH>
+                      <TH>Current stock</TH>
+                      <TH>Suggested reorder</TH>
+                      <TH>Confidence</TH>
+                      <TH>Rationale</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
                     {latestForecastQuery.data.items.map((item) => (
                       <ForecastRow item={item} key={item.id} />
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        ) : null}
-      </section>
+                  </TBody>
+                </Table>
+              )}
+            </TableScroll>
+          ) : null}
+        </PanelBody>
+      </Panel>
 
       {stockOverviewQuery.isLoading ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Loading stock intelligence...
-        </section>
+        <Panel>
+          <PanelBody>
+            <SkeletonRows rows={6} />
+          </PanelBody>
+        </Panel>
       ) : null}
 
       {stockOverviewQuery.isError ? (
-        <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <h2 className="text-lg font-bold text-red-900">
-            Could not load stock intelligence.
-          </h2>
-          <p className="mt-2 text-sm text-red-700">
-            Please retry. Your session or permissions may need refreshing.
-          </p>
-          <button
-            className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            onClick={() => void stockOverviewQuery.refetch()}
-            type="button"
-          >
-            Retry
-          </button>
-        </section>
+        <EmptyState
+          tone="danger"
+          icon={<PackageSearch className="h-6 w-6" />}
+          title="Could not load stock intelligence."
+          description="Please retry. Your session or permissions may need refreshing."
+          action={
+            <Button
+              variant="danger"
+              leadingIcon={<RefreshCw className="h-4 w-4" />}
+              onClick={() => void stockOverviewQuery.refetch()}
+            >
+              Retry
+            </Button>
+          }
+        />
       ) : null}
 
       {stockOverviewQuery.isSuccess ? (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section
+            aria-label="Stock attention summary"
+            className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          >
             {SUMMARY_LABELS.map((summary) => (
-              <SummaryCard
+              <KpiCard
                 key={summary.key}
                 label={summary.label}
                 value={stockOverviewQuery.data.summary[summary.key]}
@@ -717,65 +763,51 @@ export function StockAnalyticsScreen() {
           </section>
 
           {stockOverviewQuery.data.items.length === 0 ? (
-            <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-              No stock analytics to display.
-            </section>
+            <EmptyState
+              icon={<PackageSearch className="h-6 w-6" />}
+              title="No stock analytics to display."
+              description="Stock items in scope will appear here once movement and inventory data is available."
+            />
           ) : (
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-6 py-5">
-                <h2 className="text-lg font-bold text-slate-950">
-                  Attention table
-                </h2>
-                <p className="mt-2 text-sm text-slate-600">
-                  Thresholds: near expiry{" "}
-                  {stockOverviewQuery.data.thresholds.near_expiry_days} days,
-                  dead stock {stockOverviewQuery.data.thresholds.dead_stock_days}{" "}
-                  days, slow moving below{" "}
-                  {stockOverviewQuery.data.thresholds.slow_moving_threshold}{" "}
-                  units consumed.
-                </p>
-              </div>
+            <Panel>
+              <PanelHeader>
+                <div className="min-w-0">
+                  <h2 className="text-[15px] font-bold tracking-[-0.01em] text-ink">
+                    Attention table
+                  </h2>
+                  <p className="mt-0.5 max-w-3xl text-xs leading-relaxed text-muted">
+                    Thresholds: near expiry{" "}
+                    {stockOverviewQuery.data.thresholds.near_expiry_days} days, dead
+                    stock {stockOverviewQuery.data.thresholds.dead_stock_days} days,
+                    slow moving below{" "}
+                    {stockOverviewQuery.data.thresholds.slow_moving_threshold} units
+                    consumed.
+                  </p>
+                </div>
+              </PanelHeader>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Medication
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Pharmacy
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        On hand
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Reorder level
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Expiry
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Flags
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Attention
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Reorder
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Reasons
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white">
+                <Table>
+                  <THead>
+                    <TR className="hover:bg-transparent">
+                      <TH>Medication</TH>
+                      <TH>Pharmacy</TH>
+                      <TH>On hand</TH>
+                      <TH>Reorder level</TH>
+                      <TH>Expiry</TH>
+                      <TH>Flags</TH>
+                      <TH>Attention</TH>
+                      <TH>Reorder</TH>
+                      <TH>Reasons</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
                     {stockOverviewQuery.data.items.map((item) => (
                       <AnalyticsRow item={item} key={item.stock_item_id} />
                     ))}
-                  </tbody>
-                </table>
+                  </TBody>
+                </Table>
               </div>
-            </section>
+            </Panel>
           )}
         </>
       ) : null}

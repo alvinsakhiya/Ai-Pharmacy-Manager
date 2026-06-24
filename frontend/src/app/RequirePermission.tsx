@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { Lock } from "lucide-react";
 
 import { usePermissions } from "../auth/usePermissions";
+import { EmptyState } from "../components/ui/EmptyState";
 
 interface RequirePermissionProps {
   anyOf: string[];
@@ -15,14 +17,13 @@ export function RequirePermission({ anyOf, children }: RequirePermissionProps) {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-      <h1 className="text-2xl font-bold text-slate-950">
-        You don&apos;t have access to this section.
-      </h1>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-        Your account is signed in, but the backend permissions for this section
-        are not present in your current session.
-      </p>
-    </section>
+    <div className="mx-auto flex min-h-[60vh] max-w-2xl items-center justify-center">
+      <EmptyState
+        className="w-full animate-fade-in-up"
+        icon={<Lock className="h-5 w-5" aria-hidden="true" />}
+        title="You don't have access to this section."
+        description="Your account is signed in, but the backend permissions for this section are not present in your current session."
+      />
+    </div>
   );
 }

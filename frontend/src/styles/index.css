@@ -2,120 +2,116 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --brand: #0d9488;
-  --brand-strong: #0f766e;
-  --brand-soft: #f0fdfa;
-  --sidebar-bg: #0b1220;
-  --sidebar-fg: #e2e8f0;
-  --sidebar-muted: #94a3b8;
-  --sidebar-active-bg: rgba(13, 148, 136, 0.16);
-  --sidebar-active-fg: #5eead4;
-  --sidebar-border: #1e293b;
-  --surface: #ffffff;
-  --surface-muted: #f8fafc;
-  --border: #e2e8f0;
-  --text: #020617;
-  --text-muted: #475569;
-  --radius-card: 1rem;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 8px 24px -12px rgba(15, 23, 42, 0.18);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  color-scheme: light;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+@layer base {
+  :root {
+    color-scheme: light;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    font-family: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui,
+      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: #f4f4f2; /* canvas — clean off-white */
+    color: #221e33; /* ink */
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: -0.005em;
+  }
+
+  /* Tabular figures for the data-heavy tables, counts, expiries, totals. */
+  .tnum,
+  table td,
+  table th {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: #d6c6f8;
+    color: #2e2348;
+  }
+
+  /* Calm, thin scrollbars in warm tones. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d8cfe8 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #d8cfe8;
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: #c3b6e0;
+  }
+
+  /* Dark rail gets dark scrollbars. */
+  .scroll-dark {
+    scrollbar-color: #4a3f63 transparent;
+  }
+
+  .scroll-dark::-webkit-scrollbar-thumb {
+    background-color: #4a3f63;
+  }
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+@layer utilities {
+  /* Staggered entrance for grids/lists of cards — gives the dashboard its
+     smooth "settle in" feel. Children fade-up in sequence. */
+  .stagger > * {
+    opacity: 0;
+    animation: fade-in-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .stagger > *:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .stagger > *:nth-child(2) {
+    animation-delay: 0.07s;
+  }
+  .stagger > *:nth-child(3) {
+    animation-delay: 0.12s;
+  }
+  .stagger > *:nth-child(4) {
+    animation-delay: 0.17s;
+  }
+  .stagger > *:nth-child(5) {
+    animation-delay: 0.22s;
+  }
+  .stagger > *:nth-child(6) {
+    animation-delay: 0.27s;
+  }
+  .stagger > *:nth-child(7) {
+    animation-delay: 0.32s;
+  }
+  .stagger > *:nth-child(8) {
+    animation-delay: 0.37s;
+  }
 }
 
 @layer components {
-  .app-card {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .stat-card {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
-    padding: 1.25rem;
-  }
-
-  .section-title {
-    color: var(--text);
-    font-size: 1rem;
-    font-weight: 700;
-    line-height: 1.5rem;
-  }
-
-  .badge {
-    display: inline-flex;
-    width: fit-content;
-    align-items: center;
-    border-radius: 9999px;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    line-height: 1rem;
-  }
-
-  .badge--success {
-    background: #ecfdf5;
-    color: #047857;
-  }
-
-  .badge--warning {
-    background: #fffbeb;
-    color: #b45309;
-  }
-
-  .badge--danger {
-    background: #fef2f2;
-    color: #b91c1c;
-  }
-
-  .badge--info {
-    background: #eff6ff;
-    color: #1d4ed8;
-  }
-
-  .badge--neutral {
-    background: #f1f5f9;
-    color: #475569;
-  }
-
-  .icon-tile {
-    display: inline-flex;
-    height: 2.75rem;
-    width: 2.75rem;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.875rem;
-    background: var(--brand-soft);
-    color: var(--brand-strong);
-    font-weight: 800;
-    box-shadow: inset 0 0 0 1px rgba(13, 148, 136, 0.12);
-  }
-
-  .table-wrap {
-    overflow-x: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
+  /* Shared focus ring used across interactive elements. */
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
   }
 }
 
+/* The app-shell desktop/mobile sidebar behaviour. */
 .app-shell__desktop-sidebar {
   display: none;
 }
@@ -125,16 +121,20 @@ body {
 }
 
 @media (min-width: 1024px) {
+  /* Rounded floating side panel inset on the cream canvas (ShipMates-style). */
   .app-shell__desktop-sidebar {
     position: fixed;
-    inset: 0 auto 0 0;
+    inset: 14px auto 14px 14px;
     z-index: 30;
     display: block;
-    width: 18rem;
+    width: 16.5rem;
+    border-radius: 26px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(42, 35, 64, 0.1);
   }
 
   .app-shell__content {
-    padding-left: 18rem;
+    padding-left: calc(16.5rem + 28px);
   }
 
   .app-shell__mobile-overlay,
@@ -143,40 +143,82 @@ body {
   }
 }
 
-.dashboard-hero-grid,
-.dashboard-main-grid,
-.dashboard-module-grid,
-.dashboard-stat-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.dashboard-stat-grid {
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 1024px) {
-  .dashboard-hero-grid {
-    grid-template-columns: minmax(20rem, 1.15fr) minmax(24rem, 1fr);
-    align-items: stretch;
-  }
-
-  .dashboard-main-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
-    align-items: start;
-  }
-
-  .dashboard-module-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dashboard-stat-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+/* Honour reduced-motion: drop transforms/large motion, keep state legible.
+   Triggered by the OS setting OR the in-app accessibility toggle (.reduce-motion). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-@media (min-width: 1440px) {
-  .dashboard-module-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* High-contrast accessibility mode: darken the low-contrast greys, strengthen
+   hairlines and focus rings. Tokens are compile-time, so override the key
+   utility classes here. */
+html.contrast-high {
+  --hc-muted: #3a4150;
+}
+
+html.contrast-high .text-muted {
+  color: #3a4150 !important;
+}
+
+html.contrast-high .text-muted-soft {
+  color: #4a5260 !important;
+}
+
+html.contrast-high .text-ink-soft {
+  color: #161b22 !important;
+}
+
+html.contrast-high .border-line {
+  border-color: #b4bcae !important;
+}
+
+html.contrast-high .border-line-strong {
+  border-color: #9aa394 !important;
+}
+
+html.contrast-high .text-sidebar-muted {
+  color: #aebcb9 !important;
+}
+
+html.contrast-high *:focus-visible {
+  outline: 2px solid #4a3f8f !important;
+  outline-offset: 2px;
+}
+
+/* Skip-to-content link — visible only when focused. */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  transform: translateY(-150%);
+  border-radius: 12px;
+  background: #2a2340; /* sidebar token */
+  color: #ffffff;
+  padding: 0.5rem 0.875rem;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(42, 35, 64, 0.1); /* elev-2 token */
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  outline: none;
 }

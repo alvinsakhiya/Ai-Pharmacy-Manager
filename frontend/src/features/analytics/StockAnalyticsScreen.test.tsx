@@ -302,7 +302,7 @@ describe("StockAnalyticsScreen", () => {
     getStockAnalyticsOverviewMock.mockReturnValueOnce(new Promise(() => undefined));
     const loadingRender = renderAnalytics();
 
-    expect(screen.getByText("Loading stock intelligence...")).toBeInTheDocument();
+    expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
     loadingRender.unmount();
 
     getStockAnalyticsOverviewMock.mockRejectedValue(new Error("No analytics"));
@@ -370,7 +370,7 @@ describe("StockAnalyticsScreen", () => {
     getLatestForecastMock.mockReturnValueOnce(new Promise(() => undefined));
     const loadingRender = renderAnalytics();
 
-    expect(screen.getByText("Loading latest forecast...")).toBeInTheDocument();
+    expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
     loadingRender.unmount();
 
     getLatestForecastMock.mockRejectedValueOnce(new Error("No forecast"));
@@ -466,7 +466,7 @@ describe("StockAnalyticsScreen", () => {
     listTransferSuggestionsMock.mockReturnValueOnce(new Promise(() => undefined));
     const loadingRender = renderAnalytics(transferAuth());
 
-    expect(screen.getByText("Loading transfer suggestions...")).toBeInTheDocument();
+    expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
     loadingRender.unmount();
 
     listTransferSuggestionsMock.mockRejectedValueOnce(new Error("No suggestions"));

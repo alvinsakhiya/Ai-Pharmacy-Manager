@@ -241,11 +241,13 @@ describe("ReviewsScreen", () => {
   });
 
   it("gates the nav item with review.view", () => {
-    expect(NAV_ITEMS).toContainEqual({
-      label: "Reviews",
-      path: "/reviews",
-      requiredAnyOf: ["review.view"],
-    });
+    expect(NAV_ITEMS).toContainEqual(
+      expect.objectContaining({
+        label: "Reviews",
+        path: "/reviews",
+        requiredAnyOf: ["review.view"],
+      }),
+    );
   });
 
   it("does not render patient PII or excluded wording in the review queue", async () => {

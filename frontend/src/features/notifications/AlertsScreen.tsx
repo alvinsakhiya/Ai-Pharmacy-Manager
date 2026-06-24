@@ -1,3 +1,13 @@
+import { AlertTriangle, BellOff } from "lucide-react";
+
+import { Badge } from "../../components/ui/Badge";
+import type { BadgeVariant } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { KpiCard } from "../../components/ui/KpiCard";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { SkeletonRows } from "../../components/ui/Skeleton";
 import type { Alert, AlertCategory, AlertSeverity } from "./notificationsApi";
 import { useAlertsQuery } from "./useNotifications";
 
@@ -8,10 +18,10 @@ const SUMMARY_LABELS = [
   { key: "info", label: "Info" },
 ] as const;
 
-const SEVERITY_STYLES: Record<AlertSeverity, string> = {
-  critical: "bg-red-50 text-red-700",
-  warning: "bg-amber-50 text-amber-700",
-  info: "bg-sky-50 text-sky-700",
+const SEVERITY_BADGE: Record<AlertSeverity, BadgeVariant> = {
+  critical: "danger",
+  warning: "warning",
+  info: "info",
 };
 
 const CATEGORY_LABELS: Record<AlertCategory, string> = {
@@ -19,34 +29,10 @@ const CATEGORY_LABELS: Record<AlertCategory, string> = {
   dosette: "Dosette",
 };
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
-    </article>
-  );
-}
-
-function Chip({ children, className }: { children: string; className: string }) {
-  return (
-    <span
-      className={[
-        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        className,
-      ].join(" ")}
-    >
-      {children}
-    </span>
-  );
-}
-
 function SubjectDetails({ alert }: { alert: Alert }) {
   if (alert.category === "stock") {
     return (
-      <p className="mt-3 text-sm text-slate-600">
+      <p className="mt-3 text-[13px] leading-relaxed text-muted">
         {[alert.subject.medication_name, `Pharmacy ${alert.pharmacy_id}`]
           .filter(Boolean)
           .join(" · ")}
@@ -56,7 +42,7 @@ function SubjectDetails({ alert }: { alert: Alert }) {
 
   if (alert.category === "dosette") {
     return (
-      <p className="mt-3 text-sm text-slate-600">
+      <p className="mt-3 text-[13px] leading-relaxed text-muted">
         {[
           alert.subject.cycle_reference
             ? `Cycle ${alert.subject.cycle_reference}`
@@ -76,17 +62,19 @@ function SubjectDetails({ alert }: { alert: Alert }) {
 
 function AlertCard({ alert }: { alert: Alert }) {
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap gap-2">
-        <Chip className={SEVERITY_STYLES[alert.severity]}>
+    <article className="rounded-2xl border border-line bg-surface p-5 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={SEVERITY_BADGE[alert.severity]} dot>
           {alert.severity}
-        </Chip>
-        <Chip className="bg-slate-100 text-slate-700">
-          {CATEGORY_LABELS[alert.category]}
-        </Chip>
+        </Badge>
+        <Badge variant="neutral">{CATEGORY_LABELS[alert.category]}</Badge>
       </div>
-      <h2 className="mt-4 text-base font-bold text-slate-950">{alert.title}</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{alert.message}</p>
+      <h2 className="mt-4 text-base font-bold tracking-[-0.01em] text-ink">
+        {alert.title}
+      </h2>
+      <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+        {alert.message}
+      </p>
       <SubjectDetails alert={alert} />
     </article>
   );
@@ -96,67 +84,67 @@ export function AlertsScreen() {
   const alertsQuery = useAlertsQuery();
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold text-teal-700">Live alerts</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-          Alerts
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          Operational stock and Dosette/MDS alerts.
-        </p>
-      </section>
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Live alerts"
+        title="Alerts"
+        subtitle="Operational stock and Dosette/MDS alerts."
+      />
 
       {alertsQuery.isLoading ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Loading alerts...
-        </section>
+        <Panel>
+          <PanelHeader title="Alerts" subtitle="Loading alerts..." />
+          <PanelBody>
+            <SkeletonRows rows={4} />
+          </PanelBody>
+        </Panel>
       ) : null}
 
       {alertsQuery.isError ? (
-        <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <h2 className="text-lg font-bold text-red-900">
-            Could not load alerts.
-          </h2>
-          <p className="mt-2 text-sm text-red-700">
-            Please retry. Your session or permissions may need refreshing.
-          </p>
-          <button
-            className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            onClick={() => void alertsQuery.refetch()}
-            type="button"
-          >
-            Retry
-          </button>
-        </section>
+        <EmptyState
+          tone="danger"
+          icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
+          title="Could not load alerts."
+          description="Please retry. Your session or permissions may need refreshing."
+          action={
+            <Button
+              variant="danger"
+              onClick={() => void alertsQuery.refetch()}
+            >
+              Retry
+            </Button>
+          }
+        />
       ) : null}
 
       {alertsQuery.isSuccess ? (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
             {SUMMARY_LABELS.map((summary) => (
-              <SummaryCard
+              <KpiCard
                 key={summary.key}
                 label={summary.label}
                 value={alertsQuery.data.summary[summary.key]}
               />
             ))}
-            <SummaryCard
+            <KpiCard
               label="Stock"
               value={alertsQuery.data.summary.by_category.stock}
             />
-            <SummaryCard
+            <KpiCard
               label="Dosette"
               value={alertsQuery.data.summary.by_category.dosette}
             />
           </section>
 
           {alertsQuery.data.alerts.length === 0 ? (
-            <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-              No active alerts.
-            </section>
+            <EmptyState
+              icon={<BellOff className="h-5 w-5" aria-hidden="true" />}
+              title="No active alerts."
+              description="Everything in your scope is clear. New stock and Dosette/MDS signals will surface here."
+            />
           ) : (
-            <section className="space-y-4">
+            <section className="space-y-3">
               {alertsQuery.data.alerts.map((alert) => (
                 <AlertCard alert={alert} key={alert.id} />
               ))}

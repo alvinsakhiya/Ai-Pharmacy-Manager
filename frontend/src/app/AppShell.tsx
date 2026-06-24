@@ -8,7 +8,10 @@ export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-surface-muted text-slate-950">
+    <div className="min-h-screen bg-canvas text-ink">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <div className="app-shell__desktop-sidebar">
         <Sidebar />
       </div>
@@ -17,11 +20,11 @@ export function AppShell() {
         <div className="app-shell__mobile-overlay fixed inset-0 z-40">
           <button
             aria-label="Close navigation"
-            className="absolute inset-0 bg-slate-950/40"
+            className="absolute inset-0 animate-fade-in bg-ink/50 backdrop-blur-[2px]"
             onClick={() => setMobileNavOpen(false)}
             type="button"
           />
-          <div className="relative h-full max-w-72 shadow-2xl">
+          <div className="relative h-full w-[16.5rem] max-w-[85vw] animate-slide-in-left shadow-elev-3">
             <Sidebar onNavigate={() => setMobileNavOpen(false)} />
           </div>
         </div>
@@ -29,7 +32,11 @@ export function AppShell() {
 
       <div className="app-shell__content">
         <TopBar onMenuClick={() => setMobileNavOpen(true)} />
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto max-w-[1480px] px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8"
+        >
           <Outlet />
         </main>
       </div>

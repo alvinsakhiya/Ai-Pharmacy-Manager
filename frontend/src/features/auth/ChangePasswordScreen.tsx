@@ -1,7 +1,11 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AlertCircle, KeyRound } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
+import { Button } from "../../components/ui/Button";
+import { Logo } from "../../components/ui/Logo";
+import { inputClass, labelClass } from "../../components/ui/forms";
 
 function errorText(errors: unknown): string {
   if (!errors) {
@@ -48,23 +52,30 @@ export function ChangePasswordScreen() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 py-16 text-slate-100">
-      <section className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl shadow-cyan-950/30">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
+    <main className="flex min-h-screen items-center justify-center bg-canvas px-6 py-16 text-ink">
+      <section className="w-full max-w-md animate-fade-in-up rounded-2xl border border-line bg-surface p-8 shadow-elev-2">
+        <div className="flex items-center gap-3">
+          <Logo size={44} className="shadow-elev-1" />
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+            AI Pharmacy Manager
+          </p>
+        </div>
+        <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-warning-border bg-warning-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-warning-ink">
+          <KeyRound aria-hidden="true" className="h-3.5 w-3.5" />
           Password required
-        </p>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight">
+        </span>
+        <h1 className="mt-3 text-2xl font-extrabold tracking-[-0.02em] text-ink">
           Change your password
         </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-300">
+        <p className="mt-2 text-sm leading-relaxed text-muted">
           You need to set a new password before continuing.
         </p>
-        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-          <label className="block text-sm font-medium text-slate-200">
+        <form className="mt-7 space-y-5" onSubmit={handleSubmit}>
+          <label className={labelClass}>
             Current password
             <input
               autoComplete="current-password"
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+              className={inputClass}
               name="oldPassword"
               onChange={(event) => setOldPassword(event.target.value)}
               required
@@ -72,11 +83,11 @@ export function ChangePasswordScreen() {
               value={oldPassword}
             />
           </label>
-          <label className="block text-sm font-medium text-slate-200">
+          <label className={labelClass}>
             New password
             <input
               autoComplete="new-password"
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+              className={inputClass}
               name="newPassword"
               onChange={(event) => setNewPassword(event.target.value)}
               required
@@ -85,25 +96,32 @@ export function ChangePasswordScreen() {
             />
           </label>
           {error ? (
-            <p className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-              {error}
+            <p
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger-ink"
+            >
+              <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
             </p>
           ) : null}
           <div className="flex gap-3">
-            <button
-              className="flex-1 rounded-lg bg-cyan-400 px-4 py-2 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
               disabled={submitting}
               type="submit"
             >
               {submitting ? "Saving..." : "Change password"}
-            </button>
-            <button
-              className="rounded-lg border border-slate-700 px-4 py-2 font-semibold text-slate-200 transition hover:bg-slate-800"
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
               onClick={() => void handleLogout()}
               type="button"
             >
               Logout
-            </button>
+            </Button>
           </div>
         </form>
       </section>

@@ -1,3 +1,6 @@
+import { CalendarClock, CheckCircle2, UserRound, XCircle } from "lucide-react";
+
+import { Button } from "../../components/ui/Button";
 import {
   ReviewOverdueBadge,
   ReviewPriorityBadge,
@@ -44,13 +47,24 @@ function formatDateTime(value: string): string {
   }).format(date);
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+}) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        <span aria-hidden="true" className="text-muted-soft">
+          {icon}
+        </span>
         {label}
       </dt>
-      <dd className="mt-1 text-sm font-medium text-slate-800">{value}</dd>
+      <dd className="mt-1 text-sm font-semibold text-ink-soft tnum">{value}</dd>
     </div>
   );
 }
@@ -64,55 +78,66 @@ export function ReviewCard({
   const canAct = canManage && ["PENDING", "IN_REVIEW"].includes(review.status);
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="animate-fade-in-up rounded-2xl border border-line bg-surface p-5 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
             <ReviewStatusBadge status={review.status} />
             <ReviewPriorityBadge priority={review.priority} />
             {review.is_overdue ? <ReviewOverdueBadge /> : null}
           </div>
-          <h2 className="mt-4 text-base font-bold text-slate-950">
+          <h2 className="mt-4 text-base font-bold tracking-[-0.01em] text-ink tnum">
             {review.patient_reference}
           </h2>
           {review.cycle_reference ? (
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-muted">
               Cycle {review.cycle_reference}
             </p>
           ) : null}
         </div>
 
         {canAct ? (
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="primary"
+              leadingIcon={<CheckCircle2 className="h-4 w-4" />}
               onClick={() => onComplete(review)}
-              type="button"
             >
               Complete
-            </button>
-            <button
-              className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              leadingIcon={<XCircle className="h-4 w-4" />}
               onClick={() => onCancel(review)}
-              type="button"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>
 
       <dl className="mt-5 grid gap-4 sm:grid-cols-3">
-        <Detail label="Due date" value={formatDate(review.due_date)} />
+        <Detail
+          label="Due date"
+          value={formatDate(review.due_date)}
+          icon={<CalendarClock className="h-3.5 w-3.5" />}
+        />
         <Detail
           label="Assigned to"
           value={review.assigned_to_email ?? "Unassigned"}
+          icon={<UserRound className="h-3.5 w-3.5" />}
         />
-        <Detail label="Updated" value={formatDateTime(review.updated_at)} />
+        <Detail
+          label="Updated"
+          value={formatDateTime(review.updated_at)}
+          icon={<CalendarClock className="h-3.5 w-3.5" />}
+        />
       </dl>
 
       {review.notes.trim() ? (
-        <p className="mt-5 whitespace-pre-wrap rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+        <p className="mt-5 whitespace-pre-wrap rounded-xl border border-line bg-surface-subtle p-4 text-sm leading-relaxed text-ink-soft">
           {review.notes}
         </p>
       ) : null}

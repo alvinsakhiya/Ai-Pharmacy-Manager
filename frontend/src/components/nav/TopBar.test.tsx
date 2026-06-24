@@ -1,5 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthContextValue } from "../../auth/AuthContext";
@@ -78,31 +77,13 @@ describe("TopBar", () => {
     getAlertsMock.mockResolvedValue(emptyAlerts());
   });
 
-  it("renders user name, role, and scope label", () => {
-    renderTopBar({
-      user: makeUser({
-        full_name: "Priya Admin",
-        role: "ADMIN",
-      }),
-    });
+  it("renders the global scope label", () => {
+    renderTopBar({ user: makeUser({ role: "ADMIN" }) });
 
-    expect(screen.getByText("Priya Admin")).toBeInTheDocument();
-    expect(screen.getByText("ADMIN")).toBeInTheDocument();
     expect(screen.getByText("Global access")).toBeInTheDocument();
   });
 
-  it("renders email when full name is blank", () => {
-    renderTopBar({
-      user: makeUser({
-        full_name: "",
-        email: "fallback@example.com",
-      }),
-    });
-
-    expect(screen.getByText("fallback@example.com")).toBeInTheDocument();
-  });
-
-  it("renders pharmacy scope label", () => {
+  it("renders a pharmacy scope label", () => {
     renderTopBar({
       user: makeUser({
         role: "PHARMACIST",
@@ -118,16 +99,10 @@ describe("TopBar", () => {
     expect(screen.getByText("Central Pharmacy")).toBeInTheDocument();
   });
 
-  it("logout button calls logout", async () => {
-    const user = userEvent.setup();
-    const logout = vi.fn().mockResolvedValue(undefined);
-    renderTopBar({ logout });
+  it("renders the workspace section label", () => {
+    renderTopBar();
 
-    await user.click(screen.getByRole("button", { name: /logout/i }));
-
-    await waitFor(() => {
-      expect(logout).toHaveBeenCalled();
-    });
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
   });
 
   it("renders the notification centre bell", async () => {

@@ -1,6 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import {
+  fieldErrorClass,
+  inputClass,
+  labelClass,
+  selectClass,
+  textareaClass,
+} from "../../components/ui/forms";
+import { cn } from "../../lib/cn";
 import {
   errorMessages,
   normalizeErrors,
@@ -26,7 +36,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className={cn(fieldErrorClass, "space-y-1")}>
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -43,6 +53,7 @@ export function ReviewFormModal({
   onCreated,
 }: ReviewFormModalProps) {
   const createReview = useCreateReview();
+  const { success, error } = useToast();
   const [patientId, setPatientId] = useState("");
   const [cycleId, setCycleId] = useState("");
   const [priority, setPriority] = useState<ReviewPriority>("ROUTINE");
@@ -87,10 +98,12 @@ export function ReviewFormModal({
 
     try {
       await createReview.mutateAsync(body);
+      success("Review created");
       onCreated?.();
       onClose();
-    } catch (error) {
-      setErrors(normalizeErrors(error));
+    } catch (caught) {
+      setErrors(normalizeErrors(caught));
+      error("Could not create review");
     }
   }
 
@@ -101,10 +114,10 @@ export function ReviewFormModal({
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
         {fixedPatientId === undefined ? (
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Patient
             <select
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={selectClass}
               onChange={(event) => setPatientId(event.target.value)}
               required
               value={patientId}
@@ -121,10 +134,10 @@ export function ReviewFormModal({
         ) : null}
 
         {fixedPatientId !== undefined && patientCycles.length > 0 ? (
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Dosette / MDS cycle
             <select
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={selectClass}
               onChange={(event) => setCycleId(event.target.value)}
               value={cycleId}
             >
@@ -139,10 +152,10 @@ export function ReviewFormModal({
           </label>
         ) : null}
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Priority
           <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={selectClass}
             onChange={(event) =>
               setPriority(event.target.value as ReviewPriority)
             }
@@ -155,10 +168,10 @@ export function ReviewFormModal({
           <FieldErrorList messages={errorMessages(errors, "priority")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Due date
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setDueDate(event.target.value)}
             type="date"
             value={dueDate}
@@ -166,31 +179,27 @@ export function ReviewFormModal({
           <FieldErrorList messages={errorMessages(errors, "due_date")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Notes
           <textarea
-            className="mt-2 min-h-28 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={textareaClass}
             onChange={(event) => setNotes(event.target.value)}
             value={notes}
           />
           <FieldErrorList messages={errorMessages(errors, "notes")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={createReview.isPending}
+          </Button>
+          <Button
+            variant="primary"
             type="submit"
+            disabled={createReview.isPending}
           >
             {createReview.isPending ? "Saving..." : "Create review"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

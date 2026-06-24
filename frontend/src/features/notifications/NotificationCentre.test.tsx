@@ -164,7 +164,7 @@ describe("NotificationCentre", () => {
     await user.click(
       await screen.findByRole("button", { name: "Open notification centre" }),
     );
-    expect(screen.getByText("Loading notifications...")).toBeInTheDocument();
+    expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
     loadingRender.unmount();
 
     getAlertsMock.mockRejectedValueOnce(new Error("No alerts"));

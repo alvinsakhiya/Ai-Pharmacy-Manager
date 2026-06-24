@@ -1,9 +1,26 @@
 import { useState } from "react";
+import { AlertTriangle, ScrollText } from "lucide-react";
 
 import { usePermissions } from "../../auth/usePermissions";
 import { AUDIT_ACTION_OPTIONS } from "./auditActions";
 import type { AuditEvent } from "./auditApi";
 import { useAuditEventsQuery } from "./useAudit";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { Panel, PanelBody } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import {
+  TableScroll,
+  Table,
+  THead,
+  TBody,
+  TR,
+  TH,
+  TD,
+} from "../../components/ui/Table";
+import { labelClass, selectClass } from "../../components/ui/forms";
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -48,156 +65,143 @@ export function AuditScreen() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold text-teal-700">Audit</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-          Audit Log
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          Review read-only audit events in your permitted scope. Backend
-          tenancy rules remain the source of truth for visibility.
-        </p>
-      </section>
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="System"
+        title="Audit Log"
+        subtitle="Review read-only audit events in your permitted scope. Backend tenancy rules remain the source of truth for visibility."
+      />
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label
-          className="block text-sm font-semibold text-slate-700"
-          htmlFor="audit-action-filter"
-        >
-          Action
-        </label>
-        <select
-          className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:max-w-xs"
-          id="audit-action-filter"
-          onChange={(event) => handleActionChange(event.target.value)}
-          value={action}
-        >
-          <option value="">All actions</option>
-          {AUDIT_ACTION_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </section>
+      <Panel>
+        <PanelBody>
+          <label className={labelClass} htmlFor="audit-action-filter">
+            Action
+          </label>
+          <select
+            className={`${selectClass} sm:max-w-xs`}
+            id="audit-action-filter"
+            onChange={(event) => handleActionChange(event.target.value)}
+            value={action}
+          >
+            <option value="">All actions</option>
+            {AUDIT_ACTION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </PanelBody>
+      </Panel>
 
       {auditQuery.isLoading ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Loading audit events...
-        </section>
+        <Panel>
+          <PanelBody>
+            <SkeletonRows rows={8} />
+          </PanelBody>
+        </Panel>
       ) : null}
 
       {auditQuery.isError ? (
-        <section className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <h2 className="text-lg font-bold text-red-900">
-            Could not load audit events.
-          </h2>
-          <p className="mt-2 text-sm text-red-700">
-            Please retry. If this continues, your session or permissions may
-            need refreshing.
-          </p>
-          <button
-            className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            onClick={() => void auditQuery.refetch()}
-            type="button"
-          >
-            Retry
-          </button>
-        </section>
+        <EmptyState
+          tone="danger"
+          icon={<AlertTriangle className="h-6 w-6" />}
+          title="Could not load audit events."
+          description="Please retry. If this continues, your session or permissions may need refreshing."
+          action={
+            <Button variant="danger" onClick={() => void auditQuery.refetch()}>
+              Retry
+            </Button>
+          }
+        />
       ) : null}
 
       {auditQuery.isSuccess && results.length === 0 ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          {isSuperintendentEmpty
-            ? "Group-level audit visibility is limited in this phase."
-            : "No audit events."}
-        </section>
+        <EmptyState
+          icon={<ScrollText className="h-6 w-6" />}
+          title={
+            isSuperintendentEmpty
+              ? "Group-level audit visibility is limited in this phase."
+              : "No audit events."
+          }
+          description="Events appear here as actions are recorded across your scope."
+        />
       ) : null}
 
       {auditQuery.isSuccess && results.length > 0 ? (
         <section className="space-y-4">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      When
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Action
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Actor
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Role
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Target
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      IP
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Details
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {results.map((event) => (
-                    <tr key={event.id}>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                        {formatDateTime(event.created_at)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
+          <TableScroll>
+            <Table>
+              <THead>
+                <TR className="hover:bg-transparent">
+                  <TH>When</TH>
+                  <TH>Action</TH>
+                  <TH>Actor</TH>
+                  <TH>Role</TH>
+                  <TH>Target</TH>
+                  <TH>IP</TH>
+                  <TH>Details</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {results.map((event) => (
+                  <TR key={event.id}>
+                    <TD className="tnum whitespace-nowrap text-muted">
+                      {formatDateTime(event.created_at)}
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      <span className="font-semibold text-ink">
                         {event.action}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                        {event.actor_email || "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                        {event.actor_role || "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                        {formatTarget(event)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
-                        {event.ip_address ?? "—"}
-                      </td>
-                      <td className="max-w-xs truncate px-4 py-4 font-mono text-xs text-slate-600">
-                        {formatMetadata(event.metadata)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                      </span>
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      {event.actor_email || "—"}
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      {event.actor_role ? (
+                        <Badge variant="neutral">{event.actor_role}</Badge>
+                      ) : (
+                        "—"
+                      )}
+                    </TD>
+                    <TD className="whitespace-nowrap">{formatTarget(event)}</TD>
+                    <TD className="tnum whitespace-nowrap text-muted">
+                      {event.ip_address ?? "—"}
+                    </TD>
+                    <TD className="max-w-xs truncate font-mono text-xs text-muted">
+                      {formatMetadata(event.metadata)}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </TableScroll>
 
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <p>
+          <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 text-sm text-muted shadow-soft sm:flex-row sm:items-center sm:justify-between">
+            <p className="tnum">
               Showing {results.length} of {totalCount}
             </p>
             <div className="flex items-center gap-3">
-              <button
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              <Button
+                size="sm"
+                variant="secondary"
                 disabled={previousPage === null || page === 1}
-                onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
-                type="button"
+                onClick={() =>
+                  setPage((currentPage) => Math.max(1, currentPage - 1))
+                }
               >
                 Prev
-              </button>
-              <span className="font-medium text-slate-700">Page {page}</span>
-              <button
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              </Button>
+              <span className="tnum font-semibold text-ink-soft">
+                Page {page}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
                 disabled={nextPage === null}
                 onClick={() => setPage((currentPage) => currentPage + 1)}
-                type="button"
               >
                 Next
-              </button>
+              </Button>
             </div>
           </div>
         </section>

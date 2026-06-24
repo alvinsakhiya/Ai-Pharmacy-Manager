@@ -22,6 +22,9 @@ import { ReportsScreen } from "../features/reports/ReportsScreen";
 import { ReviewsScreen } from "../features/reviews/ReviewsScreen";
 import { UsersScreen } from "../features/users/UsersScreen";
 import { OrganisationScreen } from "../features/tenancy/OrganisationScreen";
+import { SettingsScreen } from "../features/settings/SettingsScreen";
+import { Logo } from "../components/ui/Logo";
+import { Skeleton } from "../components/ui/Skeleton";
 import { AppShell } from "./AppShell";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { RequirePermission } from "./RequirePermission";
@@ -31,8 +34,18 @@ function LoginRoute() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700">
-        Loading...
+      <main
+        aria-busy="true"
+        aria-label="Loading"
+        className="flex min-h-screen items-center justify-center bg-canvas"
+      >
+        <div className="flex animate-fade-in items-center gap-3.5">
+          <Logo size={48} className="shadow-elev-1" />
+          <div className="space-y-2">
+            <Skeleton className="h-3.5 w-36" />
+            <Skeleton className="h-2.5 w-24" />
+          </div>
+        </div>
       </main>
     );
   }
@@ -161,6 +174,7 @@ export function AppRouter() {
                 </RequirePermission>
               }
             />
+            <Route path="/settings" element={<SettingsScreen />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>

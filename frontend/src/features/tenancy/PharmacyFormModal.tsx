@@ -1,6 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import { useToast } from "../../components/ui/Toast";
+import {
+  fieldErrorClass,
+  inputClass,
+  labelClass,
+  selectClass,
+  textareaClass,
+} from "../../components/ui/forms";
 import {
   errorMessages,
   normalizeErrors,
@@ -25,7 +34,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className={`${fieldErrorClass} space-y-1`}>
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -38,6 +47,7 @@ export function PharmacyFormModal({
   isOpen,
   onClose,
 }: PharmacyFormModalProps) {
+  const { success, error: errorToast } = useToast();
   const groupsQuery = useGroupsQuery();
   const createPharmacy = useCreatePharmacy();
   const updatePharmacy = useUpdatePharmacy();
@@ -95,12 +105,18 @@ export function PharmacyFormModal({
     try {
       if (pharmacy) {
         await updatePharmacy.mutateAsync({ id: pharmacy.id, body });
+        success("Pharmacy updated", `${body.name} has been saved.`);
       } else {
         await createPharmacy.mutateAsync(body);
+        success("Pharmacy created", `${body.name} is ready to use.`);
       }
       onClose();
     } catch (error) {
       setErrors(normalizeErrors(error));
+      errorToast(
+        "Could not save pharmacy",
+        "Please review the form and try again.",
+      );
     }
   }
 
@@ -116,10 +132,10 @@ export function PharmacyFormModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Group
           <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={selectClass}
             onChange={(event) => setGroup(event.target.value)}
             required
             value={group}
@@ -134,10 +150,10 @@ export function PharmacyFormModal({
           <FieldErrorList messages={errorMessages(errors, "group")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Name
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setName(event.target.value)}
             required
             type="text"
@@ -146,10 +162,10 @@ export function PharmacyFormModal({
           <FieldErrorList messages={errorMessages(errors, "name")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Code
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setCode(event.target.value)}
             required
             type="text"
@@ -158,20 +174,20 @@ export function PharmacyFormModal({
           <FieldErrorList messages={errorMessages(errors, "code")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Address
           <textarea
-            className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={textareaClass}
             onChange={(event) => setAddress(event.target.value)}
             value={address}
           />
           <FieldErrorList messages={errorMessages(errors, "address")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Postcode
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setPostcode(event.target.value)}
             type="text"
             value={postcode}
@@ -179,31 +195,23 @@ export function PharmacyFormModal({
           <FieldErrorList messages={errorMessages(errors, "postcode")} />
         </label>
 
-        <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+        <label className="flex items-center gap-2.5 text-[13px] font-semibold text-ink-soft">
           <input
             checked={isActive}
-            className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            className="h-4 w-4 rounded border-line-strong text-brand focus:ring-2 focus:ring-brand-ring/60"
             onChange={(event) => setIsActive(event.target.checked)}
             type="checkbox"
           />
           Active
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isSaving}
-            type="submit"
-          >
+          </Button>
+          <Button variant="primary" type="submit" disabled={isSaving}>
             {isSaving ? "Saving..." : "Save pharmacy"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

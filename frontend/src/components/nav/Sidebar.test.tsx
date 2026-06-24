@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -28,11 +29,12 @@ function makeUser(overrides: Partial<MePayload> = {}): MePayload {
 }
 
 function renderSidebar(user: MePayload) {
+  const logout = vi.fn().mockResolvedValue(undefined);
   const auth: AuthContextValue = {
     user,
     loading: false,
     login: vi.fn(),
-    logout: vi.fn(),
+    logout,
     changePassword: vi.fn(),
     refreshMe: vi.fn(),
   };
@@ -44,6 +46,8 @@ function renderSidebar(user: MePayload) {
       </MemoryRouter>
     </AuthContext.Provider>,
   );
+
+  return { logout };
 }
 
 describe("Sidebar", () => {
@@ -205,9 +209,27 @@ describe("Sidebar", () => {
   it("future items appear disabled and non-clickable", () => {
     renderSidebar(makeUser());
 
-    const stockItem = screen.getByText("Scheduled Jobs");
+    const stockItem = screen.getByText("Dosette/MDS");
 
     expect(stockItem).toHaveAttribute("aria-disabled", "true");
     expect(stockItem.closest("a")).toBeNull();
+  });
+
+  it("renders the signed-in user profile with a logout control", () => {
+    renderSidebar(makeUser({ full_name: "Andrew Carnegie", role: "ADMIN" }));
+
+    expect(screen.getByText("Andrew Carnegie")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
+  });
+
+  it("logout button calls logout", async () => {
+    const user = userEvent.setup();
+    const { logout } = renderSidebar(makeUser());
+
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+
+    await waitFor(() => {
+      expect(logout).toHaveBeenCalled();
+    });
   });
 });

@@ -1,9 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import { Info } from "lucide-react";
+
 import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
+import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
+import {
+  fieldErrorClass,
+  labelClass,
+  selectClass,
+  textareaClass,
+} from "../../components/ui/forms";
+import { cn } from "../../lib/cn";
 import {
   errorMessages,
   normalizeErrors,
@@ -30,7 +40,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className={cn(fieldErrorClass, "space-y-1")}>
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -163,18 +173,18 @@ export function MedicationFormModal({
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
         {!medication ? (
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+          <p className="rounded-xl border border-line bg-surface-subtle p-3 text-sm text-ink-soft">
             Select a canonical catalogue product. Name, strength, form, pack
             size, and manufacturer are controlled by the catalogue to reduce
             spelling and strength errors.
           </p>
         ) : null}
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Group
           {groupReadOnly ? (
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-700 shadow-sm"
+              className={selectClass}
               disabled
               readOnly
               type="text"
@@ -182,7 +192,7 @@ export function MedicationFormModal({
             />
           ) : (
             <select
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={selectClass}
               onChange={(event) => setGroup(event.target.value)}
               required
               value={group}
@@ -199,39 +209,50 @@ export function MedicationFormModal({
         </label>
 
         {!hasResolvableGroup ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Ask an administrator or superintendent to add the first catalogue
-            product for this group.
+          <p className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-soft p-3 text-sm text-warning-ink">
+            <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Ask an administrator or superintendent to add the first catalogue
+              product for this group.
+            </span>
           </p>
         ) : null}
 
         {medication ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">
+          <div className="rounded-xl border border-line bg-surface-subtle p-4">
+            <p className="text-sm font-bold text-ink">
               {medication.catalogue_product_full_label ?? medication.name}
             </p>
             <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-slate-500">Form</dt>
-                <dd className="font-medium text-slate-800">
+                <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-muted">
+                  Form
+                </dt>
+                <dd className="mt-0.5 font-medium text-ink-soft">
                   {formLabel(medication.form)}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Strength</dt>
-                <dd className="font-medium text-slate-800">
+                <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-muted">
+                  Strength
+                </dt>
+                <dd className="mt-0.5 font-medium text-ink-soft tnum">
                   {medication.strength}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Manufacturer</dt>
-                <dd className="font-medium text-slate-800">
+                <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-muted">
+                  Manufacturer
+                </dt>
+                <dd className="mt-0.5 font-medium text-ink-soft">
                   {medication.manufacturer || "—"}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Pack</dt>
-                <dd className="font-medium text-slate-800">
+                <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-muted">
+                  Pack
+                </dt>
+                <dd className="mt-0.5 font-medium text-ink-soft tnum">
                   {medication.catalogue_product_pack_size == null
                     ? "—"
                     : `${medication.catalogue_product_pack_size}${
@@ -251,11 +272,11 @@ export function MedicationFormModal({
             />
             <FieldErrorList messages={errorMessages(errors, "catalogue_product")} />
             {selectedProduct ? (
-              <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm">
-                <p className="font-semibold text-teal-900">
+              <div className="mt-3 rounded-xl bg-brand-soft p-3 text-sm">
+                <p className="font-bold text-brand-ink">
                   {selectedProduct.full_label}
                 </p>
-                <p className="mt-1 text-teal-800">
+                <p className="mt-1 text-brand-ink">
                   {selectedProduct.dose_form}
                   {selectedProduct.strength ? `, ${selectedProduct.strength}` : ""}
                   {selectedProduct.manufacturer
@@ -267,45 +288,37 @@ export function MedicationFormModal({
           </div>
         )}
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Notes
           <textarea
-            className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={textareaClass}
             onChange={(event) => setNotes(event.target.value)}
             value={notes}
           />
           <FieldErrorList messages={errorMessages(errors, "notes")} />
         </label>
 
-        <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+        <label className="flex items-center gap-3 text-[13px] font-semibold text-ink-soft">
           <input
             checked={isActive}
-            className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            className="h-4 w-4 rounded border-line-strong text-brand focus:ring-brand-ring"
             onChange={(event) => setIsActive(event.target.checked)}
             type="checkbox"
           />
           Active
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={submitDisabled}
-            type="submit"
-          >
+          </Button>
+          <Button variant="primary" type="submit" disabled={submitDisabled}>
             {isSaving
               ? "Saving..."
               : medication
                 ? "Save local settings"
                 : "Add from catalogue"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

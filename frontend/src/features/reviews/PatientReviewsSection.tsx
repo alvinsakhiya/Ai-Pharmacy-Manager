@@ -1,7 +1,14 @@
 import { useState } from "react";
 
+import { ClipboardList, Plus } from "lucide-react";
+
 import { usePermissions } from "../../auth/usePermissions";
+import { Button } from "../../components/ui/Button";
+import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import { useToast } from "../../components/ui/Toast";
 import { useDosetteCyclesQuery } from "../dosette/useDosette";
 import { ReviewCard } from "./ReviewCard";
 import { ReviewFormModal } from "./ReviewFormModal";
@@ -18,6 +25,7 @@ interface PatientReviewsSectionProps {
 
 export function PatientReviewsSection({ patientId }: PatientReviewsSectionProps) {
   const { can } = usePermissions();
+  const { success, error } = useToast();
   const canView = can("review.view");
   const canManage = can("review.manage");
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -37,8 +45,13 @@ export function PatientReviewsSection({ patientId }: PatientReviewsSectionProps)
       return;
     }
 
-    await completeReview.mutateAsync(completeTarget.id);
-    setCompleteTarget(null);
+    try {
+      await completeReview.mutateAsync(completeTarget.id);
+      success("Review completed");
+      setCompleteTarget(null);
+    } catch {
+      error("Could not complete review");
+    }
   }
 
   async function confirmCancel() {
@@ -46,63 +59,79 @@ export function PatientReviewsSection({ patientId }: PatientReviewsSectionProps)
       return;
     }
 
-    await cancelReview.mutateAsync(cancelTarget.id);
-    setCancelTarget(null);
+    try {
+      await cancelReview.mutateAsync(cancelTarget.id);
+      success("Review cancelled");
+      setCancelTarget(null);
+    } catch {
+      error("Could not cancel review");
+    }
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-bold text-slate-950">Reviews</h2>
-        {canManage ? (
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-            onClick={() => setCreateModalOpen(true)}
-            type="button"
-          >
-            Add review
-          </button>
+    <Panel>
+      <PanelHeader
+        title="Reviews"
+        icon={<ClipboardList className="h-4 w-4" />}
+        actions={
+          canManage ? (
+            <Button
+              size="sm"
+              variant="primary"
+              leadingIcon={<Plus className="h-4 w-4" />}
+              onClick={() => setCreateModalOpen(true)}
+            >
+              Add review
+            </Button>
+          ) : null
+        }
+      />
+      <PanelBody className="space-y-4">
+        {reviewsQuery.isLoading ? (
+          <>
+            <p className="sr-only">Loading reviews...</p>
+            <SkeletonRows rows={3} />
+          </>
         ) : null}
-      </div>
 
-      {reviewsQuery.isLoading ? (
-        <p className="mt-4 text-sm text-slate-600">Loading reviews...</p>
-      ) : null}
+        {reviewsQuery.isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<ClipboardList className="h-6 w-6" />}
+            title="Could not load reviews."
+            description="Something went wrong loading reviews. Try again."
+            action={
+              <Button
+                variant="danger"
+                onClick={() => void reviewsQuery.refetch()}
+              >
+                Retry
+              </Button>
+            }
+          />
+        ) : null}
 
-      {reviewsQuery.isError ? (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm font-semibold text-red-900">
-            Could not load reviews.
-          </p>
-          <button
-            className="mt-3 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            onClick={() => void reviewsQuery.refetch()}
-            type="button"
-          >
-            Retry
-          </button>
-        </div>
-      ) : null}
+        {reviewsQuery.isSuccess && reviewsQuery.data.length === 0 ? (
+          <EmptyState
+            icon={<ClipboardList className="h-6 w-6" />}
+            title="No reviews for this patient."
+          />
+        ) : null}
 
-      {reviewsQuery.isSuccess && reviewsQuery.data.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-600">
-          No reviews for this patient.
-        </p>
-      ) : null}
-
-      {reviewsQuery.isSuccess && reviewsQuery.data.length > 0 ? (
-        <div className="mt-4 space-y-4">
-          {reviewsQuery.data.map((review) => (
-            <ReviewCard
-              canManage={canManage}
-              key={review.id}
-              onCancel={setCancelTarget}
-              onComplete={setCompleteTarget}
-              review={review}
-            />
-          ))}
-        </div>
-      ) : null}
+        {reviewsQuery.isSuccess && reviewsQuery.data.length > 0 ? (
+          <div className="stagger space-y-4">
+            {reviewsQuery.data.map((review) => (
+              <ReviewCard
+                canManage={canManage}
+                key={review.id}
+                onCancel={setCancelTarget}
+                onComplete={setCompleteTarget}
+                review={review}
+              />
+            ))}
+          </div>
+        ) : null}
+      </PanelBody>
 
       <ReviewFormModal
         fixedPatientId={patientId}
@@ -115,27 +144,23 @@ export function PatientReviewsSection({ patientId }: PatientReviewsSectionProps)
         isOpen={completeTarget !== null}
         onClose={() => setCompleteTarget(null)}
         title="Complete review?"
+        size="sm"
       >
         <div className="space-y-5">
-          <p className="text-sm leading-6 text-slate-700">
+          <p className="text-sm leading-relaxed text-ink-soft">
             This review will be marked completed.
           </p>
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-            <button
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => setCompleteTarget(null)}
-              type="button"
-            >
+          <div className="flex justify-end gap-3 border-t border-line pt-5">
+            <Button variant="secondary" onClick={() => setCompleteTarget(null)}>
               Cancel
-            </button>
-            <button
-              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            </Button>
+            <Button
+              variant="primary"
               disabled={completeReview.isPending}
               onClick={() => void confirmComplete()}
-              type="button"
             >
               {completeReview.isPending ? "Completing..." : "Complete"}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -144,30 +169,26 @@ export function PatientReviewsSection({ patientId }: PatientReviewsSectionProps)
         isOpen={cancelTarget !== null}
         onClose={() => setCancelTarget(null)}
         title="Cancel review?"
+        size="sm"
       >
         <div className="space-y-5">
-          <p className="text-sm leading-6 text-slate-700">
+          <p className="text-sm leading-relaxed text-ink-soft">
             This review will be marked cancelled.
           </p>
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-            <button
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              onClick={() => setCancelTarget(null)}
-              type="button"
-            >
+          <div className="flex justify-end gap-3 border-t border-line pt-5">
+            <Button variant="secondary" onClick={() => setCancelTarget(null)}>
               Keep review
-            </button>
-            <button
-              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            </Button>
+            <Button
+              variant="danger"
               disabled={cancelReview.isPending}
               onClick={() => void confirmCancel()}
-              type="button"
             >
               {cancelReview.isPending ? "Cancelling..." : "Cancel review"}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
-    </section>
+    </Panel>
   );
 }

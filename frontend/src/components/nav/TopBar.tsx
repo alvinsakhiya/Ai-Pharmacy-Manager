@@ -1,82 +1,98 @@
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Building2, Menu, Search } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { NotificationCentre } from "../../features/notifications/NotificationCentre";
+import { NAV_ITEMS } from "../../app/navConfig";
 import { scopeLabel } from "../../lib/scope";
+import { CommandPalette } from "./CommandPalette";
 
 interface TopBarProps {
   onMenuClick?: () => void;
 }
 
-export function TopBar({ onMenuClick }: TopBarProps) {
-  const { logout, user } = useAuth();
-  const navigate = useNavigate();
+function useSectionTitle(): string {
+  const { pathname } = useLocation();
+  const match = NAV_ITEMS.filter((item) =>
+    item.path === "/" ? pathname === "/" : pathname.startsWith(item.path),
+  ).sort((a, b) => b.path.length - a.path.length)[0];
+  return match?.label ?? "Workspace";
+}
 
-  async function handleLogout() {
-    await logout();
-    navigate("/login", { replace: true });
-  }
+export function TopBar({ onMenuClick }: TopBarProps) {
+  const { user } = useAuth();
+  const section = useSectionTitle();
+  const [commandOpen, setCommandOpen] = useState(false);
 
   if (!user) {
     return null;
   }
 
-  const displayName = user.full_name || user.email;
-  const initials = displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
-
   return (
-    <header className="flex min-h-20 items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-4 py-4 shadow-sm sm:px-6 lg:px-8">
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="sticky top-0 z-20 bg-canvas/80 backdrop-blur-md">
+      <div className="mx-auto flex min-h-[68px] max-w-[1480px] items-center gap-2.5 px-4 py-3.5 sm:px-6 sm:gap-3 lg:px-8">
         <button
           aria-label="Open navigation"
-          className="app-shell__menu-button rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+          className="app-shell__menu-button grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line-strong bg-surface text-ink-soft shadow-elev-1 transition-colors hover:bg-surface-subtle focus-ring"
           onClick={onMenuClick}
           type="button"
         >
-          Menu
+          <Menu aria-hidden="true" className="h-5 w-5" />
         </button>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-950">
-            AI Pharmacy Manager
-          </p>
-          <p className="truncate text-sm text-slate-500">{scopeLabel(user)}</p>
-        </div>
-      </div>
 
-      <div className="hidden min-w-0 flex-1 justify-center px-6 lg:flex">
-        <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 shadow-sm">
-          Search users, medications, patients, reports...
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+            Workspace
+          </p>
+          <p className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
+            {section}
+          </p>
         </div>
-      </div>
 
-      <div className="flex items-center gap-3">
-        <NotificationCentre />
-        <div className="hidden text-right sm:block">
-          <p className="text-sm font-semibold text-slate-950">
-            {displayName}
-          </p>
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            {user.role ?? "No role"}
-          </p>
-        </div>
-        <div
-          aria-hidden="true"
-          className="hidden h-10 w-10 items-center justify-center rounded-full bg-teal-700 text-sm font-bold text-white shadow-sm sm:flex"
-        >
-          {initials || "U"}
-        </div>
         <button
-          className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-          onClick={() => void handleLogout()}
           type="button"
+          onClick={() => setCommandOpen(true)}
+          aria-label="Open command menu"
+          aria-keyshortcuts="Meta+K Control+K"
+          className="hidden h-10 w-64 items-center gap-2.5 rounded-full border border-line bg-surface px-4 text-sm text-muted shadow-elev-1 transition-colors hover:border-line-strong hover:bg-surface-subtle focus-ring lg:flex xl:w-80"
         >
-          Logout
+          <Search aria-hidden="true" className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Search modules…</span>
+          <kbd className="rounded-md border border-line px-1.5 py-0.5 text-[11px] font-bold text-muted">
+            ⌘K
+          </kbd>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setCommandOpen(true)}
+          aria-label="Open command menu"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-surface text-ink-soft shadow-elev-1 transition-colors hover:bg-surface-subtle focus-ring lg:hidden"
+        >
+          <Search aria-hidden="true" className="h-5 w-5" />
+        </button>
+
+        <div className="hidden h-10 items-center gap-2 rounded-full border border-line bg-surface pl-3 pr-4 shadow-elev-1 md:flex">
+          <span
+            aria-hidden="true"
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-soft text-brand"
+          >
+            <Building2 className="h-3.5 w-3.5" />
+          </span>
+          <span className="flex flex-col leading-none">
+            <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-muted">
+              Scope
+            </span>
+            <span className="mt-0.5 max-w-[12rem] truncate text-[13px] font-bold text-ink">
+              {scopeLabel(user)}
+            </span>
+          </span>
+        </div>
+
+        <NotificationCentre />
+
+        <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
       </div>
     </header>
   );

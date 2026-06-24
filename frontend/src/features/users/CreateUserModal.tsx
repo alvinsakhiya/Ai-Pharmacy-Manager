@@ -3,6 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "../../auth/AuthContext";
 import { Modal } from "../../components/ui/Modal";
+import { Button } from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
+import {
+  fieldErrorClass,
+  fieldHintClass,
+  inputClass,
+  labelClass,
+  selectClass,
+} from "../../components/ui/forms";
 import { listPharmaciesForPicker } from "./usersApi";
 import { roleOptionsFor } from "./roleOptions";
 import { useCreateUser } from "./useUsers";
@@ -19,7 +28,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className={`${fieldErrorClass} space-y-1`}>
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -30,6 +39,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
 export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
   const { user } = useAuth();
   const createUser = useCreateUser();
+  const { success, error: toastError } = useToast();
   const roleOptions = useMemo(() => roleOptionsFor(user), [user]);
   const isGlobal = user?.scope.is_global ?? false;
   const fixedPharmacy = !isGlobal ? user?.pharmacies[0] : undefined;
@@ -102,9 +112,12 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
         role,
         pharmacy_id: selectedPharmacyId,
       });
+      success("User created", `${email.trim()} can now sign in.`);
       onClose();
     } catch (error) {
-      setErrors(normalizeErrors(error));
+      const normalized = normalizeErrors(error);
+      setErrors(normalized);
+      toastError("Could not create user", "Check the highlighted fields.");
     }
   }
 
@@ -114,11 +127,11 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Email
           <input
             autoComplete="email"
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setEmail(event.target.value)}
             required
             type="email"
@@ -127,11 +140,11 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
           <FieldErrorList messages={errorMessages(errors, "email")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Full name
           <input
             autoComplete="name"
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setFullName(event.target.value)}
             required
             type="text"
@@ -140,26 +153,26 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
           <FieldErrorList messages={errorMessages(errors, "full_name")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Temporary password
           <input
             autoComplete="new-password"
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setTemporaryPassword(event.target.value)}
             required
             type="password"
             value={temporaryPassword}
           />
-          <span className="mt-2 block text-xs text-slate-500">
+          <span className={fieldHintClass}>
             Use at least 8 characters and avoid entirely numeric passwords.
           </span>
           <FieldErrorList messages={errorMessages(errors, "password")} />
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Role
           <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={selectClass}
             onChange={(event) => setRole(event.target.value)}
             value={role}
           >
@@ -172,10 +185,10 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
         </label>
 
         {showPharmacyPicker ? (
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Pharmacy
             <select
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={selectClass}
               onChange={(event) => setPharmacyId(event.target.value)}
               required
               value={pharmacyId}
@@ -192,27 +205,23 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
         ) : null}
 
         {!isGlobal && fixedPharmacy ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-medium text-slate-700">Pharmacy</p>
-            <p className="mt-1 text-sm text-slate-600">{fixedPharmacy.name}</p>
+          <div className="rounded-xl border border-line bg-surface-subtle p-4">
+            <p className="text-[13px] font-semibold text-ink-soft">Pharmacy</p>
+            <p className="mt-1 text-sm text-muted">{fixedPharmacy.name}</p>
           </div>
         ) : null}
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button onClick={onClose} type="button" variant="secondary">
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          </Button>
+          <Button
             disabled={createUser.isPending}
             type="submit"
+            variant="primary"
           >
             {createUser.isPending ? "Creating..." : "Create user"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

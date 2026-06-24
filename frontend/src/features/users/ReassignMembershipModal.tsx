@@ -3,6 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "../../auth/AuthContext";
 import { Modal } from "../../components/ui/Modal";
+import { Button } from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
+import {
+  fieldErrorClass,
+  fieldHintClass,
+  labelClass,
+  selectClass,
+} from "../../components/ui/forms";
 import { buildAssignMembershipBody } from "./assignmentBody";
 import { roleOptionsFor } from "./roleOptions";
 import { useAssignMembership } from "./useUsers";
@@ -24,7 +32,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className={`${fieldErrorClass} space-y-1`}>
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -38,6 +46,7 @@ export function ReassignMembershipModal({
 }: ReassignMembershipModalProps) {
   const { user: currentUser } = useAuth();
   const assignMembership = useAssignMembership();
+  const { success, error: toastError } = useToast();
   const roleOptions = useMemo(() => roleOptionsFor(currentUser), [currentUser]);
   const isGlobalRequester = currentUser?.scope.is_global ?? false;
   const ownPharmacy = !isGlobalRequester ? currentUser?.pharmacies[0] : undefined;
@@ -141,9 +150,11 @@ export function ReassignMembershipModal({
           pharmacyIds,
         }),
       });
+      success("Membership updated", `${user.email} reassigned.`);
       onClose();
     } catch (error) {
       setErrors(normalizeErrors(error));
+      toastError("Could not update membership", "Check the highlighted fields.");
     }
   }
 
@@ -157,10 +168,10 @@ export function ReassignMembershipModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Role
           <select
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={selectClass}
             onChange={(event) => {
               setRole(event.target.value);
               setGroupId("");
@@ -180,10 +191,10 @@ export function ReassignMembershipModal({
 
         {isGlobalRequester &&
         (role === "SUPERINTENDENT" || role === "STOCK_EMPLOYEE") ? (
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Group
             <select
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={selectClass}
               onChange={(event) => {
                 setGroupId(event.target.value);
                 setPharmacyIds([]);
@@ -204,10 +215,10 @@ export function ReassignMembershipModal({
 
         {isGlobalRequester &&
         (role === "PHARMACIST" || role === "DISPENSER") ? (
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Pharmacy
             <select
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={selectClass}
               onChange={(event) => setPharmacyId(event.target.value)}
               required
               value={pharmacyId}
@@ -224,10 +235,10 @@ export function ReassignMembershipModal({
         ) : null}
 
         {isGlobalRequester && role === "STOCK_EMPLOYEE" ? (
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Pharmacies
             <select
-              className="mt-2 h-32 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+              className={`${selectClass} h-32`}
               multiple
               onChange={(event) =>
                 setPharmacyIds(
@@ -244,7 +255,7 @@ export function ReassignMembershipModal({
                 </option>
               ))}
             </select>
-            <span className="mt-2 block text-xs text-slate-500">
+            <span className={fieldHintClass}>
               Hold Command or Control to select multiple pharmacies.
             </span>
             <FieldErrorList messages={errorMessages(errors, "pharmacy_ids")} />
@@ -252,30 +263,26 @@ export function ReassignMembershipModal({
         ) : null}
 
         {!isGlobalRequester && ownPharmacy ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-medium text-slate-700">Pharmacy</p>
-            <p className="mt-1 text-sm text-slate-600">{ownPharmacy.name}</p>
+          <div className="rounded-xl border border-line bg-surface-subtle p-4">
+            <p className="text-[13px] font-semibold text-ink-soft">Pharmacy</p>
+            <p className="mt-1 text-sm text-muted">{ownPharmacy.name}</p>
           </div>
         ) : null}
         {!isGlobalRequester ? (
           <FieldErrorList messages={errorMessages(errors, "pharmacy_id")} />
         ) : null}
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button onClick={onClose} type="button" variant="secondary">
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          </Button>
+          <Button
             disabled={assignMembership.isPending}
             type="submit"
+            variant="primary"
           >
             {assignMembership.isPending ? "Saving..." : "Save membership"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

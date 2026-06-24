@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
 
+import { Search } from "lucide-react";
+
+import { inputClass, labelClass } from "../../components/ui/forms";
+import { cn } from "../../lib/cn";
 import {
   listCatalogueProducts,
   type CatalogueProduct,
@@ -81,45 +85,51 @@ export function CatalogueProductSelect({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700">
+      <label className={labelClass}>
         Catalogue product
-        <input
-          aria-autocomplete="list"
-          aria-controls="catalogue-product-results"
-          aria-expanded={products.length > 0}
-          aria-label="Catalogue product"
-          className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
-          onChange={(event) => setSearch(event.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Search medicines, strengths, forms, or packs"
-          role="combobox"
-          type="search"
-          value={search}
-        />
+        <span className="relative mt-1.5 block">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+          />
+          <input
+            aria-autocomplete="list"
+            aria-controls="catalogue-product-results"
+            aria-expanded={products.length > 0}
+            aria-label="Catalogue product"
+            className={cn(inputClass, "mt-0 pl-9")}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Search medicines, strengths, forms, or packs"
+            role="combobox"
+            type="search"
+            value={search}
+          />
+        </span>
       </label>
 
       <div className="mt-2 min-h-10">
         {productsQuery.isLoading ? (
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          <p className="rounded-xl border border-line bg-surface-subtle p-3 text-sm text-muted">
             Searching catalogue...
           </p>
         ) : null}
 
         {productsQuery.isError ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
             Could not search the catalogue. Please retry.
           </p>
         ) : null}
 
         {productsQuery.isSuccess && products.length === 0 ? (
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          <p className="rounded-xl border border-line bg-surface-subtle p-3 text-sm text-muted">
             No catalogue products found.
           </p>
         ) : null}
 
         {products.length > 0 ? (
           <ul
-            className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-sm"
+            className="max-h-64 overflow-y-auto rounded-2xl border border-line bg-surface shadow-elev-2"
             id="catalogue-product-results"
             role="listbox"
           >
@@ -127,18 +137,18 @@ export function CatalogueProductSelect({
               <li key={product.id} role="presentation">
                 <button
                   aria-selected={selectedProduct?.id === product.id}
-                  className={[
-                    "block w-full px-3 py-3 text-left text-sm transition",
+                  className={cn(
+                    "block w-full px-3 py-3 text-left text-sm transition-colors duration-150 ease-soft",
                     index === activeIndex
-                      ? "bg-teal-50 text-slate-950"
-                      : "text-slate-800 hover:bg-slate-50",
-                  ].join(" ")}
+                      ? "bg-brand-soft text-brand-ink"
+                      : "text-ink-soft hover:bg-surface-subtle",
+                  )}
                   onClick={() => chooseProduct(product)}
                   role="option"
                   type="button"
                 >
                   <span className="block font-semibold">{product.full_label}</span>
-                  <span className="mt-1 block text-xs text-slate-500">
+                  <span className="mt-1 block text-xs text-muted">
                     {productMetadata(product)}
                   </span>
                 </button>

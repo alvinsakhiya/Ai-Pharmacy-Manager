@@ -7,6 +7,8 @@ import {
   AuthContext,
   type AuthContextValue,
 } from "../auth/AuthContext";
+import { ToastProvider } from "../components/ui/Toast";
+import { PreferencesProvider } from "../app/PreferencesContext";
 import type { MePayload } from "../types/auth";
 
 export function makeAuthUser(overrides: Partial<MePayload> = {}): MePayload {
@@ -70,11 +72,15 @@ export function renderWithProviders(
   } = {},
 ) {
   return render(
-    <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={auth}>
-        <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
-      </AuthContext.Provider>
-    </QueryClientProvider>,
+    <PreferencesProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthContext.Provider value={auth}>
+          <ToastProvider>
+            <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+          </ToastProvider>
+        </AuthContext.Provider>
+      </QueryClientProvider>
+    </PreferencesProvider>,
     options,
   );
 }

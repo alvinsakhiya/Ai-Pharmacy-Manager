@@ -1,3 +1,7 @@
+import { LayoutGrid } from "lucide-react";
+
+import { EmptyState } from "../../components/ui/EmptyState";
+
 interface ModulePlaceholderProps {
   title: string;
   description: string;
@@ -8,16 +12,13 @@ export function ModulePlaceholder({
   description,
 }: ModulePlaceholderProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-600">
-        Placeholder
-      </p>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
-        {title}
-      </h1>
-      <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
-        {description}
-      </p>
-    </section>
+    <div className="mx-auto flex min-h-[60vh] max-w-2xl items-center justify-center">
+      <EmptyState
+        className="w-full animate-fade-in-up"
+        icon={<LayoutGrid className="h-5 w-5" aria-hidden="true" />}
+        title={title}
+        description={description}
+      />
+    </div>
   );
 }

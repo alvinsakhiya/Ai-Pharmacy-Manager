@@ -1,6 +1,14 @@
 import { useState, type FormEvent } from "react";
 
 import { Modal } from "../../components/ui/Modal";
+import { Button } from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
+import {
+  fieldErrorClass,
+  fieldHintClass,
+  inputClass,
+  labelClass,
+} from "../../components/ui/forms";
 import { useResetPassword } from "./useUsers";
 import type { ManagedUser } from "./usersApi";
 import { errorMessages, normalizeErrors, type FieldErrors } from "./userErrors";
@@ -16,7 +24,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
   }
 
   return (
-    <ul className="mt-2 space-y-1 text-sm text-red-700">
+    <ul className={`${fieldErrorClass} space-y-1`}>
       {messages.map((message) => (
         <li key={message}>{message}</li>
       ))}
@@ -26,6 +34,7 @@ function FieldErrorList({ messages }: { messages: string[] }) {
 
 export function ResetPasswordModal({ user, onClose }: ResetPasswordModalProps) {
   const resetPassword = useResetPassword();
+  const { success, error: toastError } = useToast();
   const [newPassword, setNewPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -47,10 +56,12 @@ export function ResetPasswordModal({ user, onClose }: ResetPasswordModalProps) {
         id: user.id,
         newPassword,
       });
+      success("Password reset", `${user.email} must set a new password.`);
       setNewPassword("");
       onClose();
     } catch (error) {
       setErrors(normalizeErrors(error));
+      toastError("Could not reset password", "Check the highlighted field.");
     }
   }
 
@@ -64,37 +75,33 @@ export function ResetPasswordModal({ user, onClose }: ResetPasswordModalProps) {
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           New temporary password
           <input
             autoComplete="new-password"
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-950 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30"
+            className={inputClass}
             onChange={(event) => setNewPassword(event.target.value)}
             required
             type="password"
             value={newPassword}
           />
-          <span className="mt-2 block text-xs text-slate-500">
+          <span className={fieldHintClass}>
             Use at least 8 characters and avoid entirely numeric passwords.
           </span>
           <FieldErrorList messages={errorMessages(errors, "new_password")} />
         </label>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-          <button
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            onClick={onClose}
-            type="button"
-          >
+        <div className="flex justify-end gap-3 border-t border-line pt-5">
+          <Button onClick={onClose} type="button" variant="secondary">
             Cancel
-          </button>
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          </Button>
+          <Button
             disabled={resetPassword.isPending}
             type="submit"
+            variant="primary"
           >
             {resetPassword.isPending ? "Resetting..." : "Reset password"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

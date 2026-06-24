@@ -1,16 +1,43 @@
+import type { ReactNode } from "react";
+
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Flame,
+  MinusCircle,
+  Timer,
+} from "lucide-react";
+
+import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import type { ReviewPriority, ReviewStatus } from "./reviewsApi";
 
-const STATUS_STYLES: Record<ReviewStatus, string> = {
-  PENDING: "bg-slate-100 text-slate-700",
-  IN_REVIEW: "bg-sky-50 text-sky-700",
-  COMPLETED: "bg-emerald-50 text-emerald-700",
-  CANCELLED: "bg-slate-100 text-slate-500",
+const STATUS_META: Record<
+  ReviewStatus,
+  { variant: BadgeVariant; icon: ReactNode }
+> = {
+  PENDING: { variant: "neutral", icon: <Clock className="h-3.5 w-3.5" /> },
+  IN_REVIEW: { variant: "info", icon: <Timer className="h-3.5 w-3.5" /> },
+  COMPLETED: {
+    variant: "success",
+    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+  },
+  CANCELLED: {
+    variant: "neutral",
+    icon: <MinusCircle className="h-3.5 w-3.5" />,
+  },
 };
 
-const PRIORITY_STYLES: Record<ReviewPriority, string> = {
-  ROUTINE: "bg-slate-100 text-slate-700",
-  ATTENTION: "bg-amber-50 text-amber-700",
-  URGENT: "bg-red-50 text-red-700",
+const PRIORITY_META: Record<
+  ReviewPriority,
+  { variant: BadgeVariant; icon: ReactNode }
+> = {
+  ROUTINE: { variant: "neutral", icon: <MinusCircle className="h-3.5 w-3.5" /> },
+  ATTENTION: {
+    variant: "warning",
+    icon: <AlertTriangle className="h-3.5 w-3.5" />,
+  },
+  URGENT: { variant: "danger", icon: <Flame className="h-3.5 w-3.5" /> },
 };
 
 function label(value: string): string {
@@ -20,27 +47,13 @@ function label(value: string): string {
     .join(" ");
 }
 
-function Badge({
-  children,
-  className,
-}: {
-  children: string;
-  className: string;
-}) {
-  return (
-    <span
-      className={[
-        "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-        className,
-      ].join(" ")}
-    >
-      {children}
-    </span>
-  );
-}
-
 export function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
-  return <Badge className={STATUS_STYLES[status]}>{label(status)}</Badge>;
+  const meta = STATUS_META[status];
+  return (
+    <Badge variant={meta.variant} icon={meta.icon}>
+      {label(status)}
+    </Badge>
+  );
 }
 
 export function ReviewPriorityBadge({
@@ -48,9 +61,18 @@ export function ReviewPriorityBadge({
 }: {
   priority: ReviewPriority;
 }) {
-  return <Badge className={PRIORITY_STYLES[priority]}>{label(priority)}</Badge>;
+  const meta = PRIORITY_META[priority];
+  return (
+    <Badge variant={meta.variant} icon={meta.icon}>
+      {label(priority)}
+    </Badge>
+  );
 }
 
 export function ReviewOverdueBadge() {
-  return <Badge className="bg-red-50 text-red-700">Overdue</Badge>;
+  return (
+    <Badge variant="danger" icon={<AlertTriangle className="h-3.5 w-3.5" />}>
+      Overdue
+    </Badge>
+  );
 }

@@ -55,7 +55,7 @@ describe("LoginScreen", () => {
     renderLoginScreen();
 
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password/i, { selector: "input" })).toBeInTheDocument();
   });
 
   it("successful submit calls login", async () => {
@@ -64,7 +64,7 @@ describe("LoginScreen", () => {
     renderLoginScreen({ login });
 
     await user.type(screen.getByLabelText(/email/i), "admin@example.com");
-    await user.type(screen.getByLabelText(/password/i), "correct-password");
+    await user.type(screen.getByLabelText(/password/i, { selector: "input" }), "correct-password");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => {
@@ -81,7 +81,7 @@ describe("LoginScreen", () => {
     renderLoginScreen({ login });
 
     await user.type(screen.getByLabelText(/email/i), "admin@example.com");
-    await user.type(screen.getByLabelText(/password/i), "wrong-password");
+    await user.type(screen.getByLabelText(/password/i, { selector: "input" }), "wrong-password");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(

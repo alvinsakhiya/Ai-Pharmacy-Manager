@@ -141,7 +141,7 @@ describe("AuditScreen", () => {
 
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    expect(screen.getByText("Loading audit events...")).toBeInTheDocument();
+    expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
   });
 
   it("renders the error state with Retry", async () => {

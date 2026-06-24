@@ -1,6 +1,22 @@
 import { useMemo, useState } from "react";
 
+import { AlertTriangle, Pencil, Plus, Store } from "lucide-react";
+
 import { usePermissions } from "../../auth/usePermissions";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { SkeletonRows } from "../../components/ui/Skeleton";
+import {
+  Table,
+  TableScroll,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "../../components/ui/Table";
 import { PharmacyFormModal } from "./PharmacyFormModal";
 import type { Pharmacy } from "./tenancyApi";
 import { useGroupsQuery, usePharmaciesQuery } from "./useTenancy";
@@ -36,138 +52,128 @@ export function PharmaciesSection() {
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-950">Pharmacies</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Manage pharmacies within organisation groups.
-          </p>
-        </div>
-        {canManagePharmacies ? (
-          <button
-            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-            onClick={openCreateModal}
-            type="button"
-          >
-            Create pharmacy
-          </button>
+    <Panel>
+      <PanelHeader
+        icon={<Store className="h-[18px] w-[18px]" />}
+        title="Pharmacies"
+        subtitle="Manage pharmacies within organisation groups."
+        actions={
+          canManagePharmacies ? (
+            <Button
+              variant="primary"
+              size="sm"
+              leadingIcon={<Plus className="h-4 w-4" />}
+              onClick={openCreateModal}
+            >
+              Create pharmacy
+            </Button>
+          ) : null
+        }
+      />
+      <PanelBody>
+        {pharmaciesQuery.isLoading ? <SkeletonRows rows={4} /> : null}
+
+        {pharmaciesQuery.isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<AlertTriangle className="h-6 w-6" />}
+            title="Could not load pharmacies."
+            description="Please retry. Your session or permissions may need refreshing."
+            action={
+              <Button
+                variant="danger"
+                onClick={() => void pharmaciesQuery.refetch()}
+              >
+                Retry
+              </Button>
+            }
+          />
         ) : null}
-      </div>
 
-      {pharmaciesQuery.isLoading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Loading pharmacies...
-        </div>
-      ) : null}
+        {pharmaciesQuery.isSuccess && pharmaciesQuery.data.length === 0 ? (
+          <EmptyState
+            icon={<Store className="h-6 w-6" />}
+            title="No pharmacies yet."
+            description="Add a pharmacy and assign it to one of your organisation groups."
+            action={
+              canManagePharmacies ? (
+                <Button
+                  variant="primary"
+                  leadingIcon={<Plus className="h-4 w-4" />}
+                  onClick={openCreateModal}
+                >
+                  Create pharmacy
+                </Button>
+              ) : null
+            }
+          />
+        ) : null}
 
-      {pharmaciesQuery.isError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <h3 className="text-lg font-bold text-red-900">
-            Could not load pharmacies.
-          </h3>
-          <p className="mt-2 text-sm text-red-700">
-            Please retry. Your session or permissions may need refreshing.
-          </p>
-          <button
-            className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            onClick={() => void pharmaciesQuery.refetch()}
-            type="button"
-          >
-            Retry
-          </button>
-        </div>
-      ) : null}
-
-      {pharmaciesQuery.isSuccess && pharmaciesQuery.data.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          No pharmacies yet.
-        </div>
-      ) : null}
-
-      {pharmaciesQuery.isSuccess && pharmaciesQuery.data.length > 0 ? (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Code
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Group
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Postcode
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Created
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+        {pharmaciesQuery.isSuccess && pharmaciesQuery.data.length > 0 ? (
+          <TableScroll>
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Name</TH>
+                  <TH>Code</TH>
+                  <TH>Group</TH>
+                  <TH>Postcode</TH>
+                  <TH>Status</TH>
+                  <TH>Created</TH>
+                  <TH className="text-right">Actions</TH>
+                </TR>
+              </THead>
+              <TBody>
                 {pharmaciesQuery.data.map((pharmacy) => (
-                  <tr key={pharmacy.id}>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-slate-950">
+                  <TR key={pharmacy.id}>
+                    <TD className="whitespace-nowrap font-semibold text-ink">
                       {pharmacy.name}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+                    </TD>
+                    <TD className="whitespace-nowrap font-mono text-muted">
                       {pharmacy.code}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+                    </TD>
+                    <TD className="whitespace-nowrap">
                       {groupIdToName.get(pharmacy.group) ?? "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+                    </TD>
+                    <TD className="tnum whitespace-nowrap text-muted">
                       {pharmacy.postcode || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm">
-                      <span
-                        className={[
-                          "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
-                          pharmacy.is_active
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-slate-100 text-slate-500",
-                        ].join(" ")}
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      <Badge
+                        variant={pharmacy.is_active ? "success" : "neutral"}
+                        dot
                       >
                         {pharmacy.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-700">
+                      </Badge>
+                    </TD>
+                    <TD className="tnum whitespace-nowrap text-muted">
                       {formatDate(pharmacy.created_at)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-right text-sm">
+                    </TD>
+                    <TD className="whitespace-nowrap text-right">
                       {canManagePharmacies ? (
-                        <button
-                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          leadingIcon={<Pencil className="h-3.5 w-3.5" />}
                           onClick={() => openEditModal(pharmacy)}
-                          type="button"
                         >
                           Edit
-                        </button>
+                        </Button>
                       ) : null}
-                    </td>
-                  </tr>
+                    </TD>
+                  </TR>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
+              </TBody>
+            </Table>
+          </TableScroll>
+        ) : null}
+      </PanelBody>
 
       <PharmacyFormModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         pharmacy={editingPharmacy}
       />
-    </section>
+    </Panel>
   );
 }

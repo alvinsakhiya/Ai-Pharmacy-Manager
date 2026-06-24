@@ -1,23 +1,30 @@
+import { Building2 } from "lucide-react";
+
+import { PageHeader } from "../../components/ui/PageHeader";
 import { GroupsSection } from "./GroupsSection";
 import { PharmaciesSection } from "./PharmaciesSection";
 
 export function OrganisationScreen() {
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold text-teal-700">Organisation</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-          Organisation
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          Manage the high-level group structure and pharmacies for pharmacy
-          organisations.
-        </p>
-      </section>
+    <div className="space-y-5">
+      <PageHeader
+        className="animate-fade-in-up"
+        eyebrow="Administration"
+        title="Organisation"
+        subtitle="Manage the high-level group structure and pharmacies for pharmacy organisations."
+        meta={
+          <span className="inline-flex items-center gap-1.5">
+            <Building2 aria-hidden="true" className="h-3.5 w-3.5" />
+            Groups and pharmacies
+          </span>
+        }
+      />
 
-      <GroupsSection />
+      <div className="stagger space-y-5">
+        <GroupsSection />
 
-      <PharmaciesSection />
+        <PharmaciesSection />
+      </div>
     </div>
   );
 }
