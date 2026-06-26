@@ -115,11 +115,19 @@ describe("NotificationCentre", () => {
 
     expect(screen.getByRole("heading", { name: "Notifications" }))
       .toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Your latest alerts and updates. Operational tasks are managed in Work Queue.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("Stockout: Paracetamol")).toBeInTheDocument();
     expect(screen.getAllByText("Critical").length).toBeGreaterThan(0);
+    expect(screen.getByText("Stockout")).toBeInTheDocument();
     expect(screen.getByText("Low stock: Ibuprofen")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Alerts page" }))
+    expect(screen.getByRole("link", { name: "Open Alerts" }))
       .toHaveAttribute("href", "/alerts");
+    expect(screen.getByRole("link", { name: "Open Work Queue" }))
+      .toHaveAttribute("href", "/work-queue");
   });
 
   it("dismisses an alert and removes it from the panel after success", async () => {
@@ -129,7 +137,7 @@ describe("NotificationCentre", () => {
     await user.click(
       await screen.findByRole("button", { name: "Open notification centre" }),
     );
-    await user.click(screen.getAllByRole("button", { name: "Dismiss" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Dismiss alert" })[0]);
 
     await waitFor(() => {
       expect(dismissAlertMock).toHaveBeenCalledWith(
@@ -148,10 +156,13 @@ describe("NotificationCentre", () => {
     await user.click(
       await screen.findByRole("button", { name: "Open notification centre" }),
     );
-    await user.click(screen.getByRole("button", { name: "Clear all" }));
+    await user.click(screen.getByRole("button", { name: "Dismiss visible" }));
 
     await waitFor(() => {
-      expect(clearAlertsMock).toHaveBeenCalledWith(undefined, expect.anything());
+      expect(clearAlertsMock).toHaveBeenCalledWith(
+        ["stock:stockout:7", "stock:low_stock:8"],
+        expect.anything(),
+      );
     });
     expect(screen.getByText("No active alerts")).toBeInTheDocument();
   });
@@ -182,6 +193,11 @@ describe("NotificationCentre", () => {
       await screen.findByRole("button", { name: "Open notification centre" }),
     );
     expect(await screen.findByText("No active alerts")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Alerts highlight risks and signals. Work Queue will show tasks that need action.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("does not render patient identifiers in the compact centre", async () => {
@@ -215,6 +231,7 @@ describe("NotificationCentre", () => {
     expect(
       await screen.findByText("Prepared cycle awaiting stock deduction"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Managed in Work Queue.")).toBeInTheDocument();
     expect(screen.queryByText("PRIVATE-PATIENT")).toBeNull();
     expect(screen.queryByText("patient_reference")).toBeNull();
   });

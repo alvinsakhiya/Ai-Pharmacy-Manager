@@ -17,10 +17,14 @@ vi.mock("./notificationsApi", async (importOriginal) => {
   return {
     ...actual,
     getAlerts: vi.fn(),
+    dismissAlert: vi.fn(),
+    clearAlerts: vi.fn(),
   };
 });
 
 const getAlertsMock = vi.mocked(notificationsApi.getAlerts);
+const dismissAlertMock = vi.mocked(notificationsApi.dismissAlert);
+const clearAlertsMock = vi.mocked(notificationsApi.clearAlerts);
 
 function makeStockAlert(overrides: Partial<Alert> = {}): Alert {
   return {
@@ -116,28 +120,51 @@ describe("AlertsScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     getAlertsMock.mockResolvedValue(makeAlertsResponse());
+    dismissAlertMock.mockResolvedValue({
+      fingerprint: "stock:stockout:7",
+      dismissed: true,
+      created: true,
+      summary: makeAlertsResponse({ alerts: [] }).summary,
+    });
+    clearAlertsMock.mockResolvedValue({
+      dismissed_count: 3,
+      created_count: 3,
+      summary: makeAlertsResponse({ alerts: [] }).summary,
+    });
   });
 
   it("renders the page header", async () => {
     renderAlerts();
 
     expect(
-      await screen.findByRole("heading", { name: "Alerts" }),
+      await screen.findByRole("heading", { name: "Alerts", level: 1 }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Operational stock and Dosette/MDS alerts."),
+      screen.getByText(
+        "Review stock, expiry, and workflow signals before taking action.",
+      ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Use Work Queue for tasks that need action, such as Dosette preparation, pending checks, and stock follow-up.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Alerts highlight risks and signals. Review them before taking action."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Work Queue" }))
+      .toHaveAttribute("href", "/work-queue");
   });
 
   it("renders summary counters", async () => {
     renderAlerts();
 
-    expect(await screen.findByText("Total")).toBeInTheDocument();
-    expect(screen.getByText("Critical")).toBeInTheDocument();
-    expect(screen.getByText("Warning")).toBeInTheDocument();
-    expect(screen.getByText("Info")).toBeInTheDocument();
-    expect(screen.getAllByText("Stock").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Dosette").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Critical alerts")).toBeInTheDocument();
+    expect(screen.getByText("Warning alerts")).toBeInTheDocument();
+    expect(screen.getByText("Stock alerts")).toBeInTheDocument();
+    expect(screen.getByText("Expiry alerts")).toBeInTheDocument();
+    expect(screen.getByText("Dosette signals")).toBeInTheDocument();
+    expect(screen.getAllByText("Active alerts").length).toBeGreaterThan(0);
     expect(screen.getAllByText("1").length).toBeGreaterThan(0);
     expect(screen.getByText("3")).toBeInTheDocument();
   });
@@ -145,11 +172,13 @@ describe("AlertsScreen", () => {
   it("renders severity and category chips", async () => {
     renderAlerts();
 
-    expect(await screen.findByText("critical")).toBeInTheDocument();
-    expect(screen.getByText("warning")).toBeInTheDocument();
-    expect(screen.getByText("info")).toBeInTheDocument();
+    expect(await screen.findByText("Critical")).toBeInTheDocument();
+    expect(screen.getByText("Warning")).toBeInTheDocument();
+    expect(screen.getByText("Info")).toBeInTheDocument();
     expect(screen.getAllByText("Stock").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Dosette").length).toBeGreaterThan(0);
+    expect(screen.getByText("Stockout")).toBeInTheDocument();
+    expect(screen.getByText("Prepared Not Deducted")).toBeInTheDocument();
   });
 
   it("renders alerts in backend order", async () => {
@@ -207,6 +236,8 @@ describe("AlertsScreen", () => {
     expect(await screen.findByText("Stockout: Paracetamol")).toBeInTheDocument();
     expect(screen.getByText("0 units on hand.")).toBeInTheDocument();
     expect(screen.getByText("Paracetamol · Pharmacy 1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open Inventory/ }))
+      .toHaveAttribute("href", "/inventory/7");
     expect(screen.queryByText("PRIVATE-PATIENT")).toBeNull();
   });
 
@@ -216,8 +247,13 @@ describe("AlertsScreen", () => {
     expect(
       await screen.findByText("Prepared cycle awaiting stock deduction"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Cycle MDS-2026-FW07 · Patient CRO-P1"))
+    expect(screen.getByText("Cycle MDS-2026-FW07 · Patient ID CRO-P1"))
       .toBeInTheDocument();
+    expect(
+      screen.getAllByText("Operational tasks are managed in Work Queue.").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Open Work Queue/ })[0])
+      .toHaveAttribute("href", "/work-queue");
     for (const forbidden of [
       "Patient One",
       "date_of_birth",
@@ -234,7 +270,9 @@ describe("AlertsScreen", () => {
     getAlertsMock.mockReturnValueOnce(new Promise<AlertsResponse>(() => undefined));
     const loadingRender = renderAlerts();
 
-    expect(screen.getByText("Loading alerts...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Loading current risk and system signals..."),
+    ).toBeInTheDocument();
     loadingRender.unmount();
     getAlertsMock.mockClear();
 
@@ -264,7 +302,50 @@ describe("AlertsScreen", () => {
     );
     renderAlerts();
 
-    expect(await screen.findByText("No active alerts.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No active alerts right now."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Work Queue will show operational tasks that need action."),
+    ).toBeInTheDocument();
+  });
+
+  it("dismisses one alert", async () => {
+    const user = userEvent.setup();
+    renderAlerts();
+
+    expect(await screen.findByText("Stockout: Paracetamol")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Dismiss alert" })[0]);
+
+    await waitFor(() => {
+      expect(dismissAlertMock).toHaveBeenCalledWith(
+        "stock:stockout:7",
+        expect.anything(),
+      );
+    });
+    expect(screen.queryByText("Stockout: Paracetamol")).toBeNull();
+  });
+
+  it("dismisses visible alerts with existing clear semantics", async () => {
+    const user = userEvent.setup();
+    renderAlerts();
+
+    expect(await screen.findByText("Stockout: Paracetamol")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Dismiss visible alerts" }));
+
+    await waitFor(() => {
+      expect(clearAlertsMock).toHaveBeenCalledWith(
+        [
+          "stock:stockout:7",
+          "dosette:prepared_not_deducted:12",
+          "stock:dead_stock:8",
+        ],
+        expect.anything(),
+      );
+    });
+    expect(
+      await screen.findByText("No active alerts right now."),
+    ).toBeInTheDocument();
   });
 
   it("adds alerts to navigation for stock or blister view users", () => {
@@ -299,7 +380,12 @@ describe("AlertsScreen", () => {
     ]) {
       expect(documentBody.queryByText(forbidden)).toBeNull();
     }
-    expect(screen.queryByRole("button", { name: /mark|resolve|dismiss|read/i }))
-      .toBeNull();
+    expect(
+      screen.queryByRole("button", {
+        name: /resolve|complete|order|transfer|create cycle/i,
+      }),
+    ).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Dismiss alert" }).length)
+      .toBeGreaterThan(0);
   });
 });

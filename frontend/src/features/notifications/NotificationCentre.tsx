@@ -1,40 +1,29 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowRight, Bell } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, ListChecks } from "lucide-react";
 
 import { Badge } from "../../components/ui/Badge";
-import type { BadgeVariant } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { cn } from "../../lib/cn";
 import type { Alert, AlertSeverity } from "./notificationsApi";
+import {
+  ALERT_CATEGORY_LABELS,
+  ALERT_SEVERITY_BADGE,
+  ALERT_SEVERITY_LABELS,
+  alertScopeLabel,
+  alertTypeLabel,
+} from "./alertDisplay";
 import {
   useAlertsQuery,
   useClearAlertsMutation,
   useDismissAlertMutation,
 } from "./useNotifications";
 
-const SEVERITY_LABELS: Record<AlertSeverity, string> = {
-  critical: "Critical",
-  warning: "Warning",
-  info: "Info",
-};
-
-const SEVERITY_BADGE: Record<AlertSeverity, BadgeVariant> = {
-  critical: "danger",
-  warning: "warning",
-  info: "info",
-};
-
-const CATEGORY_LABELS = {
-  stock: "Stock",
-  dosette: "Dosette",
-} as const;
-
 function SeverityBadge({ severity }: { severity: AlertSeverity }) {
   return (
-    <Badge variant={SEVERITY_BADGE[severity]} dot>
-      {SEVERITY_LABELS[severity]}
+    <Badge variant={ALERT_SEVERITY_BADGE[severity]} dot>
+      {ALERT_SEVERITY_LABELS[severity]}
     </Badge>
   );
 }
@@ -72,7 +61,7 @@ export function NotificationCentre() {
 
   async function handleClearAll() {
     const fingerprints = alerts.map((alert) => alert.id);
-    await clearAlerts.mutateAsync(undefined);
+    await clearAlerts.mutateAsync(fingerprints);
     setHiddenFingerprints(new Set(fingerprints));
   }
 
@@ -108,7 +97,8 @@ export function NotificationCentre() {
                 Notifications
               </h2>
               <p className="mt-1 text-xs leading-relaxed text-muted">
-                Dismissed alerts hide from your notification centre only.
+                Your latest alerts and updates. Operational tasks are managed in
+                Work Queue.
               </p>
             </div>
             {count > 0 ? (
@@ -119,7 +109,7 @@ export function NotificationCentre() {
                 disabled={clearAlerts.isPending}
                 onClick={() => void handleClearAll()}
               >
-                Clear all
+                Dismiss visible
               </Button>
             ) : null}
           </div>
@@ -158,7 +148,8 @@ export function NotificationCentre() {
                 </span>
                 <p className="text-sm font-semibold text-ink">No active alerts</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted">
-                  You are all caught up.
+                  Alerts highlight risks and signals. Work Queue will show tasks
+                  that need action.
                 </p>
               </div>
             ) : null}
@@ -170,7 +161,7 @@ export function NotificationCentre() {
                     groupedAlerts[severity].length > 0 ? (
                       <div key={severity} className="py-2">
                         <p className="px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-                          {SEVERITY_LABELS[severity]}
+                          {ALERT_SEVERITY_LABELS[severity]}
                         </p>
                         <div className="space-y-1">
                           {groupedAlerts[severity].map((alert) => (
@@ -183,7 +174,10 @@ export function NotificationCentre() {
                                   <div className="flex flex-wrap items-center gap-2">
                                     <SeverityBadge severity={alert.severity} />
                                     <Badge variant="neutral">
-                                      {CATEGORY_LABELS[alert.category]}
+                                      {ALERT_CATEGORY_LABELS[alert.category]}
+                                    </Badge>
+                                    <Badge variant="info">
+                                      {alertTypeLabel(alert.type)}
                                     </Badge>
                                   </div>
                                   <h3 className="mt-2 text-sm font-semibold text-ink">
@@ -193,8 +187,13 @@ export function NotificationCentre() {
                                     {alert.message}
                                   </p>
                                   <p className="mt-1 text-xs text-muted">
-                                    Pharmacy {alert.pharmacy_id}
+                                    {alertScopeLabel(alert)}
                                   </p>
+                                  {alert.category === "dosette" ? (
+                                    <p className="mt-1 text-xs font-semibold text-info-ink">
+                                      Managed in Work Queue.
+                                    </p>
+                                  ) : null}
                                 </div>
                                 <Button
                                   size="sm"
@@ -203,7 +202,7 @@ export function NotificationCentre() {
                                   disabled={dismissAlert.isPending}
                                   onClick={() => void handleDismiss(alert)}
                                 >
-                                  Dismiss
+                                  Dismiss alert
                                 </Button>
                               </div>
                             </article>
@@ -217,14 +216,24 @@ export function NotificationCentre() {
           </div>
 
           <div className="border-t border-line px-4 py-3">
-            <Link
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand transition-colors duration-150 ease-soft hover:text-brand-ink"
-              onClick={() => setOpen(false)}
-              to="/alerts"
-            >
-              Open Alerts page
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Link
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand transition-colors duration-150 ease-soft hover:text-brand-ink"
+                onClick={() => setOpen(false)}
+                to="/alerts"
+              >
+                Open Alerts
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <Link
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-soft transition-colors duration-150 ease-soft hover:text-ink"
+                onClick={() => setOpen(false)}
+                to="/work-queue"
+              >
+                <ListChecks className="h-4 w-4" aria-hidden="true" />
+                Open Work Queue
+              </Link>
+            </div>
           </div>
         </section>
       ) : null}
