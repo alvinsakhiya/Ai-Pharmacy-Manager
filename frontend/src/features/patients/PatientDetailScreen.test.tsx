@@ -199,7 +199,7 @@ describe("PatientDetailScreen", () => {
     expect(screen.getByText("Sutton Practice")).toBeInTheDocument();
   });
 
-  it("renders improved medication history from dosette records", async () => {
+  it("renders the redesigned medication history panel", async () => {
     const user = userEvent.setup();
     listPatientMedicationsMock.mockResolvedValue([
       makeMedicationLine(),
@@ -223,28 +223,21 @@ describe("PatientDetailScreen", () => {
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Medication history" }));
 
-    expect(await screen.findByText("Medication Items")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Dispensing and Dosette history shown from pharmacy records. Human review required.",
-      ),
-    ).toBeInTheDocument();
-    for (const header of [
-      "Description",
-      "Price",
-      "#",
-      "Last Dispensed",
-      "Qty Prescribed",
-      "Dose",
-    ]) {
-      expect(screen.getByText(header)).toBeInTheDocument();
-    }
-
-    const medicationItems = screen.getByRole("region", {
-      name: "Medication Items",
+    const panel = await screen.findByRole("region", {
+      name: "Patient medication history",
     });
-    const listbox = within(medicationItems).getByRole("listbox", {
-      name: "Medication Items",
+
+    // Summary badges use existing data only.
+    expect(within(panel).getByText("Active medications")).toBeInTheDocument();
+    expect(
+      within(panel).getByText("Discontinued medications"),
+    ).toBeInTheDocument();
+    expect(within(panel).getByText("Dosette cycles")).toBeInTheDocument();
+    expect(within(panel).getByText("Latest recorded event")).toBeInTheDocument();
+    expect(within(panel).getAllByText("25 Jun 2026").length).toBeGreaterThan(0);
+
+    const listbox = within(panel).getByRole("listbox", {
+      name: "Medication items",
     });
     const amlodipine = within(listbox).getByRole("option", {
       name: /Amlodipine/,
@@ -254,24 +247,59 @@ describe("PatientDetailScreen", () => {
     });
 
     expect(amlodipine).toHaveAttribute("aria-selected", "true");
+    expect(metformin).toHaveAttribute("aria-selected", "false");
     expect(within(amlodipine).getByText("5 mg - Tablet")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Active")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Stock deducted")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Morning 1")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Bedtime 1")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Lunchtime 0")).toBeInTheDocument();
     expect(
-      within(amlodipine).getByText(
-        "Morning 1 · Lunchtime 0 · Evening 0 · Bedtime 1 — Take one twice daily",
-      ),
+      within(amlodipine).getByText("Take one twice daily"),
     ).toBeInTheDocument();
-    expect(within(amlodipine).getByText("2 daily")).toBeInTheDocument();
-    expect(within(amlodipine).getByText("M1 L0 E0 B1")).toBeInTheDocument();
-    expect(within(amlodipine).getAllByText("—").length).toBeGreaterThanOrEqual(2);
     expect(within(amlodipine).getByText("25 Jun 2026")).toBeInTheDocument();
-    expect(within(amlodipine).getByText("Latest cycle MDS-2026-W26 · Prepared"))
-      .toBeInTheDocument();
+    expect(
+      within(amlodipine).getByText("Latest cycle MDS-2026-W26 · Prepared"),
+    ).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Blue · Round")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("01 Jun 2026")).toBeInTheDocument();
     expect(within(metformin).getByText("Discontinued")).toBeInTheDocument();
+
+    // Selected medication detail tracks the active row (subtle accessible state).
+    expect(
+      within(panel).getByRole("heading", { level: 4, name: "Amlodipine" }),
+    ).toBeInTheDocument();
 
     await user.click(metformin);
     expect(amlodipine).toHaveAttribute("aria-selected", "false");
     expect(metformin).toHaveAttribute("aria-selected", "true");
+    expect(
+      within(panel).getByRole("heading", { level: 4, name: "Metformin" }),
+    ).toBeInTheDocument();
 
+    // Search narrows the list without mutating data.
+    await user.type(within(panel).getByLabelText("Search medications"), "metf");
+    expect(
+      within(listbox).queryByRole("option", { name: /Amlodipine/ }),
+    ).toBeNull();
+    expect(
+      within(listbox).getByRole("option", { name: /Metformin/ }),
+    ).toBeInTheDocument();
+    await user.clear(within(panel).getByLabelText("Search medications"));
+
+    // Status filter narrows the list.
+    await user.selectOptions(
+      within(panel).getByLabelText("Filter by status"),
+      "active",
+    );
+    expect(
+      within(listbox).getByRole("option", { name: /Amlodipine/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(listbox).queryByRole("option", { name: /Metformin/ }),
+    ).toBeNull();
+
+    // No patient PII leaks into the medication panel.
     for (const forbidden of [
       "01 Jan 1980",
       "SM1 1AA",
@@ -281,19 +309,16 @@ describe("PatientDetailScreen", () => {
       "NCRS",
       "View patient NCRS",
     ]) {
-      expect(within(medicationItems).queryByText(forbidden)).toBeNull();
+      expect(within(panel).queryByText(forbidden)).toBeNull();
     }
 
+    // Full pack-cycle history remains available below the panel.
     expect(screen.getByText("MDS / Dosette cycle history")).toBeInTheDocument();
-    expect(screen.getByText("MDS-2026-W26")).toBeInTheDocument();
-    expect(screen.getByText("Prepared")).toBeInTheDocument();
     expect(screen.getByText("pharmacist@example.com")).toBeInTheDocument();
     expect(screen.getByText("checker@example.com")).toBeInTheDocument();
-    expect(screen.getByText(/25 Jun 2026.*09:30/)).toBeInTheDocument();
-    expect(screen.getByText(/25 Jun 2026.*10:15/)).toBeInTheDocument();
   });
 
-  it("renders safe medication history fallbacks", async () => {
+  it("uses safe fallbacks and never shows draft cycle dates as events", async () => {
     const user = userEvent.setup();
     listPatientMedicationsMock.mockResolvedValue([
       makeMedicationLine({
@@ -304,6 +329,8 @@ describe("PatientDetailScreen", () => {
         quantity_bedtime: 0,
         strength: "",
         form: "",
+        colour: "",
+        shape: "",
       }),
     ]);
     listDosetteCyclesMock.mockResolvedValue([
@@ -328,22 +355,25 @@ describe("PatientDetailScreen", () => {
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Medication history" }));
 
-    const medicationItems = await screen.findByRole("region", {
-      name: "Medication Items",
+    const panel = await screen.findByRole("region", {
+      name: "Patient medication history",
     });
-    expect(within(medicationItems).getByText("Strength/form not recorded"))
-      .toBeInTheDocument();
+
     expect(
-      within(medicationItems).getByText(
-        "Morning 0 · Lunchtime 0 · Evening 0 · Bedtime 0 — Dosage instructions not recorded.",
-      ),
-    ).toBeInTheDocument();
-    expect(within(medicationItems).getByText("No slot dose")).toBeInTheDocument();
-    expect(within(medicationItems).getByText("Not recorded")).toBeInTheDocument();
-    expect(within(medicationItems).getAllByText("—").length).toBeGreaterThanOrEqual(3);
-    expect(within(medicationItems).getByText("Latest cycle DRAFT-CYCLE · Draft"))
-      .toBeInTheDocument();
-    expect(within(medicationItems).queryByText("28 Jul 2026")).toBeNull();
+      within(panel).getAllByText("Strength/form not recorded").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(panel).getAllByText("Dosage instructions not recorded.").length,
+    ).toBeGreaterThan(0);
+    expect(within(panel).getAllByText("Morning 0").length).toBeGreaterThan(0);
+    expect(within(panel).getAllByText("Not recorded").length).toBeGreaterThan(0);
+    expect(
+      within(panel).getAllByText("Latest cycle DRAFT-CYCLE · Draft").length,
+    ).toBeGreaterThan(0);
+
+    // Draft / future cycle dates must never appear as dispensing events.
+    expect(within(panel).queryByText("28 Jul 2026")).toBeNull();
+    expect(within(panel).queryByText("01 Jul 2026")).toBeNull();
   });
 
   it("renders medication history empty state", async () => {

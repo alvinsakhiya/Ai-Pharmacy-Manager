@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pill } from "lucide-react";
+import { Pill, Search } from "lucide-react";
 
-import { Badge } from "../../components/ui/Badge";
+import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { inputClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 import type {
   DosetteCycle,
@@ -10,29 +11,26 @@ import type {
 } from "../dosette/dosetteApi";
 
 const NOT_RECORDED = "Not recorded";
-const DASH = "—";
 
-const MEDICATION_TIME_SLOTS: Array<{
-  key: keyof Pick<
-    PatientMedicationLine,
-    | "quantity_morning"
-    | "quantity_lunchtime"
-    | "quantity_evening"
-    | "quantity_bedtime"
-  >;
-  label: string;
-  shortLabel: string;
-}> = [
-  { key: "quantity_morning", label: "Morning", shortLabel: "M" },
-  { key: "quantity_lunchtime", label: "Lunchtime", shortLabel: "L" },
-  { key: "quantity_evening", label: "Evening", shortLabel: "E" },
-  { key: "quantity_bedtime", label: "Bedtime", shortLabel: "B" },
+const TIME_SLOTS = [
+  { key: "quantity_morning", label: "Morning" },
+  { key: "quantity_lunchtime", label: "Lunchtime" },
+  { key: "quantity_evening", label: "Evening" },
+  { key: "quantity_bedtime", label: "Bedtime" },
+] as const;
+
+type StatusFilter = "all" | "active" | "discontinued";
+
+const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
+  { value: "all", label: "All medications" },
+  { value: "active", label: "Active only" },
+  { value: "discontinued", label: "Discontinued only" },
 ];
 
-const COLUMN_CLASS =
-  "grid min-w-[880px] grid-cols-[minmax(18rem,2fr)_5.5rem_3.5rem_8.5rem_8rem_8rem] items-center gap-3";
-
-function formatDate(value: string): string {
+function formatDate(value: string | null | undefined): string {
+  if (!value) {
+    return NOT_RECORDED;
+  }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -63,90 +61,244 @@ function medicationDescriptor(line: PatientMedicationLine): string {
 }
 
 function totalDailyDose(line: PatientMedicationLine): number {
-  return MEDICATION_TIME_SLOTS.reduce((total, slot) => total + line[slot.key], 0);
+  return TIME_SLOTS.reduce((total, slot) => total + line[slot.key], 0);
 }
 
-function quantityPrescribed(line: PatientMedicationLine): string {
-  const total = totalDailyDose(line);
-  return total > 0 ? `${total} daily` : DASH;
+function dosageInstructions(line: PatientMedicationLine): string {
+  return line.dose_instructions.trim() || "Dosage instructions not recorded.";
 }
 
-function compactDose(line: PatientMedicationLine): string {
-  const total = totalDailyDose(line);
-  if (total === 0) {
-    return "No slot dose";
-  }
-
-  return MEDICATION_TIME_SLOTS.map(
-    (slot) => `${slot.shortLabel}${line[slot.key]}`,
-  ).join(" ");
+function appearanceLabel(line: PatientMedicationLine): string {
+  const parts = [line.colour?.trim(), line.shape?.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : NOT_RECORDED;
 }
 
-function slotInstruction(line: PatientMedicationLine): string {
-  return MEDICATION_TIME_SLOTS.map(
-    (slot) => `${slot.label} ${line[slot.key]}`,
-  ).join(" · ");
-}
-
-function instructionText(line: PatientMedicationLine): string {
-  const instructions = line.dose_instructions.trim();
-  const text = instructions || "Dosage instructions not recorded.";
-  return `${slotInstruction(line)} — ${text}`;
-}
-
+// --- Dosette event helpers (real event timestamps only; never planned/draft) ---
 function cycleEventDate(cycle: DosetteCycle): string | null {
   return cycle.deducted_at ?? cycle.checked_at ?? cycle.prepared_at;
+}
+
+function cycleEventType(cycle: DosetteCycle): string {
+  if (cycle.deducted_at) {
+    return "Stock deducted";
+  }
+  if (cycle.checked_at) {
+    return "Checked";
+  }
+  if (cycle.prepared_at) {
+    return "Prepared";
+  }
+  return NOT_RECORDED;
 }
 
 function sortTimestamp(value: string | null | undefined): number {
   if (!value) {
     return Number.NEGATIVE_INFINITY;
   }
-
   const timestamp = new Date(value).getTime();
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 }
 
-function latestCycleByDate(
+function latestByDate(
   cycles: DosetteCycle[],
-  dateForCycle: (cycle: DosetteCycle) => string | null | undefined,
+  dateFor: (cycle: DosetteCycle) => string | null | undefined,
 ): DosetteCycle | null {
-  const sortedCycles = cycles
-    .map((cycle) => ({
-      cycle,
-      timestamp: sortTimestamp(dateForCycle(cycle)),
-    }))
-    .filter((item) => item.timestamp > Number.NEGATIVE_INFINITY)
-    .sort((left, right) => right.timestamp - left.timestamp);
-
-  return sortedCycles[0]?.cycle ?? null;
+  return (
+    cycles
+      .map((cycle) => ({ cycle, timestamp: sortTimestamp(dateFor(cycle)) }))
+      .filter((item) => item.timestamp > Number.NEGATIVE_INFINITY)
+      .sort((left, right) => right.timestamp - left.timestamp)[0]?.cycle ?? null
+  );
 }
 
+/** Most recent cycle that has actually been prepared/checked/deducted. */
+function latestDispensedCycle(cycles: DosetteCycle[]): DosetteCycle | null {
+  return latestByDate(cycles, cycleEventDate);
+}
+
+/** Most recent cycle overall (draft cycles included) for reference context. */
 function latestCycle(cycles: DosetteCycle[]): DosetteCycle | null {
-  return latestCycleByDate(
+  return latestByDate(
     cycles,
     (cycle) => cycleEventDate(cycle) ?? cycle.start_date ?? cycle.updated_at,
   );
 }
 
-function latestDispensedCycle(cycles: DosetteCycle[]): DosetteCycle | null {
-  return latestCycleByDate(cycles, cycleEventDate);
+function DoseSlots({ line }: { line: PatientMedicationLine }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {TIME_SLOTS.map((slot) => {
+        const dosed = line[slot.key] > 0;
+        return (
+          <span
+            className={cn(
+              "tnum inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold",
+              dosed
+                ? "border-line-strong bg-surface text-ink"
+                : "border-line bg-surface-subtle text-muted",
+            )}
+            key={slot.key}
+          >
+            {slot.label} {line[slot.key]}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
-function lastDispensed(cycle: DosetteCycle | null): string {
-  const dispensedDate = cycle ? cycleEventDate(cycle) : null;
-  if (!dispensedDate) {
-    return NOT_RECORDED;
-  }
-
-  return formatDate(dispensedDate);
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+      <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <p className="tnum mt-1 text-lg font-extrabold text-ink">{value}</p>
+    </div>
+  );
 }
 
-function latestCycleContext(cycle: DosetteCycle | null): string | null {
-  if (cycle === null) {
-    return null;
-  }
-  return `Latest cycle ${cycle.reference} · ${formatLabel(cycle.status)}`;
+function MetaItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-1.5">
+      <span className="text-[10px] font-bold uppercase tracking-[0.04em] text-muted">
+        {label}
+      </span>
+      <span className="text-xs font-semibold text-ink-soft">{value}</span>
+    </div>
+  );
+}
+
+function MedicationCard({
+  line,
+  isSelected,
+  eventDate,
+  eventType,
+  latest,
+  onSelect,
+}: {
+  line: PatientMedicationLine;
+  isSelected: boolean;
+  eventDate: string | null;
+  eventType: string;
+  latest: DosetteCycle | null;
+  onSelect: (id: number) => void;
+}) {
+  const statusVariant: BadgeVariant = line.is_active ? "success" : "neutral";
+
+  return (
+    <button
+      aria-selected={isSelected}
+      className={cn(
+        "block w-full rounded-2xl border border-l-4 p-4 text-left shadow-soft transition-all duration-150 ease-soft focus-ring",
+        isSelected
+          ? "border-info border-l-info bg-info-soft/50 ring-1 ring-info/30"
+          : "border-line border-l-transparent bg-surface hover:-translate-y-px hover:border-line-strong hover:shadow-elev-1",
+      )}
+      onClick={() => onSelect(line.id)}
+      role="option"
+      type="button"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-bold text-ink">{line.medication_name}</span>
+        <Badge variant="neutral">{medicationDescriptor(line)}</Badge>
+        <Badge dot variant={statusVariant}>
+          {line.is_active ? "Active" : "Discontinued"}
+        </Badge>
+        <Badge variant={eventDate ? "info" : "neutral"}>{eventType}</Badge>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        <DoseSlots line={line} />
+        <p className="text-[13px] leading-relaxed text-ink-soft">
+          {dosageInstructions(line)}
+        </p>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3">
+        <MetaItem label="Last recorded event" value={formatDate(eventDate)} />
+        {latest ? (
+          <span className="text-xs font-semibold text-ink-soft">
+            Latest cycle {latest.reference} · {formatLabel(latest.status)}
+          </span>
+        ) : null}
+        <MetaItem label="Appearance" value={appearanceLabel(line)} />
+        <MetaItem label="Start date" value={formatDate(line.start_date)} />
+      </div>
+    </button>
+  );
+}
+
+function SelectedMedicationPanel({
+  line,
+  eventDate,
+  eventType,
+  latest,
+}: {
+  line: PatientMedicationLine;
+  eventDate: string | null;
+  eventType: string;
+  latest: DosetteCycle | null;
+}) {
+  const total = totalDailyDose(line);
+  const rows: Array<{ label: string; value: string }> = [
+    {
+      label: "Daily dose",
+      value: total > 0 ? `${total} per day` : NOT_RECORDED,
+    },
+    {
+      label: "Latest event",
+      value: eventDate ? `${eventType} · ${formatDate(eventDate)}` : NOT_RECORDED,
+    },
+    {
+      label: "Latest cycle",
+      value: latest
+        ? `${latest.reference} · ${formatLabel(latest.status)}`
+        : NOT_RECORDED,
+    },
+    { label: "Appearance", value: appearanceLabel(line) },
+    { label: "Start date", value: formatDate(line.start_date) },
+  ];
+
+  return (
+    <aside
+      aria-label="Selected medication"
+      className="h-fit rounded-2xl border border-line bg-surface-subtle p-4 shadow-soft lg:sticky lg:top-4"
+    >
+      <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+        Selected medication
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <h4 className="text-sm font-bold text-ink">{line.medication_name}</h4>
+        <Badge dot variant={line.is_active ? "success" : "neutral"}>
+          {line.is_active ? "Active" : "Discontinued"}
+        </Badge>
+      </div>
+      <p className="mt-1 text-xs font-semibold text-muted">
+        {medicationDescriptor(line)}
+      </p>
+
+      <div className="mt-3">
+        <DoseSlots line={line} />
+      </div>
+      <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">
+        {dosageInstructions(line)}
+      </p>
+
+      <dl className="mt-4 space-y-2.5 border-t border-line pt-3">
+        {rows.map((row) => (
+          <div className="flex items-start justify-between gap-3" key={row.label}>
+            <dt className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted">
+              {row.label}
+            </dt>
+            <dd className="text-right text-xs font-semibold text-ink-soft">
+              {row.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </aside>
+  );
 }
 
 interface MedicationHistoryItemsListProps {
@@ -158,139 +310,161 @@ export function MedicationHistoryItemsList({
   medicationLines,
   cycles,
 }: MedicationHistoryItemsListProps) {
-  const [selectedMedicationId, setSelectedMedicationId] = useState<number | null>(
+  const [selectedId, setSelectedId] = useState<number | null>(
     () => medicationLines[0]?.id ?? null,
   );
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const dispensed = useMemo(() => latestDispensedCycle(cycles), [cycles]);
   const latest = useMemo(() => latestCycle(cycles), [cycles]);
-  const latestDispensed = useMemo(() => latestDispensedCycle(cycles), [cycles]);
-  const cycleContext = latestCycleContext(latest);
+  const eventDate = dispensed ? cycleEventDate(dispensed) : null;
+  const eventType = dispensed ? cycleEventType(dispensed) : NOT_RECORDED;
+
+  const activeCount = useMemo(
+    () => medicationLines.filter((line) => line.is_active).length,
+    [medicationLines],
+  );
+  const discontinuedCount = medicationLines.length - activeCount;
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return medicationLines.filter((line) => {
+      if (statusFilter === "active" && !line.is_active) {
+        return false;
+      }
+      if (statusFilter === "discontinued" && line.is_active) {
+        return false;
+      }
+      if (query) {
+        const haystack = [
+          line.medication_name,
+          line.dose_instructions,
+          line.strength ?? "",
+          line.form ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(query)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [medicationLines, search, statusFilter]);
 
   useEffect(() => {
     if (medicationLines.length === 0) {
-      setSelectedMedicationId(null);
+      setSelectedId(null);
       return;
     }
-
-    if (!medicationLines.some((line) => line.id === selectedMedicationId)) {
-      setSelectedMedicationId(medicationLines[0].id);
+    if (!medicationLines.some((line) => line.id === selectedId)) {
+      setSelectedId(medicationLines[0].id);
     }
-  }, [medicationLines, selectedMedicationId]);
+  }, [medicationLines, selectedId]);
+
+  const selectedLine =
+    medicationLines.find((line) => line.id === selectedId) ?? null;
 
   return (
     <section
-      aria-labelledby="medication-items-title"
-      className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft"
+      aria-label="Patient medication history"
+      className="space-y-4"
     >
-      <div className="flex flex-col gap-1.5 border-b border-line bg-surface-subtle px-4 py-3 sm:px-5">
-        <h3 id="medication-items-title" className="text-sm font-bold text-ink">
-          Medication Items
-        </h3>
-        <p className="text-xs leading-relaxed text-muted">
-          Dispensing and Dosette history shown from pharmacy records. Human review
-          required.
-        </p>
+      <div
+        aria-label="Medication history summary"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <SummaryStat label="Active medications" value={String(activeCount)} />
+        <SummaryStat
+          label="Discontinued medications"
+          value={String(discontinuedCount)}
+        />
+        <SummaryStat
+          label="Latest recorded event"
+          value={dispensed ? formatDate(eventDate) : NOT_RECORDED}
+        />
+        <SummaryStat label="Dosette cycles" value={String(cycles.length)} />
       </div>
 
       {medicationLines.length === 0 ? (
-        <div className="p-5">
-          <EmptyState
-            icon={<Pill className="h-6 w-6" />}
-            title="No medication history recorded yet."
-          />
-        </div>
+        <EmptyState
+          icon={<Pill className="h-6 w-6" />}
+          title="No medication history recorded yet."
+          description="Dosette and dispensing records will appear here once prepared. Human review required."
+        />
       ) : (
-        <div className="overflow-x-auto">
-          <div
-            className={cn(
-              COLUMN_CLASS,
-              "sticky top-0 z-10 border-b border-line bg-surface px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted sm:px-5",
-            )}
-          >
-            <span>Description</span>
-            <span>Price</span>
-            <span>#</span>
-            <span>Last Dispensed</span>
-            <span>Qty Prescribed</span>
-            <span>Dose</span>
+        <>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="relative flex-1">
+              <span className="sr-only">Search medications</span>
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              />
+              <input
+                className={cn(inputClass, "pl-9")}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search medication name or instructions"
+                type="search"
+                value={search}
+              />
+            </label>
+            <label className="sm:w-56">
+              <span className="sr-only">Filter by status</span>
+              <select
+                className={selectClass}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as StatusFilter)
+                }
+                value={statusFilter}
+              >
+                {STATUS_FILTERS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
-          <div
-            aria-label="Medication Items"
-            className="max-h-[24rem] divide-y divide-line overflow-y-auto"
-            role="listbox"
-          >
-            {medicationLines.map((line) => {
-              const isSelected = selectedMedicationId === line.id;
-              return (
-                <button
-                  aria-selected={isSelected}
-                  className={cn(
-                    "block w-full px-4 py-3 text-left transition-colors duration-150 ease-soft focus-ring sm:px-5",
-                    isSelected
-                      ? "bg-info text-white shadow-inner"
-                      : "bg-surface text-ink hover:bg-surface-subtle",
-                  )}
-                  key={line.id}
-                  onClick={() => setSelectedMedicationId(line.id)}
-                  role="option"
-                  type="button"
-                >
-                  <div className={COLUMN_CLASS}>
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-bold">
-                          {line.medication_name}
-                        </span>
-                        <Badge variant={line.is_active ? "success" : "neutral"}>
-                          {line.is_active ? "Active" : "Discontinued"}
-                        </Badge>
-                      </div>
-                      <p
-                        className={cn(
-                          "mt-0.5 truncate text-xs font-semibold",
-                          isSelected ? "text-white/80" : "text-muted",
-                        )}
-                      >
-                        {medicationDescriptor(line)}
-                      </p>
-                    </div>
-                    <span className="text-sm font-semibold tnum">{DASH}</span>
-                    <span className="text-sm font-semibold tnum">{DASH}</span>
-                    <span className="text-sm font-semibold tnum">
-                      {lastDispensed(latestDispensed)}
-                    </span>
-                    <span className="text-sm font-semibold tnum">
-                      {quantityPrescribed(line)}
-                    </span>
-                    <span className="text-sm font-semibold tnum">
-                      {compactDose(line)}
-                    </span>
-                  </div>
-                  <div
-                    className={cn(
-                      "mt-2 min-w-[880px] rounded-lg border px-3 py-2 text-[13px] font-semibold leading-relaxed",
-                      isSelected
-                        ? "border-white/30 bg-white/15 text-white"
-                        : "border-info-border bg-info-soft text-info-ink",
-                    )}
-                  >
-                    <p>{instructionText(line)}</p>
-                    {cycleContext ? (
-                      <p
-                        className={cn(
-                          "mt-1 text-xs",
-                          isSelected ? "text-white/80" : "text-info-ink/75",
-                        )}
-                      >
-                        {cycleContext}
-                      </p>
-                    ) : null}
-                  </div>
-                </button>
-              );
-            })}
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
+            <div
+              aria-label="Medication items"
+              className="space-y-2.5"
+              role="listbox"
+            >
+              {filtered.length === 0 ? (
+                <EmptyState
+                  icon={<Search className="h-6 w-6" />}
+                  title="No medications match your search or filter."
+                  description="Clear the search or choose a different status filter."
+                />
+              ) : (
+                filtered.map((line) => (
+                  <MedicationCard
+                    eventDate={eventDate}
+                    eventType={eventType}
+                    isSelected={selectedId === line.id}
+                    key={line.id}
+                    latest={latest}
+                    line={line}
+                    onSelect={setSelectedId}
+                  />
+                ))
+              )}
+            </div>
+
+            {selectedLine ? (
+              <SelectedMedicationPanel
+                eventDate={eventDate}
+                eventType={eventType}
+                latest={latest}
+                line={selectedLine}
+              />
+            ) : null}
           </div>
-        </div>
+        </>
       )}
     </section>
   );

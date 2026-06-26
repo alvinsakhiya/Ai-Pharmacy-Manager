@@ -581,17 +581,13 @@ function MedicationHistoryPage({
     enabled: canViewDosette,
   });
   const medicationLines = medicationsQuery.data ?? [];
-  const activeMedicationLines = medicationLines.filter((line) => line.is_active);
-  const discontinuedMedicationLines = medicationLines.filter(
-    (line) => !line.is_active,
-  );
   const cycles = cyclesQuery.data ?? [];
 
   return (
     <>
       <PanelHeader
         title="Medication history"
-        subtitle="Read-only record of dispensed and compliance-pack medication."
+        subtitle="Review patient-scoped medication records, Dosette activity, and dispensing events. Human review required."
         icon={<Pill className="h-4 w-4" />}
       />
       <PanelBody className="space-y-6">
@@ -616,42 +612,13 @@ function MedicationHistoryPage({
           <>
             <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-subtle px-3 py-2 text-xs font-semibold text-muted">
               <Info aria-hidden="true" className="h-4 w-4 shrink-0" />
-              This is a read-only history and cannot be edited here.
+              Read-only history. Patient-scoped records; human review required.
             </div>
 
-            <section className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-line bg-surface-subtle p-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-                  Active lines
-                </p>
-                <p className="mt-1 text-2xl font-extrabold text-ink tnum">
-                  {activeMedicationLines.length}
-                </p>
-              </div>
-              <div className="rounded-xl border border-line bg-surface-subtle p-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-                  Discontinued lines
-                </p>
-                <p className="mt-1 text-2xl font-extrabold text-ink tnum">
-                  {discontinuedMedicationLines.length}
-                </p>
-              </div>
-              <div className="rounded-xl border border-line bg-surface-subtle p-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-                  Pack cycles
-                </p>
-                <p className="mt-1 text-2xl font-extrabold text-ink tnum">
-                  {cycles.length}
-                </p>
-              </div>
-            </section>
-
-            <section className="space-y-4">
-              <MedicationHistoryItemsList
-                cycles={cycles}
-                medicationLines={medicationLines}
-              />
-            </section>
+            <MedicationHistoryItemsList
+              cycles={cycles}
+              medicationLines={medicationLines}
+            />
 
             <section className="space-y-3">
               <h3 className="text-[13px] font-bold text-ink">
