@@ -75,9 +75,9 @@ export function ReviewsScreen() {
     <div className="space-y-5">
       <PageHeader
         className="animate-fade-in-up"
-        eyebrow="Pharmacist reviews"
-        title="Reviews"
-        subtitle="Operational pharmacist review queue."
+        eyebrow="Review queue"
+        title="Pharmacist Reviews"
+        subtitle="Operational review queue for pharmacist checks and follow-up actions."
         actions={
           canManage ? (
             <Button

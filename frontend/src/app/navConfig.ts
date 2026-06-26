@@ -9,7 +9,6 @@ import {
   Pill,
   ScrollText,
   Settings,
-  Stethoscope,
   TrendingUp,
   UserRound,
   Users,
@@ -88,7 +87,7 @@ export const NAV_ITEMS: NavItem[] = [
     requiredAnyOf: ["stock.view", "blister.view"],
   },
   {
-    label: "Reviews",
+    label: "Pharmacist Reviews",
     path: "/reviews",
     icon: ClipboardCheck,
     group: "Operations",
@@ -132,6 +131,4 @@ export const NAV_ITEMS: NavItem[] = [
 
 export const FUTURE_ITEMS: FutureNavItem[] = [
   { label: "Dosette/MDS", icon: CalendarClock },
-  { label: "Clinical Review", icon: Stethoscope },
-  { label: "Notifications", icon: Bell },
 ];

@@ -151,6 +151,26 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: "Inventory" })).toBeInTheDocument();
   });
 
+  it("user with review.view sees Pharmacist Reviews at the reviews route", () => {
+    renderSidebar(
+      makeUser({
+        role: "PHARMACIST",
+        scope: {
+          is_global: false,
+          group_ids: [],
+          pharmacy_ids: [1],
+        },
+        permissions: {
+          "review.view": true,
+        },
+      }),
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Pharmacist Reviews" }),
+    ).toHaveAttribute("href", "/reviews");
+  });
+
   it.each([
     ["ADMIN", "Admin User"],
     ["PHARMACIST", "Pharmacist User"],
@@ -213,6 +233,8 @@ describe("Sidebar", () => {
 
     expect(stockItem).toHaveAttribute("aria-disabled", "true");
     expect(stockItem.closest("a")).toBeNull();
+    expect(screen.queryByText("Clinical Review")).toBeNull();
+    expect(screen.queryByText("Notifications")).toBeNull();
   });
 
   it("renders the signed-in user profile with a logout control", () => {

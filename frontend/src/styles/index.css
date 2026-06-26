@@ -121,20 +121,21 @@
 }
 
 @media (min-width: 1024px) {
-  /* Rounded floating side panel inset on the cream canvas (ShipMates-style). */
+  /* Desktop rail sits flush to the app edge; only the content-facing edge softens. */
   .app-shell__desktop-sidebar {
     position: fixed;
-    inset: 14px auto 14px 14px;
+    inset: 0 auto 0 0;
     z-index: 30;
     display: block;
     width: 16.5rem;
-    border-radius: 26px;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0 24px 24px 0;
     overflow: hidden;
-    box-shadow: 0 8px 20px rgba(42, 35, 64, 0.1);
+    box-shadow: 8px 0 24px rgba(42, 35, 64, 0.1);
   }
 
   .app-shell__content {
-    padding-left: calc(16.5rem + 28px);
+    padding-left: 16.5rem;
   }
 
   .app-shell__mobile-overlay,

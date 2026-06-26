@@ -126,10 +126,15 @@ describe("ReviewsScreen", () => {
     renderReviews();
 
     expect(
-      await screen.findByRole("heading", { name: "Reviews", level: 1 }),
+      await screen.findByRole("heading", {
+        name: "Pharmacist Reviews",
+        level: 1,
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Operational pharmacist review queue."),
+      screen.getByText(
+        "Operational review queue for pharmacist checks and follow-up actions.",
+      ),
     ).toBeInTheDocument();
     expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
     expect(screen.getByText("Cycle MDS-2026-FW07")).toBeInTheDocument();
@@ -243,7 +248,7 @@ describe("ReviewsScreen", () => {
   it("gates the nav item with review.view", () => {
     expect(NAV_ITEMS).toContainEqual(
       expect.objectContaining({
-        label: "Reviews",
+        label: "Pharmacist Reviews",
         path: "/reviews",
         requiredAnyOf: ["review.view"],
       }),

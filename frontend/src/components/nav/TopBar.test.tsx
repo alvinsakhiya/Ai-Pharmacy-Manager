@@ -59,14 +59,17 @@ function emptyAlerts(): AlertsResponse {
   };
 }
 
-function renderTopBar(authOverrides: Partial<AuthContextValue> = {}) {
+function renderTopBar(
+  authOverrides: Partial<AuthContextValue> = {},
+  route = "/",
+) {
   const auth = makeAuthContext({
     user: makeUser(),
     logout: vi.fn().mockResolvedValue(undefined),
     ...authOverrides,
   });
 
-  renderWithProviders(<TopBar />, { auth });
+  renderWithProviders(<TopBar />, { auth, route });
 
   return auth;
 }
@@ -103,6 +106,12 @@ describe("TopBar", () => {
     renderTopBar();
 
     expect(screen.getByText("Workspace")).toBeInTheDocument();
+  });
+
+  it("uses the clearer Pharmacist Reviews section label", () => {
+    renderTopBar({}, "/reviews");
+
+    expect(screen.getByText("Pharmacist Reviews")).toBeInTheDocument();
   });
 
   it("renders the notification centre bell", async () => {
