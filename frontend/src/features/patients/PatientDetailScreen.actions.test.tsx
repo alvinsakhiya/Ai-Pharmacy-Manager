@@ -101,6 +101,18 @@ describe("PatientDetailScreen actions", () => {
     });
   });
 
+  it("opens edit patient modal with patient.manage", async () => {
+    const user = userEvent.setup();
+    renderDetail({ "patient.view": true, "patient.manage": true });
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Edit patient" });
+    expect(within(dialog).getByLabelText("Patient ID")).toBeDisabled();
+    expect(within(dialog).getByDisplayValue("Alice")).toBeInTheDocument();
+  });
+
   it("hides Deactivate for inactive patients", async () => {
     getPatientMock.mockResolvedValue(makePatient({ is_active: false }));
 

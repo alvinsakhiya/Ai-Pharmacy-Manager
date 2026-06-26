@@ -8,6 +8,11 @@ import {
   makeAuthUser,
   renderWithProviders,
 } from "../../test/providers";
+import type {
+  DosetteCycle,
+  PatientMedicationLine,
+} from "../dosette/dosetteApi";
+import * as dosetteApi from "../dosette/dosetteApi";
 import { PatientDetailScreen } from "./PatientDetailScreen";
 import type { Patient } from "./patientApi";
 import * as patientApi from "./patientApi";
@@ -22,8 +27,19 @@ vi.mock("./patientApi", async (importOriginal) => {
   };
 });
 
+vi.mock("../dosette/dosetteApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../dosette/dosetteApi")>();
+  return {
+    ...actual,
+    listPatientMedications: vi.fn(),
+    listDosetteCycles: vi.fn(),
+  };
+});
+
 const getPatientMock = vi.mocked(patientApi.getPatient);
 const listPatientNotesMock = vi.mocked(patientApi.listPatientNotes);
+const listPatientMedicationsMock = vi.mocked(dosetteApi.listPatientMedications);
+const listDosetteCyclesMock = vi.mocked(dosetteApi.listDosetteCycles);
 
 function makePatient(overrides: Partial<Patient> = {}): Patient {
   return {
@@ -40,6 +56,50 @@ function makePatient(overrides: Partial<Patient> = {}): Patient {
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
+    ...overrides,
+  };
+}
+
+function makeMedicationLine(
+  overrides: Partial<PatientMedicationLine> = {},
+): PatientMedicationLine {
+  return {
+    id: 1,
+    medication: 10,
+    medication_name: "Amlodipine",
+    dose_instructions: "Take one twice daily",
+    strength: "5 mg",
+    form: "TABLET",
+    quantity_morning: 1,
+    quantity_lunchtime: 0,
+    quantity_evening: 0,
+    quantity_bedtime: 1,
+    start_date: "2026-06-01",
+    colour: "Blue",
+    shape: "Round",
+    is_active: true,
+    created_at: "2026-06-01T08:00:00Z",
+    updated_at: "2026-06-20T09:15:00Z",
+    ...overrides,
+  };
+}
+
+function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
+  return {
+    id: 40,
+    reference: "MDS-2026-W26",
+    frequency: "WEEKLY",
+    start_date: "2026-06-22",
+    end_date: "2026-06-28",
+    status: "PREPARED",
+    stock_deducted: true,
+    deducted_at: "2026-06-25T11:30:00Z",
+    prepared_by_email: "pharmacist@example.com",
+    prepared_at: "2026-06-25T09:30:00Z",
+    checked_by_email: "checker@example.com",
+    checked_at: "2026-06-25T10:15:00Z",
+    created_at: "2026-06-19T09:00:00Z",
+    updated_at: "2026-06-25T10:15:00Z",
     ...overrides,
   };
 }
@@ -73,6 +133,8 @@ describe("PatientDetailScreen", () => {
     vi.resetAllMocks();
     getPatientMock.mockResolvedValue(makePatient());
     listPatientNotesMock.mockResolvedValue([]);
+    listPatientMedicationsMock.mockResolvedValue([]);
+    listDosetteCyclesMock.mockResolvedValue([]);
   });
 
   it("loads the patient from the route parameter", async () => {
@@ -104,6 +166,75 @@ describe("PatientDetailScreen", () => {
       "href",
       "/patients",
     );
+  });
+
+  it("renders doctor and GP tab content", async () => {
+    const user = userEvent.setup();
+    getPatientMock.mockResolvedValue(
+      makePatient({
+        gp: {
+          doctor_name: "Dr Demo",
+          practice_name: "Sutton Practice",
+          practice_address: "1 GP Road",
+          practice_postcode: "GP1 1AA",
+          practice_phone: "020 0000 0200",
+          practice_email: "gp@example.test",
+          updated_at: "2026-06-20T09:00:00Z",
+        },
+      }),
+    );
+    renderDetail();
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Doctor & GP" }));
+
+    expect(screen.getByRole("heading", { name: "Doctor & GP" })).toBeInTheDocument();
+    expect(screen.getByText("Dr Demo")).toBeInTheDocument();
+    expect(screen.getByText("Sutton Practice")).toBeInTheDocument();
+  });
+
+  it("renders improved medication history from dosette records", async () => {
+    const user = userEvent.setup();
+    listPatientMedicationsMock.mockResolvedValue([
+      makeMedicationLine(),
+      makeMedicationLine({
+        id: 2,
+        medication: 11,
+        medication_name: "Metformin",
+        dose_instructions: "Stopped after pharmacist review",
+        strength: "500 mg",
+        quantity_morning: 0,
+        quantity_bedtime: 0,
+        colour: "",
+        shape: "",
+        is_active: false,
+      }),
+    ]);
+    listDosetteCyclesMock.mockResolvedValue([makeCycle()]);
+
+    renderDetail("/patients/20", patientAuth({ "blister.view": true }));
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Medication history" }));
+
+    expect(await screen.findByText("Current medication schedule")).toBeInTheDocument();
+    expect(screen.getByText("Amlodipine")).toBeInTheDocument();
+    expect(screen.getByText("5 mg - Tablet")).toBeInTheDocument();
+    expect(screen.getByText("Take one twice daily")).toBeInTheDocument();
+    expect(screen.getAllByText("Morning").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bedtime").length).toBeGreaterThan(0);
+    expect(screen.getByText("Blue")).toBeInTheDocument();
+    expect(screen.getByText("Round")).toBeInTheDocument();
+    expect(screen.getByText("Discontinued medication history")).toBeInTheDocument();
+    expect(screen.getByText("Metformin")).toBeInTheDocument();
+    expect(screen.getByText("Discontinued")).toBeInTheDocument();
+    expect(screen.getByText("MDS / Dosette cycle history")).toBeInTheDocument();
+    expect(screen.getByText("MDS-2026-W26")).toBeInTheDocument();
+    expect(screen.getByText("Prepared")).toBeInTheDocument();
+    expect(screen.getByText("pharmacist@example.com")).toBeInTheDocument();
+    expect(screen.getByText("checker@example.com")).toBeInTheDocument();
+    expect(screen.getByText(/25 Jun 2026.*09:30/)).toBeInTheDocument();
+    expect(screen.getByText(/25 Jun 2026.*10:15/)).toBeInTheDocument();
   });
 
   it("renders note history without write controls for read-only users", async () => {

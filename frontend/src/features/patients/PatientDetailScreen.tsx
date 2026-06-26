@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ClipboardList,
+  ExternalLink,
   Info,
   Lock,
   MessageSquarePlus,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { usePermissions } from "../../auth/usePermissions";
-import { Badge } from "../../components/ui/Badge";
+import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
@@ -27,6 +28,8 @@ import { cn } from "../../lib/cn";
 import {
   listDosetteCycles,
   listPatientMedications,
+  type DosetteCycle,
+  type PatientMedicationLine,
 } from "../dosette/dosetteApi";
 import { AddPatientNoteModal } from "./AddPatientNoteModal";
 import { PatientFormModal } from "./PatientFormModal";
@@ -114,14 +117,29 @@ function PharmacistOnlyHint() {
 }
 
 export function PatientDetailScreen() {
+  const { patientId } = useParams();
+  const parsedPatientId = Number(patientId);
+
+  return <PatientRecordWorkspace patientId={parsedPatientId} showBackLink />;
+}
+
+interface PatientRecordWorkspaceProps {
+  patientId: number;
+  showBackLink?: boolean;
+  fullRecordHref?: string;
+}
+
+export function PatientRecordWorkspace({
+  patientId,
+  showBackLink,
+  fullRecordHref,
+}: PatientRecordWorkspaceProps) {
   const { can } = usePermissions();
   const canManage = can("patient.manage");
   const canViewDosette = can("blister.view");
-  const { patientId } = useParams();
-  const parsedPatientId = Number(patientId);
-  const isValidPatientId = Number.isFinite(parsedPatientId);
-  const patientQuery = usePatientQuery(parsedPatientId);
-  const notesQuery = usePatientNotesQuery(parsedPatientId);
+  const isValidPatientId = Number.isFinite(patientId);
+  const patientQuery = usePatientQuery(patientId);
+  const notesQuery = usePatientNotesQuery(patientId);
   const deactivatePatient = useDeactivatePatient();
   const { pharmacyName } = usePharmacyNames();
   const { success, error } = useToast();
@@ -189,13 +207,15 @@ export function PatientDetailScreen() {
 
   return (
     <div className="space-y-5">
-      <Link
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand transition-colors duration-150 ease-soft hover:text-brand-hover"
-        to="/patients"
-      >
-        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-        Back to patients
-      </Link>
+      {showBackLink ? (
+        <Link
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand transition-colors duration-150 ease-soft hover:text-brand-hover"
+          to="/patients"
+        >
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          Back to patients
+        </Link>
+      ) : null}
 
       {/* Header — always visible, actions gated by permission. */}
       <Panel>
@@ -219,6 +239,16 @@ export function PatientDetailScreen() {
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2.5">
               <StatusBadge active={patient.is_active} />
+              {fullRecordHref ? (
+                <Link to={fullRecordHref}>
+                  <Button
+                    variant="secondary"
+                    leadingIcon={<ExternalLink className="h-4 w-4" />}
+                  >
+                    Open full record
+                  </Button>
+                </Link>
+              ) : null}
               {canViewDosette ? (
                 <Link to={`/patients/${patient.id}/dosette`}>
                   <Button
@@ -314,7 +344,7 @@ export function PatientDetailScreen() {
         </Panel>
       </div>
 
-      <PatientReviewsSection patientId={parsedPatientId} />
+      <PatientReviewsSection patientId={patientId} />
 
       <PatientFormModal
         isOpen={isEditModalOpen}
@@ -473,6 +503,170 @@ function GpPage({
   );
 }
 
+const MEDICATION_TIME_SLOTS: Array<{
+  key: keyof Pick<
+    PatientMedicationLine,
+    | "quantity_morning"
+    | "quantity_lunchtime"
+    | "quantity_evening"
+    | "quantity_bedtime"
+  >;
+  label: string;
+}> = [
+  { key: "quantity_morning", label: "Morning" },
+  { key: "quantity_lunchtime", label: "Lunchtime" },
+  { key: "quantity_evening", label: "Evening" },
+  { key: "quantity_bedtime", label: "Bedtime" },
+];
+
+function formatLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function optionalDate(value: string | null | undefined): string {
+  return value ? formatDate(value) : "Not recorded";
+}
+
+function optionalDateTime(value: string | null | undefined): string {
+  return value ? formatDateTime(value) : "Not recorded";
+}
+
+function medicationDescriptor(line: PatientMedicationLine): string {
+  const parts = [
+    line.strength?.trim(),
+    line.form ? formatLabel(line.form) : "",
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" - ") : "Strength/form not recorded";
+}
+
+function cycleStatusVariant(status: string): BadgeVariant {
+  if (["CHECKED", "COLLECTED", "DELIVERED", "COMPLETED"].includes(status)) {
+    return "success";
+  }
+  if (status === "PREPARED") {
+    return "info";
+  }
+  if (status === "NEEDS_CHANGES") {
+    return "warning";
+  }
+  if (status === "CANCELLED") {
+    return "danger";
+  }
+  return "neutral";
+}
+
+function MedicationLineCard({ line }: { line: PatientMedicationLine }) {
+  return (
+    <article className="rounded-xl border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-sm font-bold text-ink">{line.medication_name}</h4>
+          <p className="mt-1 text-xs font-medium text-muted">
+            {medicationDescriptor(line)}
+          </p>
+        </div>
+        <Badge dot variant={line.is_active ? "success" : "neutral"}>
+          {line.is_active ? "Active" : "Discontinued"}
+        </Badge>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-line bg-surface-subtle p-3">
+        <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+          Dosage instructions
+        </p>
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
+          {fallback(line.dose_instructions)}
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-4">
+        {MEDICATION_TIME_SLOTS.map((slot) => (
+          <div
+            className="rounded-lg border border-line bg-surface-subtle px-3 py-2"
+            key={slot.key}
+          >
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+              {slot.label}
+            </p>
+            <p className="mt-1 text-lg font-extrabold text-ink tnum">
+              {line[slot.key]}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+        <DetailValue label="Start date" value={optionalDate(line.start_date)} />
+        <DetailValue label="Colour" value={fallback(line.colour)} />
+        <DetailValue label="Shape" value={fallback(line.shape)} />
+      </dl>
+      <p className="mt-4 border-t border-line pt-3 text-xs font-medium text-muted tnum">
+        Last updated {formatDateTime(line.updated_at)}
+      </p>
+    </article>
+  );
+}
+
+function MedicationLineGroup({
+  title,
+  lines,
+}: {
+  title: string;
+  lines: PatientMedicationLine[];
+}) {
+  if (lines.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-3">
+      <h3 className="text-[13px] font-bold text-ink">{title}</h3>
+      <div className="grid gap-3">
+        {lines.map((line) => (
+          <MedicationLineCard key={line.id} line={line} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CycleHistoryCard({ cycle }: { cycle: DosetteCycle }) {
+  return (
+    <article className="rounded-xl border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-sm font-bold text-ink">{cycle.reference}</h4>
+          <p className="mt-1 text-xs font-medium text-muted tnum">
+            {formatDate(cycle.start_date)} - {formatDate(cycle.end_date)} -{" "}
+            {formatLabel(cycle.frequency)}
+          </p>
+        </div>
+        <Badge dot variant={cycleStatusVariant(cycle.status)}>
+          {formatLabel(cycle.status)}
+        </Badge>
+      </div>
+
+      <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <DetailValue label="Prepared by" value={fallback(cycle.prepared_by_email)} />
+        <DetailValue label="Prepared at" value={optionalDateTime(cycle.prepared_at)} />
+        <DetailValue label="Checked by" value={fallback(cycle.checked_by_email)} />
+        <DetailValue label="Checked at" value={optionalDateTime(cycle.checked_at)} />
+        <DetailValue
+          label="Stock deducted"
+          value={cycle.stock_deducted ? "Yes" : "No"}
+        />
+        <DetailValue label="Deducted at" value={optionalDateTime(cycle.deducted_at)} />
+      </dl>
+    </article>
+  );
+}
+
 function MedicationHistoryPage({
   patientId,
   canViewDosette,
@@ -490,6 +684,12 @@ function MedicationHistoryPage({
     queryFn: () => listDosetteCycles(patientId),
     enabled: canViewDosette,
   });
+  const medicationLines = medicationsQuery.data ?? [];
+  const activeMedicationLines = medicationLines.filter((line) => line.is_active);
+  const discontinuedMedicationLines = medicationLines.filter(
+    (line) => !line.is_active,
+  );
+  const cycles = cyclesQuery.data ?? [];
 
   return (
     <>
@@ -523,81 +723,70 @@ function MedicationHistoryPage({
               This is a read-only history and cannot be edited here.
             </div>
 
-            <div>
-              <h3 className="mb-2 text-[13px] font-bold text-ink">
-                Current medication lines
-              </h3>
-              {(medicationsQuery.data ?? []).length === 0 ? (
+            <section className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-line bg-surface-subtle p-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                  Active lines
+                </p>
+                <p className="mt-1 text-2xl font-extrabold text-ink tnum">
+                  {activeMedicationLines.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-line bg-surface-subtle p-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                  Discontinued lines
+                </p>
+                <p className="mt-1 text-2xl font-extrabold text-ink tnum">
+                  {discontinuedMedicationLines.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-line bg-surface-subtle p-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                  Pack cycles
+                </p>
+                <p className="mt-1 text-2xl font-extrabold text-ink tnum">
+                  {cycles.length}
+                </p>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              {medicationLines.length === 0 ? (
                 <EmptyState
                   icon={<Pill className="h-6 w-6" />}
                   title="No medication lines recorded."
                 />
               ) : (
-                <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line">
-                  {(medicationsQuery.data ?? []).map((line) => (
-                    <li
-                      key={line.id}
-                      className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink">
-                          {line.medication_name}
-                          {line.strength ? ` ${line.strength}` : ""}
-                        </p>
-                        <p className="text-xs text-muted">
-                          {line.dose_instructions || "No dose instructions"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="tnum text-xs font-semibold text-ink-soft">
-                          M {line.quantity_morning} · L{" "}
-                          {line.quantity_lunchtime} · E {line.quantity_evening} ·
-                          N {line.quantity_bedtime}
-                        </span>
-                        <Badge
-                          dot
-                          variant={line.is_active ? "success" : "neutral"}
-                        >
-                          {line.is_active ? "Active" : "Stopped"}
-                        </Badge>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <MedicationLineGroup
+                    title="Current medication schedule"
+                    lines={activeMedicationLines}
+                  />
+                  <MedicationLineGroup
+                    title="Discontinued medication history"
+                    lines={discontinuedMedicationLines}
+                  />
+                </>
               )}
-            </div>
+            </section>
 
-            <div>
-              <h3 className="mb-2 text-[13px] font-bold text-ink">
-                Pack cycle history
+            <section className="space-y-3">
+              <h3 className="text-[13px] font-bold text-ink">
+                MDS / Dosette cycle history
               </h3>
-              {(cyclesQuery.data ?? []).length === 0 ? (
+              {cycles.length === 0 ? (
                 <EmptyState
                   icon={<Pill className="h-6 w-6" />}
                   title="No pack cycles recorded."
                 />
               ) : (
-                <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line">
-                  {(cyclesQuery.data ?? []).map((cycle) => (
-                    <li
-                      key={cycle.id}
-                      className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink">
-                          {cycle.reference}
-                        </p>
-                        <p className="tnum text-xs text-muted">
-                          {formatDate(cycle.start_date)} –{" "}
-                          {formatDate(cycle.end_date)} · {cycle.frequency}
-                        </p>
-                      </div>
-                      <Badge variant="neutral">{cycle.status}</Badge>
-                    </li>
+                <div className="grid gap-3">
+                  {cycles.map((cycle) => (
+                    <CycleHistoryCard cycle={cycle} key={cycle.id} />
                   ))}
-                </ul>
+                </div>
               )}
-            </div>
+            </section>
           </>
         )}
       </PanelBody>

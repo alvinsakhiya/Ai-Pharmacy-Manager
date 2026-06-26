@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { AlertTriangle, Plus, Search, Users } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
@@ -7,6 +6,7 @@ import { usePermissions } from "../../auth/usePermissions";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { Modal } from "../../components/ui/Modal";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Panel } from "../../components/ui/Card";
 import { SkeletonRows } from "../../components/ui/Skeleton";
@@ -21,6 +21,7 @@ import {
 } from "../../components/ui/Table";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import type { Patient } from "./patientApi";
+import { PatientRecordWorkspace } from "./PatientDetailScreen";
 import { PatientFormModal } from "./PatientFormModal";
 import { usePatientsQuery } from "./usePatients";
 import { usePharmacyNames } from "./usePharmacyNames";
@@ -49,9 +50,11 @@ function StatusBadge({ active }: { active: boolean }) {
 function PatientRow({
   patient,
   pharmacyName,
+  onView,
 }: {
   patient: Patient;
   pharmacyName: (id: number) => string;
+  onView: (patientId: number) => void;
 }) {
   return (
     <TR>
@@ -69,11 +72,13 @@ function PatientRow({
         <StatusBadge active={patient.is_active} />
       </TD>
       <TD className="whitespace-nowrap text-right">
-        <Link to={`/patients/${patient.id}`}>
-          <Button variant="secondary" size="sm">
-            View
-          </Button>
-        </Link>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => onView(patient.id)}
+        >
+          View
+        </Button>
       </TD>
     </TR>
   );
@@ -89,6 +94,9 @@ export function PatientsScreen() {
     number | undefined
   >(undefined);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [workspacePatientId, setWorkspacePatientId] = useState<number | null>(
+    null,
+  );
   const patientsQuery = usePatientsQuery({
     pharmacy: selectedPharmacyId,
     search: search.trim(),
@@ -218,6 +226,7 @@ export function PatientsScreen() {
                   key={patient.id}
                   patient={patient}
                   pharmacyName={pharmacyName}
+                  onView={setWorkspacePatientId}
                 />
               ))}
             </TBody>
@@ -230,6 +239,21 @@ export function PatientsScreen() {
         onClose={() => setCreateModalOpen(false)}
         patient={null}
       />
+
+      <Modal
+        isOpen={workspacePatientId !== null}
+        onClose={() => setWorkspacePatientId(null)}
+        title="Patient record workspace"
+        description="Review this patient record without leaving the Patients list."
+        size="xl"
+      >
+        {workspacePatientId !== null ? (
+          <PatientRecordWorkspace
+            patientId={workspacePatientId}
+            fullRecordHref={`/patients/${workspacePatientId}`}
+          />
+        ) : null}
+      </Modal>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,10 +17,13 @@ vi.mock("./patientApi", async (importOriginal) => {
     ...actual,
     listPatients: vi.fn(),
     getPatient: vi.fn(),
+    listPatientNotes: vi.fn(),
   };
 });
 
 const listPatientsMock = vi.mocked(patientApi.listPatients);
+const getPatientMock = vi.mocked(patientApi.getPatient);
+const listPatientNotesMock = vi.mocked(patientApi.listPatientNotes);
 
 function makePatient(overrides: Partial<Patient> = {}): Patient {
   return {
@@ -58,6 +61,8 @@ function patientAuth(pharmacyCount = 2) {
 describe("PatientsScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    getPatientMock.mockResolvedValue(makePatient());
+    listPatientNotesMock.mockResolvedValue([]);
     listPatientsMock.mockResolvedValue([
       makePatient(),
       makePatient({
@@ -94,12 +99,34 @@ describe("PatientsScreen", () => {
     expect(await screen.findByText("No patients yet.")).toBeInTheDocument();
   });
 
-  it("links each row to patient detail", async () => {
+  it("opens patient detail in a workspace modal with a full-record link", async () => {
+    const user = userEvent.setup();
     renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
 
-    const viewLinks = await screen.findAllByRole("link", { name: "View" });
+    const viewButtons = await screen.findAllByRole("button", { name: "View" });
+    await user.click(viewButtons[0]);
 
-    expect(viewLinks[0]).toHaveAttribute("href", "/patients/20");
+    const dialog = await screen.findByRole("dialog", {
+      name: "Patient record workspace",
+    });
+
+    expect(getPatientMock).toHaveBeenCalledWith(20);
+    expect(within(dialog).getByText("Alice Sutton")).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Patient info" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("link", { name: "Open full record" }),
+    ).toHaveAttribute("href", "/patients/20");
+
+    await user.click(within(dialog).getByRole("button", { name: "Close modal" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Patient record workspace" }),
+      ).toBeNull();
+    });
+    expect(screen.getByText("Patients")).toBeInTheDocument();
   });
 
   it("shows pharmacy filter when user has more than one pharmacy", async () => {

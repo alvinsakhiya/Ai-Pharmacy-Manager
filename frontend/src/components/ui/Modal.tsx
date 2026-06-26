@@ -11,7 +11,7 @@ import { X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { IconButton } from "./IconButton";
 
-type ModalSize = "sm" | "md" | "lg";
+type ModalSize = "sm" | "md" | "lg" | "xl";
 
 interface ModalProps {
   title: string;
@@ -27,6 +27,7 @@ const sizes: Record<ModalSize, string> = {
   sm: "max-w-md",
   md: "max-w-2xl",
   lg: "max-w-4xl",
+  xl: "max-w-6xl",
 };
 
 export function Modal({
