@@ -133,6 +133,10 @@ Latest verified suite results at Module 14:
 - Playwright E2E: 23/23 passing
 - Latest tag: `module-14-pharmacist-review-workflow-complete`
 
+## Documentation
+
+- [Demo Evidence Pack](docs/demo-evidence.md)
+
 ## Demo Users
 
 Seed demo data with:
