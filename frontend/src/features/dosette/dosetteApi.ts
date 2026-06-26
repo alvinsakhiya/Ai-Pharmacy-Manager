@@ -47,9 +47,15 @@ export type CycleStatusTransition =
 export interface DosetteCycle {
   id: number;
   reference: string;
+  patient_reference: string;
+  display_label: string;
+  supply_period_label: string;
   frequency: string;
   start_date: string;
   end_date: string;
+  due_status: string;
+  days_until_due: number;
+  is_due_soon: boolean;
   status: string;
   stock_deducted: boolean;
   deducted_at: string | null;
@@ -62,10 +68,10 @@ export interface DosetteCycle {
 }
 
 export const CYCLE_FREQUENCY_OPTIONS = [
-  { value: "WEEKLY", label: "Weekly" },
-  { value: "FORTNIGHTLY", label: "Fortnightly" },
-  { value: "FOUR_WEEKLY", label: "Four weekly" },
-  { value: "MONTHLY", label: "Monthly" },
+  { value: "WEEKLY", label: "1-week supply" },
+  { value: "FORTNIGHTLY", label: "2-week supply" },
+  { value: "FOUR_WEEKLY", label: "4-week supply" },
+  { value: "MONTHLY", label: "Monthly supply" },
 ] as const;
 
 export interface DosetteCycleWriteBody {

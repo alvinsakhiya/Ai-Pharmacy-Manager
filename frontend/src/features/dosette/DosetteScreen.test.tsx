@@ -55,6 +55,7 @@ const listPatientMedicationsMock = vi.mocked(dosetteApi.listPatientMedications);
 const listDosetteCyclesMock = vi.mocked(dosetteApi.listDosetteCycles);
 const getPickingListMock = vi.mocked(dosetteApi.getPickingList);
 const getStockPreviewMock = vi.mocked(dosetteApi.getStockPreview);
+const createDosetteCycleMock = vi.mocked(dosetteApi.createDosetteCycle);
 const discontinuePatientMedicationMock = vi.mocked(
   dosetteApi.discontinuePatientMedication,
 );
@@ -109,13 +110,34 @@ function makeLine(
   };
 }
 
+const SUPPLY_LABELS: Record<string, string> = {
+  WEEKLY: "1-week supply",
+  FORTNIGHTLY: "2-week supply",
+  FOUR_WEEKLY: "4-week supply",
+  MONTHLY: "Monthly supply",
+};
+
+function formatCycleTestDate(value: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
-  return {
+  const cycle: DosetteCycle = {
     id: 40,
     reference: "MDS-2026-W26",
+    patient_reference: "SUT-P1",
+    display_label: "",
+    supply_period_label: "",
     frequency: "WEEKLY",
     start_date: "2026-06-22",
     end_date: "2026-06-28",
+    due_status: "upcoming",
+    days_until_due: 10,
+    is_due_soon: false,
     status: "DRAFT",
     stock_deducted: false,
     deducted_at: null,
@@ -126,6 +148,19 @@ function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
     ...overrides,
+  };
+  const supplyLabel =
+    overrides.supply_period_label ??
+    SUPPLY_LABELS[cycle.frequency] ??
+    cycle.frequency;
+  return {
+    ...cycle,
+    supply_period_label: supplyLabel,
+    display_label:
+      overrides.display_label ??
+      `${cycle.patient_reference} · ${supplyLabel} · ${formatCycleTestDate(
+        cycle.start_date,
+      )} - ${formatCycleTestDate(cycle.end_date)}`,
   };
 }
 
@@ -267,6 +302,13 @@ function renderDosette(
   );
 }
 
+function getCycleArticle(reference: string): HTMLElement {
+  return screen.getByRole("article", { name: `Cycle ${reference}` });
+}
+
+const DEFAULT_PICKING_LIST_HEADING =
+  "Picking list: SUT-P1 · 1-week supply · 22 Jun 2026 - 28 Jun 2026";
+
 describe("DosetteScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -385,11 +427,44 @@ describe("DosetteScreen", () => {
   it("renders cycles", async () => {
     renderDosette();
 
-    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
-    expect(screen.getByText("Weekly")).toBeInTheDocument();
-    expect(screen.getByText("22 Jun 2026 - 28 Jun 2026")).toBeInTheDocument();
-    expect(screen.getByText("MDS-2026-FW07")).toBeInTheDocument();
-    expect(screen.getByText("Prepared")).toBeInTheDocument();
+    const weeklyCycle = await screen.findByRole("article", {
+      name: "Cycle MDS-2026-W26",
+    });
+    expect(
+      within(weeklyCycle).getByText(
+        "SUT-P1 · 1-week supply · 22 Jun 2026 - 28 Jun 2026",
+      ),
+    ).toBeInTheDocument();
+    expect(within(weeklyCycle).getByText("MDS-2026-W26")).toBeInTheDocument();
+    expect(within(weeklyCycle).getByText("1-week supply")).toBeInTheDocument();
+    expect(within(weeklyCycle).getByText("Upcoming")).toBeInTheDocument();
+
+    const fourWeekCycle = screen.getByRole("article", {
+      name: "Cycle MDS-2026-FW07",
+    });
+    expect(within(fourWeekCycle).getByText("4-week supply")).toBeInTheDocument();
+    expect(within(fourWeekCycle).getAllByText("Prepared").length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("renders upcoming predicted cycle periods without creating cycles", async () => {
+    renderDosette();
+
+    expect(await screen.findByText("Upcoming cycle plan")).toBeInTheDocument();
+    const planSection = screen.getByLabelText("Upcoming cycle plan");
+    expect(
+      within(planSection).getByText(
+        "Predicted dates only. Human review required; create each cycle when ready.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(planSection).getByText("29 Jun 2026 - 26 Jul 2026"),
+    ).toBeInTheDocument();
+    expect(
+      within(planSection).getByText("27 Jul 2026 - 23 Aug 2026"),
+    ).toBeInTheDocument();
+    expect(createDosetteCycleMock).not.toHaveBeenCalled();
   });
 
   it("renders a printable dosette sheet preview with cycle and appearance details", async () => {
@@ -410,7 +485,10 @@ describe("DosetteScreen", () => {
     await user.click(
       (await screen.findAllByRole("button", { name: "View picking list" }))[0],
     );
-    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
+    expect(
+      await screen.findByText(DEFAULT_PICKING_LIST_HEADING),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("MDS-2026-W26").length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Print Dosette sheet" }));
 
     const dialog = await screen.findByRole("dialog", {
@@ -468,8 +546,10 @@ describe("DosetteScreen", () => {
     await user.click(actions[0]);
 
     expect(getPickingListMock).toHaveBeenCalledWith(20, 40);
-    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
-    const pickingList = screen.getByText("Picking list: MDS-2026-W26").closest(
+    expect(
+      await screen.findByText(DEFAULT_PICKING_LIST_HEADING),
+    ).toBeInTheDocument();
+    const pickingList = screen.getByText(DEFAULT_PICKING_LIST_HEADING).closest(
       "section",
     );
     expect(pickingList).not.toBeNull();
@@ -675,7 +755,7 @@ describe("DosetteScreen", () => {
     await user.click(
       (await screen.findAllByRole("button", { name: "View picking list" }))[0],
     );
-    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
+    expect(await screen.findByText(DEFAULT_PICKING_LIST_HEADING)).toBeInTheDocument();
     const medicationCallsBefore = listPatientMedicationsMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
     const stockPreviewCallsBefore = getStockPreviewMock.mock.calls.length;
@@ -767,15 +847,13 @@ describe("DosetteScreen", () => {
       }),
     ).toHaveLength(1);
 
-    const draftRow = screen.getByText("MDS-2026-W26").closest("tr");
-    const preparedRow = screen.getByText("MDS-2026-FW07").closest("tr");
-    expect(draftRow).not.toBeNull();
-    expect(preparedRow).not.toBeNull();
+    const draftCycle = getCycleArticle("MDS-2026-W26");
+    const preparedCycle = getCycleArticle("MDS-2026-FW07");
     expect(
-      within(draftRow as HTMLElement).getByRole("button", { name: "Prepare" }),
+      within(draftCycle).getByRole("button", { name: "Prepare" }),
     ).toBeInTheDocument();
     expect(
-      within(preparedRow as HTMLElement).queryByRole("button", {
+      within(preparedCycle).queryByRole("button", {
         name: "Prepare",
       }),
     ).toBeNull();
@@ -819,24 +897,21 @@ describe("DosetteScreen", () => {
     );
 
     expect(await screen.findByText("MDS-2026-DEDUCTED")).toBeInTheDocument();
-    const draftRow = screen.getByText("MDS-2026-DRAFT").closest("tr");
-    const preparedRow = screen.getByText("MDS-2026-PREPARED").closest("tr");
-    const deductedRow = screen.getByText("MDS-2026-DEDUCTED").closest("tr");
-    expect(draftRow).not.toBeNull();
-    expect(preparedRow).not.toBeNull();
-    expect(deductedRow).not.toBeNull();
+    const draftCycle = getCycleArticle("MDS-2026-DRAFT");
+    const preparedCycle = getCycleArticle("MDS-2026-PREPARED");
+    const deductedCycle = getCycleArticle("MDS-2026-DEDUCTED");
     expect(
-      within(preparedRow as HTMLElement).getByRole("button", {
+      within(preparedCycle).getByRole("button", {
         name: "Deduct stock",
       }),
     ).toBeInTheDocument();
     expect(
-      within(draftRow as HTMLElement).queryByRole("button", {
+      within(draftCycle).queryByRole("button", {
         name: "Deduct stock",
       }),
     ).toBeNull();
     expect(
-      within(deductedRow as HTMLElement).queryByRole("button", {
+      within(deductedCycle).queryByRole("button", {
         name: "Deduct stock",
       }),
     ).toBeNull();
@@ -977,13 +1052,10 @@ describe("DosetteScreen", () => {
     );
 
     expect(await screen.findByText("MDS-2026-DEDUCTED")).toBeInTheDocument();
-    const deductedRow = screen.getByText("MDS-2026-DEDUCTED").closest("tr");
-    expect(deductedRow).not.toBeNull();
+    const deductedCycle = getCycleArticle("MDS-2026-DEDUCTED");
+    expect(within(deductedCycle).getByText("Stock deducted")).toBeInTheDocument();
     expect(
-      within(deductedRow as HTMLElement).getByText("Stock deducted"),
-    ).toBeInTheDocument();
-    expect(
-      within(deductedRow as HTMLElement).queryByRole("button", {
+      within(deductedCycle).queryByRole("button", {
         name: "Cancel",
       }),
     ).toBeNull();
@@ -1039,12 +1111,14 @@ describe("DosetteScreen", () => {
       }),
     ).toHaveLength(2);
     expect(
-      within(screen.getByText("MDS-2026-CANCELLED").closest("tr") as HTMLElement)
-        .queryByRole("button", { name: "Cancel" }),
+      within(getCycleArticle("MDS-2026-CANCELLED")).queryByRole("button", {
+        name: "Cancel",
+      }),
     ).toBeNull();
     expect(
-      within(screen.getByText("MDS-2026-COMPLETED").closest("tr") as HTMLElement)
-        .queryByRole("button", { name: "Cancel" }),
+      within(getCycleArticle("MDS-2026-COMPLETED")).queryByRole("button", {
+        name: "Cancel",
+      }),
     ).toBeNull();
   });
 
@@ -1058,7 +1132,7 @@ describe("DosetteScreen", () => {
     await user.click(
       (await screen.findAllByRole("button", { name: "View picking list" }))[0],
     );
-    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
+    expect(await screen.findByText(DEFAULT_PICKING_LIST_HEADING)).toBeInTheDocument();
     const cycleCallsBefore = listDosetteCyclesMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
     const stockPreviewCallsBefore = getStockPreviewMock.mock.calls.length;
@@ -1096,7 +1170,7 @@ describe("DosetteScreen", () => {
     await user.click(
       (await screen.findAllByRole("button", { name: "View picking list" }))[0],
     );
-    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
+    expect(await screen.findByText(DEFAULT_PICKING_LIST_HEADING)).toBeInTheDocument();
     const cycleCallsBefore = listDosetteCyclesMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
     const stockPreviewCallsBefore = getStockPreviewMock.mock.calls.length;
@@ -1164,8 +1238,8 @@ describe("DosetteScreen", () => {
     await userEvent.click(
       (await screen.findAllByRole("button", { name: "View picking list" }))[0],
     );
-    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
-    const pickingList = screen.getByText("Picking list: MDS-2026-W26").closest(
+    expect(await screen.findByText(DEFAULT_PICKING_LIST_HEADING)).toBeInTheDocument();
+    const pickingList = screen.getByText(DEFAULT_PICKING_LIST_HEADING).closest(
       "section",
     );
     expect(pickingList).not.toBeNull();

@@ -1,9 +1,30 @@
+from datetime import date
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from apps.catalogue.models import CatalogueProduct
 from apps.catalogue.services import get_or_create_medication_from_product
 
-from .models import DosetteCycle, PatientMedication
+from .models import CycleFrequency, CycleStatus, DosetteCycle, PatientMedication
+
+PREPARE_SOON_DAYS = 3
+SUPPLY_PERIOD_LABELS = {
+    CycleFrequency.WEEKLY: "1-week supply",
+    CycleFrequency.FORTNIGHTLY: "2-week supply",
+    CycleFrequency.FOUR_WEEKLY: "4-week supply",
+    CycleFrequency.MONTHLY: "Monthly supply",
+}
+CLOSED_CYCLE_STATUSES = {
+    CycleStatus.CANCELLED,
+    CycleStatus.COLLECTED,
+    CycleStatus.DELIVERED,
+    CycleStatus.COMPLETED,
+}
+
+
+def format_cycle_date(value: date) -> str:
+    return value.strftime("%d %b %Y")
 
 
 class PatientMedicationSerializer(serializers.ModelSerializer):
@@ -164,6 +185,15 @@ class PatientMedicationSerializer(serializers.ModelSerializer):
 
 
 class DosetteCycleSerializer(serializers.ModelSerializer):
+    patient_reference = serializers.CharField(
+        source="patient.patient_reference",
+        read_only=True,
+    )
+    supply_period_label = serializers.SerializerMethodField()
+    display_label = serializers.SerializerMethodField()
+    due_status = serializers.SerializerMethodField()
+    days_until_due = serializers.SerializerMethodField()
+    is_due_soon = serializers.SerializerMethodField()
     prepared_by_email = serializers.SerializerMethodField()
     checked_by_email = serializers.SerializerMethodField()
 
@@ -172,9 +202,15 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "reference",
+            "patient_reference",
+            "display_label",
+            "supply_period_label",
             "frequency",
             "start_date",
             "end_date",
+            "due_status",
+            "days_until_due",
+            "is_due_soon",
             "status",
             "stock_deducted",
             "deducted_at",
@@ -187,6 +223,12 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "patient_reference",
+            "display_label",
+            "supply_period_label",
+            "due_status",
+            "days_until_due",
+            "is_due_soon",
             "status",
             "stock_deducted",
             "deducted_at",
@@ -196,6 +238,47 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         validators: list[object] = []
+
+    def get_supply_period_label(self, obj: DosetteCycle) -> str:
+        return SUPPLY_PERIOD_LABELS.get(
+            obj.frequency,
+            str(obj.frequency).replace("_", " ").title(),
+        )
+
+    def get_display_label(self, obj: DosetteCycle) -> str:
+        date_range = (
+            f"{format_cycle_date(obj.start_date)} - {format_cycle_date(obj.end_date)}"
+        )
+        return (
+            f"{obj.patient.patient_reference} · "
+            f"{self.get_supply_period_label(obj)} · {date_range}"
+        )
+
+    def get_due_status(self, obj: DosetteCycle) -> str:
+        today = timezone.localdate()
+        if obj.status in CLOSED_CYCLE_STATUSES:
+            return "closed"
+        if obj.end_date < today:
+            return "overdue"
+        if obj.start_date <= today <= obj.end_date:
+            return "current"
+
+        days_until_start = (obj.start_date - today).days
+        if (
+            obj.status in {CycleStatus.DRAFT, CycleStatus.NEEDS_CHANGES}
+            and days_until_start <= PREPARE_SOON_DAYS
+        ):
+            return "due_soon"
+        return "upcoming"
+
+    def get_days_until_due(self, obj: DosetteCycle) -> int:
+        today = timezone.localdate()
+        if obj.end_date < today:
+            return (obj.end_date - today).days
+        return (obj.start_date - today).days
+
+    def get_is_due_soon(self, obj: DosetteCycle) -> bool:
+        return self.get_due_status(obj) == "due_soon"
 
     def get_prepared_by_email(self, obj: DosetteCycle) -> str | None:
         return obj.prepared_by.email if obj.prepared_by_id else None

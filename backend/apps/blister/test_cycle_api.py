@@ -197,6 +197,74 @@ def test_blister_view_roles_can_list_and_detail(client, cycle_api_data, actor_ke
 
 
 @pytest.mark.django_db
+def test_cycle_response_includes_safe_planning_labels(
+    client,
+    cycle_api_data,
+    monkeypatch,
+):
+    authenticate(client, cycle_api_data["admin"])
+    patient = cycle_api_data["patient_one"]
+    cycle = cycle_api_data["cycle_one"]
+    cycle.reference = "INTERNAL-MDS-001"
+    cycle.frequency = CycleFrequency.FOUR_WEEKLY
+    cycle.start_date = date(2026, 6, 29)
+    cycle.end_date = date(2026, 7, 26)
+    cycle.save(
+        update_fields=[
+            "reference",
+            "frequency",
+            "start_date",
+            "end_date",
+            "updated_at",
+        ]
+    )
+    monthly_cycle = make_cycle(
+        patient,
+        "INTERNAL-MDS-MONTHLY",
+        frequency=CycleFrequency.MONTHLY,
+        start_date=date(2026, 8, 1),
+        end_date=date(2026, 8, 31),
+    )
+    monkeypatch.setattr(
+        "apps.blister.serializers.timezone.localdate",
+        lambda: date(2026, 6, 26),
+    )
+
+    detail_response = client.get(detail_url(patient, cycle))
+    list_response = client.get(list_url(patient))
+
+    assert detail_response.status_code == 200
+    data = detail_response.json()
+    assert data["patient_reference"] == "P1-CYCLE-001"
+    assert data["supply_period_label"] == "4-week supply"
+    assert data["display_label"] == (
+        "P1-CYCLE-001 · 4-week supply · 29 Jun 2026 - 26 Jul 2026"
+    )
+    assert data["due_status"] == "due_soon"
+    assert data["days_until_due"] == 3
+    assert data["is_due_soon"] is True
+    assert data["reference"] == "INTERNAL-MDS-001"
+
+    monthly_data = next(
+        item for item in list_response.json() if item["id"] == monthly_cycle.id
+    )
+    assert monthly_data["supply_period_label"] == "Monthly supply"
+
+    display_text = str(data)
+    forbidden_values = [
+        patient.first_name,
+        patient.last_name,
+        str(patient.date_of_birth),
+        patient.address,
+        patient.postcode,
+        patient.phone,
+        patient.notes,
+    ]
+    for forbidden_value in forbidden_values:
+        assert forbidden_value not in display_text
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("actor_key", ["superintendent", "stock_employee"])
 def test_roles_without_blister_view_are_denied(client, cycle_api_data, actor_key):
     authenticate(client, cycle_api_data[actor_key])

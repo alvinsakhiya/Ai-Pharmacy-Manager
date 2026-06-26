@@ -326,6 +326,436 @@ function canCancelCycle(cycle: DosetteCycle): boolean {
   return ["DRAFT", "PREPARED"].includes(cycle.status) && !cycle.stock_deducted;
 }
 
+const SUPPLY_PERIOD_LABEL_BY_FREQUENCY: Record<string, string> = {
+  WEEKLY: "1-week supply",
+  FORTNIGHTLY: "2-week supply",
+  FOUR_WEEKLY: "4-week supply",
+  MONTHLY: "Monthly supply",
+};
+
+const UPCOMING_PLAN_COUNT = 3;
+
+function parseIsoDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function toIsoDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(value: Date, days: number): Date {
+  const next = new Date(value);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addCalendarMonths(value: Date, months: number): Date {
+  const next = new Date(value);
+  const originalDay = next.getDate();
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(originalDay, lastDay));
+  return next;
+}
+
+function cycleSupplyPeriodLabel(cycle: DosetteCycle): string {
+  return (
+    cycle.supply_period_label ||
+    SUPPLY_PERIOD_LABEL_BY_FREQUENCY[cycle.frequency] ||
+    statusLabel(cycle.frequency)
+  );
+}
+
+function cycleDateRange(cycle: Pick<DosetteCycle, "start_date" | "end_date">) {
+  return `${formatDate(cycle.start_date)} - ${formatDate(cycle.end_date)}`;
+}
+
+function cycleFriendlyLabel(cycle: DosetteCycle): string {
+  if (cycle.display_label?.trim()) {
+    return cycle.display_label;
+  }
+
+  return [
+    cycle.patient_reference,
+    cycleSupplyPeriodLabel(cycle),
+    cycleDateRange(cycle),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function dueStatusLabel(status: string): string {
+  switch (status) {
+    case "overdue":
+      return "Overdue";
+    case "due_soon":
+      return "Due soon";
+    case "current":
+      return "Current cycle";
+    case "closed":
+      return "Closed";
+    case "upcoming":
+      return "Upcoming";
+    default:
+      return statusLabel(status);
+  }
+}
+
+function dueStatusTone(status: string): StatusTone {
+  switch (status) {
+    case "overdue":
+      return "danger";
+    case "due_soon":
+      return "warning";
+    case "current":
+      return "brand";
+    case "closed":
+      return "neutral";
+    case "upcoming":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+function daysUntilDueLabel(cycle: DosetteCycle): string {
+  if (cycle.due_status === "closed") {
+    return "Closed cycle";
+  }
+  if (cycle.due_status === "overdue") {
+    const days = Math.abs(cycle.days_until_due);
+    return `${days} day${days === 1 ? "" : "s"} past planned end`;
+  }
+  if (cycle.due_status === "current") {
+    return "Within the current planned date range";
+  }
+  if (cycle.days_until_due === 0) {
+    return "Starts today";
+  }
+  if (cycle.days_until_due > 0) {
+    return `Starts in ${cycle.days_until_due} day${
+      cycle.days_until_due === 1 ? "" : "s"
+    }`;
+  }
+
+  return "Review the planned dates";
+}
+
+function cycleEndDateForFrequency(startDate: string, frequency: string): string {
+  const parsedStart = parseIsoDate(startDate);
+  if (!parsedStart) {
+    return "";
+  }
+
+  if (frequency === "MONTHLY") {
+    return toIsoDate(addDays(addCalendarMonths(parsedStart, 1), -1));
+  }
+
+  const daysByFrequency: Record<string, number> = {
+    WEEKLY: 7,
+    FORTNIGHTLY: 14,
+    FOUR_WEEKLY: 28,
+  };
+  const days = daysByFrequency[frequency] ?? daysByFrequency.FOUR_WEEKLY;
+  return toIsoDate(addDays(parsedStart, days - 1));
+}
+
+interface PlannedCycle {
+  label: string;
+  start_date: string;
+  end_date: string;
+  supply_period_label: string;
+}
+
+function buildUpcomingCyclePlan(cycles: DosetteCycle[]): PlannedCycle[] {
+  const baseCycle = [...cycles]
+    .filter((cycle) => cycle.status !== "CANCELLED")
+    .sort((left, right) => {
+      const byEndDate = right.end_date.localeCompare(left.end_date);
+      return byEndDate || right.id - left.id;
+    })[0];
+
+  if (!baseCycle) {
+    return [];
+  }
+
+  const baseEndDate = parseIsoDate(baseCycle.end_date);
+  if (!baseEndDate) {
+    return [];
+  }
+
+  const plan: PlannedCycle[] = [];
+  let nextStart = toIsoDate(addDays(baseEndDate, 1));
+  for (let index = 0; index < UPCOMING_PLAN_COUNT; index += 1) {
+    const endDate = cycleEndDateForFrequency(nextStart, baseCycle.frequency);
+    if (!endDate) {
+      return plan;
+    }
+
+    plan.push({
+      label:
+        index === 0
+          ? "Next cycle"
+          : index === 1
+            ? "Following cycle"
+            : `Future cycle ${index + 1}`,
+      start_date: nextStart,
+      end_date: endDate,
+      supply_period_label: cycleSupplyPeriodLabel(baseCycle),
+    });
+    const parsedEndDate = parseIsoDate(endDate);
+    if (!parsedEndDate) {
+      return plan;
+    }
+    nextStart = toIsoDate(addDays(parsedEndDate, 1));
+  }
+
+  return plan;
+}
+
+function CycleDetailValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </dt>
+      <dd className="tnum mt-1 text-sm font-semibold text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function UpcomingCyclePlan({ cycles }: { cycles: DosetteCycle[] }) {
+  const plannedCycles = buildUpcomingCyclePlan(cycles);
+  if (plannedCycles.length === 0) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-label="Upcoming cycle plan"
+      className="mt-5 rounded-xl border border-line bg-surface-subtle p-4"
+    >
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-sm font-extrabold text-ink">Upcoming cycle plan</h3>
+          <p className="mt-1 text-xs font-medium text-muted">
+            Predicted dates only. Human review required; create each cycle when
+            ready.
+          </p>
+        </div>
+        <Badge variant="info">Planning preview</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {plannedCycles.map((plannedCycle) => (
+          <article
+            aria-label={plannedCycle.label}
+            className="rounded-xl border border-line bg-surface p-3"
+            key={`${plannedCycle.label}-${plannedCycle.start_date}`}
+          >
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+              {plannedCycle.label}
+            </p>
+            <p className="mt-1 tnum text-sm font-extrabold text-ink">
+              {formatDate(plannedCycle.start_date)} -{" "}
+              {formatDate(plannedCycle.end_date)}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-ink-soft">
+              {plannedCycle.supply_period_label}
+            </p>
+            <p className="mt-2 text-xs font-medium text-muted">
+              Suggested preparation window: review before the start date.
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CycleCard({
+  canDeduct,
+  canManage,
+  canMarkPrepared,
+  canMarkStatus,
+  cycle,
+  isSelected,
+  isStatusPending,
+  onCancel,
+  onDeduct,
+  onEdit,
+  onPrepare,
+  onSelect,
+  onStatusChange,
+}: {
+  canDeduct: boolean;
+  canManage: boolean;
+  canMarkPrepared: boolean;
+  canMarkStatus: boolean;
+  cycle: DosetteCycle;
+  isSelected: boolean;
+  isStatusPending: boolean;
+  onCancel: (cycle: DosetteCycle) => void;
+  onDeduct: (cycle: DosetteCycle) => void;
+  onEdit: (cycle: DosetteCycle) => void;
+  onPrepare: (cycle: DosetteCycle) => void;
+  onSelect: (cycle: DosetteCycle) => void;
+  onStatusChange: (
+    cycle: DosetteCycle,
+    status: CycleStatusTransition,
+    label: string,
+  ) => void;
+}) {
+  return (
+    <article
+      aria-label={`Cycle ${cycle.reference}`}
+      className={cn(
+        "rounded-2xl border border-line bg-surface p-4 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2",
+        isSelected && "border-brand bg-brand-soft/30",
+      )}
+    >
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge dot variant={dueStatusTone(cycle.due_status)}>
+              {dueStatusLabel(cycle.due_status)}
+            </Badge>
+            <Badge dot variant={cycleStatusTone(cycle.status)}>
+              {statusLabel(cycle.status)}
+            </Badge>
+            {cycle.stock_deducted ? (
+              <Badge icon={<CheckCircle2 className="h-3 w-3" />} variant="info">
+                Stock deducted
+              </Badge>
+            ) : null}
+          </div>
+          <h3 className="mt-3 text-base font-extrabold text-ink">
+            {cycleFriendlyLabel(cycle)}
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            Internal reference:{" "}
+            <span className="tnum text-ink-soft">{cycle.reference}</span>
+          </p>
+          {cycle.is_due_soon ? (
+            <p className="mt-2 text-xs font-semibold text-warning-ink">
+              Suggested preparation window: within 3 days. Human review required.
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-2 xl:justify-end">
+          <Button
+            leadingIcon={<ClipboardList className="h-4 w-4" />}
+            onClick={() => onSelect(cycle)}
+            size="sm"
+            variant={isSelected ? "primary" : "secondary"}
+          >
+            View picking list
+          </Button>
+          {canManage && canEditCycle(cycle) ? (
+            <Button onClick={() => onEdit(cycle)} size="sm" variant="secondary">
+              Edit
+            </Button>
+          ) : null}
+          {canMarkPrepared && cycle.status === "DRAFT" ? (
+            <Button onClick={() => onPrepare(cycle)} size="sm" variant="secondary">
+              Prepare
+            </Button>
+          ) : null}
+          {canMarkPrepared && cycle.status === "PREPARED" ? (
+            <Button
+              disabled={isStatusPending}
+              onClick={() => onStatusChange(cycle, "CHECKED", "Checked")}
+              size="sm"
+              variant="secondary"
+            >
+              Mark checked
+            </Button>
+          ) : null}
+          {canDeduct && cycle.status === "PREPARED" && !cycle.stock_deducted ? (
+            <Button onClick={() => onDeduct(cycle)} size="sm" variant="secondary">
+              Deduct stock
+            </Button>
+          ) : null}
+          {canMarkStatus && ["CHECKED", "PREPARED"].includes(cycle.status) ? (
+            <Button
+              disabled={isStatusPending}
+              onClick={() => onStatusChange(cycle, "COLLECTED", "Collected")}
+              size="sm"
+              variant="secondary"
+            >
+              Collected
+            </Button>
+          ) : null}
+          {canMarkStatus && ["COLLECTED", "CHECKED"].includes(cycle.status) ? (
+            <Button
+              disabled={isStatusPending}
+              onClick={() => onStatusChange(cycle, "DELIVERED", "Delivered")}
+              size="sm"
+              variant="secondary"
+            >
+              Delivered
+            </Button>
+          ) : null}
+          {canMarkStatus &&
+          ["DRAFT", "PREPARED", "CHECKED", "NEEDS_CHANGES"].includes(
+            cycle.status,
+          ) ? (
+            <Button
+              disabled={isStatusPending}
+              onClick={() => onStatusChange(cycle, "NEEDS_CHANGES", "Needs changes")}
+              size="sm"
+              variant="ghost"
+            >
+              Needs changes
+            </Button>
+          ) : null}
+          {canManage && canCancelCycle(cycle) ? (
+            <Button onClick={() => onCancel(cycle)} size="sm" variant="danger">
+              Cancel
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <dl className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CycleDetailValue label="Patient ID" value={cycle.patient_reference} />
+        <CycleDetailValue
+          label="Supply period"
+          value={cycleSupplyPeriodLabel(cycle)}
+        />
+        <CycleDetailValue label="Cycle dates" value={cycleDateRange(cycle)} />
+        <CycleDetailValue label="Due signal" value={daysUntilDueLabel(cycle)} />
+        <CycleDetailValue
+          label="Prepared"
+          value={preparedCheckedLabel(cycle.prepared_by_email, cycle.prepared_at)}
+        />
+        <CycleDetailValue
+          label="Checked"
+          value={preparedCheckedLabel(cycle.checked_by_email, cycle.checked_at)}
+        />
+        <CycleDetailValue
+          label="Deducted at"
+          value={optionalDateTime(cycle.deducted_at)}
+        />
+      </dl>
+    </article>
+  );
+}
+
 interface DeductStockShortage {
   medication_id: number;
   medication_name: string;
@@ -692,7 +1122,15 @@ function ErrorSection({
   );
 }
 
-function PickingListSection({ pickingList }: { pickingList: PickingList }) {
+function PickingListSection({
+  cycle,
+  pickingList,
+}: {
+  cycle: DosetteCycle | null;
+  pickingList: PickingList;
+}) {
+  const internalReference = cycle?.reference ?? pickingList.cycle.reference;
+
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft animate-fade-in-up">
       <div className="flex flex-col gap-1 border-b border-line px-4 py-3.5 sm:px-5">
@@ -708,8 +1146,14 @@ function PickingListSection({ pickingList }: { pickingList: PickingList }) {
               {pickingList.patient_reference}
             </p>
             <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
-              Picking list: {pickingList.cycle.reference}
+              Picking list: {cycle ? cycleFriendlyLabel(cycle) : internalReference}
             </h2>
+            {cycle ? (
+              <p className="mt-0.5 text-[11px] font-semibold text-muted">
+                Internal reference:{" "}
+                <span className="tnum">{internalReference}</span>
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -874,7 +1318,8 @@ function DosettePrintSheet({
 
         <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <DosettePrintMeta label="Patient reference" value={patientReference} />
-          <DosettePrintMeta label="Cycle reference" value={cycle.reference} />
+          <DosettePrintMeta label="Cycle" value={cycleFriendlyLabel(cycle)} />
+          <DosettePrintMeta label="Internal reference" value={cycle.reference} />
           <DosettePrintMeta
             label="Cycle dates"
             value={`${formatDate(cycle.start_date)} - ${formatDate(cycle.end_date)}`}
@@ -1254,7 +1699,9 @@ export function DosetteScreen() {
   const printableCycle = selectedCycle ?? cycles[0] ?? null;
   const printableMedicationLines = medicationLines.filter((line) => line.is_active);
   const patientReference =
-    pickingListQuery.data?.patient_reference ?? `Patient #${parsedPatientId}`;
+    pickingListQuery.data?.patient_reference ??
+    printableCycle?.patient_reference ??
+    `Patient #${parsedPatientId}`;
   const pharmacyName =
     user?.pharmacies.length === 1
       ? user.pharmacies[0].name
@@ -1434,185 +1881,31 @@ export function DosetteScreen() {
               />
             </PanelBody>
           ) : (
-            <TableScroll className="rounded-none border-0 shadow-none">
-              <Table>
-                <THead>
-                  <tr>
-                    <TH>Reference</TH>
-                    <TH>Frequency</TH>
-                    <TH>Start - end date</TH>
-                    <TH>Status</TH>
-                    <TH className="text-right">Action</TH>
-                  </tr>
-                </THead>
-                <TBody>
-                  {cyclesQuery.data.map((cycle: DosetteCycle) => {
-                    const isSelected = selectedCycleId === cycle.id;
-                    return (
-                      <TR
-                        key={cycle.id}
-                        className={cn(isSelected && "bg-brand-soft/40")}
-                      >
-                        <TD className="whitespace-nowrap font-semibold text-ink">
-                          {cycle.reference}
-                        </TD>
-                        <TD className="whitespace-nowrap">
-                          {statusLabel(cycle.frequency)}
-                        </TD>
-                        <TD className="tnum whitespace-nowrap">
-                          {formatDate(cycle.start_date)} -{" "}
-                          {formatDate(cycle.end_date)}
-                        </TD>
-                        <TD className="whitespace-nowrap">
-                          <div className="flex flex-wrap gap-2">
-                            <Badge dot variant={cycleStatusTone(cycle.status)}>
-                              {statusLabel(cycle.status)}
-                            </Badge>
-                            {cycle.stock_deducted ? (
-                              <Badge
-                                icon={<CheckCircle2 className="h-3 w-3" />}
-                                variant="info"
-                              >
-                                Stock deducted
-                              </Badge>
-                            ) : null}
-                          </div>
-                          {cycle.prepared_by_email || cycle.checked_by_email ? (
-                            <div className="mt-1.5 space-y-0.5 text-[11px] text-muted">
-                              {cycle.prepared_by_email ? (
-                                <p>Made by {cycle.prepared_by_email}</p>
-                              ) : null}
-                              {cycle.checked_by_email ? (
-                                <p>Checked by {cycle.checked_by_email}</p>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </TD>
-                        <TD className="whitespace-nowrap text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              leadingIcon={<ClipboardList className="h-4 w-4" />}
-                              onClick={() => setSelectedCycleId(cycle.id)}
-                              size="sm"
-                              variant={isSelected ? "primary" : "secondary"}
-                            >
-                              View picking list
-                            </Button>
-                            {canManage && canEditCycle(cycle) ? (
-                              <Button
-                                onClick={() => openEditCycleModal(cycle)}
-                                size="sm"
-                                variant="secondary"
-                              >
-                                Edit
-                              </Button>
-                            ) : null}
-                            {canMarkPrepared && cycle.status === "DRAFT" ? (
-                              <Button
-                                onClick={() => setCycleToPrepare(cycle)}
-                                size="sm"
-                                variant="secondary"
-                              >
-                                Prepare
-                              </Button>
-                            ) : null}
-                            {canMarkPrepared && cycle.status === "PREPARED" ? (
-                              <Button
-                                disabled={updateStatus.isPending}
-                                onClick={() =>
-                                  void handleStatusChange(
-                                    cycle,
-                                    "CHECKED",
-                                    "Checked",
-                                  )
-                                }
-                                size="sm"
-                                variant="secondary"
-                              >
-                                Mark checked
-                              </Button>
-                            ) : null}
-                            {canDeduct &&
-                            cycle.status === "PREPARED" &&
-                            !cycle.stock_deducted ? (
-                              <Button
-                                onClick={() => openDeductStockModal(cycle)}
-                                size="sm"
-                                variant="secondary"
-                              >
-                                Deduct stock
-                              </Button>
-                            ) : null}
-                            {canMarkStatus &&
-                            ["CHECKED", "PREPARED"].includes(cycle.status) ? (
-                              <Button
-                                disabled={updateStatus.isPending}
-                                onClick={() =>
-                                  void handleStatusChange(
-                                    cycle,
-                                    "COLLECTED",
-                                    "Collected",
-                                  )
-                                }
-                                size="sm"
-                                variant="secondary"
-                              >
-                                Collected
-                              </Button>
-                            ) : null}
-                            {canMarkStatus &&
-                            ["COLLECTED", "CHECKED"].includes(cycle.status) ? (
-                              <Button
-                                disabled={updateStatus.isPending}
-                                onClick={() =>
-                                  void handleStatusChange(
-                                    cycle,
-                                    "DELIVERED",
-                                    "Delivered",
-                                  )
-                                }
-                                size="sm"
-                                variant="secondary"
-                              >
-                                Delivered
-                              </Button>
-                            ) : null}
-                            {canMarkStatus &&
-                            ["DRAFT", "PREPARED", "CHECKED", "NEEDS_CHANGES"].includes(
-                              cycle.status,
-                            ) ? (
-                              <Button
-                                disabled={updateStatus.isPending}
-                                onClick={() =>
-                                  void handleStatusChange(
-                                    cycle,
-                                    "NEEDS_CHANGES",
-                                    "Needs changes",
-                                  )
-                                }
-                                size="sm"
-                                variant="ghost"
-                              >
-                                Needs changes
-                              </Button>
-                            ) : null}
-                            {canManage && canCancelCycle(cycle) ? (
-                              <Button
-                                onClick={() => setCycleToCancel(cycle)}
-                                size="sm"
-                                variant="danger"
-                              >
-                                Cancel
-                              </Button>
-                            ) : null}
-                          </div>
-                        </TD>
-                      </TR>
-                    );
-                  })}
-                </TBody>
-              </Table>
-            </TableScroll>
+            <PanelBody>
+              <div className="grid gap-4">
+                {cyclesQuery.data.map((cycle: DosetteCycle) => (
+                  <CycleCard
+                    canDeduct={canDeduct}
+                    canManage={canManage}
+                    canMarkPrepared={canMarkPrepared}
+                    canMarkStatus={canMarkStatus}
+                    cycle={cycle}
+                    isSelected={selectedCycleId === cycle.id}
+                    isStatusPending={updateStatus.isPending}
+                    key={cycle.id}
+                    onCancel={setCycleToCancel}
+                    onDeduct={openDeductStockModal}
+                    onEdit={openEditCycleModal}
+                    onPrepare={setCycleToPrepare}
+                    onSelect={(selectedCycle) => setSelectedCycleId(selectedCycle.id)}
+                    onStatusChange={(selectedCycle, status, label) => {
+                      void handleStatusChange(selectedCycle, status, label);
+                    }}
+                  />
+                ))}
+              </div>
+              <UpcomingCyclePlan cycles={cyclesQuery.data} />
+            </PanelBody>
           )}
         </Panel>
       ) : null}
@@ -1634,7 +1927,10 @@ export function DosetteScreen() {
         />
       ) : null}
       {selectedCycleId !== null && pickingListQuery.isSuccess ? (
-        <PickingListSection pickingList={pickingListQuery.data} />
+        <PickingListSection
+          cycle={selectedCycle}
+          pickingList={pickingListQuery.data}
+        />
       ) : null}
       {selectedCycleId !== null && stockPreviewQuery.isLoading ? (
         <LoadingSection text="Loading stock availability..." />

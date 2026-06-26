@@ -24,10 +24,22 @@ function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
   return {
     id: 40,
     reference: "MDS-2026-W26",
+    patient_reference: "SUT-P1",
+    display_label: "SUT-P1 · 1-week supply · 22 Jun 2026 - 28 Jun 2026",
+    supply_period_label: "1-week supply",
     frequency: "WEEKLY",
     start_date: "2026-06-22",
     end_date: "2026-06-28",
+    due_status: "upcoming",
+    days_until_due: 10,
+    is_due_soon: false,
     status: "DRAFT",
+    stock_deducted: false,
+    deducted_at: null,
+    prepared_by_email: null,
+    prepared_at: null,
+    checked_by_email: null,
+    checked_at: null,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
     ...overrides,
@@ -64,9 +76,8 @@ describe("DosetteCycleFormModal", () => {
     const { onClose } = renderModal();
 
     await user.type(screen.getByLabelText("Reference"), "MDS-2026-FW08");
-    await user.selectOptions(screen.getByLabelText("Frequency"), "FOUR_WEEKLY");
     await user.type(screen.getByLabelText("Start date"), "2026-07-01");
-    await user.type(screen.getByLabelText("End date"), "2026-07-28");
+    expect(screen.getByText("Calculated end date: 28 Jul 2026")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
@@ -94,9 +105,20 @@ describe("DosetteCycleFormModal", () => {
         reference: "MDS-2026-W27",
         frequency: "FORTNIGHTLY",
         start_date: "2026-06-22",
-        end_date: "2026-06-28",
+        end_date: "2026-07-05",
       });
     });
+  });
+
+  it("defaults new cycles to a 4-week supply", () => {
+    renderModal();
+
+    expect(screen.getByLabelText("Frequency")).toHaveValue("FOUR_WEEKLY");
+    expect(
+      screen.getByText(
+        "Most Dosette cycles are prepared as a 4-week supply; choose another period when the pack schedule needs it.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders backend field errors", async () => {
@@ -111,7 +133,6 @@ describe("DosetteCycleFormModal", () => {
 
     await user.type(screen.getByLabelText("Reference"), "MDS-2026-W26");
     await user.type(screen.getByLabelText("Start date"), "2026-07-10");
-    await user.type(screen.getByLabelText("End date"), "2026-07-01");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(
