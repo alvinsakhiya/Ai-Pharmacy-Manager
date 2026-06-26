@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
+  ArchiveX,
+  ArrowRightLeft,
+  BarChart3,
+  Boxes,
+  CalendarClock,
+  ClipboardList,
   Download,
   FileText,
   Inbox,
+  Layers,
+  PackageSearch,
   ShieldAlert,
+  TrendingUp,
+  type LucideIcon,
 } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
@@ -45,73 +55,167 @@ const REPORTS: Array<{
   id: ReportId;
   title: string;
   description: string;
+  category: ReportCategoryId;
   permission: string;
   exportTypes: string[];
   humanReview: boolean;
+  icon: LucideIcon;
 }> = [
   {
     id: "stock_attention",
     title: "Stock attention",
     description: "Items flagged for stockout, low stock, expiry, or movement risk.",
+    category: "stock_safety",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: false,
+    icon: ShieldAlert,
   },
   {
     id: "stock_movements",
     title: "Stock movements",
     description: "Recent receipts, adjustments, transfers, and deductions.",
+    category: "stock_efficiency",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: false,
+    icon: ClipboardList,
   },
   {
     id: "expiry",
     title: "Expiry risk",
     description: "Batches expiring inside the selected operational window.",
+    category: "stock_safety",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: false,
+    icon: CalendarClock,
   },
   {
     id: "dead_stock",
     title: "Dead/slow stock",
     description: "Stock movement signals for dead, slow, and active items.",
+    category: "stock_efficiency",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: true,
+    icon: ArchiveX,
   },
   {
     id: "stock_valuation",
     title: "Stock valuation",
     description: "Stock value (quantity x unit price) by item, with totals.",
+    category: "stock_efficiency",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: false,
+    icon: Boxes,
   },
   {
     id: "forecast_reorder",
     title: "Forecast & reorder",
     description: "Latest forecast suggestions from stock movement history.",
+    category: "forecasting",
     permission: "forecast.view",
     exportTypes: ["CSV"],
     humanReview: true,
+    icon: TrendingUp,
   },
   {
     id: "transfer_suggestions",
     title: "Transfer suggestions",
     description: "Cross-branch suggestions for superintendent/admin review.",
+    category: "forecasting",
     permission: "transfer_suggestion.view",
     exportTypes: ["CSV"],
     humanReview: true,
+    icon: ArrowRightLeft,
   },
   {
     id: "mds_workload",
     title: "MDS workload",
     description: "Cycle workload counts by pharmacy and status without patient names.",
+    category: "dosette_workload",
     permission: "blister.view",
     exportTypes: ["CSV"],
     humanReview: false,
+    icon: Layers,
+  },
+];
+
+type ReportCategoryId =
+  | "stock_safety"
+  | "stock_efficiency"
+  | "forecasting"
+  | "dosette_workload";
+
+const REPORT_CATEGORIES: Array<{
+  id: ReportCategoryId;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}> = [
+  {
+    id: "stock_safety",
+    title: "Stock safety",
+    description: "Expiry, stockout, and low-stock attention.",
+    icon: ShieldAlert,
+  },
+  {
+    id: "stock_efficiency",
+    title: "Stock efficiency",
+    description: "Movement, valuation, dead-stock, and utilisation signals.",
+    icon: PackageSearch,
+  },
+  {
+    id: "forecasting",
+    title: "Forecasting & planning",
+    description: "Forecast estimates and potential transfer opportunities.",
+    icon: TrendingUp,
+  },
+  {
+    id: "dosette_workload",
+    title: "Dosette workload",
+    description: "MDS cycle workload by pharmacy and status.",
+    icon: Layers,
+  },
+];
+
+const SUMMARY_CARDS: Array<{
+  report: ReportId;
+  label: string;
+  helper: string;
+  icon: LucideIcon;
+}> = [
+  {
+    report: "expiry",
+    label: "Expiring soon",
+    helper: "Batches in the current expiry window.",
+    icon: CalendarClock,
+  },
+  {
+    report: "dead_stock",
+    label: "Dead stock lines",
+    helper: "Lines for operational stock review.",
+    icon: ArchiveX,
+  },
+  {
+    report: "forecast_reorder",
+    label: "Reorder suggestions",
+    helper: "Suggested reorder review items.",
+    icon: TrendingUp,
+  },
+  {
+    report: "transfer_suggestions",
+    label: "Transfer suggestions",
+    helper: "Potential transfer opportunities.",
+    icon: ArrowRightLeft,
+  },
+  {
+    report: "mds_workload",
+    label: "MDS workload",
+    helper: "Cycle status workload rows.",
+    icon: Layers,
   },
 ];
 
@@ -169,6 +273,17 @@ function formatCurrency(value: string | null): string {
   }).format(parsed);
 }
 
+function percentage(value: number, total: number): number {
+  if (total <= 0 || value <= 0) {
+    return 0;
+  }
+  return Math.max(4, Math.round((value / total) * 100));
+}
+
+function reportTitle(reportId: ReportId): string {
+  return REPORTS.find((report) => report.id === reportId)?.title ?? "Report";
+}
+
 function formatConfidence(value: string): string {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -198,10 +313,12 @@ function CsvButton({
   filename,
   filters,
   reportId,
+  reportTitle,
 }: {
   filename: string;
   filters: ReportFilters;
   reportId: ReportId;
+  reportTitle: string;
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState(false);
@@ -226,8 +343,11 @@ function CsvButton({
         disabled={isDownloading}
         onClick={() => void handleDownload()}
       >
-        Download CSV
+        Export CSV
       </Button>
+      <p className="max-w-52 text-right text-xs leading-snug text-muted">
+        {reportTitle} export. Exports reflect the current filtered report.
+      </p>
       {error ? (
         <p className="text-xs font-medium text-danger-ink">
           Report download failed.
@@ -248,6 +368,7 @@ function ReportCard({
   onSelect: () => void;
   report: (typeof REPORTS)[number];
 }) {
+  const Icon = report.icon;
   return (
     <button
       type="button"
@@ -272,7 +393,7 @@ function ReportCard({
               : "border-brand-soft bg-brand-soft text-brand-ink group-hover:border-brand group-hover:bg-brand group-hover:text-white",
           )}
         >
-          <FileText className="h-[18px] w-[18px]" />
+          <Icon className="h-[18px] w-[18px]" />
         </span>
         <span className="tnum rounded-full border border-line bg-surface-subtle px-2.5 py-1 text-xs font-semibold text-muted">
           {count === undefined ? "CSV" : `${formatNumber(count)} rows`}
@@ -297,6 +418,141 @@ function ReportCard({
         ) : null}
       </div>
     </button>
+  );
+}
+
+function SummaryMetricCard({
+  count,
+  helper,
+  icon: Icon,
+  label,
+  loading,
+}: {
+  count: number | undefined;
+  helper: string;
+  icon: LucideIcon;
+  label: string;
+  loading: boolean;
+}) {
+  return (
+    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <div className="flex items-start justify-between gap-3">
+        <span
+          aria-hidden="true"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+        >
+          <Icon className="h-[18px] w-[18px]" />
+        </span>
+        <Badge variant={count === undefined && !loading ? "neutral" : "brand"}>
+          CSV ready
+        </Badge>
+      </div>
+      <p className="mt-4 text-sm font-semibold text-muted">{label}</p>
+      <p className="tnum mt-1 text-2xl font-extrabold tracking-[-0.02em] text-ink">
+        {loading ? "..." : count === undefined ? "Not available" : formatNumber(count)}
+      </p>
+      <p className="mt-2 text-xs leading-relaxed text-muted">{helper}</p>
+    </article>
+  );
+}
+
+function ReportsSummaryCards({
+  availableReports,
+  cardCounts,
+  loading,
+}: {
+  availableReports: typeof REPORTS;
+  cardCounts: Map<ReportId, number>;
+  loading: boolean;
+}) {
+  const availableIds = new Set(availableReports.map((report) => report.id));
+  const summaryCards = SUMMARY_CARDS.filter((card) =>
+    availableIds.has(card.report),
+  );
+
+  if (summaryCards.length === 0) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-label="Report summaries"
+      className="grid gap-4 md:grid-cols-2 xl:grid-cols-5"
+    >
+      {summaryCards.map((card) => (
+        <SummaryMetricCard
+          count={cardCounts.get(card.report)}
+          helper={card.helper}
+          icon={card.icon}
+          key={card.report}
+          label={card.label}
+          loading={loading}
+        />
+      ))}
+    </section>
+  );
+}
+
+function ReportCategoryCards({
+  activeReportId,
+  availableReports,
+  onSelectReport,
+}: {
+  activeReportId: ReportId;
+  availableReports: typeof REPORTS;
+  onSelectReport: (reportId: ReportId) => void;
+}) {
+  const availableByCategory = new Map<ReportCategoryId, typeof REPORTS>();
+  for (const category of REPORT_CATEGORIES) {
+    availableByCategory.set(
+      category.id,
+      availableReports.filter((report) => report.category === category.id),
+    );
+  }
+
+  return (
+    <section aria-label="Report categories" className="grid gap-3 lg:grid-cols-4">
+      {REPORT_CATEGORIES.map((category) => {
+        const reports = availableByCategory.get(category.id) ?? [];
+        if (reports.length === 0) {
+          return null;
+        }
+        const Icon = category.icon;
+        const active = reports.some((report) => report.id === activeReportId);
+        return (
+          <button
+            aria-pressed={active}
+            className={cn(
+              "rounded-2xl border p-4 text-left shadow-soft transition-all duration-200 ease-soft focus-ring",
+              active
+                ? "border-brand bg-brand-soft"
+                : "border-line bg-surface hover:-translate-y-0.5 hover:border-line-strong hover:shadow-elev-2",
+            )}
+            key={category.id}
+            onClick={() => onSelectReport(reports[0].id)}
+            type="button"
+          >
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden="true"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface-subtle text-brand"
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-ink">{category.title}</h2>
+                <p className="mt-1 text-xs leading-relaxed text-muted">
+                  {category.description}
+                </p>
+              </div>
+            </div>
+            <p aria-hidden="true" className="mt-3 text-xs font-semibold text-ink-soft">
+              {reports.map((report) => report.title).join(" · ")}
+            </p>
+          </button>
+        );
+      })}
+    </section>
   );
 }
 
@@ -334,6 +590,281 @@ function StockAttentionPreview({ report }: { report: ReportPreview }) {
         </TR>
       ))}
     </PreviewTableShell>
+  );
+}
+
+function InsightStat({
+  helper,
+  label,
+  tone = "neutral",
+  value,
+}: {
+  helper?: string;
+  label: string;
+  tone?: "neutral" | "warning" | "danger" | "success" | "info";
+  value: string;
+}) {
+  const toneClass = {
+    neutral: "border-line bg-surface-subtle text-ink",
+    warning: "border-warning-border bg-warning-soft text-warning-ink",
+    danger: "border-danger-border bg-danger-soft text-danger-ink",
+    success: "border-success-border bg-success-soft text-success-ink",
+    info: "border-info-border bg-info-soft text-info-ink",
+  }[tone];
+
+  return (
+    <div className={cn("rounded-xl border px-3.5 py-3", toneClass)}>
+      <p className="text-[11px] font-bold uppercase tracking-[0.06em] opacity-75">
+        {label}
+      </p>
+      <p className="tnum mt-1 text-xl font-extrabold tracking-[-0.02em]">
+        {value}
+      </p>
+      {helper ? (
+        <p className="mt-1 text-xs leading-relaxed opacity-80">{helper}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function BarMeter({
+  label,
+  max,
+  tone = "brand",
+  value,
+}: {
+  label: string;
+  max: number;
+  tone?: "brand" | "danger" | "warning" | "success" | "info";
+  value: number;
+}) {
+  const colors = {
+    brand: "bg-brand",
+    danger: "bg-danger",
+    warning: "bg-warning",
+    success: "bg-success",
+    info: "bg-info",
+  };
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="font-semibold text-ink-soft">{label}</span>
+        <span className="tnum font-bold text-ink">{formatNumber(value)}</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-sunken">
+        <div
+          aria-hidden="true"
+          className={cn("h-full rounded-full", colors[tone])}
+          style={{ width: `${percentage(value, max)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ReportInsightPanel({ report }: { report: ReportPreview }) {
+  if (report.report === "stock_attention") {
+    const summary = report.summary;
+    const max = Math.max(
+      summary.stockout,
+      summary.low_stock,
+      summary.near_expiry,
+      summary.dead_stock,
+      summary.slow_moving,
+      1,
+    );
+    return (
+      <div className="border-b border-line px-5 py-4 sm:px-6">
+        <div className="grid gap-3 md:grid-cols-4">
+          <InsightStat
+            label="Needs attention"
+            value={formatNumber(summary.needs_attention)}
+            tone={summary.needs_attention > 0 ? "warning" : "success"}
+          />
+          <InsightStat label="Stockout" value={formatNumber(summary.stockout)} tone="danger" />
+          <InsightStat label="Low stock" value={formatNumber(summary.low_stock)} tone="warning" />
+          <InsightStat label="Total items" value={formatNumber(summary.total_items)} />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <BarMeter label="Near expiry" max={max} value={summary.near_expiry} tone="warning" />
+          <BarMeter label="Slow moving" max={max} value={summary.slow_moving} tone="info" />
+        </div>
+      </div>
+    );
+  }
+
+  if (report.report === "expiry") {
+    const expired = report.rows.filter((row) => row.days_until_expiry < 0).length;
+    const sevenDays = report.rows.filter(
+      (row) => row.days_until_expiry >= 0 && row.days_until_expiry <= 7,
+    ).length;
+    const thirtyDays = report.rows.filter(
+      (row) => row.days_until_expiry > 7 && row.days_until_expiry <= 30,
+    ).length;
+    const later = report.rows.filter((row) => row.days_until_expiry > 30).length;
+    const max = Math.max(expired, sevenDays, thirtyDays, later, 1);
+    return (
+      <div className="border-b border-line px-5 py-4 sm:px-6">
+        <div className="grid gap-3 md:grid-cols-4">
+          <InsightStat
+            label="Expiry rows"
+            value={formatNumber(report.row_count)}
+            helper={`${report.filters.window_days}-day report window`}
+          />
+          <InsightStat label="Expired" value={formatNumber(expired)} tone="danger" />
+          <InsightStat label="0-7 days" value={formatNumber(sevenDays)} tone="warning" />
+          <InsightStat label="8-30 days" value={formatNumber(thirtyDays)} tone="info" />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <BarMeter label="Expired" max={max} value={expired} tone="danger" />
+          <BarMeter label="0-7 days" max={max} value={sevenDays} tone="warning" />
+          <BarMeter label="8-30 days" max={max} value={thirtyDays} tone="info" />
+          <BarMeter label="31+ days" max={max} value={later} tone="success" />
+        </div>
+      </div>
+    );
+  }
+
+  if (report.report === "dead_stock") {
+    const dead = report.rows.filter((row) => row.status === "dead").length;
+    const slow = report.rows.filter((row) => row.status === "slow").length;
+    const active = report.rows.filter((row) => row.status === "active").length;
+    const longestGap = Math.max(
+      0,
+      ...report.rows.map((row) => row.days_since_last_outbound ?? 0),
+    );
+    return (
+      <div className="border-b border-line px-5 py-4 sm:px-6">
+        <div className="grid gap-3 md:grid-cols-5">
+          <InsightStat label="Lines reviewed" value={formatNumber(report.row_count)} />
+          <InsightStat label="Dead stock lines" value={formatNumber(dead)} tone="danger" />
+          <InsightStat label="Slow stock lines" value={formatNumber(slow)} tone="warning" />
+          <InsightStat label="Active lines" value={formatNumber(active)} tone="success" />
+          <InsightStat
+            label="Estimated value"
+            value="Not available"
+            helper="No value field returned by this report."
+          />
+        </div>
+        <p className="mt-3 text-xs font-medium text-muted">
+          Longest recorded gap since outbound movement: {formatNumber(longestGap)} days.
+        </p>
+      </div>
+    );
+  }
+
+  if (report.report === "stock_valuation") {
+    return (
+      <div className="border-b border-line px-5 py-4 sm:px-6">
+        <div className="grid gap-3 md:grid-cols-4">
+          <InsightStat
+            label="Total stock value"
+            value={formatCurrency(report.summary.total_value)}
+            tone="info"
+          />
+          <InsightStat label="Total units" value={formatNumber(report.summary.total_units)} />
+          <InsightStat label="Priced items" value={formatNumber(report.summary.priced_items)} />
+          <InsightStat
+            label="Unpriced items"
+            value={formatNumber(report.summary.unpriced_items)}
+            tone={report.summary.unpriced_items > 0 ? "warning" : "success"}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (report.report === "forecast_reorder") {
+    const totalUnits = report.rows.reduce(
+      (total, row) => total + row.suggested_reorder_units,
+      0,
+    );
+    const packRows = report.rows.filter(
+      (row) => row.suggested_reorder_packs !== null,
+    ).length;
+    return (
+      <div className="border-b border-line px-5 py-4 sm:px-6">
+        <div className="grid gap-3 md:grid-cols-4">
+          <InsightStat
+            label="Suggested reorder review"
+            value={formatNumber(report.row_count)}
+            helper="Review before ordering."
+            tone="warning"
+          />
+          <InsightStat
+            label="Forecast estimate"
+            value={`${formatNumber(totalUnits)} units`}
+          />
+          <InsightStat label="Pack estimates" value={formatNumber(packRows)} />
+          <InsightStat
+            label="Human review"
+            value="Required"
+            helper="Ordering is not performed from this report."
+            tone="warning"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (report.report === "transfer_suggestions") {
+    const open = report.rows.filter((row) => row.status === "OPEN").length;
+    const actioned = report.rows.filter((row) => row.status === "ACTIONED").length;
+    return (
+      <div className="border-b border-line px-5 py-4 sm:px-6">
+        <div className="grid gap-3 md:grid-cols-4">
+          <InsightStat
+            label="Potential opportunity"
+            value={formatNumber(report.row_count)}
+            helper="Review before transfer."
+            tone="info"
+          />
+          <InsightStat label="Open" value={formatNumber(open)} tone="warning" />
+          <InsightStat label="Actioned" value={formatNumber(actioned)} tone="success" />
+          <InsightStat
+            label="Human review"
+            value="Required"
+            helper="Transfers are not performed from this report."
+            tone="warning"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (report.report === "mds_workload") {
+    const due = report.rows.reduce((total, row) => total + row.due_count, 0);
+    const overdue = report.rows.reduce((total, row) => total + row.overdue_count, 0);
+    const upcoming = report.rows.reduce(
+      (total, row) => total + row.upcoming_cycles,
+      0,
+    );
+    const max = Math.max(due, overdue, upcoming, 1);
+    return (
+      <div className="border-b border-line px-5 py-4 sm:px-6">
+        <div className="grid gap-3 md:grid-cols-4">
+          <InsightStat label="Workload rows" value={formatNumber(report.row_count)} />
+          <InsightStat label="Due cycles" value={formatNumber(due)} tone="warning" />
+          <InsightStat label="Overdue cycles" value={formatNumber(overdue)} tone="danger" />
+          <InsightStat label="Upcoming cycles" value={formatNumber(upcoming)} tone="info" />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <BarMeter label="Due" max={max} value={due} tone="warning" />
+          <BarMeter label="Overdue" max={max} value={overdue} tone="danger" />
+          <BarMeter label="Upcoming" max={max} value={upcoming} tone="info" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-b border-line px-5 py-4 sm:px-6">
+      <div className="grid gap-3 md:grid-cols-3">
+        <InsightStat label="Rows" value={formatNumber(report.row_count)} />
+        <InsightStat label="Export" value="CSV available" />
+        <InsightStat label="Report type" value={reportTitle(report.report)} />
+      </div>
+    </div>
   );
 }
 
@@ -385,13 +916,24 @@ function ExpiryPreview({ rows }: { rows: ExpiryReportRow[] }) {
       ]}
     >
       {rows.map((row) => (
-        <TR key={`${row.pharmacy_id}-${row.batch_number}-${row.medication_label}`}>
+        <TR
+          className={cn(
+            row.days_until_expiry <= 7
+              ? "bg-warning-soft/35 hover:bg-warning-soft/50"
+              : undefined,
+          )}
+          key={`${row.pharmacy_id}-${row.batch_number}-${row.medication_label}`}
+        >
           <TD className="min-w-64 font-medium text-ink">{row.medication_label}</TD>
           <TD className="whitespace-nowrap">{row.pharmacy_name}</TD>
           <TD className="whitespace-nowrap">{row.batch_number}</TD>
           <TD className="whitespace-nowrap">{formatDate(row.expiry_date)}</TD>
           <TD className="tnum whitespace-nowrap">{formatNumber(row.quantity)}</TD>
-          <TD className="tnum whitespace-nowrap">{row.days_until_expiry}</TD>
+          <TD className="tnum whitespace-nowrap">
+            {row.days_until_expiry < 0
+              ? `${Math.abs(row.days_until_expiry)} overdue`
+              : `${row.days_until_expiry} days`}
+          </TD>
           <TD className="whitespace-nowrap">
             <StatusBadge label={row.severity} />
           </TD>
@@ -439,9 +981,9 @@ function ForecastPreview({ rows }: { rows: ForecastReorderReportRow[] }) {
       headers={[
         "Product",
         "Pharmacy",
-        "Predicted usage",
+        "Forecast estimate",
         "Current stock",
-        "Suggested reorder",
+        "Suggested reorder review",
         "Confidence",
         "Review",
       ]}
@@ -467,7 +1009,7 @@ function ForecastPreview({ rows }: { rows: ForecastReorderReportRow[] }) {
           <TD className="tnum whitespace-nowrap">
             {formatConfidence(row.confidence)}
           </TD>
-          <TD className="min-w-80">Human review required before ordering.</TD>
+          <TD className="min-w-80">Review before ordering.</TD>
         </TR>
       ))}
     </PreviewTableShell>
@@ -480,10 +1022,10 @@ function TransferPreview({ rows }: { rows: TransferSuggestionsReportRow[] }) {
       headers={[
         "Product",
         "Route",
-        "Suggested quantity",
+        "Potential transfer opportunity",
         "Confidence",
         "Status",
-        "Reason",
+        "Review note",
       ]}
     >
       {rows.map((row) => (
@@ -506,93 +1048,51 @@ function TransferPreview({ rows }: { rows: TransferSuggestionsReportRow[] }) {
           <TD className="whitespace-nowrap">
             <StatusBadge label={row.status} />
           </TD>
-          <TD className="min-w-96">{row.reason}</TD>
+          <TD className="min-w-96">
+            <span className="block">{row.reason}</span>
+            <span className="mt-1 block text-xs font-semibold text-muted">
+              Review before transfer.
+            </span>
+          </TD>
         </TR>
       ))}
     </PreviewTableShell>
   );
 }
 
-function ValuationStat({
-  label,
-  value,
-  strong,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-surface-subtle px-3.5 py-2.5">
-      <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "tnum mt-0.5 font-bold",
-          strong ? "text-lg text-brand-ink" : "text-sm text-ink",
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function StockValuationPreview({ report }: { report: StockValuationReport }) {
   return (
-    <>
-      <div className="grid grid-cols-2 gap-4 border-b border-line px-5 py-4 sm:grid-cols-4 sm:px-6">
-        <ValuationStat
-          label="Total stock value"
-          value={formatCurrency(report.summary.total_value)}
-          strong
-        />
-        <ValuationStat
-          label="Total units"
-          value={formatNumber(report.summary.total_units)}
-        />
-        <ValuationStat
-          label="Priced items"
-          value={formatNumber(report.summary.priced_items)}
-        />
-        <ValuationStat
-          label="Unpriced items"
-          value={formatNumber(report.summary.unpriced_items)}
-        />
-      </div>
-      <PreviewTableShell
-        headers={[
-          "Product",
-          "Pharmacy",
-          "On hand",
-          "Unit price",
-          "Box price",
-          "Stock value",
-        ]}
-      >
-        {report.rows.map((row) => (
-          <TR key={row.stock_item_id}>
-            <TD className="min-w-64 font-medium text-ink">
-              {row.medication_label}
-            </TD>
-            <TD className="whitespace-nowrap">{row.pharmacy_name}</TD>
-            <TD className="tnum whitespace-nowrap">
-              {formatNumber(row.quantity_on_hand)}
-            </TD>
-            <TD className="tnum whitespace-nowrap">
-              {formatCurrency(row.unit_price)}
-            </TD>
-            <TD className="tnum whitespace-nowrap">
-              {formatCurrency(row.pack_price)}
-            </TD>
-            <TD className="tnum whitespace-nowrap font-semibold text-ink">
-              {formatCurrency(row.stock_value)}
-            </TD>
-          </TR>
-        ))}
-      </PreviewTableShell>
-    </>
+    <PreviewTableShell
+      headers={[
+        "Product",
+        "Pharmacy",
+        "On hand",
+        "Unit price",
+        "Box price",
+        "Stock value",
+      ]}
+    >
+      {report.rows.map((row) => (
+        <TR key={row.stock_item_id}>
+          <TD className="min-w-64 font-medium text-ink">
+            {row.medication_label}
+          </TD>
+          <TD className="whitespace-nowrap">{row.pharmacy_name}</TD>
+          <TD className="tnum whitespace-nowrap">
+            {formatNumber(row.quantity_on_hand)}
+          </TD>
+          <TD className="tnum whitespace-nowrap">
+            {formatCurrency(row.unit_price)}
+          </TD>
+          <TD className="tnum whitespace-nowrap">
+            {formatCurrency(row.pack_price)}
+          </TD>
+          <TD className="tnum whitespace-nowrap font-semibold text-ink">
+            {formatCurrency(row.stock_value)}
+          </TD>
+        </TR>
+      ))}
+    </PreviewTableShell>
   );
 }
 
@@ -672,6 +1172,16 @@ function reportFilename(reportId: ReportId): string {
   return `${reportId.replaceAll("_", "-")}-report.csv`;
 }
 
+function emptyTitleForReport(reportId: ReportId): string {
+  if (reportId === "expiry") {
+    return "No expiry risk found for this period.";
+  }
+  if (reportId === "dead_stock") {
+    return "No dead-stock lines found.";
+  }
+  return "No report data available yet.";
+}
+
 export function ReportsScreen() {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -726,17 +1236,55 @@ export function ReportsScreen() {
       (dashboardQuery.data?.cards ?? []).map((card) => [card.report, card.row_count]),
     );
   }, [dashboardQuery.data?.cards]);
+  const selectedPharmacy = (user?.pharmacies ?? []).find(
+    (pharmacy) => pharmacy.id === selectedPharmacyId,
+  );
+  const filterSummary = [
+    activeReportId === "transfer_suggestions"
+      ? selectedGroupId
+        ? `Group ${selectedGroupId}`
+        : "All groups in scope"
+      : selectedPharmacy
+        ? selectedPharmacy.name
+        : "All pharmacies in scope",
+    ["expiry", "dead_stock", "mds_workload"].includes(activeReportId)
+      ? `${days}-day window`
+      : null,
+    activeReportId === "transfer_suggestions" ? `Status ${status}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="space-y-5">
       <PageHeader
         className="animate-fade-in-up"
-        eyebrow="Operational exports"
+        eyebrow="Operational reports"
         title="Reports"
-        subtitle="Operational exports and pharmacy intelligence reports."
+        subtitle="Review stock, expiry, workload, and planning insights before taking action."
+        meta={
+          dashboardQuery.data
+            ? `Updated ${formatDateTime(dashboardQuery.data.generated_at)}`
+            : "Reports use the current scoped data."
+        }
       />
 
-      <section className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <ReportsSummaryCards
+        availableReports={availableReports}
+        cardCounts={cardCounts}
+        loading={dashboardQuery.isLoading}
+      />
+
+      <ReportCategoryCards
+        activeReportId={activeReportId}
+        availableReports={availableReports}
+        onSelectReport={setActiveReportId}
+      />
+
+      <section
+        aria-label="Report catalogue"
+        className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+      >
         {availableReports.map((report) => (
           <ReportCard
             active={report.id === activeReportId}
@@ -749,7 +1297,10 @@ export function ReportsScreen() {
       </section>
 
       <Panel>
-        <PanelHeader title="Filters" subtitle="Scope the export and preview." />
+        <PanelHeader
+          title="Filters"
+          subtitle="Scope the operational report preview and CSV export."
+        />
         <PanelBody>
           <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-4">
             {activeReportId !== "transfer_suggestions" ? (
@@ -828,6 +1379,14 @@ export function ReportsScreen() {
               </label>
             ) : null}
           </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Badge variant="info" icon={<BarChart3 className="h-3 w-3" />}>
+              Applied filters
+            </Badge>
+            <span className="text-sm font-medium text-ink-soft">
+              {filterSummary}
+            </span>
+          </div>
         </PanelBody>
       </Panel>
 
@@ -848,8 +1407,8 @@ export function ReportsScreen() {
                     className="mt-0.5 h-3.5 w-3.5 shrink-0"
                   />
                   <span>
-                    Forecast and transfer outputs are operational suggestions only.
-                    Human review required before ordering or transfer.
+                    Forecast estimates and potential transfer opportunities are
+                    operational report outputs. Review before ordering or transfer.
                   </span>
                 </p>
               ) : null}
@@ -858,6 +1417,7 @@ export function ReportsScreen() {
               filename={reportFilename(activeReportId)}
               filters={filters}
               reportId={activeReportId}
+              reportTitle={activeReport?.title ?? "Report"}
             />
           </div>
         </PanelHeader>
@@ -889,12 +1449,15 @@ export function ReportsScreen() {
             <div className="p-5 sm:p-6">
               <EmptyState
                 icon={<Inbox className="h-5 w-5" />}
-                title="No rows to display for this report."
+                title={emptyTitleForReport(activeReportId)}
                 description="Adjust the filters above or pick another report to preview."
               />
             </div>
           ) : (
-            <PreviewTable report={previewQuery.data} />
+            <>
+              <ReportInsightPanel report={previewQuery.data} />
+              <PreviewTable report={previewQuery.data} />
+            </>
           )
         ) : null}
       </Panel>
