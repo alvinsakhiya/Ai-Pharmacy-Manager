@@ -116,7 +116,7 @@ function AlertCard({
   const isOperationalDosette = alert.category === "dosette";
 
   return (
-    <article className="rounded-2xl border border-line bg-surface p-5 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2">
+    <article className="interactive-card rounded-2xl border border-line bg-surface p-5 shadow-soft">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

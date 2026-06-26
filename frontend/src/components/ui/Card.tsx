@@ -2,19 +2,27 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../lib/cn";
 
+interface PanelProps extends HTMLAttributes<HTMLDivElement> {
+  /** Adds the house hover-lift treatment for clickable / linked panels. */
+  interactive?: boolean;
+}
+
 /**
  * Panel — the house surface. bg-surface, hairline border, soft shadow, 12px
  * radius. Use PanelHeader / PanelBody for the standard head + body rhythm.
+ * Pass `interactive` for clickable panels to get the shared hover-lift.
  */
 export function Panel({
   className,
+  interactive,
   children,
   ...rest
-}: HTMLAttributes<HTMLDivElement>) {
+}: PanelProps) {
   return (
     <section
       className={cn(
         "overflow-hidden rounded-2xl border border-line bg-surface shadow-soft",
+        interactive && "interactive-card",
         className,
       )}
       {...rest}

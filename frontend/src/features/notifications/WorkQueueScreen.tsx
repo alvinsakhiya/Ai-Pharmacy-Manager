@@ -159,7 +159,7 @@ function WorkQueueCard({ item }: { item: WorkQueueItem }) {
   const range = cycleRange(item);
 
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2 sm:p-5">
+    <article className="interactive-card rounded-2xl border border-line bg-surface p-4 shadow-soft sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">

@@ -29,7 +29,7 @@ export function KpiCard({
   return (
     <article
       className={cn(
-        "flex min-h-[120px] flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2",
+        "interactive-card flex min-h-[120px] flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-soft",
         className,
       )}
     >

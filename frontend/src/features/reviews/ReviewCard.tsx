@@ -78,7 +78,7 @@ export function ReviewCard({
   const canAct = canManage && ["PENDING", "IN_REVIEW"].includes(review.status);
 
   return (
-    <article className="animate-fade-in-up rounded-2xl border border-line bg-surface p-5 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2">
+    <article className="interactive-card animate-fade-in-up rounded-2xl border border-line bg-surface p-5 shadow-soft">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">

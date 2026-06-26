@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 
 import { Sidebar } from "../components/nav/Sidebar";
 import { TopBar } from "../components/nav/TopBar";
 
 export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-canvas text-ink">
@@ -37,7 +38,11 @@ export function AppShell() {
           tabIndex={-1}
           className="mx-auto max-w-[1480px] px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8"
         >
-          <Outlet />
+          {/* Re-key on route change so every page settles in with the same
+              calm entrance (respects reduced-motion via index.css). */}
+          <div className="page-enter" key={location.pathname}>
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

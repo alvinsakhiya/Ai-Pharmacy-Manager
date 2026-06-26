@@ -66,7 +66,7 @@ function NavItemLink({
               <span
                 aria-label={`${badgeCount} tasks`}
                 className={cn(
-                  "tnum ml-auto inline-flex min-w-6 shrink-0 items-center justify-center rounded-full px-2 py-0.5 text-xs font-extrabold",
+                  "tnum ml-auto inline-flex min-w-6 shrink-0 animate-scale-in items-center justify-center rounded-full px-2 py-0.5 text-xs font-extrabold shadow-elev-1",
                   isActive
                     ? "bg-white/80 text-lilac-ink"
                     : "bg-lilac text-lilac-ink",

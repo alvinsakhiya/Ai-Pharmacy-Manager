@@ -12,12 +12,7 @@ export function Skeleton({ className }: SkeletonProps) {
   return (
     <span
       aria-hidden="true"
-      className={cn(
-        "relative block overflow-hidden rounded-xl bg-surface-sunken",
-        "after:absolute after:inset-0 after:-translate-x-full after:animate-shimmer",
-        "after:bg-gradient-to-r after:from-transparent after:via-white/60 after:to-transparent",
-        className,
-      )}
+      className={cn("skeleton-shimmer block rounded-xl", className)}
     />
   );
 }

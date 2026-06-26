@@ -109,6 +109,72 @@
   .focus-ring {
     @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
   }
+
+  /* ----------------------------------------------------------------------
+     Reusable motion & interaction system. Entrance helpers reuse the proven
+     `fade-in-up` keyframe; every rule is covered by the reduced-motion blocks
+     below, so motion calms itself automatically when the user asks for it.
+     ---------------------------------------------------------------------- */
+
+  /* Per-route page entrance — applied once at the app shell so every screen
+     settles in with the same calm rise. Kept short so it never feels slow. */
+  .page-enter {
+    animation: fade-in-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* Semantic single-element entrance helpers. */
+  .animate-slide-up {
+    animation: fade-in-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .motion-card {
+    animation: fade-in-up 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* House "interactive surface": rises and deepens its shadow on hover, and
+     lights its hairline on hover/focus. Consolidates the card-hover pattern
+     repeated across dashboard / work queue / reviews / alerts. */
+  .interactive-card {
+    @apply transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:border-line-strong hover:shadow-elev-2 focus-within:border-line-strong;
+  }
+
+  /* Staggered list entrance — semantic alias of `.stagger`. */
+  .stagger-list > * {
+    opacity: 0;
+    animation: fade-in-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .stagger-list > *:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .stagger-list > *:nth-child(2) {
+    animation-delay: 0.07s;
+  }
+  .stagger-list > *:nth-child(3) {
+    animation-delay: 0.12s;
+  }
+  .stagger-list > *:nth-child(4) {
+    animation-delay: 0.17s;
+  }
+  .stagger-list > *:nth-child(5) {
+    animation-delay: 0.22s;
+  }
+  .stagger-list > *:nth-child(6) {
+    animation-delay: 0.27s;
+  }
+  .stagger-list > *:nth-child(7) {
+    animation-delay: 0.32s;
+  }
+  .stagger-list > *:nth-child(8) {
+    animation-delay: 0.37s;
+  }
+
+  /* Reusable shimmer overlay for ad-hoc skeleton placeholders. */
+  .skeleton-shimmer {
+    @apply relative overflow-hidden bg-surface-sunken;
+  }
+  .skeleton-shimmer::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/60 to-transparent;
+  }
 }
 
 /* The app-shell desktop/mobile sidebar behaviour. */
