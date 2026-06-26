@@ -379,7 +379,7 @@ function InfoPage({
       <PanelBody>
         <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <DetailValue label="Title" value={fallback(patient.title)} />
-          <DetailValue label="Reference" value={patient.patient_reference} />
+          <DetailValue label="Patient ID" value={patient.patient_reference} />
           <DetailValue label="Pharmacy" value={pharmacyName(patient.pharmacy)} />
           <DetailValue
             label="Date of birth"

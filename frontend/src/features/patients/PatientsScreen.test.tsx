@@ -75,6 +75,9 @@ describe("PatientsScreen", () => {
     renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
 
     expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Patient ID" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Alice Sutton")).toBeInTheDocument();
     expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
     expect(screen.getByText("CRO-P1")).toBeInTheDocument();
@@ -134,6 +137,9 @@ describe("PatientsScreen", () => {
     renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
 
     await screen.findByText("SUT-P1");
+    expect(
+      screen.getByPlaceholderText("Search by Patient ID or exact last name"),
+    ).toBeInTheDocument();
     await user.type(screen.getByLabelText("Search"), " Sutton ");
 
     await waitFor(() => {

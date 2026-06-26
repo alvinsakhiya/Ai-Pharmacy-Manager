@@ -3,6 +3,11 @@ from rest_framework import serializers
 from apps.tenancy.permissions import Action, can
 
 from .models import Patient, PatientGp, PatientNote
+from .services import (
+    AUTO_GENERATED_PATIENT_ID_MESSAGE,
+    PatientReferenceGenerationError,
+    create_patient_with_generated_reference,
+)
 
 
 class PatientGpSerializer(serializers.ModelSerializer):
@@ -54,7 +59,13 @@ class PatientSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "is_active", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "patient_reference",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
         validators: list[object] = []
 
     def get_gp(self, obj: Patient) -> dict | None:
@@ -66,10 +77,11 @@ class PatientSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         request = self.context.get("request")
         pharmacy = attrs.get("pharmacy", getattr(self.instance, "pharmacy", None))
-        patient_reference = attrs.get(
-            "patient_reference",
-            getattr(self.instance, "patient_reference", None),
-        )
+
+        if "patient_reference" in getattr(self, "initial_data", {}):
+            raise serializers.ValidationError(
+                {"patient_reference": [AUTO_GENERATED_PATIENT_ID_MESSAGE]}
+            )
 
         if self.instance is None:
             if pharmacy is None:
@@ -93,24 +105,19 @@ class PatientSerializer(serializers.ModelSerializer):
                 {"pharmacy": ["Patient pharmacy cannot be changed."]}
             )
 
-        if pharmacy is not None and patient_reference:
-            queryset = Patient.objects.filter(
-                pharmacy=pharmacy,
-                patient_reference=patient_reference,
-            )
-            if self.instance is not None:
-                queryset = queryset.exclude(pk=self.instance.pk)
-            if queryset.exists():
-                raise serializers.ValidationError(
-                    {
-                        "patient_reference": [
-                            "A patient with this reference already exists in this "
-                            "pharmacy."
-                        ]
-                    }
-                )
-
         return attrs
+
+    def create(self, validated_data):
+        try:
+            return create_patient_with_generated_reference(validated_data)
+        except PatientReferenceGenerationError as exc:
+            raise serializers.ValidationError(
+                {
+                    "patient_reference": [
+                        "Could not generate a unique Patient ID. Please try again."
+                    ]
+                }
+            ) from exc
 
 
 class PatientNoteSerializer(serializers.ModelSerializer):

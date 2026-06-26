@@ -87,6 +87,7 @@ describe("PatientDetailScreen", () => {
 
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
     expect(screen.getByText("SUT-P1")).toBeInTheDocument();
+    expect(screen.getByText("Patient ID")).toBeInTheDocument();
     expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
     expect(screen.getByText("01 Jan 1980")).toBeInTheDocument();
     expect(screen.getByText("1 Demo Street, Sutton")).toBeInTheDocument();

@@ -62,7 +62,6 @@ function patientAuth(pharmacyCount = 1) {
 async function fillCreateForm() {
   const user = userEvent.setup();
 
-  await user.type(screen.getByLabelText("Patient reference"), "SUT-P2");
   await user.type(screen.getByLabelText("First name"), "Clara");
   await user.type(screen.getByLabelText("Last name"), "Demo");
   await user.type(screen.getByLabelText("Date of birth"), "1990-02-03");
@@ -88,13 +87,17 @@ describe("PatientFormModal", () => {
       { auth: patientAuth() },
     );
 
+    expect(
+      screen.getByText("Patient ID will be generated automatically when saved."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Patient reference")).toBeNull();
+
     const user = await fillCreateForm();
     await user.click(screen.getByRole("button", { name: "Save patient" }));
 
     await waitFor(() => {
       expect(createPatientMock).toHaveBeenCalledWith({
         pharmacy: 1,
-        patient_reference: "SUT-P2",
         title: "",
         first_name: "Clara",
         last_name: "Demo",
@@ -120,6 +123,8 @@ describe("PatientFormModal", () => {
 
     expect(screen.getByDisplayValue("Alice")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Sutton")).toBeInTheDocument();
+    expect(screen.getByLabelText("Patient ID")).toBeDisabled();
+    expect(screen.getByLabelText("Patient ID")).toHaveValue("SUT-P1");
 
     await user.clear(screen.getByLabelText("Last name"));
     await user.type(screen.getByLabelText("Last name"), "Updated");
@@ -127,7 +132,6 @@ describe("PatientFormModal", () => {
 
     await waitFor(() => {
       expect(updatePatientMock).toHaveBeenCalledWith(20, {
-        patient_reference: "SUT-P1",
         title: "",
         first_name: "Alice",
         last_name: "Updated",
@@ -160,7 +164,6 @@ describe("PatientFormModal", () => {
       { auth: patientAuth() },
     );
 
-    await user.type(screen.getByLabelText("Patient reference"), "SUT-P2");
     await user.type(screen.getByLabelText("First name"), "Clara");
     await user.type(screen.getByLabelText("Date of birth"), "1990-02-03");
     await user.click(screen.getByRole("button", { name: "Save patient" }));
@@ -172,7 +175,7 @@ describe("PatientFormModal", () => {
   it("renders backend field errors", async () => {
     createPatientMock.mockRejectedValue(
       new ApiError(400, {
-        patient_reference: ["Patient reference already exists."],
+        patient_reference: ["Patient ID is generated automatically."],
       }),
     );
     renderWithProviders(
@@ -184,7 +187,7 @@ describe("PatientFormModal", () => {
     await user.click(screen.getByRole("button", { name: "Save patient" }));
 
     expect(
-      await screen.findByText("Patient reference already exists."),
+      await screen.findByText("Patient ID is generated automatically."),
     ).toBeInTheDocument();
   });
 });

@@ -126,7 +126,7 @@ export function PatientsScreen() {
               <input
                 className={`${inputClass} pl-9`}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by reference or exact last name"
+                placeholder="Search by Patient ID or exact last name"
                 type="search"
                 value={search}
               />
@@ -204,7 +204,7 @@ export function PatientsScreen() {
           <Table>
             <THead>
               <TR className="hover:bg-transparent">
-                <TH>Reference</TH>
+                <TH>Patient ID</TH>
                 <TH>Name</TH>
                 <TH>Date of birth</TH>
                 <TH>Pharmacy</TH>

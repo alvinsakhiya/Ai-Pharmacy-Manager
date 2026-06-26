@@ -51,7 +51,6 @@ export interface PatientListParams {
 
 export interface PatientWriteBody {
   pharmacy: number;
-  patient_reference: string;
   title: string;
   first_name: string;
   last_name: string;

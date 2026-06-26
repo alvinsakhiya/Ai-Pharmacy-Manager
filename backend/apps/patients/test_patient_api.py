@@ -134,10 +134,12 @@ def authenticate(client, user):
     client.force_login(user)
 
 
-def patient_payload(pharmacy: Pharmacy, reference: str = "NEW-001") -> dict[str, str]:
-    return {
+def patient_payload(
+    pharmacy: Pharmacy,
+    reference: str | None = None,
+) -> dict[str, int | str]:
+    payload: dict[str, int | str] = {
         "pharmacy": pharmacy.id,
-        "patient_reference": reference,
         "first_name": "Fictional",
         "last_name": "Tester",
         "date_of_birth": "1988-04-02",
@@ -146,6 +148,9 @@ def patient_payload(pharmacy: Pharmacy, reference: str = "NEW-001") -> dict[str,
         "phone": "020 0000 0999",
         "notes": "Fictional test note",
     }
+    if reference is not None:
+        payload["patient_reference"] = reference
+    return payload
 
 
 def ids_from_response(response):
@@ -184,6 +189,11 @@ def test_admin_can_list_all_patients(client, patient_api_data):
         patient_api_data["patient_one"].id,
         patient_api_data["patient_two"].id,
         patient_api_data["patient_other"].id,
+    }
+    assert {item["patient_reference"] for item in response.json()} == {
+        "P1-001",
+        "P2-001",
+        "OP-001",
     }
 
 
@@ -314,6 +324,7 @@ def test_patient_detail_returns_plaintext_sensitive_fields(client, patient_api_d
     response = client.get(f"/api/patients/{patient_api_data['patient_one'].id}/")
 
     assert response.status_code == 200
+    assert response.json()["patient_reference"] == "P1-001"
     assert response.json()["first_name"] == "Alice"
     assert response.json()["last_name"] == "Sutton"
     assert response.json()["date_of_birth"] == "1980-01-01"
@@ -345,6 +356,81 @@ def test_last_name_update_refreshes_search_index(client, patient_api_data):
 
 
 @pytest.mark.django_db
+def test_create_without_patient_reference_generates_patient_id(
+    client,
+    patient_api_data,
+):
+    authenticate(client, patient_api_data["admin"])
+
+    response = client.post(
+        "/api/patients/",
+        patient_payload(patient_api_data["pharmacy_one"]),
+        format="json",
+    )
+
+    assert response.status_code == 201
+    patient = Patient.objects.get(pk=response.json()["id"])
+    assert response.json()["patient_reference"] == "P1-P0001"
+    assert patient.patient_reference == "P1-P0001"
+
+
+@pytest.mark.django_db
+def test_generated_patient_references_are_unique_per_pharmacy(
+    client,
+    patient_api_data,
+):
+    authenticate(client, patient_api_data["admin"])
+
+    first_response = client.post(
+        "/api/patients/",
+        patient_payload(patient_api_data["pharmacy_one"]),
+        format="json",
+    )
+    second_response = client.post(
+        "/api/patients/",
+        patient_payload(patient_api_data["pharmacy_one"]),
+        format="json",
+    )
+    other_pharmacy_response = client.post(
+        "/api/patients/",
+        patient_payload(patient_api_data["pharmacy_two"]),
+        format="json",
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert other_pharmacy_response.status_code == 201
+    assert first_response.json()["patient_reference"] == "P1-P0001"
+    assert second_response.json()["patient_reference"] == "P1-P0002"
+    assert other_pharmacy_response.json()["patient_reference"] == "P2-P0001"
+
+
+@pytest.mark.django_db
+def test_generated_patient_reference_is_not_derived_from_patient_pii(
+    client,
+    patient_api_data,
+):
+    authenticate(client, patient_api_data["admin"])
+    payload = patient_payload(patient_api_data["pharmacy_one"])
+    payload.update(
+        {
+            "first_name": "Fictional",
+            "last_name": "Private",
+            "date_of_birth": "1977-05-06",
+            "postcode": "ZZ9 9ZZ",
+            "phone": "020 7777 7777",
+        }
+    )
+
+    response = client.post("/api/patients/", payload, format="json")
+    generated_reference = response.json()["patient_reference"].upper()
+
+    assert response.status_code == 201
+    for pii_fragment in ("FICTIONAL", "PRIVATE", "1977", "ZZ9", "7777"):
+        assert pii_fragment not in generated_reference
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("actor_key", ["admin", "pharmacist"])
 def test_manage_roles_can_create_update_and_deactivate(
     client,
@@ -355,11 +441,12 @@ def test_manage_roles_can_create_update_and_deactivate(
 
     response = client.post(
         "/api/patients/",
-        patient_payload(patient_api_data["pharmacy_one"], f"{actor_key}-001"),
+        patient_payload(patient_api_data["pharmacy_one"]),
         format="json",
     )
     assert response.status_code == 201
     patient_id = response.json()["id"]
+    assert response.json()["patient_reference"].startswith("P1-P")
 
     update_response = client.patch(
         f"/api/patients/{patient_id}/",
@@ -388,7 +475,7 @@ def test_non_patient_roles_cannot_create_update_or_deactivate(
     assert (
         client.post(
             "/api/patients/",
-            patient_payload(patient_api_data["pharmacy_one"], f"{actor_key}-001"),
+            patient_payload(patient_api_data["pharmacy_one"]),
             format="json",
         ).status_code
         == 403
@@ -412,7 +499,7 @@ def test_dispenser_can_read_detail_but_cannot_mutate(client, patient_api_data):
     detail_response = client.get(f"/api/patients/{patient.id}/")
     create_response = client.post(
         "/api/patients/",
-        patient_payload(patient_api_data["pharmacy_one"], "DISP-001"),
+        patient_payload(patient_api_data["pharmacy_one"]),
         format="json",
     )
     update_response = client.patch(
@@ -429,7 +516,7 @@ def test_dispenser_can_read_detail_but_cannot_mutate(client, patient_api_data):
 
 
 @pytest.mark.django_db
-def test_duplicate_patient_reference_returns_clean_validation_error(
+def test_manual_patient_reference_is_rejected_on_create(
     client,
     patient_api_data,
 ):
@@ -443,9 +530,7 @@ def test_duplicate_patient_reference_returns_clean_validation_error(
 
     assert response.status_code == 400
     assert response.json() == {
-        "patient_reference": [
-            "A patient with this reference already exists in this pharmacy."
-        ]
+        "patient_reference": ["Patient ID is generated automatically."]
     }
 
 
@@ -464,12 +549,28 @@ def test_patient_pharmacy_cannot_be_changed(client, patient_api_data):
 
 
 @pytest.mark.django_db
+def test_patient_reference_cannot_be_changed(client, patient_api_data):
+    authenticate(client, patient_api_data["admin"])
+
+    response = client.patch(
+        f"/api/patients/{patient_api_data['patient_one'].id}/",
+        {"patient_reference": "P1-P9999"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "patient_reference": ["Patient ID is generated automatically."]
+    }
+
+
+@pytest.mark.django_db
 def test_create_outside_scope_returns_validation_error(client, patient_api_data):
     authenticate(client, patient_api_data["pharmacist"])
 
     response = client.post(
         "/api/patients/",
-        patient_payload(patient_api_data["pharmacy_two"], "OUT-001"),
+        patient_payload(patient_api_data["pharmacy_two"]),
         format="json",
     )
 
@@ -497,9 +598,10 @@ def test_patient_create_update_and_deactivate_write_safe_audit_events(
 
     create_response = client.post(
         "/api/patients/",
-        patient_payload(patient_api_data["pharmacy_one"], "AUD-001"),
+        patient_payload(patient_api_data["pharmacy_one"]),
         format="json",
     )
+    generated_reference = create_response.json()["patient_reference"]
     patient_id = create_response.json()["id"]
     client.patch(
         f"/api/patients/{patient_id}/",
@@ -519,7 +621,7 @@ def test_patient_create_update_and_deactivate_write_safe_audit_events(
     expected_base_metadata = {
         "pharmacy_id": patient_api_data["pharmacy_one"].id,
         "patient_id": patient_id,
-        "patient_reference": "AUD-001",
+        "patient_reference": generated_reference,
     }
 
     assert created.metadata == expected_base_metadata
@@ -549,6 +651,7 @@ def test_create_rolls_back_when_audit_recording_fails(
     monkeypatch,
 ):
     authenticate(client, patient_api_data["admin"])
+    patient_count = Patient.objects.count()
 
     def failing_record(**kwargs):
         raise RuntimeError("audit failed")
@@ -558,11 +661,11 @@ def test_create_rolls_back_when_audit_recording_fails(
     with pytest.raises(RuntimeError, match="audit failed"):
         client.post(
             "/api/patients/",
-            patient_payload(patient_api_data["pharmacy_one"], "ROLLBACK-CREATE"),
+            patient_payload(patient_api_data["pharmacy_one"]),
             format="json",
         )
 
-    assert not Patient.objects.filter(patient_reference="ROLLBACK-CREATE").exists()
+    assert Patient.objects.count() == patient_count
 
 
 @pytest.mark.django_db
