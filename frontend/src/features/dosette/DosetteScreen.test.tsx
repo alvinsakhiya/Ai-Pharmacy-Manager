@@ -46,6 +46,7 @@ vi.mock("./dosetteApi", async (importOriginal) => {
     prepareDosetteCycle: vi.fn(),
     cancelDosetteCycle: vi.fn(),
     deductDosetteStock: vi.fn(),
+    updateMedicationAppearance: vi.fn(),
   };
 });
 
@@ -60,6 +61,9 @@ const discontinuePatientMedicationMock = vi.mocked(
 const prepareDosetteCycleMock = vi.mocked(dosetteApi.prepareDosetteCycle);
 const cancelDosetteCycleMock = vi.mocked(dosetteApi.cancelDosetteCycle);
 const deductDosetteStockMock = vi.mocked(dosetteApi.deductDosetteStock);
+const updateMedicationAppearanceMock = vi.mocked(
+  dosetteApi.updateMedicationAppearance,
+);
 
 function makeMedication(overrides: Partial<Medication> = {}): Medication {
   return {
@@ -96,6 +100,8 @@ function makeLine(
     quantity_evening: 0,
     quantity_bedtime: 1,
     start_date: "2026-06-01",
+    colour: "Blue",
+    shape: "Round",
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
@@ -113,6 +119,10 @@ function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
     status: "DRAFT",
     stock_deducted: false,
     deducted_at: null,
+    prepared_by_email: null,
+    prepared_at: null,
+    checked_by_email: null,
+    checked_at: null,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
     ...overrides,
@@ -141,6 +151,8 @@ function makePickingList(overrides: Partial<PickingList> = {}): PickingList {
         quantity_evening: 0,
         quantity_bedtime: 1,
         total_daily: 2,
+        colour: "Blue",
+        shape: "Round",
       },
       {
         medication_id: 11,
@@ -152,6 +164,8 @@ function makePickingList(overrides: Partial<PickingList> = {}): PickingList {
         quantity_evening: 1,
         quantity_bedtime: 0,
         total_daily: 2,
+        colour: "White",
+        shape: "Oval",
       },
     ],
     totals: {
@@ -231,6 +245,7 @@ function makeStockPreview(overrides: Partial<StockPreview> = {}): StockPreview {
 function dosetteAuth(permissions: Record<string, boolean> = {}) {
   return makeAuthContext({
     user: makeAuthUser({
+      pharmacies: [{ id: 7, name: "JMW Sutton" }],
       permissions: {
         "blister.view": true,
         ...permissions,
@@ -265,10 +280,13 @@ describe("DosetteScreen", () => {
         id: 2,
         medication: 11,
         medication_name: "Metformin",
+        dose_instructions: "Take with evening meal",
         strength: "500 mg",
         quantity_morning: 1,
         quantity_evening: 1,
         quantity_bedtime: 0,
+        colour: "White",
+        shape: "Oval",
       }),
       makeLine({
         id: 3,
@@ -299,6 +317,9 @@ describe("DosetteScreen", () => {
     );
     cancelDosetteCycleMock.mockResolvedValue(
       makeCycle({ status: "CANCELLED" }),
+    );
+    updateMedicationAppearanceMock.mockResolvedValue(
+      makeLine({ colour: "White", shape: "Oval" }),
     );
     deductDosetteStockMock.mockResolvedValue({
       cycle: {
@@ -338,10 +359,27 @@ describe("DosetteScreen", () => {
     renderDosette();
 
     expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
-    expect(screen.getAllByText("5 mg / TABLET").length).toBeGreaterThan(0);
     expect(screen.getByText("Metformin")).toBeInTheDocument();
     expect(screen.getByText("Inactive line")).toBeInTheDocument();
     expect(screen.getByText("Inactive")).toBeInTheDocument();
+
+    const amlodipineCard = screen.getByRole("article", {
+      name: "Medication line Amlodipine",
+    });
+    expect(within(amlodipineCard).getByText("5 mg / TABLET")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Private dose directions")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Morning")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Lunchtime")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Evening")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Bedtime")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Blue")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Round")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("01 Jun 2026")).toBeInTheDocument();
+    expect(
+      within(amlodipineCard).getByRole("img", {
+        name: "Appearance marker: Blue · Round",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("renders cycles", async () => {
@@ -352,6 +390,72 @@ describe("DosetteScreen", () => {
     expect(screen.getByText("22 Jun 2026 - 28 Jun 2026")).toBeInTheDocument();
     expect(screen.getByText("MDS-2026-FW07")).toBeInTheDocument();
     expect(screen.getByText("Prepared")).toBeInTheDocument();
+  });
+
+  it("renders a printable dosette sheet preview with cycle and appearance details", async () => {
+    const user = userEvent.setup();
+    listDosetteCyclesMock.mockResolvedValueOnce([
+      makeCycle({
+        status: "PREPARED",
+        stock_deducted: true,
+        deducted_at: "2026-06-25T11:30:00Z",
+        prepared_by_email: "pharmacist@example.com",
+        prepared_at: "2026-06-25T09:30:00Z",
+        checked_by_email: "checker@example.com",
+        checked_at: "2026-06-25T10:15:00Z",
+      }),
+    ]);
+    renderDosette();
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+    );
+    expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Print Dosette sheet" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Print Dosette sheet",
+    });
+    expect(within(dialog).getByLabelText("Dosette medication sheet")).toBeInTheDocument();
+    expect(within(dialog).getByText("JMW Sutton")).toBeInTheDocument();
+    expect(within(dialog).getByText("SUT-P1")).toBeInTheDocument();
+    expect(within(dialog).getByText("MDS-2026-W26")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("22 Jun 2026 - 28 Jun 2026"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("pharmacist@example.com · 25 Jun 2026, 09:30")).toBeInTheDocument();
+    expect(within(dialog).getByText("checker@example.com · 25 Jun 2026, 10:15")).toBeInTheDocument();
+    expect(within(dialog).getByText("Private dose directions")).toBeInTheDocument();
+    expect(within(dialog).getByText("Blue")).toBeInTheDocument();
+    expect(within(dialog).getByText("Round")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "This sheet is for pharmacy Dosette preparation and patient/carer identification support. Human review required.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("prints the dosette sheet from the preview", async () => {
+    const user = userEvent.setup();
+    const originalPrint = window.print;
+    const printMock = vi.fn();
+    Object.defineProperty(window, "print", {
+      configurable: true,
+      value: printMock,
+    });
+    renderDosette();
+
+    await user.click(await screen.findByRole("button", { name: "Print Dosette sheet" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Print Dosette sheet",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Print sheet" }));
+
+    expect(printMock).toHaveBeenCalledTimes(1);
+    Object.defineProperty(window, "print", {
+      configurable: true,
+      value: originalPrint,
+    });
   });
 
   it("selecting a cycle renders picking-list rows and totals", async () => {
@@ -532,6 +636,33 @@ describe("DosetteScreen", () => {
     expect(screen.queryByRole("button", { name: "Add medication" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Discontinue" })).toBeNull();
+  });
+
+  it("saves medication appearance updates through the existing appearance control", async () => {
+    const user = userEvent.setup();
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.mark_status": true }),
+    );
+
+    const amlodipineCard = await screen.findByRole("article", {
+      name: "Medication line Amlodipine",
+    });
+    await user.click(within(amlodipineCard).getByRole("button", { name: "Appearance" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Label appearance" });
+    await user.clear(within(dialog).getByLabelText("Colour"));
+    await user.type(within(dialog).getByLabelText("Colour"), "White");
+    await user.clear(within(dialog).getByLabelText("Shape"));
+    await user.type(within(dialog).getByLabelText("Shape"), "Oval");
+    await user.click(within(dialog).getByRole("button", { name: "Save appearance" }));
+
+    await waitFor(() => {
+      expect(updateMedicationAppearanceMock).toHaveBeenCalledWith(20, 1, {
+        colour: "White",
+        shape: "Oval",
+      });
+    });
   });
 
   it("discontinue confirmation calls API and refetches medication picking-list and stock-preview data", async () => {
@@ -1034,7 +1165,13 @@ describe("DosetteScreen", () => {
       (await screen.findAllByRole("button", { name: "View picking list" }))[0],
     );
     expect(await screen.findByText("Picking list: MDS-2026-W26")).toBeInTheDocument();
-    expect(screen.queryByText("Private dose directions")).toBeNull();
-    expect(screen.queryByText("dose_instructions")).toBeNull();
+    const pickingList = screen.getByText("Picking list: MDS-2026-W26").closest(
+      "section",
+    );
+    expect(pickingList).not.toBeNull();
+    expect(
+      within(pickingList as HTMLElement).queryByText("Private dose directions"),
+    ).toBeNull();
+    expect(within(pickingList as HTMLElement).queryByText("dose_instructions")).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -11,11 +11,13 @@ import {
   PackageCheck,
   Pill,
   Plus,
+  Printer,
   Sun,
   Sunrise,
   Sunset,
 } from "lucide-react";
 
+import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -75,8 +77,94 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
-function fallback(value: string | undefined): string {
-  return value?.trim() ? value : "-";
+function formatDateTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function safeText(value: string | null | undefined): string {
+  return value?.trim() ? value : "Not recorded";
+}
+
+function optionalDate(value: string | null | undefined): string {
+  return value ? formatDate(value) : "Not recorded";
+}
+
+function optionalDateTime(value: string | null | undefined): string {
+  return value ? formatDateTime(value) : "Not recorded";
+}
+
+interface StrengthFormInfo {
+  strength?: string | null;
+  form?: string | null;
+}
+
+interface AppearanceInfo {
+  colour?: string | null;
+  shape?: string | null;
+}
+
+function strengthFormLabel(item: StrengthFormInfo): string {
+  const strength = safeText(item.strength);
+  const form = safeText(item.form);
+  if (strength === "Not recorded" && form === "Not recorded") {
+    return "Not recorded";
+  }
+
+  return `${strength} / ${form}`;
+}
+
+function appearanceLabel(item: AppearanceInfo): string {
+  const colour = item.colour?.trim();
+  const shape = item.shape?.trim();
+  return [colour, shape].filter(Boolean).join(" · ") || "No appearance recorded";
+}
+
+function appearanceColour(colour: string | undefined): string {
+  const normalised = colour?.trim().toLowerCase() ?? "";
+  const knownColours: Record<string, string> = {
+    beige: "#d8c3a5",
+    black: "#1f2937",
+    blue: "#93c5fd",
+    brown: "#a16207",
+    cream: "#fef3c7",
+    green: "#86efac",
+    grey: "#d1d5db",
+    gray: "#d1d5db",
+    orange: "#fdba74",
+    pink: "#f9a8d4",
+    purple: "#c4b5fd",
+    red: "#fca5a5",
+    white: "#f8fafc",
+    yellow: "#fde68a",
+  };
+
+  return knownColours[normalised] ?? "#e5e7eb";
+}
+
+function appearanceShapeClass(shape: string | undefined): string {
+  const normalised = shape?.trim().toLowerCase() ?? "";
+  if (/(capsule|caplet|oval|oblong)/.test(normalised)) {
+    return "h-5 w-10 rounded-full";
+  }
+  if (/(square|rectangle)/.test(normalised)) {
+    return "h-7 w-7 rounded-md";
+  }
+  if (/pill/.test(normalised)) {
+    return "h-6 w-9 rounded-full";
+  }
+
+  return "h-7 w-7 rounded-full";
 }
 
 function totalDaily(line: PatientMedicationLine): number {
@@ -158,9 +246,9 @@ function packStatusIndex(status: string): number {
 
 const SLOT_META = [
   { key: "quantity_morning", label: "Morning", short: "AM", Icon: Sunrise },
-  { key: "quantity_lunchtime", label: "Noon", short: "Noon", Icon: Sun },
+  { key: "quantity_lunchtime", label: "Lunchtime", short: "Lunch", Icon: Sun },
   { key: "quantity_evening", label: "Evening", short: "PM", Icon: Sunset },
-  { key: "quantity_bedtime", label: "Night", short: "Night", Icon: Moon },
+  { key: "quantity_bedtime", label: "Bedtime", short: "Night", Icon: Moon },
 ] as const;
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -357,7 +445,61 @@ function DeductStockError({ error }: { error: DeductStockErrorState }) {
   );
 }
 
-function MedicationRow({
+function MedicationAppearanceMarker({
+  colour,
+  shape,
+}: {
+  colour: string | undefined;
+  shape: string | undefined;
+}) {
+  return (
+    <span
+      aria-label={`Appearance marker: ${appearanceLabel({ colour, shape })}`}
+      className={cn(
+        "inline-flex shrink-0 border border-line-strong shadow-inner",
+        appearanceShapeClass(shape),
+      )}
+      role="img"
+      style={{ backgroundColor: appearanceColour(colour) }}
+    />
+  );
+}
+
+function MedicationDetailValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm font-semibold text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function MedicationDoseTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
+      <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <p className="tnum mt-1 text-xl font-extrabold text-ink">{value}</p>
+    </div>
+  );
+}
+
+function MedicationLineCard({
   canManage,
   canMarkStatus,
   line,
@@ -372,66 +514,90 @@ function MedicationRow({
   onEdit: (line: PatientMedicationLine) => void;
   onEditAppearance: (line: PatientMedicationLine) => void;
 }) {
-  const appearance = [line.colour, line.shape].filter(Boolean).join(" · ");
+  const appearance = appearanceLabel(line);
+
   return (
-    <TR className={cn(!line.is_active && "opacity-70")}>
-      <TD className="font-semibold text-ink">
-        <span className="whitespace-nowrap">{line.medication_name}</span>
-        <span className="mt-0.5 block text-[11px] font-medium text-muted">
-          Label: {appearance || "not set"}
-        </span>
-      </TD>
-      <TD className="whitespace-nowrap">
-        {fallback([line.strength, line.form].filter(Boolean).join(" / "))}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {line.quantity_morning}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {line.quantity_lunchtime}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {line.quantity_evening}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {line.quantity_bedtime}
-      </TD>
-      <TD className="tnum whitespace-nowrap font-bold text-ink">
-        {totalDaily(line)}
-      </TD>
-      <TD className="whitespace-nowrap">
-        <MedicationStatusBadge value={line.is_active} />
-      </TD>
-      {canManage || canMarkStatus ? (
-        <TD className="whitespace-nowrap text-right">
-          <div className="flex justify-end gap-2">
-            {canMarkStatus ? (
-              <Button
-                onClick={() => onEditAppearance(line)}
-                size="sm"
-                variant="secondary"
-              >
-                Appearance
-              </Button>
-            ) : null}
-            {canManage ? (
-              <Button onClick={() => onEdit(line)} size="sm" variant="secondary">
-                Edit
-              </Button>
-            ) : null}
-            {canManage && line.is_active ? (
-              <Button
-                onClick={() => onDiscontinue(line)}
-                size="sm"
-                variant="danger"
-              >
-                Discontinue
-              </Button>
-            ) : null}
+    <article
+      aria-label={`Medication line ${line.medication_name}`}
+      className={cn(
+        "rounded-2xl border border-line bg-surface p-4 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2",
+        !line.is_active && "opacity-75",
+      )}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <MedicationAppearanceMarker colour={line.colour} shape={line.shape} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-bold text-ink">{line.medication_name}</h3>
+              <MedicationStatusBadge value={line.is_active} />
+            </div>
+            <p className="mt-1 text-xs font-semibold text-muted">
+              {strengthFormLabel(line)}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+              {line.dose_instructions.trim()
+                ? line.dose_instructions
+                : "Dosage instructions not recorded"}
+            </p>
           </div>
-        </TD>
+        </div>
+        <Badge variant="brand">
+          <span className="tnum">{totalDaily(line)}</span>/day
+        </Badge>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-4">
+        {SLOT_META.map((slot) => (
+          <MedicationDoseTile
+            key={slot.key}
+            label={slot.label}
+            value={line[slot.key]}
+          />
+        ))}
+      </div>
+
+      <dl className="mt-4 grid gap-4 rounded-xl border border-line bg-surface-subtle p-3 sm:grid-cols-2 lg:grid-cols-5">
+        <MedicationDetailValue label="Strength" value={safeText(line.strength)} />
+        <MedicationDetailValue label="Form" value={safeText(line.form)} />
+        <MedicationDetailValue label="Colour" value={safeText(line.colour)} />
+        <MedicationDetailValue label="Shape" value={safeText(line.shape)} />
+        <MedicationDetailValue
+          label="Start date"
+          value={optionalDate(line.start_date)}
+        />
+      </dl>
+
+      <p className="mt-3 text-xs font-medium text-muted">{appearance}</p>
+
+      {canManage || canMarkStatus ? (
+        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-line pt-4">
+          {canMarkStatus ? (
+            <Button
+              onClick={() => onEditAppearance(line)}
+              size="sm"
+              variant="secondary"
+            >
+              Appearance
+            </Button>
+          ) : null}
+          {canManage ? (
+            <Button onClick={() => onEdit(line)} size="sm" variant="secondary">
+              Edit
+            </Button>
+          ) : null}
+          {canManage && line.is_active ? (
+            <Button
+              onClick={() => onDiscontinue(line)}
+              size="sm"
+              variant="danger"
+            >
+              Discontinue
+            </Button>
+          ) : null}
+        </div>
       ) : null}
-    </TR>
+    </article>
   );
 }
 
@@ -640,6 +806,181 @@ function PickingListSection({ pickingList }: { pickingList: PickingList }) {
   );
 }
 
+const PRINT_DISCLAIMER =
+  "This sheet is for pharmacy Dosette preparation and patient/carer identification support. Human review required.";
+
+function DosettePrintMeta({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+        {label}
+      </dt>
+      <dd className="tnum mt-1 text-sm font-bold text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function preparedCheckedLabel(
+  email: string | null,
+  timestamp: string | null,
+): string {
+  if (!email && !timestamp) {
+    return "Not recorded";
+  }
+
+  return [email, timestamp ? formatDateTime(timestamp) : null]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function DosettePrintSheet({
+  cycle,
+  medicationLines,
+  patientReference,
+  pharmacyName,
+  printedAt,
+}: {
+  cycle: DosetteCycle;
+  medicationLines: PatientMedicationLine[];
+  patientReference: string;
+  pharmacyName: string;
+  printedAt: Date;
+}) {
+  return (
+    <section
+      aria-label="Dosette medication sheet"
+      className="dosette-print-sheet rounded-2xl border border-line bg-white p-6 text-ink shadow-soft"
+    >
+      <header className="border-b border-line pb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted">
+              Pharmacy Dosette preparation sheet
+            </p>
+            <h2 className="mt-1 text-2xl font-extrabold text-ink">
+              {pharmacyName}
+            </h2>
+          </div>
+          <Badge dot variant={cycleStatusTone(cycle.status)}>
+            {statusLabel(cycle.status)}
+          </Badge>
+        </div>
+
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <DosettePrintMeta label="Patient reference" value={patientReference} />
+          <DosettePrintMeta label="Cycle reference" value={cycle.reference} />
+          <DosettePrintMeta
+            label="Cycle dates"
+            value={`${formatDate(cycle.start_date)} - ${formatDate(cycle.end_date)}`}
+          />
+          <DosettePrintMeta label="Printed date" value={formatDateTime(printedAt)} />
+          <DosettePrintMeta
+            label="Prepared"
+            value={preparedCheckedLabel(cycle.prepared_by_email, cycle.prepared_at)}
+          />
+          <DosettePrintMeta
+            label="Checked"
+            value={preparedCheckedLabel(cycle.checked_by_email, cycle.checked_at)}
+          />
+          <DosettePrintMeta
+            label="Stock deducted"
+            value={cycle.stock_deducted ? "Yes" : "No"}
+          />
+          <DosettePrintMeta
+            label="Deducted at"
+            value={optionalDateTime(cycle.deducted_at)}
+          />
+        </dl>
+      </header>
+
+      <div className="mt-5 overflow-hidden rounded-xl border border-line">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="bg-surface-subtle">
+            <tr>
+              <th className="px-3 py-2 font-extrabold text-ink">Medication</th>
+              <th className="px-3 py-2 font-extrabold text-ink">Strength/Form</th>
+              <th className="px-3 py-2 font-extrabold text-ink">
+                Dosage instructions
+              </th>
+              <th className="px-3 py-2 text-center font-extrabold text-ink">
+                Morning
+              </th>
+              <th className="px-3 py-2 text-center font-extrabold text-ink">
+                Lunchtime
+              </th>
+              <th className="px-3 py-2 text-center font-extrabold text-ink">
+                Evening
+              </th>
+              <th className="px-3 py-2 text-center font-extrabold text-ink">
+                Bedtime
+              </th>
+              <th className="px-3 py-2 font-extrabold text-ink">Colour</th>
+              <th className="px-3 py-2 font-extrabold text-ink">Shape</th>
+              <th className="px-3 py-2 font-extrabold text-ink">Start date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {medicationLines.length === 0 ? (
+              <tr>
+                <td className="px-3 py-4 text-center text-muted" colSpan={10}>
+                  No active medication lines recorded for this sheet.
+                </td>
+              </tr>
+            ) : (
+              medicationLines.map((line) => (
+                <tr className="border-t border-line" key={line.id}>
+                  <td className="px-3 py-2 font-bold text-ink">
+                    {line.medication_name}
+                  </td>
+                  <td className="px-3 py-2 text-ink-soft">
+                    {strengthFormLabel(line)}
+                  </td>
+                  <td className="px-3 py-2 text-ink-soft">
+                    {line.dose_instructions.trim()
+                      ? line.dose_instructions
+                      : "Not recorded"}
+                  </td>
+                  <td className="tnum px-3 py-2 text-center font-bold">
+                    {line.quantity_morning}
+                  </td>
+                  <td className="tnum px-3 py-2 text-center font-bold">
+                    {line.quantity_lunchtime}
+                  </td>
+                  <td className="tnum px-3 py-2 text-center font-bold">
+                    {line.quantity_evening}
+                  </td>
+                  <td className="tnum px-3 py-2 text-center font-bold">
+                    {line.quantity_bedtime}
+                  </td>
+                  <td className="px-3 py-2 text-ink-soft">
+                    {safeText(line.colour)}
+                  </td>
+                  <td className="px-3 py-2 text-ink-soft">
+                    {safeText(line.shape)}
+                  </td>
+                  <td className="tnum px-3 py-2 text-ink-soft">
+                    {optionalDate(line.start_date)}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <footer className="mt-5 border-t border-line pt-3 text-xs font-semibold leading-relaxed text-ink-soft">
+        {PRINT_DISCLAIMER}
+      </footer>
+    </section>
+  );
+}
+
 function StockAvailabilityBadge({ inStock }: { inStock: boolean }) {
   return inStock ? (
     <Badge dot variant="success">
@@ -791,6 +1132,7 @@ function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
 }
 
 export function DosetteScreen() {
+  const { user } = useAuth();
   const { can } = usePermissions();
   const { success, error: toastError } = useToast();
   const canManage = can("blister.manage");
@@ -816,6 +1158,7 @@ export function DosetteScreen() {
     useState<PatientMedicationLine | null>(null);
   const [appearanceColour, setAppearanceColour] = useState("");
   const [appearanceShape, setAppearanceShape] = useState("");
+  const [isPrintModalOpen, setPrintModalOpen] = useState(false);
   const medicationsQuery = usePatientMedicationsQuery(parsedPatientId);
   const cyclesQuery = useDosetteCyclesQuery(parsedPatientId);
   const pickingListQuery = usePickingListQuery(parsedPatientId, selectedCycleId);
@@ -833,6 +1176,10 @@ export function DosetteScreen() {
     setAppearanceColour(line.colour ?? "");
     setAppearanceShape(line.shape ?? "");
   }
+
+  const closeAppearanceModal = useCallback(() => {
+    setAppearanceLine(null);
+  }, []);
 
   async function handleStatusChange(
     cycle: DosetteCycle,
@@ -900,8 +1247,26 @@ export function DosetteScreen() {
   }
 
   const cycleCount = cyclesQuery.data?.length ?? 0;
+  const cycles = cyclesQuery.data ?? [];
+  const medicationLines = medicationsQuery.data ?? [];
+  const selectedCycle =
+    cycles.find((cycle) => cycle.id === selectedCycleId) ?? null;
+  const printableCycle = selectedCycle ?? cycles[0] ?? null;
+  const printableMedicationLines = medicationLines.filter((line) => line.is_active);
+  const patientReference =
+    pickingListQuery.data?.patient_reference ?? `Patient #${parsedPatientId}`;
+  const pharmacyName =
+    user?.pharmacies.length === 1
+      ? user.pharmacies[0].name
+      : user?.pharmacies.length
+        ? user.pharmacies.map((pharmacy) => pharmacy.name).join(", ")
+        : "Assigned pharmacy";
   const activeLineCount =
-    medicationsQuery.data?.filter((line) => line.is_active).length ?? 0;
+    medicationLines.filter((line) => line.is_active).length ?? 0;
+
+  function handlePrintSheet() {
+    window.print();
+  }
 
   return (
     <div className="stagger space-y-5">
@@ -920,6 +1285,18 @@ export function DosetteScreen() {
         }
         title="Dosette / MDS"
         subtitle="Assemble the patient's compliance pack by day and time slot, then preview FEFO stock before deduction."
+        actions={
+          medicationsQuery.isSuccess && cyclesQuery.isSuccess ? (
+            <Button
+              disabled={!printableCycle}
+              leadingIcon={<Printer className="h-4 w-4" />}
+              onClick={() => setPrintModalOpen(true)}
+              variant="secondary"
+            >
+              Print Dosette sheet
+            </Button>
+          ) : null
+        }
         meta={
           medicationsQuery.isSuccess && cyclesQuery.isSuccess ? (
             <span className="inline-flex items-center gap-3">
@@ -989,27 +1366,21 @@ export function DosetteScreen() {
               />
             </PanelBody>
           ) : (
-            <TableScroll className="rounded-none border-0 shadow-none">
-              <Table>
-                <MedicationTableHeader
-                  includeAction={canManage || canMarkStatus}
-                  includeStatus
-                />
-                <TBody>
-                  {medicationsQuery.data.map((line) => (
-                    <MedicationRow
-                      canManage={canManage}
-                      canMarkStatus={canMarkStatus}
-                      key={line.id}
-                      line={line}
-                      onDiscontinue={setLineToDiscontinue}
-                      onEdit={openEditMedicationModal}
-                      onEditAppearance={openAppearanceModal}
-                    />
-                  ))}
-                </TBody>
-              </Table>
-            </TableScroll>
+            <PanelBody>
+              <div className="grid gap-4">
+                {medicationsQuery.data.map((line) => (
+                  <MedicationLineCard
+                    canManage={canManage}
+                    canMarkStatus={canMarkStatus}
+                    key={line.id}
+                    line={line}
+                    onDiscontinue={setLineToDiscontinue}
+                    onEdit={openEditMedicationModal}
+                    onEditAppearance={openAppearanceModal}
+                  />
+                ))}
+              </div>
+            </PanelBody>
           )}
         </Panel>
       ) : null}
@@ -1278,6 +1649,41 @@ export function DosetteScreen() {
         <StockPreviewSection stockPreview={stockPreviewQuery.data} />
       ) : null}
 
+      <Modal
+        description="Preview the A4 landscape sheet before printing."
+        isOpen={isPrintModalOpen && printableCycle !== null}
+        onClose={() => setPrintModalOpen(false)}
+        size="xl"
+        title="Print Dosette sheet"
+      >
+        {printableCycle ? (
+          <div className="dosette-print-shell space-y-5">
+            <div className="dosette-print-actions flex flex-wrap justify-end gap-3">
+              <Button
+                onClick={() => setPrintModalOpen(false)}
+                variant="secondary"
+              >
+                Close
+              </Button>
+              <Button
+                leadingIcon={<Printer className="h-4 w-4" />}
+                onClick={handlePrintSheet}
+                variant="primary"
+              >
+                Print sheet
+              </Button>
+            </div>
+            <DosettePrintSheet
+              cycle={printableCycle}
+              medicationLines={printableMedicationLines}
+              patientReference={patientReference}
+              pharmacyName={pharmacyName}
+              printedAt={new Date()}
+            />
+          </div>
+        ) : null}
+      </Modal>
+
       <PatientMedicationFormModal
         isOpen={isMedicationModalOpen}
         line={editingLine}
@@ -1451,7 +1857,7 @@ export function DosetteScreen() {
 
       <Modal
         isOpen={appearanceLine !== null}
-        onClose={() => setAppearanceLine(null)}
+        onClose={closeAppearanceModal}
         size="sm"
         title="Label appearance"
         description="Record the colour and shape printed on the pack label so staff can verify tablets by sight."
@@ -1480,7 +1886,7 @@ export function DosetteScreen() {
             </label>
           </div>
           <div className="flex justify-end gap-3 border-t border-line pt-5">
-            <Button onClick={() => setAppearanceLine(null)} variant="secondary">
+            <Button onClick={closeAppearanceModal} variant="secondary">
               Cancel
             </Button>
             <Button
@@ -1498,7 +1904,7 @@ export function DosetteScreen() {
                     },
                   });
                   success("Label appearance saved", appearanceLine.medication_name);
-                  setAppearanceLine(null);
+                  closeAppearanceModal();
                 } catch {
                   toastError("Could not save appearance", "Please try again.");
                 }

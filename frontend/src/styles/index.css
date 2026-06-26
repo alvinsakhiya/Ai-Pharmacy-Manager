@@ -223,3 +223,57 @@ html.contrast-high *:focus-visible {
   transform: translateY(0);
   outline: none;
 }
+
+@page {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .dosette-print-sheet,
+  .dosette-print-sheet * {
+    visibility: visible !important;
+  }
+
+  .dosette-print-actions {
+    display: none !important;
+  }
+
+  .dosette-print-sheet {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+    padding: 0 !important;
+  }
+
+  .dosette-print-sheet table {
+    border-collapse: collapse !important;
+    font-size: 12px !important;
+  }
+
+  .dosette-print-sheet th,
+  .dosette-print-sheet td {
+    border: 1px solid #6b7280 !important;
+    color: #111827 !important;
+    padding: 6px !important;
+  }
+
+  .dosette-print-sheet tr,
+  .dosette-print-sheet article,
+  .dosette-print-sheet section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
