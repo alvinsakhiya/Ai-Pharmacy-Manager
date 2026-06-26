@@ -116,10 +116,12 @@
      below, so motion calms itself automatically when the user asks for it.
      ---------------------------------------------------------------------- */
 
-  /* Per-route page entrance — applied once at the app shell so every screen
-     settles in with the same calm rise. Kept short so it never feels slow. */
+  /* Per-route page entrance — opacity only (deliberately NO transform). A
+     lingering transform on this wrapper would become the containing block for
+     fixed overlays (modals, command menu), clipping them to the content column.
+     Keeping it opacity-only lets those overlays stay anchored to the viewport. */
   .page-enter {
-    animation: fade-in-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: page-fade 0.24s ease-out both;
   }
 
   /* Semantic single-element entrance helpers. */
@@ -174,6 +176,16 @@
   .skeleton-shimmer::after {
     content: "";
     @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/60 to-transparent;
+  }
+}
+
+/* Opacity-only page entrance keyframe (no transform — see .page-enter note). */
+@keyframes page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

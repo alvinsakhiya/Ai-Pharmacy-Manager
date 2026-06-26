@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { CornerDownLeft, Search } from "lucide-react";
 
@@ -93,9 +94,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex animate-fade-in items-start justify-center bg-ink/40 px-4 pt-[12vh] backdrop-blur-[2px]"
+      className="fixed inset-0 z-[70] flex animate-fade-in items-start justify-center bg-ink/20 px-4 pt-[12vh]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onOpenChange(false);
@@ -105,7 +106,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       <div
         role="dialog"
         aria-label="Command menu"
-        className="w-full max-w-xl animate-scale-in overflow-hidden rounded-2xl border border-line bg-surface shadow-elev-3"
+        className="w-full max-w-xl animate-scale-in overflow-hidden rounded-2xl border border-line bg-surface shadow-elev-2"
         onKeyDown={handleKeyDown}
       >
         <div className="flex items-center gap-3 border-b border-line px-4">
@@ -138,9 +139,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     onMouseEnter={() => setActive(index)}
                     onClick={() => go(item.path)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-full px-3.5 py-2.5 text-left text-sm font-semibold transition-all duration-200 ease-soft active:scale-[0.99] focus-ring",
+                      "flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold transition-colors duration-150 ease-soft focus-ring",
                       isActive
-                        ? "bg-brand-soft text-brand-ink"
+                        ? "bg-brand-soft/60 text-brand-ink"
                         : "text-ink-soft hover:bg-surface-subtle",
                     )}
                   >
@@ -165,6 +166,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           )}
         </ul>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

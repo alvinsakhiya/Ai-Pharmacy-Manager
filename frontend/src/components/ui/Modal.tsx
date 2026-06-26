@@ -5,6 +5,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { X } from "lucide-react";
 
@@ -100,9 +101,9 @@ export function Modal({
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-ink/40 px-4 py-8 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-ink/30 px-4 py-6 backdrop-blur-[1px] sm:py-8"
       onMouseDown={handleBackdropClick}
     >
       <div
@@ -110,7 +111,7 @@ export function Modal({
         aria-describedby={description ? descId : undefined}
         aria-modal="true"
         className={cn(
-          "max-h-full w-full animate-scale-in overflow-y-auto rounded-2xl border border-line bg-surface shadow-elev-3 outline-none",
+          "max-h-full w-full animate-scale-in overflow-y-auto rounded-2xl border border-line bg-surface shadow-elev-2 outline-none",
           sizes[size],
         )}
         ref={dialogRef}
@@ -141,6 +142,7 @@ export function Modal({
         </div>
         <div className="p-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
