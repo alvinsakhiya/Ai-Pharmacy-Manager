@@ -29,9 +29,9 @@ import {
   listDosetteCycles,
   listPatientMedications,
   type DosetteCycle,
-  type PatientMedicationLine,
 } from "../dosette/dosetteApi";
 import { AddPatientNoteModal } from "./AddPatientNoteModal";
+import { MedicationHistoryItemsList } from "./MedicationHistoryItemsList";
 import { PatientFormModal } from "./PatientFormModal";
 import { PatientGpFormModal } from "./PatientGpFormModal";
 import {
@@ -503,22 +503,6 @@ function GpPage({
   );
 }
 
-const MEDICATION_TIME_SLOTS: Array<{
-  key: keyof Pick<
-    PatientMedicationLine,
-    | "quantity_morning"
-    | "quantity_lunchtime"
-    | "quantity_evening"
-    | "quantity_bedtime"
-  >;
-  label: string;
-}> = [
-  { key: "quantity_morning", label: "Morning" },
-  { key: "quantity_lunchtime", label: "Lunchtime" },
-  { key: "quantity_evening", label: "Evening" },
-  { key: "quantity_bedtime", label: "Bedtime" },
-];
-
 function formatLabel(value: string): string {
   return value
     .toLowerCase()
@@ -528,21 +512,8 @@ function formatLabel(value: string): string {
     .join(" ");
 }
 
-function optionalDate(value: string | null | undefined): string {
-  return value ? formatDate(value) : "Not recorded";
-}
-
 function optionalDateTime(value: string | null | undefined): string {
   return value ? formatDateTime(value) : "Not recorded";
-}
-
-function medicationDescriptor(line: PatientMedicationLine): string {
-  const parts = [
-    line.strength?.trim(),
-    line.form ? formatLabel(line.form) : "",
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(" - ") : "Strength/form not recorded";
 }
 
 function cycleStatusVariant(status: string): BadgeVariant {
@@ -559,81 +530,6 @@ function cycleStatusVariant(status: string): BadgeVariant {
     return "danger";
   }
   return "neutral";
-}
-
-function MedicationLineCard({ line }: { line: PatientMedicationLine }) {
-  return (
-    <article className="rounded-xl border border-line bg-surface p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="text-sm font-bold text-ink">{line.medication_name}</h4>
-          <p className="mt-1 text-xs font-medium text-muted">
-            {medicationDescriptor(line)}
-          </p>
-        </div>
-        <Badge dot variant={line.is_active ? "success" : "neutral"}>
-          {line.is_active ? "Active" : "Discontinued"}
-        </Badge>
-      </div>
-
-      <div className="mt-4 rounded-lg border border-line bg-surface-subtle p-3">
-        <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-          Dosage instructions
-        </p>
-        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
-          {fallback(line.dose_instructions)}
-        </p>
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-4">
-        {MEDICATION_TIME_SLOTS.map((slot) => (
-          <div
-            className="rounded-lg border border-line bg-surface-subtle px-3 py-2"
-            key={slot.key}
-          >
-            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-              {slot.label}
-            </p>
-            <p className="mt-1 text-lg font-extrabold text-ink tnum">
-              {line[slot.key]}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-        <DetailValue label="Start date" value={optionalDate(line.start_date)} />
-        <DetailValue label="Colour" value={fallback(line.colour)} />
-        <DetailValue label="Shape" value={fallback(line.shape)} />
-      </dl>
-      <p className="mt-4 border-t border-line pt-3 text-xs font-medium text-muted tnum">
-        Last updated {formatDateTime(line.updated_at)}
-      </p>
-    </article>
-  );
-}
-
-function MedicationLineGroup({
-  title,
-  lines,
-}: {
-  title: string;
-  lines: PatientMedicationLine[];
-}) {
-  if (lines.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className="space-y-3">
-      <h3 className="text-[13px] font-bold text-ink">{title}</h3>
-      <div className="grid gap-3">
-        {lines.map((line) => (
-          <MedicationLineCard key={line.id} line={line} />
-        ))}
-      </div>
-    </section>
-  );
 }
 
 function CycleHistoryCard({ cycle }: { cycle: DosetteCycle }) {
@@ -751,23 +647,10 @@ function MedicationHistoryPage({
             </section>
 
             <section className="space-y-4">
-              {medicationLines.length === 0 ? (
-                <EmptyState
-                  icon={<Pill className="h-6 w-6" />}
-                  title="No medication lines recorded."
-                />
-              ) : (
-                <>
-                  <MedicationLineGroup
-                    title="Current medication schedule"
-                    lines={activeMedicationLines}
-                  />
-                  <MedicationLineGroup
-                    title="Discontinued medication history"
-                    lines={discontinuedMedicationLines}
-                  />
-                </>
-              )}
+              <MedicationHistoryItemsList
+                cycles={cycles}
+                medicationLines={medicationLines}
+              />
             </section>
 
             <section className="space-y-3">

@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router-dom";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -223,17 +223,67 @@ describe("PatientDetailScreen", () => {
     expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Medication history" }));
 
-    expect(await screen.findByText("Current medication schedule")).toBeInTheDocument();
-    expect(screen.getByText("Amlodipine")).toBeInTheDocument();
-    expect(screen.getByText("5 mg - Tablet")).toBeInTheDocument();
-    expect(screen.getByText("Take one twice daily")).toBeInTheDocument();
-    expect(screen.getAllByText("Morning").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Bedtime").length).toBeGreaterThan(0);
-    expect(screen.getByText("Blue")).toBeInTheDocument();
-    expect(screen.getByText("Round")).toBeInTheDocument();
-    expect(screen.getByText("Discontinued medication history")).toBeInTheDocument();
-    expect(screen.getByText("Metformin")).toBeInTheDocument();
-    expect(screen.getByText("Discontinued")).toBeInTheDocument();
+    expect(await screen.findByText("Medication Items")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Dispensing and Dosette history shown from pharmacy records. Human review required.",
+      ),
+    ).toBeInTheDocument();
+    for (const header of [
+      "Description",
+      "Price",
+      "#",
+      "Last Dispensed",
+      "Qty Prescribed",
+      "Dose",
+    ]) {
+      expect(screen.getByText(header)).toBeInTheDocument();
+    }
+
+    const medicationItems = screen.getByRole("region", {
+      name: "Medication Items",
+    });
+    const listbox = within(medicationItems).getByRole("listbox", {
+      name: "Medication Items",
+    });
+    const amlodipine = within(listbox).getByRole("option", {
+      name: /Amlodipine/,
+    });
+    const metformin = within(listbox).getByRole("option", {
+      name: /Metformin/,
+    });
+
+    expect(amlodipine).toHaveAttribute("aria-selected", "true");
+    expect(within(amlodipine).getByText("5 mg - Tablet")).toBeInTheDocument();
+    expect(
+      within(amlodipine).getByText(
+        "Morning 1 · Lunchtime 0 · Evening 0 · Bedtime 1 — Take one twice daily",
+      ),
+    ).toBeInTheDocument();
+    expect(within(amlodipine).getByText("2 daily")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("M1 L0 E0 B1")).toBeInTheDocument();
+    expect(within(amlodipine).getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(within(amlodipine).getByText("25 Jun 2026")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Latest cycle MDS-2026-W26 · Prepared"))
+      .toBeInTheDocument();
+    expect(within(metformin).getByText("Discontinued")).toBeInTheDocument();
+
+    await user.click(metformin);
+    expect(amlodipine).toHaveAttribute("aria-selected", "false");
+    expect(metformin).toHaveAttribute("aria-selected", "true");
+
+    for (const forbidden of [
+      "01 Jan 1980",
+      "SM1 1AA",
+      "020 0000 0001",
+      "1 Demo Street, Sutton",
+      "NHS",
+      "NCRS",
+      "View patient NCRS",
+    ]) {
+      expect(within(medicationItems).queryByText(forbidden)).toBeNull();
+    }
+
     expect(screen.getByText("MDS / Dosette cycle history")).toBeInTheDocument();
     expect(screen.getByText("MDS-2026-W26")).toBeInTheDocument();
     expect(screen.getByText("Prepared")).toBeInTheDocument();
@@ -241,6 +291,72 @@ describe("PatientDetailScreen", () => {
     expect(screen.getByText("checker@example.com")).toBeInTheDocument();
     expect(screen.getByText(/25 Jun 2026.*09:30/)).toBeInTheDocument();
     expect(screen.getByText(/25 Jun 2026.*10:15/)).toBeInTheDocument();
+  });
+
+  it("renders safe medication history fallbacks", async () => {
+    const user = userEvent.setup();
+    listPatientMedicationsMock.mockResolvedValue([
+      makeMedicationLine({
+        dose_instructions: "",
+        quantity_morning: 0,
+        quantity_lunchtime: 0,
+        quantity_evening: 0,
+        quantity_bedtime: 0,
+        strength: "",
+        form: "",
+      }),
+    ]);
+    listDosetteCyclesMock.mockResolvedValue([
+      makeCycle({
+        id: 41,
+        reference: "DRAFT-CYCLE",
+        display_label: "SUT-P1 · 4-week supply · 01 Jul 2026 - 28 Jul 2026",
+        status: "DRAFT",
+        stock_deducted: false,
+        deducted_at: null,
+        prepared_by_email: null,
+        prepared_at: null,
+        checked_by_email: null,
+        checked_at: null,
+        start_date: "2026-07-01",
+        end_date: "2026-07-28",
+      }),
+    ]);
+
+    renderDetail("/patients/20", patientAuth({ "blister.view": true }));
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Medication history" }));
+
+    const medicationItems = await screen.findByRole("region", {
+      name: "Medication Items",
+    });
+    expect(within(medicationItems).getByText("Strength/form not recorded"))
+      .toBeInTheDocument();
+    expect(
+      within(medicationItems).getByText(
+        "Morning 0 · Lunchtime 0 · Evening 0 · Bedtime 0 — Dosage instructions not recorded.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(medicationItems).getByText("No slot dose")).toBeInTheDocument();
+    expect(within(medicationItems).getByText("Not recorded")).toBeInTheDocument();
+    expect(within(medicationItems).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    expect(within(medicationItems).getByText("Latest cycle DRAFT-CYCLE · Draft"))
+      .toBeInTheDocument();
+    expect(within(medicationItems).queryByText("28 Jul 2026")).toBeNull();
+  });
+
+  it("renders medication history empty state", async () => {
+    const user = userEvent.setup();
+
+    renderDetail("/patients/20", patientAuth({ "blister.view": true }));
+
+    expect(await screen.findByText("Alice Sutton")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Medication history" }));
+
+    expect(
+      await screen.findByText("No medication history recorded yet."),
+    ).toBeInTheDocument();
   });
 
   it("renders note history without write controls for read-only users", async () => {
