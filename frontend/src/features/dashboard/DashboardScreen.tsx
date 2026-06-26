@@ -9,10 +9,13 @@ import {
   ArrowUpRight,
   Bell,
   CalendarClock,
+  ClipboardCheck,
   Clock,
+  ListChecks,
   PackageCheck,
   PoundSterling,
   ScrollText,
+  ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
 
@@ -20,7 +23,17 @@ import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
 import { scopeLabel } from "../../lib/scope";
 import { cn } from "../../lib/cn";
-import { getAlerts } from "../notifications/notificationsApi";
+import {
+  getAlerts,
+  getWorkQueue,
+  type WorkQueueItem,
+  type WorkQueueSummary,
+} from "../notifications/notificationsApi";
+import {
+  formatWorkQueueDate,
+  workQueueActionLabel,
+  workQueueStatusLabel,
+} from "../notifications/workQueueDisplay";
 import { getReportPreview } from "../reports/reportsApi";
 import type {
   ExpiryReport,
@@ -28,6 +41,7 @@ import type {
   StockValuationReport,
 } from "../reports/reportsApi";
 import { listAuditEvents } from "../audit/auditApi";
+import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Skeleton } from "../../components/ui/Skeleton";
 
@@ -40,6 +54,30 @@ const TONE_CHIP: Record<Tone, string> = {
   info: "bg-info-soft text-info-ink",
   neutral: "bg-surface-sunken text-ink-soft",
 };
+
+const WORK_QUEUE_SUMMARY: Array<{
+  key: Exclude<keyof WorkQueueSummary, "total">;
+  label: string;
+  icon: ReactNode;
+}> = [
+  { key: "urgent", label: "Urgent", icon: <TriangleAlert className="h-3.5 w-3.5" /> },
+  { key: "due_soon", label: "Due soon", icon: <Clock className="h-3.5 w-3.5" /> },
+  {
+    key: "waiting_check",
+    label: "Waiting check",
+    icon: <ShieldCheck className="h-3.5 w-3.5" />,
+  },
+  {
+    key: "stock_action",
+    label: "Stock action",
+    icon: <PackageCheck className="h-3.5 w-3.5" />,
+  },
+  {
+    key: "reviews",
+    label: "Reviews",
+    icon: <ClipboardCheck className="h-3.5 w-3.5" />,
+  },
+];
 
 function formatGBP(value: string | number | null | undefined): string {
   const n = typeof value === "string" ? Number(value) : (value ?? 0);
@@ -131,8 +169,10 @@ export function DashboardScreen() {
 
   const canStock = can("stock.view");
   const canBlister = can("blister.view");
+  const canReview = can("review.view");
   const canAudit = can("audit.view");
   const canAlerts = canStock || canBlister;
+  const canWorkQueue = canStock || canBlister || canReview;
 
   const alertsQuery = useQuery({
     queryKey: ["dashboard", "alerts"],
@@ -161,6 +201,11 @@ export function DashboardScreen() {
     queryFn: () => listAuditEvents({ page: 1 }),
     enabled: canAudit,
   });
+  const workQueueQuery = useQuery({
+    queryKey: ["notifications", "work-queue"],
+    queryFn: getWorkQueue,
+    enabled: canWorkQueue,
+  });
 
   if (!user) {
     return null;
@@ -188,8 +233,8 @@ export function DashboardScreen() {
   const expiryWindow = expiry?.filters.window_days ?? 30;
   const mdsWindow = mdsQuery.data?.filters.window_days ?? 30;
 
-  const hasMain = canBlister || canStock;
-  const hasRail = canBlister || canStock || canAlerts || canAudit;
+  const hasMain = canWorkQueue || canBlister || canStock;
+  const hasRail = canWorkQueue || canBlister || canStock || canAlerts || canAudit;
 
   return (
     <div className="space-y-5">
@@ -214,6 +259,16 @@ export function DashboardScreen() {
                 leadingIcon={<Bell className="h-4 w-4" />}
               >
                 View alerts
+              </Button>
+            </Link>
+          ) : null}
+          {canWorkQueue ? (
+            <Link to="/work-queue">
+              <Button
+                variant="secondary"
+                leadingIcon={<ListChecks className="h-4 w-4" />}
+              >
+                Open Work Queue
               </Button>
             </Link>
           ) : null}
@@ -323,6 +378,15 @@ export function DashboardScreen() {
       <section className="grid gap-5 lg:grid-cols-3">
         {hasMain ? (
           <div className="stagger space-y-5 lg:col-span-2">
+            {canWorkQueue ? (
+              <NeedsAttentionCard
+                error={workQueueQuery.isError}
+                generatedAt={workQueueQuery.data?.generated_at}
+                items={workQueueQuery.data?.items ?? []}
+                loading={workQueueQuery.isLoading}
+                summary={workQueueQuery.data?.summary}
+              />
+            ) : null}
             {canBlister ? (
               <WorkloadCard
                 loading={mdsQuery.isLoading}
@@ -443,6 +507,154 @@ function Kpi({
         </div>
       </div>
     </article>
+  );
+}
+
+/* ---------------------- Needs attention card ----------------------- */
+
+function NeedsAttentionCard({
+  loading,
+  error,
+  summary,
+  items,
+  generatedAt,
+}: {
+  loading: boolean;
+  error: boolean;
+  summary: WorkQueueSummary | undefined;
+  items: WorkQueueItem[];
+  generatedAt: string | undefined;
+}) {
+  const topTasks = items.slice(0, 5);
+  const updatedLabel = generatedAt
+    ? `Updated ${relativeTime(generatedAt)} from current queue`
+    : "Updated from current queue";
+
+  return (
+    <section
+      aria-label="Needs attention"
+      className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2"
+    >
+      <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+            >
+              <ListChecks className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-[19px] font-extrabold tracking-[-0.01em] text-ink">
+                Needs attention
+              </h2>
+              <p className="mt-0.5 text-[13px] font-medium text-muted">
+                {loading ? "Loading current queue..." : updatedLabel}
+              </p>
+            </div>
+          </div>
+        </div>
+        <Link to="/work-queue">
+          <Button
+            variant="secondary"
+            trailingIcon={<ArrowRight className="h-4 w-4" />}
+          >
+            Open Work Queue
+          </Button>
+        </Link>
+      </div>
+
+      {error ? (
+        <div className="px-5 py-5">
+          <p className="rounded-xl bg-danger-soft px-4 py-3 text-sm font-medium text-danger-ink">
+            Couldn&rsquo;t load the current queue.
+          </p>
+        </div>
+      ) : loading ? (
+        <div className="space-y-4 px-5 py-5">
+          <div className="grid gap-3 sm:grid-cols-5">
+            {WORK_QUEUE_SUMMARY.map((item) => (
+              <Skeleton className="h-16" key={item.key} />
+            ))}
+          </div>
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
+        </div>
+      ) : !summary || summary.total === 0 ? (
+        <div className="px-5 py-5">
+          <div className="rounded-xl bg-success-soft px-4 py-6 text-center">
+            <p className="text-sm font-bold text-success-ink">
+              Nothing needs attention right now.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="px-5 py-5">
+          <div className="grid gap-3 sm:grid-cols-5">
+            {WORK_QUEUE_SUMMARY.map((item) => (
+              <div
+                className="rounded-xl border border-line bg-surface-subtle p-3"
+                key={item.key}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span aria-hidden="true" className="text-muted">
+                    {item.icon}
+                  </span>
+                  <span className="tnum text-xl font-extrabold text-ink">
+                    {summary[item.key]}
+                  </span>
+                </div>
+                <p className="mt-2 truncate text-xs font-semibold text-muted">
+                  {item.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 divide-y divide-line overflow-hidden rounded-xl border border-line">
+            {topTasks.map((item) => (
+              <div
+                className="grid gap-3 bg-surface px-4 py-3 transition-colors hover:bg-surface-subtle lg:grid-cols-[1fr_auto]"
+                key={item.id}
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="min-w-0 truncate text-sm font-bold text-ink">
+                      {item.title}
+                    </h3>
+                    <Badge variant={item.priority === "urgent" ? "danger" : "neutral"} dot>
+                      {workQueueStatusLabel(item.status)}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-ink-soft">
+                    {item.reason}
+                  </p>
+                  <p className="mt-2 truncate text-xs font-semibold text-muted">
+                    {[
+                      item.patient_reference
+                        ? `Patient ID ${item.patient_reference}`
+                        : null,
+                      item.pharmacy_name || `Pharmacy ${item.pharmacy_id}`,
+                      item.due_date ? `Due ${formatWorkQueueDate(item.due_date)}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                <Link
+                  to={item.action_href}
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 text-[13px] font-bold text-ink-soft shadow-elev-1 transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-surface-subtle hover:text-ink focus-ring"
+                >
+                  {workQueueActionLabel(item)}
+                  <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

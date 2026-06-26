@@ -1,14 +1,36 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  AuthContext,
-  type AuthContextValue,
-} from "../../auth/AuthContext";
+import { makeAuthContext, renderWithProviders } from "../../test/providers";
 import type { MePayload } from "../../types/auth";
+import * as notificationsApi from "../../features/notifications/notificationsApi";
 import { Sidebar } from "./Sidebar";
+
+vi.mock("../../features/notifications/notificationsApi", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../features/notifications/notificationsApi")
+  >();
+  return {
+    ...actual,
+    getWorkQueue: vi.fn(),
+  };
+});
+
+const getWorkQueueMock = vi.mocked(notificationsApi.getWorkQueue);
+
+const emptyWorkQueue = {
+  generated_at: "2026-06-26T09:30:00Z",
+  summary: {
+    total: 0,
+    urgent: 0,
+    due_soon: 0,
+    waiting_check: 0,
+    stock_action: 0,
+    reviews: 0,
+  },
+  items: [],
+};
 
 function makeUser(overrides: Partial<MePayload> = {}): MePayload {
   return {
@@ -30,27 +52,22 @@ function makeUser(overrides: Partial<MePayload> = {}): MePayload {
 
 function renderSidebar(user: MePayload) {
   const logout = vi.fn().mockResolvedValue(undefined);
-  const auth: AuthContextValue = {
+  const auth = makeAuthContext({
     user,
-    loading: false,
-    login: vi.fn(),
     logout,
-    changePassword: vi.fn(),
-    refreshMe: vi.fn(),
-  };
+  });
 
-  render(
-    <AuthContext.Provider value={auth}>
-      <MemoryRouter>
-        <Sidebar />
-      </MemoryRouter>
-    </AuthContext.Provider>,
-  );
+  renderWithProviders(<Sidebar />, { auth });
 
   return { logout };
 }
 
 describe("Sidebar", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    getWorkQueueMock.mockResolvedValue(emptyWorkQueue);
+  });
+
   it("admin/global user sees Dashboard, Users, Organisation, and Audit Log", () => {
     renderSidebar(
       makeUser({
@@ -188,7 +205,7 @@ describe("Sidebar", () => {
         }),
       );
 
-      expect(screen.getByRole("link", { name: "Work Queue" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: /Work Queue/ })).toHaveAttribute(
         "href",
         "/work-queue",
       );
@@ -198,7 +215,41 @@ describe("Sidebar", () => {
   it("user without work queue permissions does not see Work Queue", () => {
     renderSidebar(makeUser());
 
-    expect(screen.queryByRole("link", { name: "Work Queue" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Work Queue/ })).toBeNull();
+    expect(getWorkQueueMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a Work Queue badge with the visible task count", async () => {
+    getWorkQueueMock.mockResolvedValueOnce({
+      ...emptyWorkQueue,
+      summary: {
+        total: 7,
+        urgent: 1,
+        due_soon: 2,
+        waiting_check: 1,
+        stock_action: 2,
+        reviews: 1,
+      },
+    });
+    renderSidebar(
+      makeUser({
+        role: "PHARMACIST",
+        scope: {
+          is_global: false,
+          group_ids: [],
+          pharmacy_ids: [1],
+        },
+        permissions: {
+          "blister.view": true,
+        },
+      }),
+    );
+
+    expect(await screen.findByLabelText("7 tasks")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Work Queue/ })).toHaveAttribute(
+      "href",
+      "/work-queue",
+    );
   });
 
   it.each([

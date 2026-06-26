@@ -6,6 +6,7 @@ import { usePermissions } from "../../auth/usePermissions";
 import { FUTURE_ITEMS, NAV_ITEMS, type NavItem } from "../../app/navConfig";
 import { scopeLabel } from "../../lib/scope";
 import { cn } from "../../lib/cn";
+import { useWorkQueueQuery } from "../../features/notifications/useNotifications";
 import { Logo } from "../ui/Logo";
 
 interface SidebarProps {
@@ -26,9 +27,11 @@ function initials(name: string): string {
 function NavItemLink({
   item,
   onNavigate,
+  badgeCount,
 }: {
   item: NavItem;
   onNavigate?: () => void;
+  badgeCount?: number;
 }) {
   const Icon = item.icon;
   return (
@@ -58,7 +61,20 @@ function NavItemLink({
                   : "text-sidebar-muted group-hover:text-white",
               )}
             />
-            {item.label}
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            {badgeCount !== undefined && badgeCount > 0 ? (
+              <span
+                aria-label={`${badgeCount} tasks`}
+                className={cn(
+                  "tnum ml-auto inline-flex min-w-6 shrink-0 items-center justify-center rounded-full px-2 py-0.5 text-xs font-extrabold",
+                  isActive
+                    ? "bg-white/80 text-lilac-ink"
+                    : "bg-lilac text-lilac-ink",
+                )}
+              >
+                {badgeCount > 99 ? "99+" : badgeCount}
+              </span>
+            ) : null}
           </>
         )}
       </NavLink>
@@ -70,6 +86,10 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const { can } = usePermissions();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const canOpenWorkQueue =
+    can("stock.view") || can("blister.view") || can("review.view");
+  const workQueueQuery = useWorkQueueQuery({ enabled: canOpenWorkQueue });
+  const workQueueCount = workQueueQuery.data?.summary.total ?? 0;
 
   const visibleItems = NAV_ITEMS.filter(
     (item) =>
@@ -109,6 +129,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         <ul className="space-y-1">
           {mainItems.map((item) => (
             <NavItemLink
+              badgeCount={
+                item.path === "/work-queue" ? workQueueCount : undefined
+              }
               item={item}
               key={item.path}
               onNavigate={onNavigate}
@@ -122,6 +145,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             <ul className="space-y-1">
               {utilityItems.map((item) => (
                 <NavItemLink
+                  badgeCount={
+                    item.path === "/work-queue" ? workQueueCount : undefined
+                  }
                   item={item}
                   key={item.path}
                   onNavigate={onNavigate}

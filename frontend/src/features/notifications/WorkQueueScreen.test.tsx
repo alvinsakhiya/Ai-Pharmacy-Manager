@@ -192,9 +192,9 @@ describe("WorkQueueScreen", () => {
     expect(screen.getByText("MDS-WQ-DUE-SOON")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Open Dosette/ })[0])
       .toHaveAttribute("href", "/patients/4/dosette");
-    expect(screen.getByRole("link", { name: /Open reviews/ }))
+    expect(screen.getByRole("link", { name: /Open Pharmacist Reviews/ }))
       .toHaveAttribute("href", "/reviews");
-    expect(screen.getByRole("link", { name: /Open inventory/ }))
+    expect(screen.getByRole("link", { name: /Open Inventory/ }))
       .toHaveAttribute("href", "/inventory/7");
     for (const forbidden of [
       "Patient One",
@@ -259,6 +259,25 @@ describe("WorkQueueScreen", () => {
       (await screen.findAllByText("Prepare Dosette cycle")).length,
     ).toBeGreaterThan(0);
     expect(getWorkQueueMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", {
+        name: /prepare|check|deduct|complete|resolve|clear|dismiss/i,
+      }),
+    ).toBeNull();
+  });
+
+  it("refreshes the queue without rendering task mutation controls", async () => {
+    const user = userEvent.setup();
+    renderWorkQueue();
+
+    expect(
+      (await screen.findAllByText("Prepare Dosette cycle")).length,
+    ).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() => {
+      expect(getWorkQueueMock).toHaveBeenCalledTimes(2);
+    });
     expect(
       screen.queryByRole("button", {
         name: /prepare|check|deduct|complete|resolve|clear|dismiss/i,

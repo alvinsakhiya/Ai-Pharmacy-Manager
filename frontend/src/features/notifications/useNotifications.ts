@@ -14,10 +14,11 @@ export function useAlertsQuery() {
   });
 }
 
-export function useWorkQueueQuery() {
+export function useWorkQueueQuery({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["notifications", "work-queue"],
     queryFn: getWorkQueue,
+    enabled,
   });
 }
 

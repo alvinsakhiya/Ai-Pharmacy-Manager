@@ -9,6 +9,7 @@ import {
   Filter,
   ListChecks,
   PackageCheck,
+  RefreshCw,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -30,6 +31,14 @@ import type {
   WorkQueueSummary,
 } from "./notificationsApi";
 import { useWorkQueueQuery } from "./useNotifications";
+import {
+  formatWorkQueueDate,
+  formatWorkQueueDateTime,
+  workQueueActionLabel,
+  workQueuePriorityLabel,
+  workQueueStatusLabel,
+  workQueueTypeLabel,
+} from "./workQueueDisplay";
 
 type FilterValue = "all";
 
@@ -38,6 +47,7 @@ interface GroupConfig {
   title: string;
   subtitle: string;
   icon: LucideIcon;
+  accent: string;
 }
 
 const GROUPS: GroupConfig[] = [
@@ -46,30 +56,35 @@ const GROUPS: GroupConfig[] = [
     title: "Urgent",
     subtitle: "Overdue or active items that need attention.",
     icon: AlertTriangle,
+    accent: "border-danger-border bg-danger-soft text-danger-ink",
   },
   {
     key: "due_soon",
     title: "Due soon",
     subtitle: "Items inside a suggested preparation window.",
     icon: Clock3,
+    accent: "border-warning-border bg-warning-soft text-warning-ink",
   },
   {
     key: "waiting_check",
     title: "Waiting for check",
     subtitle: "Prepared cycles awaiting a second human review.",
     icon: ShieldCheck,
+    accent: "border-info-border bg-info-soft text-info-ink",
   },
   {
     key: "stock_action",
     title: "Stock/action required",
     subtitle: "Stock items and checked cycles needing follow-up.",
     icon: PackageCheck,
+    accent: "border-line-strong bg-surface-sunken text-ink-soft",
   },
   {
     key: "reviews",
     title: "Reviews",
     subtitle: "Pending pharmacist review records.",
     icon: ClipboardCheck,
+    accent: "border-lilac-soft bg-lilac-soft text-brand",
   },
 ];
 
@@ -93,75 +108,18 @@ const PRIORITY_BADGES: Record<WorkQueuePriority, BadgeVariant> = {
   low: "neutral",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  OVERDUE: "Overdue",
-  NEEDS_ATTENTION: "Needs attention",
-  DUE_SOON: "Due soon",
-  WAITING_CHECK: "Waiting for check",
-  STOCK_ACTION: "Stock/action required",
-  PENDING: "Pending",
-  CRITICAL: "Needs attention",
-  WARNING: "Needs attention",
-  INFO: "For review",
-};
-
-function parseDateOnly(value: string): Date {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "Not set";
-  }
-
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(parseDateOnly(value));
-}
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function titleCase(value: string): string {
-  return value
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
-}
-
-function humanize(value: string): string {
-  return titleCase(value.replace(/_/g, " ").trim());
-}
-
-function priorityLabel(priority: WorkQueuePriority): string {
-  return humanize(priority);
-}
-
-function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? humanize(status);
-}
-
 function cycleRange(item: WorkQueueItem): string | null {
   if (!item.cycle_start_date && !item.cycle_end_date) {
     return null;
   }
-  return `${formatDate(item.cycle_start_date)} - ${formatDate(item.cycle_end_date)}`;
+  return `${formatWorkQueueDate(item.cycle_start_date)} - ${formatWorkQueueDate(
+    item.cycle_end_date,
+  )}`;
 }
 
 function uniqueTypes(items: WorkQueueItem[]): string[] {
   return Array.from(new Set(items.map((item) => item.type))).sort((a, b) =>
-    humanize(a).localeCompare(humanize(b)),
+    workQueueTypeLabel(a).localeCompare(workQueueTypeLabel(b)),
   );
 }
 
@@ -206,10 +164,10 @@ function WorkQueueCard({ item }: { item: WorkQueueItem }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={PRIORITY_BADGES[item.priority]} dot>
-              {priorityLabel(item.priority)}
+              {workQueuePriorityLabel(item.priority)}
             </Badge>
-            <Badge variant="neutral">{statusLabel(item.status)}</Badge>
-            <Badge variant="info">{humanize(item.type)}</Badge>
+            <Badge variant="neutral">{workQueueStatusLabel(item.status)}</Badge>
+            <Badge variant="info">{workQueueTypeLabel(item.type)}</Badge>
           </div>
           <h2 className="mt-3 text-base font-bold text-ink">{item.title}</h2>
           <p className="mt-2 text-sm leading-relaxed text-ink-soft">
@@ -223,11 +181,14 @@ function WorkQueueCard({ item }: { item: WorkQueueItem }) {
             />
             <Detail
               label="Due date"
-              value={item.due_date ? formatDate(item.due_date) : null}
+              value={item.due_date ? formatWorkQueueDate(item.due_date) : null}
             />
             <Detail label="Cycle range" value={range} />
             <Detail label="Cycle ref" value={item.cycle_reference} />
           </dl>
+          <p className="mt-4 inline-flex rounded-full bg-surface-sunken px-3 py-1 text-xs font-semibold text-muted">
+            Review before action
+          </p>
         </div>
         <Link
           to={item.action_href}
@@ -240,7 +201,7 @@ function WorkQueueCard({ item }: { item: WorkQueueItem }) {
             "focus-visible:ring-offset-canvas",
           )}
         >
-          {item.action_label}
+          {workQueueActionLabel(item)}
           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </div>
@@ -266,11 +227,14 @@ function GroupSection({
       <div className="flex items-center gap-3">
         <span
           aria-hidden="true"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line-strong bg-surface text-ink-soft shadow-elev-1"
+          className={cn(
+            "grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-elev-1",
+            group.accent,
+          )}
         >
           <Icon className="h-5 w-5" />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2
             id={`work-queue-${group.key}`}
             className="text-lg font-extrabold text-ink"
@@ -279,6 +243,9 @@ function GroupSection({
           </h2>
           <p className="mt-1 text-sm text-muted">{group.subtitle}</p>
         </div>
+        <span className="tnum rounded-full border border-line bg-surface px-3 py-1 text-sm font-bold text-ink-soft shadow-elev-1">
+          {items.length}
+        </span>
       </div>
       <div className="space-y-3">
         {items.map((item) => (
@@ -348,8 +315,18 @@ export function WorkQueueScreen() {
         subtitle="MDS preparation, checks, reviews, and stock items that need attention."
         meta={
           workQueueQuery.data
-            ? `Generated ${formatDateTime(workQueueQuery.data.generated_at)}`
+            ? `Generated ${formatWorkQueueDateTime(workQueueQuery.data.generated_at)}`
             : undefined
+        }
+        actions={
+          <Button
+            variant="secondary"
+            leadingIcon={<RefreshCw className="h-4 w-4" />}
+            disabled={workQueueQuery.isFetching}
+            onClick={() => void workQueueQuery.refetch()}
+          >
+            Refresh
+          </Button>
         }
       />
 
@@ -415,7 +392,7 @@ export function WorkQueueScreen() {
                       <option value="all">All priorities</option>
                       {priorityOptions.map((priority) => (
                         <option value={priority} key={priority}>
-                          {priorityLabel(priority)}
+                          {workQueuePriorityLabel(priority)}
                         </option>
                       ))}
                     </select>
@@ -430,7 +407,7 @@ export function WorkQueueScreen() {
                       <option value="all">All task types</option>
                       {typeOptions.map((type) => (
                         <option value={type} key={type}>
-                          {humanize(type)}
+                          {workQueueTypeLabel(type)}
                         </option>
                       ))}
                     </select>
@@ -465,7 +442,8 @@ export function WorkQueueScreen() {
           ) : filteredItems.length === 0 ? (
             <EmptyState
               icon={<ListChecks className="h-5 w-5" aria-hidden="true" />}
-              title="Nothing matches the current filters."
+              title="No tasks match these filters."
+              description="Adjust the filters or refresh the queue."
             />
           ) : (
             <div className="space-y-8">
