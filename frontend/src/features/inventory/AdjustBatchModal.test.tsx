@@ -72,9 +72,24 @@ describe("AdjustBatchModal", () => {
       <AdjustBatchModal batch={makeBatch()} isOpen onClose={vi.fn()} />,
     );
 
-    await user.type(screen.getByLabelText("Delta"), "-2");
-    await user.type(screen.getByLabelText("Reason"), "Damaged stock");
-    await user.click(screen.getByRole("button", { name: "Adjust batch" }));
+    expect(
+      screen.getByRole("dialog", { name: "Stock adjustment — LOT-100" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Enter a positive number to add stock, or a negative number to remove it.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Optional note")).toBeInTheDocument();
+    await user.type(
+      screen.getByLabelText("Increase / decrease quantity"),
+      "-2",
+    );
+    await user.type(
+      screen.getByLabelText("Why are you adjusting?"),
+      "Damaged stock",
+    );
+    await user.click(screen.getByRole("button", { name: "Save adjustment" }));
 
     await waitFor(() => {
       expect(adjustBatchMock).toHaveBeenCalledWith(30, {
@@ -91,9 +106,15 @@ describe("AdjustBatchModal", () => {
       <AdjustBatchModal batch={makeBatch()} isOpen onClose={vi.fn()} />,
     );
 
-    await user.type(screen.getByLabelText("Delta"), "0");
-    await user.type(screen.getByLabelText("Reason"), "Damaged stock");
-    await user.click(screen.getByRole("button", { name: "Adjust batch" }));
+    await user.type(
+      screen.getByLabelText("Increase / decrease quantity"),
+      "0",
+    );
+    await user.type(
+      screen.getByLabelText("Why are you adjusting?"),
+      "Damaged stock",
+    );
+    await user.click(screen.getByRole("button", { name: "Save adjustment" }));
 
     expect(screen.getByText("Delta cannot be zero.")).toBeInTheDocument();
     expect(adjustBatchMock).not.toHaveBeenCalled();
@@ -105,8 +126,11 @@ describe("AdjustBatchModal", () => {
       <AdjustBatchModal batch={makeBatch()} isOpen onClose={vi.fn()} />,
     );
 
-    await user.type(screen.getByLabelText("Delta"), "-2");
-    await user.click(screen.getByRole("button", { name: "Adjust batch" }));
+    await user.type(
+      screen.getByLabelText("Increase / decrease quantity"),
+      "-2",
+    );
+    await user.click(screen.getByRole("button", { name: "Save adjustment" }));
 
     expect(screen.getByText("Reason is required.")).toBeInTheDocument();
     expect(adjustBatchMock).not.toHaveBeenCalled();
@@ -123,9 +147,15 @@ describe("AdjustBatchModal", () => {
       <AdjustBatchModal batch={makeBatch()} isOpen onClose={vi.fn()} />,
     );
 
-    await user.type(screen.getByLabelText("Delta"), "-99");
-    await user.type(screen.getByLabelText("Reason"), "Damaged stock");
-    await user.click(screen.getByRole("button", { name: "Adjust batch" }));
+    await user.type(
+      screen.getByLabelText("Increase / decrease quantity"),
+      "-99",
+    );
+    await user.type(
+      screen.getByLabelText("Why are you adjusting?"),
+      "Damaged stock",
+    );
+    await user.click(screen.getByRole("button", { name: "Save adjustment" }));
 
     expect(
       await screen.findByText("Adjustment would result in negative stock."),
@@ -143,9 +173,15 @@ describe("AdjustBatchModal", () => {
       <AdjustBatchModal batch={makeBatch()} isOpen onClose={vi.fn()} />,
     );
 
-    await user.type(screen.getByLabelText("Delta"), "-2");
-    await user.type(screen.getByLabelText("Reason"), "Damaged stock");
-    await user.click(screen.getByRole("button", { name: "Adjust batch" }));
+    await user.type(
+      screen.getByLabelText("Increase / decrease quantity"),
+      "-2",
+    );
+    await user.type(
+      screen.getByLabelText("Why are you adjusting?"),
+      "Damaged stock",
+    );
+    await user.click(screen.getByRole("button", { name: "Save adjustment" }));
 
     expect(
       await screen.findByText("Cannot modify an inactive batch."),

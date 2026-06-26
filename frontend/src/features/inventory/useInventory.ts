@@ -15,11 +15,23 @@ import {
   type TransferBatchBody,
 } from "./inventoryApi";
 
-export function useStockItemsQuery(pharmacyId?: number) {
+export function useStockItemsQuery(pharmacyId?: number, search = "") {
+  const normalizedSearch = search.trim();
+
   return useQuery({
-    queryKey: ["stock-items", "list", pharmacyId ?? null],
-    queryFn: () =>
-      pharmacyId ? listStockItems({ pharmacy: pharmacyId }) : listStockItems(),
+    queryKey: ["stock-items", "list", pharmacyId ?? null, normalizedSearch],
+    queryFn: () => {
+      const params: { pharmacy?: number; search?: string } = {};
+      if (pharmacyId !== undefined) {
+        params.pharmacy = pharmacyId;
+      }
+      if (normalizedSearch) {
+        params.search = normalizedSearch;
+      }
+      return Object.keys(params).length > 0
+        ? listStockItems(params)
+        : listStockItems();
+    },
   });
 }
 

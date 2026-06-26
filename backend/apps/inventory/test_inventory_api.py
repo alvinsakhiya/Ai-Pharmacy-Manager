@@ -5,7 +5,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.catalogue.models import Medication, MedicationForm
+from apps.catalogue.models import CatalogueProduct, Medication, MedicationForm
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
 
 from .models import StockBatch, StockItem
@@ -324,6 +324,83 @@ def test_invalid_pharmacy_query_param_is_safe_empty_response(
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_search_filters_stock_items_by_medication_name(client, inventory_api_data):
+    authenticate(client, inventory_api_data["superintendent"])
+
+    response = client.get("/api/inventory/stock-items/", {"search": "ibu"})
+
+    assert response.status_code == 200
+    assert ids_from_response(response) == {inventory_api_data["stock_two"].id}
+
+
+@pytest.mark.django_db
+def test_search_filters_stock_items_by_catalogue_product(client, inventory_api_data):
+    product = CatalogueProduct.objects.create(
+        display_name="Brufen 200mg tablets",
+        ingredient="Ibuprofen",
+        strength="200mg",
+        dose_form="tablet",
+    )
+    medication = inventory_api_data["stock_two"].medication
+    medication.catalogue_product = product
+    medication.save(update_fields=["catalogue_product"])
+    authenticate(client, inventory_api_data["superintendent"])
+
+    response = client.get("/api/inventory/stock-items/", {"search": "brufen"})
+
+    assert response.status_code == 200
+    assert ids_from_response(response) == {inventory_api_data["stock_two"].id}
+
+
+@pytest.mark.django_db
+def test_search_filters_stock_items_by_batch_number_without_duplicates(
+    client,
+    inventory_api_data,
+):
+    authenticate(client, inventory_api_data["superintendent"])
+
+    response = client.get("/api/inventory/stock-items/", {"search": "P2-IBU"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["id"] for item in payload] == [inventory_api_data["stock_two"].id]
+    assert payload[0]["quantity_on_hand"] == 15
+
+
+@pytest.mark.django_db
+def test_search_respects_pharmacy_scope(client, inventory_api_data):
+    authenticate(client, inventory_api_data["stock_employee"])
+
+    response = client.get("/api/inventory/stock-items/", {"search": "amlo"})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_search_does_not_return_other_tenant_matches(client, inventory_api_data):
+    authenticate(client, inventory_api_data["superintendent"])
+
+    response = client.get("/api/inventory/stock-items/", {"search": "metformin"})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_empty_search_behaves_like_unfiltered_list(client, inventory_api_data):
+    authenticate(client, inventory_api_data["stock_employee"])
+
+    response = client.get("/api/inventory/stock-items/", {"search": "   "})
+
+    assert response.status_code == 200
+    assert ids_from_response(response) == {
+        inventory_api_data["stock_one"].id,
+        inventory_api_data["stock_two"].id,
+    }
 
 
 @pytest.mark.django_db

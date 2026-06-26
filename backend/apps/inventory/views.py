@@ -1,4 +1,4 @@
-from django.db.models import Prefetch
+from django.db.models import Exists, OuterRef, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
@@ -60,6 +60,25 @@ class StockItemListView(ListAPIView):
             except ValueError:
                 return queryset.none()
             queryset = queryset.filter(pharmacy_id=pharmacy_id_int)
+
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            matching_batch = StockBatch.objects.filter(
+                stock_item=OuterRef("pk"),
+                batch_number__icontains=search,
+            )
+            queryset = queryset.annotate(
+                batch_search_match=Exists(matching_batch),
+            ).filter(
+                Q(medication__name__icontains=search)
+                | Q(medication__strength__icontains=search)
+                | Q(medication__catalogue_product__display_name__icontains=search)
+                | Q(medication__catalogue_product__ingredient__icontains=search)
+                | Q(medication__catalogue_product__strength__icontains=search)
+                | Q(medication__catalogue_product__search_text__icontains=search)
+                | Q(pharmacy__name__icontains=search)
+                | Q(batch_search_match=True)
+            )
         return queryset
 
 

@@ -46,6 +46,7 @@ function makeStockItem(overrides: Partial<StockItem> = {}): StockItem {
     medication: 10,
     medication_name: "Paracetamol",
     unit_price: "0.03",
+    pack_price: null,
     reorder_level: 5,
     is_active: true,
     quantity_on_hand: 18,
@@ -150,6 +151,11 @@ describe("InventoryScreen", () => {
     renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
 
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(
+        "Search stock by medicine, strength, batch, or pharmacy…",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
     expect(screen.getByText("18")).toBeInTheDocument();
     expect(screen.getByText("Ibuprofen")).toBeInTheDocument();
@@ -207,6 +213,22 @@ describe("InventoryScreen", () => {
 
     await waitFor(() => {
       expect(listStockItemsMock).toHaveBeenLastCalledWith({ pharmacy: 2 });
+    });
+  });
+
+  it("passes debounced search with the selected pharmacy to the list query", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
+
+    await screen.findByText("Paracetamol");
+    await user.selectOptions(screen.getByLabelText("Pharmacy"), "2");
+    await user.type(screen.getByLabelText("Search"), "ibu");
+
+    await waitFor(() => {
+      expect(listStockItemsMock).toHaveBeenLastCalledWith({
+        pharmacy: 2,
+        search: "ibu",
+      });
     });
   });
 

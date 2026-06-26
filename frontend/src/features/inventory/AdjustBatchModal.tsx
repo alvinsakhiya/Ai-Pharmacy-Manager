@@ -4,7 +4,11 @@ import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { useToast } from "../../components/ui/Toast";
 import { cn } from "../../lib/cn";
-import { inputClass, labelClass } from "../../components/ui/forms";
+import {
+  fieldHintClass,
+  inputClass,
+  labelClass,
+} from "../../components/ui/forms";
 import {
   errorMessages,
   normalizeErrors,
@@ -84,27 +88,34 @@ export function AdjustBatchModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Adjust batch ${batch.batch_number}`}
+      title={`Stock adjustment — ${batch.batch_number}`}
     >
       <form className="space-y-5" noValidate onSubmit={handleSubmit}>
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
         <FieldErrorList messages={errorMessages(errors, "batch")} />
 
-        <label className={labelClass}>
-          Delta
+        <div>
+          <label className={labelClass} htmlFor="adjust-batch-delta">
+            Increase / decrease quantity
+          </label>
           <input
+            aria-describedby="adjust-batch-delta-help"
             className={cn(inputClass, "tnum")}
+            id="adjust-batch-delta"
             onChange={(event) => setDelta(event.target.value)}
             required
             type="number"
             value={delta}
           />
+          <p id="adjust-batch-delta-help" className={fieldHintClass}>
+            Enter a positive number to add stock, or a negative number to remove it.
+          </p>
           <FieldErrorList messages={errorMessages(errors, "delta")} />
-        </label>
+        </div>
 
         <label className={labelClass}>
-          Reason
+          Why are you adjusting?
           <input
             className={inputClass}
             onChange={(event) => setReason(event.target.value)}
@@ -116,7 +127,7 @@ export function AdjustBatchModal({
         </label>
 
         <label className={labelClass}>
-          Reference
+          Optional note
           <input
             className={inputClass}
             onChange={(event) => setReference(event.target.value)}
@@ -135,7 +146,7 @@ export function AdjustBatchModal({
             disabled={adjustBatch.isPending}
             type="submit"
           >
-            {adjustBatch.isPending ? "Saving..." : "Adjust batch"}
+            {adjustBatch.isPending ? "Saving..." : "Save adjustment"}
           </Button>
         </div>
       </form>

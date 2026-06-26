@@ -92,7 +92,7 @@ export function CountBatchModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Cycle count ${batch.batch_number}`}
+      title={`Stock count — ${batch.batch_number}`}
     >
       <form className="space-y-5" noValidate onSubmit={handleSubmit}>
         <FieldErrorList messages={errorMessages(errors, "detail")} />
@@ -119,7 +119,7 @@ export function CountBatchModal({
         </label>
 
         <label className={labelClass}>
-          Reason
+          Reason for count
           <input
             className={inputClass}
             onChange={(event) => setReason(event.target.value)}
@@ -130,7 +130,7 @@ export function CountBatchModal({
         </label>
 
         <label className={labelClass}>
-          Reference
+          Optional note
           <input
             className={inputClass}
             onChange={(event) => setReference(event.target.value)}

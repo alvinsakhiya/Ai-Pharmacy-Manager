@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Boxes, PlusCircle } from "lucide-react";
+import { AlertTriangle, Boxes, PlusCircle, Search } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
@@ -20,7 +20,7 @@ import {
   TR,
 } from "../../components/ui/Table";
 import { cn } from "../../lib/cn";
-import { labelClass, selectClass } from "../../components/ui/forms";
+import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { AddStockModal } from "./AddStockModal";
 import type { StockItem } from "./inventoryApi";
 import { useStockItemsQuery } from "./useInventory";
@@ -116,9 +116,22 @@ export function InventoryScreen() {
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<
     number | undefined
   >(undefined);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [addStockOpen, setAddStockOpen] = useState(false);
-  const stockItemsQuery = useStockItemsQuery(selectedPharmacyId);
+  const stockItemsQuery = useStockItemsQuery(
+    selectedPharmacyId,
+    debouncedSearchTerm,
+  );
   const { pharmacyName } = usePharmacyNames();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
 
   return (
     <div className="stagger space-y-5">
@@ -140,9 +153,33 @@ export function InventoryScreen() {
         }
       />
 
-      {pharmacies.length > 1 ? (
-        <div className="flex flex-wrap items-end gap-3">
-          <label className={cn(labelClass, "min-w-56")} htmlFor="inventory-pharmacy-filter">
+      <div className="flex flex-wrap items-end gap-3">
+        <label
+          className={cn(labelClass, "min-w-72 flex-1")}
+          htmlFor="inventory-search"
+        >
+          Search
+          <span className="relative mt-1.5 block">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+            />
+            <input
+              id="inventory-search"
+              className={cn(inputClass, "mt-0 pl-9")}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search stock by medicine, strength, batch, or pharmacy…"
+              type="search"
+              value={searchTerm}
+            />
+          </span>
+        </label>
+
+        {pharmacies.length > 1 ? (
+          <label
+            className={cn(labelClass, "min-w-56")}
+            htmlFor="inventory-pharmacy-filter"
+          >
             Pharmacy
             <select
               id="inventory-pharmacy-filter"
@@ -162,8 +199,8 @@ export function InventoryScreen() {
               ))}
             </select>
           </label>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {stockItemsQuery.isLoading ? (
         <Panel>

@@ -120,10 +120,15 @@ export interface TransferBatchResponse {
 
 export function listStockItems(params?: {
   pharmacy?: number;
+  search?: string;
 }): Promise<StockItem[]> {
   const searchParams = new URLSearchParams();
   if (params?.pharmacy !== undefined) {
     searchParams.set("pharmacy", String(params.pharmacy));
+  }
+  const search = params?.search?.trim();
+  if (search) {
+    searchParams.set("search", search);
   }
   const query = searchParams.toString();
 

@@ -75,6 +75,11 @@ describe("CountBatchModal", () => {
       <CountBatchModal batch={makeBatch()} isOpen onClose={vi.fn()} />,
     );
 
+    expect(
+      screen.getByRole("dialog", { name: "Stock count — LOT-100" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Reason for count")).toBeInTheDocument();
+    expect(screen.getByLabelText("Optional note")).toBeInTheDocument();
     await user.type(screen.getByLabelText("Counted quantity"), "20");
     await user.click(screen.getByRole("button", { name: "Record count" }));
 
