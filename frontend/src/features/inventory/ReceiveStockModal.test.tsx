@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -64,6 +64,15 @@ describe("ReceiveStockModal", () => {
       />,
     );
 
+    expect(screen.getByText("Existing stock item")).toBeInTheDocument();
+    expect(screen.getByText("Paracetamol")).toBeInTheDocument();
+    const receivedAtInput = screen.getByLabelText(
+      "Received date and time",
+    ) as HTMLInputElement;
+    expect(receivedAtInput.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    fireEvent.change(receivedAtInput, {
+      target: { value: "2026-06-22T09:15" },
+    });
     await user.type(screen.getByLabelText("Batch number"), "LOT-100");
     await user.type(screen.getByLabelText("Expiry date"), "2027-01-31");
     await user.type(screen.getByLabelText("Quantity"), "12");
@@ -76,7 +85,7 @@ describe("ReceiveStockModal", () => {
         batch_number: "LOT-100",
         expiry_date: "2027-01-31",
         quantity: 12,
-        received_at: undefined,
+        received_at: "2026-06-22",
         unit_price: undefined,
         pack_price: undefined,
         reason: undefined,
@@ -121,7 +130,7 @@ describe("ReceiveStockModal", () => {
     );
 
     await user.type(screen.getByLabelText("Batch number"), "LOT-100");
-    await user.type(screen.getByLabelText("Expiry date"), "2026-01-01");
+    await user.type(screen.getByLabelText("Expiry date"), "2027-01-31");
     await user.type(screen.getByLabelText("Quantity"), "12");
     await user.click(screen.getByRole("button", { name: "Receive stock" }));
 

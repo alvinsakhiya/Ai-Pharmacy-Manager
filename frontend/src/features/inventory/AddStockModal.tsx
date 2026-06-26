@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { useToast } from "../../components/ui/Toast";
 import {
+  fieldHintClass,
   inputClass,
   labelClass,
   selectClass,
@@ -20,6 +21,13 @@ import {
 } from "../../lib/apiErrors";
 import { cn } from "../../lib/cn";
 import { FieldErrorList } from "./FieldErrorList";
+import {
+  currentDateTimeLocal,
+  datePartFromDateTime,
+  daysUntilDate,
+  formatDateTimeSummary,
+  formatNumber,
+} from "./stockIntakeForm";
 import { useReceiveCatalogueStock } from "./useInventory";
 
 interface AddStockModalProps {
@@ -30,10 +38,6 @@ interface AddStockModalProps {
 
 function unitLabel(product: CatalogueProduct): string {
   return product.pack_unit || product.dose_form || "units";
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-GB").format(value);
 }
 
 export function AddStockModal({
@@ -68,17 +72,25 @@ export function AddStockModal({
     setPacksReceived("");
     setBatchNumber("");
     setExpiryDate("");
-    setReceivedAt("");
+    setReceivedAt(currentDateTimeLocal());
     setReference("");
     setErrors({});
   }, [defaultPharmacyId, isOpen, pharmacies]);
 
+  const selectedPharmacy = pharmacies.find(
+    (pharmacyOption) => String(pharmacyOption.id) === pharmacy,
+  );
   const parsedPacks = Number(packsReceived);
   const packSize = selectedProduct?.pack_size ?? 1;
   const totalUnits =
     Number.isFinite(parsedPacks) && parsedPacks > 0
       ? parsedPacks * packSize
       : null;
+  const expiryDays = expiryDate ? daysUntilDate(expiryDate) : null;
+  const expiryIsPast = expiryDays !== null && expiryDays < 0;
+  const expiryIsSoon =
+    expiryDays !== null && expiryDays >= 0 && expiryDays <= 90;
+  const receivedDate = receivedAt ? datePartFromDateTime(receivedAt) : undefined;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,9 +108,18 @@ export function AddStockModal({
     }
     if (!expiryDate) {
       nextErrors.expiry_date = ["Expiry date is required."];
+    } else if (expiryIsPast) {
+      nextErrors.expiry_date = ["Expiry date cannot be in the past."];
+    } else if (receivedDate !== undefined && expiryDate < receivedDate) {
+      nextErrors.expiry_date = [
+        "Expiry date cannot be before the received date.",
+      ];
     }
     if (!packsReceived || !Number.isFinite(parsedPacks) || parsedPacks < 1) {
       nextErrors.packs_received = ["Packs received must be at least 1."];
+    }
+    if (!receivedAt) {
+      nextErrors.received_at = ["Received date and time is required."];
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -116,7 +137,7 @@ export function AddStockModal({
         packs_received: parsedPacks,
         batch_number: batchNumber.trim(),
         expiry_date: expiryDate,
-        received_at: receivedAt || undefined,
+        received_at: datePartFromDateTime(receivedAt),
         reference: reference.trim() || undefined,
       });
       toast.success("Stock added", `${selectedProduct.full_label} received.`);
@@ -133,112 +154,215 @@ export function AddStockModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className={labelClass}>
-          Pharmacy
-          <select
-            className={selectClass}
-            onChange={(event) => setPharmacy(event.target.value)}
-            required
-            value={pharmacy}
-          >
-            <option value="">Select a pharmacy</option>
-            {pharmacies.map((pharmacyOption) => (
-              <option key={pharmacyOption.id} value={pharmacyOption.id}>
-                {pharmacyOption.name}
-              </option>
-            ))}
-          </select>
-          <FieldErrorList messages={errorMessages(errors, "pharmacy")} />
-        </label>
+        <section className="space-y-4 rounded-2xl border border-line bg-surface-subtle p-4">
+          <div>
+            <h3 className="text-sm font-bold text-ink">Select product</h3>
+            <p className="mt-1 text-xs text-muted">
+              Choose from catalogue results so the medicine, strength, form, and
+              pack details stay consistent.
+            </p>
+          </div>
 
-        <div>
           <CatalogueProductSelect
             onSelect={setSelectedProduct}
             selectedProduct={selectedProduct}
           />
           <FieldErrorList messages={errorMessages(errors, "catalogue_product")} />
-        </div>
 
-        {selectedProduct ? (
-          <div className="rounded-xl bg-brand-soft p-3 text-sm">
-            <p className="font-semibold text-brand-ink">
-              {selectedProduct.full_label}
-            </p>
-            <p className="mt-1 text-brand-ink">
-              Pack size:{" "}
-              {selectedProduct.pack_size
-                ? `${selectedProduct.pack_size} ${unitLabel(selectedProduct)}`
-                : "Not specified"}
-            </p>
+          {selectedProduct ? (
+            <div className="rounded-xl border border-brand/20 bg-brand-soft p-3 text-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.06em] text-brand">
+                    Selected catalogue product
+                  </p>
+                  <p className="mt-1 font-semibold text-brand-ink">
+                    {selectedProduct.full_label}
+                  </p>
+                </div>
+                {selectedProduct.source ? (
+                  <span className="rounded-full border border-brand/20 bg-surface px-2.5 py-1 text-xs font-bold text-brand">
+                    {selectedProduct.source}
+                  </span>
+                ) : null}
+              </div>
+              <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Pack size</dt>
+                  <dd className="mt-0.5 font-semibold text-brand-ink">
+                    {selectedProduct.pack_size
+                      ? `${selectedProduct.pack_size} ${unitLabel(selectedProduct)}`
+                      : "Not specified"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Strength</dt>
+                  <dd className="mt-0.5 font-semibold text-brand-ink">
+                    {selectedProduct.strength || "Not specified"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="space-y-4 rounded-2xl border border-line bg-surface p-4">
+          <h3 className="text-sm font-bold text-ink">Delivery details</h3>
+
+          {pharmacies.length === 1 && selectedPharmacy ? (
+            <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2 text-sm font-semibold text-ink">
+              Receiving into: {selectedPharmacy.name}
+            </div>
+          ) : (
+            <label className={labelClass}>
+              Receiving pharmacy
+              <select
+                className={selectClass}
+                onChange={(event) => setPharmacy(event.target.value)}
+                required
+                value={pharmacy}
+              >
+                <option value="">Select a pharmacy</option>
+                {pharmacies.map((pharmacyOption) => (
+                  <option key={pharmacyOption.id} value={pharmacyOption.id}>
+                    {pharmacyOption.name}
+                  </option>
+                ))}
+              </select>
+              <FieldErrorList messages={errorMessages(errors, "pharmacy")} />
+            </label>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className={labelClass}>
+              Packs received
+              <input
+                className={cn(inputClass, "tnum")}
+                min="1"
+                onChange={(event) => setPacksReceived(event.target.value)}
+                required
+                type="number"
+                value={packsReceived}
+              />
+              <FieldErrorList messages={errorMessages(errors, "packs_received")} />
+            </label>
+
+            <label className={labelClass}>
+              Batch number
+              <input
+                className={inputClass}
+                onChange={(event) => setBatchNumber(event.target.value)}
+                required
+                type="text"
+                value={batchNumber}
+              />
+              <FieldErrorList messages={errorMessages(errors, "batch_number")} />
+            </label>
+
+            <div>
+              <label className={labelClass} htmlFor="add-stock-expiry-date">
+                Expiry date
+              </label>
+              <input
+                className={cn(inputClass, "tnum")}
+                id="add-stock-expiry-date"
+                onChange={(event) => setExpiryDate(event.target.value)}
+                required
+                type="date"
+                value={expiryDate}
+              />
+              <span className={cn(fieldHintClass, "block")}>
+                Use the date printed on the pack or outer carton.
+              </span>
+              {expiryIsPast ? (
+                <p className="mt-1.5 text-xs font-semibold text-danger-ink">
+                  This expiry date is in the past.
+                </p>
+              ) : null}
+              {expiryIsSoon ? (
+                <p className="mt-1.5 text-xs font-semibold text-warning-ink">
+                  This batch expires soon. FEFO will prioritise it.
+                </p>
+              ) : null}
+              <FieldErrorList messages={errorMessages(errors, "expiry_date")} />
+            </div>
+
+            <label className={labelClass}>
+              Received date and time
+              <input
+                className={cn(inputClass, "tnum")}
+                onChange={(event) => setReceivedAt(event.target.value)}
+                required
+                type="datetime-local"
+                value={receivedAt}
+              />
+              <FieldErrorList messages={errorMessages(errors, "received_at")} />
+            </label>
           </div>
-        ) : null}
 
-        <label className={labelClass}>
-          Packs received
-          <input
-            className={cn(inputClass, "tnum")}
-            min="1"
-            onChange={(event) => setPacksReceived(event.target.value)}
-            required
-            type="number"
-            value={packsReceived}
-          />
-          <FieldErrorList messages={errorMessages(errors, "packs_received")} />
-        </label>
+          <label className={labelClass}>
+            Optional note
+            <input
+              className={inputClass}
+              onChange={(event) => setReference(event.target.value)}
+              type="text"
+              value={reference}
+            />
+            <FieldErrorList messages={errorMessages(errors, "reference")} />
+          </label>
+        </section>
 
-        {selectedProduct && totalUnits !== null ? (
-          <p className="tnum rounded-xl border border-line bg-surface-subtle p-3 text-sm font-medium text-ink-soft">
-            {formatNumber(parsedPacks)} packs x {packSize}{" "}
-            {unitLabel(selectedProduct)} = {formatNumber(totalUnits)}{" "}
-            {unitLabel(selectedProduct)} added
-          </p>
-        ) : null}
-
-        <label className={labelClass}>
-          Batch number
-          <input
-            className={inputClass}
-            onChange={(event) => setBatchNumber(event.target.value)}
-            required
-            type="text"
-            value={batchNumber}
-          />
-          <FieldErrorList messages={errorMessages(errors, "batch_number")} />
-        </label>
-
-        <label className={labelClass}>
-          Expiry date
-          <input
-            className={cn(inputClass, "tnum")}
-            onChange={(event) => setExpiryDate(event.target.value)}
-            required
-            type="date"
-            value={expiryDate}
-          />
-          <FieldErrorList messages={errorMessages(errors, "expiry_date")} />
-        </label>
-
-        <label className={labelClass}>
-          Received at
-          <input
-            className={cn(inputClass, "tnum")}
-            onChange={(event) => setReceivedAt(event.target.value)}
-            type="date"
-            value={receivedAt}
-          />
-          <FieldErrorList messages={errorMessages(errors, "received_at")} />
-        </label>
-
-        <label className={labelClass}>
-          Reference
-          <input
-            className={inputClass}
-            onChange={(event) => setReference(event.target.value)}
-            type="text"
-            value={reference}
-          />
-          <FieldErrorList messages={errorMessages(errors, "reference")} />
-        </label>
+        <section className="space-y-3 rounded-2xl border border-line bg-surface-subtle p-4">
+          <h3 className="text-sm font-bold text-ink">Stock summary</h3>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs font-semibold text-muted">Selected pharmacy</dt>
+              <dd className="mt-0.5 font-semibold text-ink">
+                {selectedPharmacy?.name ?? "Not selected"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold text-muted">Selected product</dt>
+              <dd className="mt-0.5 font-semibold text-ink">
+                {selectedProduct?.full_label ?? "Not selected"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold text-muted">Batch number</dt>
+              <dd className="mt-0.5 font-semibold text-ink">
+                {batchNumber.trim() || "Not set"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold text-muted">Expiry date</dt>
+              <dd className="mt-0.5 font-semibold text-ink">
+                {expiryDate || "Not set"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold text-muted">
+                Received date and time
+              </dt>
+              <dd className="mt-0.5 font-semibold text-ink">
+                {formatDateTimeSummary(receivedAt)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold text-muted">
+                Total units added
+              </dt>
+              <dd className="mt-0.5 font-semibold text-ink">
+                {selectedProduct && totalUnits !== null
+                  ? `${formatNumber(parsedPacks)} packs × ${packSize} ${unitLabel(
+                      selectedProduct,
+                    )} = ${formatNumber(totalUnits)} ${unitLabel(
+                      selectedProduct,
+                    )} added`
+                  : "Select product and enter packs"}
+              </dd>
+            </div>
+          </dl>
+        </section>
 
         <div className="flex justify-end gap-3 border-t border-line pt-5">
           <Button variant="secondary" onClick={onClose}>

@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -129,6 +129,19 @@ function inventoryAuth({
   });
 }
 
+function dateOffsetValue(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+async function openAddStockModal(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "Add Stock" }));
+  return screen.getByRole("dialog", { name: "Add Stock" });
+}
+
 describe("InventoryScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -249,15 +262,82 @@ describe("InventoryScreen", () => {
     expect(screen.queryByRole("button", { name: "Add Stock" })).toBeNull();
   });
 
+  it("preselects a single scoped pharmacy and hides the Add Stock pharmacy dropdown", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryScreen />, {
+      auth: inventoryAuth({ canReceive: true, pharmacyCount: 1 }),
+    });
+
+    const dialog = await openAddStockModal(user);
+    const receivedAtInput = within(dialog).getByLabelText(
+      "Received date and time",
+    ) as HTMLInputElement;
+
+    expect(within(dialog).getByText("Receiving into: JMW Sutton")).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Receiving pharmacy")).toBeNull();
+    expect(receivedAtInput.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+  });
+
+  it("shows a receiving pharmacy selector when multiple pharmacies are available", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryScreen />, {
+      auth: inventoryAuth({ canReceive: true }),
+    });
+
+    const dialog = await openAddStockModal(user);
+
+    expect(within(dialog).getByLabelText("Receiving pharmacy")).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("option", { name: "JMW Sutton" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("option", { name: "JMW Croydon" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a near-expiry warning in the Add Stock modal", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryScreen />, {
+      auth: inventoryAuth({ canReceive: true }),
+    });
+
+    const dialog = await openAddStockModal(user);
+    fireEvent.change(within(dialog).getByLabelText("Expiry date"), {
+      target: { value: dateOffsetValue(30) },
+    });
+
+    expect(
+      within(dialog).getByText("This batch expires soon. FEFO will prioritise it."),
+    ).toBeInTheDocument();
+  });
+
+  it("blocks past expiry dates in the Add Stock modal", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryScreen />, {
+      auth: inventoryAuth({ canReceive: true }),
+    });
+
+    const dialog = await openAddStockModal(user);
+    fireEvent.change(within(dialog).getByLabelText("Expiry date"), {
+      target: { value: dateOffsetValue(-1) },
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Add stock" }));
+
+    expect(within(dialog).getByText("This expiry date is in the past.")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("Expiry date cannot be in the past."),
+    ).toBeInTheDocument();
+    expect(receiveCatalogueStockMock).not.toHaveBeenCalled();
+  });
+
   it("searches catalogue products and submits stock intake", async () => {
     const user = userEvent.setup();
     renderWithProviders(<InventoryScreen />, {
       auth: inventoryAuth({ canReceive: true }),
     });
 
-    await user.click(await screen.findByRole("button", { name: "Add Stock" }));
-    const dialog = screen.getByRole("dialog", { name: "Add Stock" });
-    await user.selectOptions(within(dialog).getByLabelText("Pharmacy"), "1");
+    const dialog = await openAddStockModal(user);
+    await user.selectOptions(within(dialog).getByLabelText("Receiving pharmacy"), "1");
     await user.type(within(dialog).getByLabelText("Catalogue product"), "amlo");
     await user.click(
       await screen.findByRole("option", {
@@ -267,13 +347,26 @@ describe("InventoryScreen", () => {
     expect(
       screen.getAllByText("Amlodipine 5mg tablets — pack of 28").length,
     ).toBeGreaterThan(0);
+    expect(within(dialog).getByText("Selected catalogue product")).toBeInTheDocument();
+    expect(within(dialog).getByText("SEED")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("28 tablets").length).toBeGreaterThan(0);
 
     await user.type(within(dialog).getByLabelText("Packs received"), "500");
     expect(
-      screen.getByText("500 packs x 28 tablets = 14,000 tablets added"),
+      screen.getByText("500 packs × 28 tablets = 14,000 tablets added"),
     ).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText("Batch number"), "AMLO123");
-    await user.type(within(dialog).getByLabelText("Expiry date"), "2027-03-31");
+    fireEvent.change(within(dialog).getByLabelText("Expiry date"), {
+      target: { value: "2027-03-31" },
+    });
+    const receivedAtInput = within(dialog).getByLabelText(
+      "Received date and time",
+    ) as HTMLInputElement;
+    expect(receivedAtInput.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    fireEvent.change(receivedAtInput, {
+      target: { value: "2026-06-21T10:30" },
+    });
+    expect(receivedAtInput.value).toBe("2026-06-21T10:30");
     await user.click(within(dialog).getByRole("button", { name: "Add stock" }));
 
     await waitFor(() => {
@@ -283,7 +376,7 @@ describe("InventoryScreen", () => {
         packs_received: 500,
         batch_number: "AMLO123",
         expiry_date: "2027-03-31",
-        received_at: undefined,
+        received_at: "2026-06-21",
         reference: undefined,
       });
     });
