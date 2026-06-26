@@ -16,6 +16,7 @@ import { InventoryScreen } from "../features/inventory/InventoryScreen";
 import { StockItemDetailScreen } from "../features/inventory/StockItemDetailScreen";
 import { DosetteScreen } from "../features/dosette/DosetteScreen";
 import { AlertsScreen } from "../features/notifications/AlertsScreen";
+import { WorkQueueScreen } from "../features/notifications/WorkQueueScreen";
 import { PatientDetailScreen } from "../features/patients/PatientDetailScreen";
 import { PatientsScreen } from "../features/patients/PatientsScreen";
 import { ReportsScreen } from "../features/reports/ReportsScreen";
@@ -131,6 +132,16 @@ export function AppRouter() {
               element={
                 <RequirePermission anyOf={["stock.view", "blister.view"]}>
                   <AlertsScreen />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/work-queue"
+              element={
+                <RequirePermission
+                  anyOf={["stock.view", "blister.view", "review.view"]}
+                >
+                  <WorkQueueScreen />
                 </RequirePermission>
               }
             />

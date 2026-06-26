@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   FileText,
   LayoutDashboard,
+  ListChecks,
   Pill,
   ScrollText,
   Settings,
@@ -84,6 +85,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Bell,
     group: "Operations",
     requiredAnyOf: ["stock.view", "blister.view"],
+  },
+  {
+    label: "Work Queue",
+    path: "/work-queue",
+    icon: ListChecks,
+    group: "Operations",
+    requiredAnyOf: ["stock.view", "blister.view", "review.view"],
   },
   {
     label: "Pharmacist Reviews",

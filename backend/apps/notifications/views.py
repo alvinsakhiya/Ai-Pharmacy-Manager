@@ -17,8 +17,10 @@ from .serializers import (
     AlertDismissResponseSerializer,
     AlertDismissSerializer,
     AlertsResponseSerializer,
+    WorkQueueResponseSerializer,
 )
 from .services import AlertNotVisible, alerts_for, clear_alerts, dismiss_alert
+from .work_queue import work_queue_for
 
 
 def _parse_pharmacy(request) -> int | None:
@@ -40,6 +42,17 @@ class AlertsView(APIView):
         report = alerts_for(request.user, pharmacy_id=_parse_pharmacy(request))
         return Response(
             AlertsResponseSerializer(report).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class WorkQueueView(APIView):
+    permission_classes = [IsActiveMember]
+
+    def get(self, request):
+        report = work_queue_for(request.user, pharmacy_id=_parse_pharmacy(request))
+        return Response(
+            WorkQueueResponseSerializer(report).data,
             status=status.HTTP_200_OK,
         )
 

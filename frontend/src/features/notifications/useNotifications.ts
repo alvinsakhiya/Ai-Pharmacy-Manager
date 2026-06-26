@@ -1,11 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { clearAlerts, dismissAlert, getAlerts } from "./notificationsApi";
+import {
+  clearAlerts,
+  dismissAlert,
+  getAlerts,
+  getWorkQueue,
+} from "./notificationsApi";
 
 export function useAlertsQuery() {
   return useQuery({
     queryKey: ["notifications", "alerts"],
     queryFn: getAlerts,
+  });
+}
+
+export function useWorkQueueQuery() {
+  return useQuery({
+    queryKey: ["notifications", "work-queue"],
+    queryFn: getWorkQueue,
   });
 }
 

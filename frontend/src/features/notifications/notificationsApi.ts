@@ -41,6 +41,50 @@ export interface AlertsResponse {
   alerts: Alert[];
 }
 
+export type WorkQueuePriority = "urgent" | "high" | "medium" | "low";
+export type WorkQueueGroup =
+  | "urgent"
+  | "due_soon"
+  | "waiting_check"
+  | "stock_action"
+  | "reviews";
+
+export interface WorkQueueSummary {
+  total: number;
+  urgent: number;
+  due_soon: number;
+  waiting_check: number;
+  stock_action: number;
+  reviews: number;
+}
+
+export interface WorkQueueItem {
+  id: string;
+  type: string;
+  group: WorkQueueGroup;
+  priority: WorkQueuePriority;
+  title: string;
+  reason: string;
+  pharmacy_id: number;
+  pharmacy_name: string;
+  patient_reference: string;
+  cycle_id: number | null;
+  cycle_reference: string | null;
+  cycle_display_label: string;
+  cycle_start_date: string | null;
+  cycle_end_date: string | null;
+  due_date: string | null;
+  status: string;
+  action_label: string;
+  action_href: string;
+}
+
+export interface WorkQueueResponse {
+  generated_at: string;
+  summary: WorkQueueSummary;
+  items: WorkQueueItem[];
+}
+
 export interface AlertDismissResponse {
   fingerprint: string;
   dismissed: boolean;
@@ -56,6 +100,10 @@ export interface AlertClearResponse {
 
 export function getAlerts(): Promise<AlertsResponse> {
   return requestJson<AlertsResponse>("/api/notifications/alerts/");
+}
+
+export function getWorkQueue(): Promise<WorkQueueResponse> {
+  return requestJson<WorkQueueResponse>("/api/notifications/work-queue/");
 }
 
 export function dismissAlert(fingerprint: string): Promise<AlertDismissResponse> {

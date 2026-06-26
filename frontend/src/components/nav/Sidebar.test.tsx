@@ -171,6 +171,36 @@ describe("Sidebar", () => {
     ).toHaveAttribute("href", "/reviews");
   });
 
+  it.each(["stock.view", "blister.view", "review.view"])(
+    "user with %s sees Work Queue",
+    (permission) => {
+      renderSidebar(
+        makeUser({
+          role: "PHARMACIST",
+          scope: {
+            is_global: false,
+            group_ids: [],
+            pharmacy_ids: [1],
+          },
+          permissions: {
+            [permission]: true,
+          },
+        }),
+      );
+
+      expect(screen.getByRole("link", { name: "Work Queue" })).toHaveAttribute(
+        "href",
+        "/work-queue",
+      );
+    },
+  );
+
+  it("user without work queue permissions does not see Work Queue", () => {
+    renderSidebar(makeUser());
+
+    expect(screen.queryByRole("link", { name: "Work Queue" })).toBeNull();
+  });
+
   it.each([
     ["ADMIN", "Admin User"],
     ["PHARMACIST", "Pharmacist User"],

@@ -31,6 +31,46 @@ class AlertsResponseSerializer(serializers.Serializer):
     alerts = AlertSerializer(many=True, read_only=True)
 
 
+class WorkQueueSummarySerializer(serializers.Serializer):
+    total = serializers.IntegerField(read_only=True)
+    urgent = serializers.IntegerField(read_only=True)
+    due_soon = serializers.IntegerField(read_only=True)
+    waiting_check = serializers.IntegerField(read_only=True)
+    stock_action = serializers.IntegerField(read_only=True)
+    reviews = serializers.IntegerField(read_only=True)
+
+
+class WorkQueueItemSerializer(serializers.Serializer):
+    id = serializers.CharField(read_only=True)
+    type = serializers.CharField(read_only=True)
+    group = serializers.CharField(read_only=True)
+    priority = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    reason = serializers.CharField(read_only=True)
+    pharmacy_id = serializers.IntegerField(read_only=True)
+    pharmacy_name = serializers.CharField(read_only=True, allow_blank=True)
+    patient_reference = serializers.CharField(read_only=True, allow_blank=True)
+    cycle_id = serializers.IntegerField(read_only=True, allow_null=True)
+    cycle_reference = serializers.CharField(
+        read_only=True,
+        allow_blank=True,
+        allow_null=True,
+    )
+    cycle_display_label = serializers.CharField(read_only=True, allow_blank=True)
+    cycle_start_date = serializers.DateField(read_only=True, allow_null=True)
+    cycle_end_date = serializers.DateField(read_only=True, allow_null=True)
+    due_date = serializers.DateField(read_only=True, allow_null=True)
+    status = serializers.CharField(read_only=True)
+    action_label = serializers.CharField(read_only=True)
+    action_href = serializers.CharField(read_only=True)
+
+
+class WorkQueueResponseSerializer(serializers.Serializer):
+    generated_at = serializers.DateTimeField(read_only=True)
+    summary = WorkQueueSummarySerializer(read_only=True)
+    items = WorkQueueItemSerializer(many=True, read_only=True)
+
+
 class AlertDismissSerializer(serializers.Serializer):
     fingerprint = serializers.CharField(max_length=255)
 
