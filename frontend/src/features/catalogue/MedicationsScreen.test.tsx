@@ -76,14 +76,16 @@ describe("MedicationsScreen", () => {
     renderWithProviders(<MedicationsScreen />, { auth: medicationAuth() });
 
     expect(screen.getByText("Loading medications...")).toBeInTheDocument();
-    expect(await screen.findByText("Medication Library")).toBeInTheDocument();
+    expect(await screen.findByText("Medication Catalogue")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Search and enable catalogue products used for stock, MDS/Dosette, and reports.",
+        "Daily stock intake and MDS/Dosette workflows search catalogue products directly, so staff do not need to type medicine names manually.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/This library shows catalogue products that are enabled/),
+      screen.getByText(
+        /This administration view shows catalogue products enabled/,
+      ),
     ).toBeInTheDocument();
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
     expect(screen.getByText("Legacy")).toBeInTheDocument();
@@ -111,20 +113,20 @@ describe("MedicationsScreen", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows add from catalogue button for users with medication.manage", async () => {
+  it("shows enable locally button for users with medication.manage", async () => {
     renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(true) });
 
     expect(
-      await screen.findByRole("button", { name: "Add from catalogue" }),
+      await screen.findByRole("button", { name: "Enable product locally" }),
     ).toBeInTheDocument();
   });
 
-  it("hides add from catalogue button for view-only users", async () => {
+  it("hides enable locally button for view-only users", async () => {
     renderWithProviders(<MedicationsScreen />, { auth: medicationAuth(false) });
 
     expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Add from catalogue" }),
+      screen.queryByRole("button", { name: "Enable product locally" }),
     ).toBeNull();
   });
 

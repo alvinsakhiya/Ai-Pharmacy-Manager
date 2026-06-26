@@ -317,7 +317,7 @@ export function MedicationFormModal({
               ? "Saving..."
               : medication
                 ? "Save local settings"
-                : "Add from catalogue"}
+                : "Enable product locally"}
           </Button>
         </div>
       </form>

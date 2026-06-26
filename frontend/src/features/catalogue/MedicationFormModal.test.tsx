@@ -154,7 +154,9 @@ describe("MedicationFormModal", () => {
       }),
     );
     await user.type(screen.getByLabelText("Notes"), "Once daily");
-    await user.click(screen.getByRole("button", { name: "Add from catalogue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Enable product locally" }),
+    );
 
     await waitFor(() => {
       expect(createMedicationMock).toHaveBeenCalledWith({
@@ -222,7 +224,9 @@ describe("MedicationFormModal", () => {
         name: /Amlodipine 5mg tablets — pack of 28/,
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Add from catalogue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Enable product locally" }),
+    );
 
     expect(
       await screen.findByText("Select a catalogue product."),
@@ -238,7 +242,9 @@ describe("MedicationFormModal", () => {
 
     await screen.findByRole("option", { name: "North Group" });
     await user.selectOptions(screen.getByLabelText("Group"), "1");
-    await user.click(screen.getByRole("button", { name: "Add from catalogue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Enable product locally" }),
+    );
 
     expect(
       await screen.findByText("Select a catalogue product."),
@@ -275,7 +281,9 @@ describe("MedicationFormModal", () => {
         name: /Amlodipine 5mg tablets — pack of 28/,
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Add from catalogue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Enable product locally" }),
+    );
 
     await waitFor(() => {
       expect(createMedicationMock).toHaveBeenCalledWith({
@@ -302,7 +310,7 @@ describe("MedicationFormModal", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Add from catalogue" }),
+      screen.getByRole("button", { name: "Enable product locally" }),
     ).toBeDisabled();
     expect(listGroupsMock).not.toHaveBeenCalled();
   });

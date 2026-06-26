@@ -131,24 +131,26 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           </>
         ) : null}
 
-        <div className="mt-6 space-y-1">
-          <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-sidebar-muted">
-            Coming soon
-          </p>
-          {FUTURE_ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <span
-                aria-disabled="true"
-                className="flex cursor-not-allowed items-center gap-3.5 rounded-full px-4 py-2.5 text-[14px] font-semibold text-sidebar-muted/60"
-                key={item.label}
-              >
-                <Icon aria-hidden="true" className="h-[20px] w-[20px]" />
-                {item.label}
-              </span>
-            );
-          })}
-        </div>
+        {FUTURE_ITEMS.length > 0 ? (
+          <div className="mt-6 space-y-1">
+            <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-sidebar-muted">
+              Coming soon
+            </p>
+            {FUTURE_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <span
+                  aria-disabled="true"
+                  className="flex cursor-not-allowed items-center gap-3.5 rounded-full px-4 py-2.5 text-[14px] font-semibold text-sidebar-muted/60"
+                  key={item.label}
+                >
+                  <Icon aria-hidden="true" className="h-[20px] w-[20px]" />
+                  {item.label}
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
       </nav>
 
       {/* Profile + logout in the rail. */}

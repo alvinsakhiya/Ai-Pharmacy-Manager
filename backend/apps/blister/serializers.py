@@ -1,17 +1,30 @@
 from rest_framework import serializers
 
+from apps.catalogue.models import CatalogueProduct
+from apps.catalogue.services import get_or_create_medication_from_product
+
 from .models import DosetteCycle, PatientMedication
 
 
 class PatientMedicationSerializer(serializers.ModelSerializer):
+    catalogue_product = serializers.PrimaryKeyRelatedField(
+        queryset=CatalogueProduct.objects.filter(is_active=True),
+        required=False,
+        write_only=True,
+    )
     medication_name = serializers.CharField(source="medication.name", read_only=True)
+    strength = serializers.CharField(source="medication.strength", read_only=True)
+    form = serializers.CharField(source="medication.form", read_only=True)
 
     class Meta:
         model = PatientMedication
         fields = [
             "id",
             "medication",
+            "catalogue_product",
             "medication_name",
+            "strength",
+            "form",
             "dose_instructions",
             "quantity_morning",
             "quantity_lunchtime",
@@ -26,23 +39,14 @@ class PatientMedicationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
         validators: list[object] = []
+        extra_kwargs = {
+            "medication": {"required": False},
+        }
 
-    def validate(self, attrs):
-        patient = self.context["patient"]
-        medication = attrs.get("medication", getattr(self.instance, "medication", None))
-
+    def _validate_medication_for_patient(self, medication, patient) -> None:
         if medication is None:
             raise serializers.ValidationError(
                 {"medication": ["This field is required."]}
-            )
-
-        if self.instance is not None and medication != self.instance.medication:
-            raise serializers.ValidationError(
-                {
-                    "medication": [
-                        "Medication cannot be changed; discontinue and add a new line."
-                    ]
-                }
             )
 
         if medication.group_id != patient.pharmacy.group_id:
@@ -72,7 +76,91 @@ class PatientMedicationSerializer(serializers.ModelSerializer):
                 }
             )
 
+    def validate(self, attrs):
+        patient = self.context["patient"]
+        catalogue_product = attrs.get("catalogue_product")
+        medication = attrs.get("medication", getattr(self.instance, "medication", None))
+
+        if catalogue_product is not None and "medication" in attrs:
+            raise serializers.ValidationError(
+                {
+                    "catalogue_product": [
+                        "Provide either catalogue_product or medication, not both."
+                    ]
+                }
+            )
+
+        if self.instance is None and catalogue_product is None and medication is None:
+            raise serializers.ValidationError(
+                {"medication": ["This field is required."]}
+            )
+
+        if self.instance is not None and catalogue_product is not None:
+            existing_product_id = self.instance.medication.catalogue_product_id
+            if existing_product_id != catalogue_product.id:
+                raise serializers.ValidationError(
+                    {
+                        "medication": [
+                            "Medication cannot be changed; discontinue and add a new "
+                            "line."
+                        ]
+                    }
+                )
+
+        if self.instance is not None and "medication" in attrs:
+            if medication != self.instance.medication:
+                raise serializers.ValidationError(
+                    {
+                        "medication": [
+                            "Medication cannot be changed; discontinue and add a new "
+                            "line."
+                        ]
+                    }
+                )
+
+        if catalogue_product is None:
+            self._validate_medication_for_patient(medication, patient)
+
         return attrs
+
+    def create(self, validated_data):
+        catalogue_product = validated_data.pop("catalogue_product", None)
+        if catalogue_product is not None:
+            patient = validated_data["patient"]
+            medication = get_or_create_medication_from_product(
+                patient.pharmacy.group,
+                catalogue_product,
+            )
+            self._validate_medication_for_patient(medication, patient)
+            validated_data["medication"] = medication
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        catalogue_product = validated_data.pop("catalogue_product", None)
+        if catalogue_product is not None:
+            medication = get_or_create_medication_from_product(
+                instance.patient.pharmacy.group,
+                catalogue_product,
+            )
+            if medication != instance.medication:
+                raise serializers.ValidationError(
+                    {
+                        "medication": [
+                            "Medication cannot be changed; discontinue and add a new "
+                            "line."
+                        ]
+                    }
+                )
+
+        return super().update(instance, validated_data)
+
+    def validate_medication(self, value):
+        if self.instance is not None and value != self.instance.medication:
+            raise serializers.ValidationError(
+                "Medication cannot be changed; discontinue and add a new line."
+            )
+        return value
 
 
 class DosetteCycleSerializer(serializers.ModelSerializer):

@@ -20,7 +20,8 @@ export interface PatientMedicationLine {
 }
 
 export interface PatientMedicationWriteBody {
-  medication: number;
+  medication?: number;
+  catalogue_product?: number;
   dose_instructions: string;
   quantity_morning: number;
   quantity_lunchtime: number;

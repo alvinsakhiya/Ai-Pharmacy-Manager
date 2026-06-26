@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.audit.models import AuditAction, AuditEvent
-from apps.catalogue.models import Medication, MedicationForm
+from apps.catalogue.models import CatalogueProduct, Medication, MedicationForm
 from apps.patients.crypto import decrypt_str
 from apps.patients.models import Patient
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
@@ -70,6 +70,26 @@ def make_medication(group: Group, name: str) -> Medication:
     )
 
 
+def make_catalogue_product(
+    display_name: str,
+    *,
+    strength: str = "500 mg",
+    dose_form: str = "tablets",
+    is_active: bool = True,
+) -> CatalogueProduct:
+    return CatalogueProduct.objects.create(
+        dmd_code=f"SEED-{display_name.upper().replace(' ', '-')}",
+        display_name=display_name,
+        ingredient=display_name.split()[0],
+        strength=strength,
+        dose_form=dose_form,
+        pack_size=28,
+        pack_unit="tablets",
+        manufacturer="Seed Pharma",
+        is_active=is_active,
+    )
+
+
 @pytest.fixture
 def blister_api_data():
     group_one = Group.objects.create(name="Group One", slug="blister-api-one")
@@ -94,6 +114,15 @@ def blister_api_data():
     medication_one = make_medication(group_one, "Paracetamol")
     medication_alt = make_medication(group_one, "Amlodipine")
     medication_two = make_medication(group_two, "Ibuprofen")
+    catalogue_product = make_catalogue_product(
+        "Metformin MR 500mg tablets",
+        strength="500mg",
+    )
+    inactive_catalogue_product = make_catalogue_product(
+        "Inactive 10mg tablets",
+        strength="10mg",
+        is_active=False,
+    )
     line_one = PatientMedication.objects.create(
         patient=patient_one,
         medication=medication_one,
@@ -134,6 +163,8 @@ def blister_api_data():
         "medication_one": medication_one,
         "medication_alt": medication_alt,
         "medication_two": medication_two,
+        "catalogue_product": catalogue_product,
+        "inactive_catalogue_product": inactive_catalogue_product,
         "line_one": line_one,
         "line_two": line_two,
         "admin": admin,
@@ -197,6 +228,8 @@ def test_blister_view_roles_can_list_and_detail(
     assert detail_response.status_code == 200
     assert detail_response.json()["dose_instructions"] == "One tablet each morning"
     assert detail_response.json()["medication_name"] == "Paracetamol"
+    assert detail_response.json()["strength"] == "500 mg"
+    assert detail_response.json()["form"] == MedicationForm.TABLET
 
 
 @pytest.mark.django_db
@@ -274,6 +307,123 @@ def test_roles_without_blister_manage_are_denied_mutations(
     assert create_response.status_code == 403
     assert update_response.status_code == 403
     assert discontinue_response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_create_with_catalogue_product_materialises_medication(
+    client,
+    blister_api_data,
+):
+    authenticate(client, blister_api_data["pharmacist"])
+    patient = blister_api_data["patient_one"]
+    product = blister_api_data["catalogue_product"]
+
+    response = client.post(
+        list_url(patient),
+        {
+            "catalogue_product": product.id,
+            "dose_instructions": "Take with evening meal",
+            "quantity_morning": 0,
+            "quantity_lunchtime": 0,
+            "quantity_evening": 1,
+            "quantity_bedtime": 0,
+            "start_date": "2026-06-19",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    medication = Medication.objects.get(
+        group=blister_api_data["group_one"],
+        catalogue_product=product,
+    )
+    line = PatientMedication.objects.get(pk=response.json()["id"])
+
+    assert line.medication == medication
+    assert response.json()["medication"] == medication.id
+    assert response.json()["medication_name"] == "Metformin MR 500mg tablets"
+    assert response.json()["strength"] == "500mg"
+    assert response.json()["form"] == MedicationForm.TABLET
+    assert not Medication.objects.filter(
+        group=blister_api_data["group_two"],
+        catalogue_product=product,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_catalogue_product_materialisation_is_idempotent(client, blister_api_data):
+    authenticate(client, blister_api_data["admin"])
+    patient = blister_api_data["patient_one"]
+    other_patient = make_patient(blister_api_data["pharmacy_one"], "P1-BLIST-002")
+    product = blister_api_data["catalogue_product"]
+    body = {
+        "catalogue_product": product.id,
+        "dose_instructions": "Take daily",
+        "quantity_morning": 1,
+        "quantity_lunchtime": 0,
+        "quantity_evening": 0,
+        "quantity_bedtime": 0,
+        "start_date": "2026-06-19",
+    }
+
+    first_response = client.post(list_url(patient), body, format="json")
+    second_response = client.post(list_url(other_patient), body, format="json")
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert (
+        Medication.objects.filter(
+            group=blister_api_data["group_one"],
+            catalogue_product=product,
+        ).count()
+        == 1
+    )
+    assert first_response.json()["medication"] == second_response.json()["medication"]
+
+
+@pytest.mark.django_db
+def test_create_rejects_inactive_catalogue_product(client, blister_api_data):
+    authenticate(client, blister_api_data["admin"])
+    product = blister_api_data["inactive_catalogue_product"]
+
+    response = client.post(
+        list_url(blister_api_data["patient_one"]),
+        {
+            "catalogue_product": product.id,
+            "dose_instructions": "Take daily",
+            "quantity_morning": 1,
+            "quantity_lunchtime": 0,
+            "quantity_evening": 0,
+            "quantity_bedtime": 0,
+            "start_date": "2026-06-19",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "catalogue_product" in response.json()
+    assert not Medication.objects.filter(catalogue_product=product).exists()
+
+
+@pytest.mark.django_db
+def test_dispenser_cannot_create_with_catalogue_product(client, blister_api_data):
+    authenticate(client, blister_api_data["dispenser"])
+
+    response = client.post(
+        list_url(blister_api_data["patient_one"]),
+        {
+            "catalogue_product": blister_api_data["catalogue_product"].id,
+            "dose_instructions": "Take daily",
+            "quantity_morning": 1,
+            "quantity_lunchtime": 0,
+            "quantity_evening": 0,
+            "quantity_bedtime": 0,
+            "start_date": "2026-06-19",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
 
 
 @pytest.mark.django_db

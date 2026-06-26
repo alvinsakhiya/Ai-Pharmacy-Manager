@@ -63,9 +63,9 @@ export function MedicationsScreen() {
     <div className="space-y-5">
       <PageHeader
         className="animate-fade-in-up"
-        eyebrow="Catalogue / local library"
-        title="Medication Library"
-        subtitle="Search and enable catalogue products used for stock, MDS/Dosette, and reports."
+        eyebrow="Catalogue administration"
+        title="Medication Catalogue"
+        subtitle="Daily stock intake and MDS/Dosette workflows search catalogue products directly, so staff do not need to type medicine names manually."
         actions={
           canManage ? (
             <Button
@@ -73,7 +73,7 @@ export function MedicationsScreen() {
               leadingIcon={<Plus className="h-4 w-4" />}
               onClick={openCreateModal}
             >
-              Add from catalogue
+              Enable product locally
             </Button>
           ) : undefined
         }
@@ -82,9 +82,10 @@ export function MedicationsScreen() {
       <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface-subtle p-4 text-sm text-ink-soft shadow-soft">
         <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
         <p>
-          This library shows catalogue products that are enabled for this
-          pharmacy/group. Stock intake and MDS/Dosette workflows use this same
-          catalogue, so staff do not need to type medicine names manually.
+          This administration view shows catalogue products enabled for this
+          pharmacy/group. Daily stock intake and MDS/Dosette workflows search
+          catalogue products directly, so staff do not need to type medicine
+          names manually.
         </p>
       </div>
 
@@ -127,7 +128,7 @@ export function MedicationsScreen() {
                 leadingIcon={<Plus className="h-4 w-4" />}
                 onClick={openCreateModal}
               >
-                Add from catalogue
+                Enable product locally
               </Button>
             ) : undefined
           }

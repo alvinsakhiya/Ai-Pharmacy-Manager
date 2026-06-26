@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../../lib/apiClient";
 import { renderWithProviders } from "../../test/providers";
-import type { Medication } from "../catalogue/catalogueApi";
+import type { CatalogueProduct } from "../catalogue/catalogueApi";
 import * as catalogueApi from "../catalogue/catalogueApi";
 import type { PatientMedicationLine } from "./dosetteApi";
 import * as dosetteApi from "./dosetteApi";
@@ -14,7 +14,7 @@ vi.mock("../catalogue/catalogueApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../catalogue/catalogueApi")>();
   return {
     ...actual,
-    listMedications: vi.fn(),
+    listCatalogueProducts: vi.fn(),
   };
 });
 
@@ -28,23 +28,28 @@ vi.mock("./dosetteApi", async (importOriginal) => {
   };
 });
 
-const listMedicationsMock = vi.mocked(catalogueApi.listMedications);
+const listCatalogueProductsMock = vi.mocked(catalogueApi.listCatalogueProducts);
 const createPatientMedicationMock = vi.mocked(dosetteApi.createPatientMedication);
 const updatePatientMedicationMock = vi.mocked(dosetteApi.updatePatientMedication);
 
-function makeMedication(overrides: Partial<Medication> = {}): Medication {
+function makeProduct(overrides: Partial<CatalogueProduct> = {}): CatalogueProduct {
   return {
-    id: 10,
-    group: 1,
-    catalogue_product: null,
-    catalogue_product_full_label: null,
-    catalogue_product_pack_size: null,
-    catalogue_product_pack_unit: "",
-    name: "Amlodipine",
-    form: "TABLET",
-    strength: "5 mg",
+    id: 101,
+    dmd_code: "SEED-IBU-400",
+    source: "SEED",
+    vmp_name: "Ibuprofen 400mg tablets",
+    amp_name: "",
+    display_name: "Ibuprofen 400mg tablets",
+    ingredient: "Ibuprofen",
+    strength: "400mg",
+    dose_form: "tablets",
+    pack_size: 28,
+    pack_unit: "tablets",
     manufacturer: "",
-    notes: "",
+    appearance_colour: "",
+    appearance_shape: "",
+    appearance_form: "tablets",
+    full_label: "Ibuprofen 400mg tablets — pack of 28 tablets",
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
@@ -67,6 +72,8 @@ function makeLine(
     quantity_evening: 0,
     quantity_bedtime: 1,
     start_date: "2026-06-22",
+    colour: "",
+    shape: "",
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
@@ -95,25 +102,34 @@ function renderModal({
 describe("PatientMedicationFormModal", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    listMedicationsMock.mockResolvedValue([
-      makeMedication(),
-      makeMedication({
-        id: 11,
-        name: "Metformin",
-        strength: "500 mg",
-      }),
-    ]);
+    listCatalogueProductsMock.mockResolvedValue([makeProduct()]);
     createPatientMedicationMock.mockResolvedValue(makeLine());
     updatePatientMedicationMock.mockResolvedValue(makeLine());
   });
 
-  it("submits create payload", async () => {
+  it("searches the full catalogue and submits create payload with catalogue_product", async () => {
     const user = userEvent.setup();
     const { onClose } = renderModal();
 
-    expect(await screen.findByRole("option", { name: "Metformin 500 mg" }))
-      .toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Medication"), "11");
+    await user.type(screen.getByLabelText("Catalogue product"), "ibuprofen 400");
+    await user.click(
+      await screen.findByRole("option", {
+        name: /Ibuprofen 400mg tablets — pack of 28 tablets/,
+      }),
+    );
+    expect(listCatalogueProductsMock).toHaveBeenCalledWith("ibuprofen 400");
+    expect(screen.getByLabelText("Selected catalogue product")).toHaveTextContent(
+      "Ibuprofen 400mg tablets — pack of 28 tablets",
+    );
+    expect(screen.getByLabelText("Selected catalogue product")).toHaveTextContent(
+      "400mg",
+    );
+    expect(screen.getByLabelText("Selected catalogue product")).toHaveTextContent(
+      "tablets",
+    );
+    expect(screen.getByLabelText("Selected catalogue product")).toHaveTextContent(
+      "28 tablets",
+    );
     await user.type(screen.getByLabelText("Dose instructions"), "Take with food");
     await user.clear(screen.getByLabelText("Morning"));
     await user.type(screen.getByLabelText("Morning"), "1");
@@ -128,7 +144,7 @@ describe("PatientMedicationFormModal", () => {
 
     await waitFor(() => {
       expect(createPatientMedicationMock).toHaveBeenCalledWith(20, {
-        medication: 11,
+        catalogue_product: 101,
         dose_instructions: "Take with food",
         quantity_morning: 1,
         quantity_lunchtime: 2,
@@ -144,7 +160,7 @@ describe("PatientMedicationFormModal", () => {
     const user = userEvent.setup();
     renderModal({ line: makeLine() });
 
-    await screen.findByLabelText("Medication");
+    await screen.findByLabelText("Selected medication");
     await user.clear(screen.getByLabelText("Dose instructions"));
     await user.type(screen.getByLabelText("Dose instructions"), "Updated directions");
     await user.clear(screen.getByLabelText("Bedtime"));
@@ -167,7 +183,10 @@ describe("PatientMedicationFormModal", () => {
   it("locks medication field on edit", async () => {
     renderModal({ line: makeLine() });
 
-    expect(await screen.findByLabelText("Medication")).toBeDisabled();
+    expect(await screen.findByLabelText("Selected medication")).toHaveTextContent(
+      "Amlodipine",
+    );
+    expect(screen.queryByLabelText("Catalogue product")).toBeNull();
   });
 
   it("renders backend field errors", async () => {
@@ -181,9 +200,12 @@ describe("PatientMedicationFormModal", () => {
     );
     renderModal();
 
-    expect(await screen.findByRole("option", { name: "Amlodipine 5 mg" }))
-      .toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Medication"), "10");
+    await user.type(screen.getByLabelText("Catalogue product"), "ibuprofen");
+    await user.click(
+      await screen.findByRole("option", {
+        name: /Ibuprofen 400mg tablets — pack of 28 tablets/,
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(

@@ -2,7 +2,6 @@ import {
   Bell,
   Boxes,
   Building2,
-  CalendarClock,
   ClipboardCheck,
   FileText,
   LayoutDashboard,
@@ -52,11 +51,11 @@ export const NAV_ITEMS: NavItem[] = [
     group: "Overview",
   },
   {
-    label: "Medication Library",
+    label: "Medication Catalogue",
     path: "/catalogue",
     icon: Pill,
-    group: "Inventory",
-    requiredAnyOf: ["medication.view"],
+    group: "Administration",
+    requiredAnyOf: ["medication.manage"],
   },
   {
     label: "Inventory",
@@ -129,6 +128,4 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export const FUTURE_ITEMS: FutureNavItem[] = [
-  { label: "Dosette/MDS", icon: CalendarClock },
-];
+export const FUTURE_ITEMS: FutureNavItem[] = [];

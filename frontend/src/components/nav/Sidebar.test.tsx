@@ -113,7 +113,7 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: "Organisation" })).toBeNull();
   });
 
-  it("user with medication.view sees Medication Library", () => {
+  it("user with medication.manage sees Medication Catalogue", () => {
     renderSidebar(
       makeUser({
         role: "PHARMACIST",
@@ -123,13 +123,13 @@ describe("Sidebar", () => {
           pharmacy_ids: [1],
         },
         permissions: {
-          "medication.view": true,
+          "medication.manage": true,
         },
       }),
     );
 
     expect(
-      screen.getByRole("link", { name: "Medication Library" }),
+      screen.getByRole("link", { name: "Medication Catalogue" }),
     ).toBeInTheDocument();
   });
 
@@ -218,21 +218,31 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: "Inventory" })).toBeNull();
   });
 
-  it("user without medication.view does not see Medication Library", () => {
-    renderSidebar(makeUser());
+  it("user with medication.view but not medication.manage does not see Medication Catalogue", () => {
+    renderSidebar(
+      makeUser({
+        role: "DISPENSER",
+        scope: {
+          is_global: false,
+          group_ids: [],
+          pharmacy_ids: [1],
+        },
+        permissions: {
+          "medication.view": true,
+        },
+      }),
+    );
 
     expect(
-      screen.queryByRole("link", { name: "Medication Library" }),
+      screen.queryByRole("link", { name: "Medication Catalogue" }),
     ).toBeNull();
   });
 
-  it("future items appear disabled and non-clickable", () => {
+  it("does not render stale future navigation items", () => {
     renderSidebar(makeUser());
 
-    const stockItem = screen.getByText("Dosette/MDS");
-
-    expect(stockItem).toHaveAttribute("aria-disabled", "true");
-    expect(stockItem.closest("a")).toBeNull();
+    expect(screen.queryByText("Coming soon")).toBeNull();
+    expect(screen.queryByText("Dosette/MDS")).toBeNull();
     expect(screen.queryByText("Clinical Review")).toBeNull();
     expect(screen.queryByText("Notifications")).toBeNull();
   });

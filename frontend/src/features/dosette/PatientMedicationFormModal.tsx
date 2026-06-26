@@ -6,7 +6,6 @@ import {
   fieldErrorClass,
   inputClass,
   labelClass,
-  selectClass,
   textareaClass,
 } from "../../components/ui/forms";
 import { useToast } from "../../components/ui/Toast";
@@ -15,7 +14,8 @@ import {
   normalizeErrors,
   type FieldErrors,
 } from "../../lib/apiErrors";
-import { useMedicationsQuery } from "../catalogue/useCatalogue";
+import { CatalogueProductSelect } from "../catalogue/CatalogueProductSelect";
+import type { CatalogueProduct } from "../catalogue/catalogueApi";
 import type { PatientMedicationLine, PatientMedicationWriteBody } from "./dosetteApi";
 import {
   useCreatePatientMedication,
@@ -51,17 +51,25 @@ function toQuantity(value: string): number {
   return Math.floor(parsed);
 }
 
+function productPackLabel(product: CatalogueProduct): string {
+  if (product.pack_size === null) {
+    return "Not specified";
+  }
+  return `${product.pack_size}${product.pack_unit ? ` ${product.pack_unit}` : ""}`;
+}
+
 export function PatientMedicationFormModal({
   patientId,
   line,
   isOpen,
   onClose,
 }: PatientMedicationFormModalProps) {
-  const medicationsQuery = useMedicationsQuery();
   const createMedication = useCreatePatientMedication(patientId);
   const updateMedication = useUpdatePatientMedication(patientId);
   const { success } = useToast();
-  const [medication, setMedication] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<CatalogueProduct | null>(
+    null,
+  );
   const [doseInstructions, setDoseInstructions] = useState("");
   const [quantityMorning, setQuantityMorning] = useState("0");
   const [quantityLunchtime, setQuantityLunchtime] = useState("0");
@@ -75,7 +83,7 @@ export function PatientMedicationFormModal({
       return;
     }
 
-    setMedication(line ? String(line.medication) : "");
+    setSelectedProduct(null);
     setDoseInstructions(line?.dose_instructions ?? "");
     setQuantityMorning(String(line?.quantity_morning ?? 0));
     setQuantityLunchtime(String(line?.quantity_lunchtime ?? 0));
@@ -90,8 +98,8 @@ export function PatientMedicationFormModal({
     setErrors({});
 
     const nextErrors: FieldErrors = {};
-    if (!line && !medication) {
-      nextErrors.medication = ["Medication is required."];
+    if (!line && selectedProduct === null) {
+      nextErrors.catalogue_product = ["Select a catalogue product."];
     }
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -99,7 +107,6 @@ export function PatientMedicationFormModal({
     }
 
     const body: PatientMedicationWriteBody = {
-      medication: line ? line.medication : Number(medication),
       dose_instructions: doseInstructions.trim(),
       quantity_morning: toQuantity(quantityMorning),
       quantity_lunchtime: toQuantity(quantityLunchtime),
@@ -107,6 +114,11 @@ export function PatientMedicationFormModal({
       quantity_bedtime: toQuantity(quantityBedtime),
       start_date: startDate || null,
     };
+    if (line) {
+      body.medication = line.medication;
+    } else if (selectedProduct) {
+      body.catalogue_product = selectedProduct.id;
+    }
 
     try {
       if (line) {
@@ -131,30 +143,64 @@ export function PatientMedicationFormModal({
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <label className={labelClass}>
-          Medication
-          <select
-            className={selectClass}
-            disabled={line !== null || medicationsQuery.isLoading}
-            onChange={(event) => setMedication(event.target.value)}
-            required
-            value={medication}
+        {line ? (
+          <div
+            aria-label="Selected medication"
+            className="rounded-xl border border-line bg-surface-subtle p-4 text-sm"
           >
-            <option value="">Select a medication</option>
-            {medicationsQuery.data?.map((medicationOption) => (
-              <option key={medicationOption.id} value={medicationOption.id}>
-                {medicationOption.name} {medicationOption.strength}
-              </option>
-            ))}
-          </select>
-          <FieldErrorList messages={errorMessages(errors, "medication")} />
-        </label>
+            <p className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
+              Medication
+            </p>
+            <p className="mt-1 font-semibold text-ink">{line.medication_name}</p>
+            <p className="mt-1 text-ink-soft">
+              {[line.strength, line.form].filter(Boolean).join(" / ") ||
+                "Strength and form not specified"}
+            </p>
+          </div>
+        ) : (
+          <div>
+            <CatalogueProductSelect
+              onSelect={setSelectedProduct}
+              selectedProduct={selectedProduct}
+            />
+            <FieldErrorList messages={errorMessages(errors, "catalogue_product")} />
+            <FieldErrorList messages={errorMessages(errors, "medication")} />
 
-        {medicationsQuery.isError ? (
-          <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
-            Could not load medication options.
-          </p>
-        ) : null}
+            {selectedProduct ? (
+              <div
+                aria-label="Selected catalogue product"
+                className="mt-3 rounded-xl border border-brand/20 bg-brand-soft p-3 text-sm"
+              >
+                <p className="text-xs font-bold uppercase tracking-[0.06em] text-brand">
+                  Selected catalogue product
+                </p>
+                <p className="mt-1 font-semibold text-brand-ink">
+                  {selectedProduct.full_label}
+                </p>
+                <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs font-semibold text-muted">Strength</dt>
+                    <dd className="mt-0.5 font-semibold text-brand-ink">
+                      {selectedProduct.strength || "Not specified"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold text-muted">Form</dt>
+                    <dd className="mt-0.5 font-semibold text-brand-ink">
+                      {selectedProduct.dose_form || "Not specified"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold text-muted">Pack size</dt>
+                    <dd className="mt-0.5 font-semibold text-brand-ink">
+                      {productPackLabel(selectedProduct)}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
+          </div>
+        )}
 
         <label className={labelClass}>
           Dose instructions
@@ -239,7 +285,7 @@ export function PatientMedicationFormModal({
             Cancel
           </Button>
           <Button
-            disabled={isSaving || medicationsQuery.isLoading}
+            disabled={isSaving}
             type="submit"
             variant="primary"
           >
