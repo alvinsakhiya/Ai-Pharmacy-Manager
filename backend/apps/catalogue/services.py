@@ -52,22 +52,29 @@ def get_or_create_medication_from_product(
     except IntegrityError:
         pass
 
-    legacy_match = Medication.objects.filter(
+    matching_medication = Medication.objects.filter(
         group=group,
         name=defaults["name"],
         form=defaults["form"],
         strength=defaults["strength"],
-        catalogue_product__isnull=True,
     ).first()
-    if legacy_match is not None:
-        legacy_match.catalogue_product = product
-        if not legacy_match.manufacturer and defaults["manufacturer"]:
-            legacy_match.manufacturer = defaults["manufacturer"]
-            legacy_match.save(
-                update_fields=["catalogue_product", "manufacturer", "updated_at"]
-            )
-        else:
-            legacy_match.save(update_fields=["catalogue_product", "updated_at"])
-        return legacy_match
+    if matching_medication is not None:
+        if matching_medication.catalogue_product_id is None:
+            matching_medication.catalogue_product = product
+            if not matching_medication.manufacturer and defaults["manufacturer"]:
+                matching_medication.manufacturer = defaults["manufacturer"]
+                matching_medication.save(
+                    update_fields=["catalogue_product", "manufacturer", "updated_at"]
+                )
+            else:
+                matching_medication.save(
+                    update_fields=["catalogue_product", "updated_at"]
+                )
+        elif not matching_medication.manufacturer and defaults["manufacturer"]:
+            matching_medication.manufacturer = defaults["manufacturer"]
+            matching_medication.save(update_fields=["manufacturer", "updated_at"])
+        return matching_medication
 
+    # If a concurrent request created the group/product row after our failed
+    # insert, reuse it.
     return Medication.objects.get(group=group, catalogue_product=product)

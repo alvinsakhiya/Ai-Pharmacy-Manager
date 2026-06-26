@@ -137,3 +137,38 @@ def test_get_or_create_medication_from_product_is_idempotent_per_group_product(
     assert first.form == MedicationForm.TABLET
     assert first.strength == "5mg"
     assert first.catalogue_product == amlodipine_product
+
+
+@pytest.mark.django_db
+def test_get_or_create_medication_from_product_reuses_pack_variant_tuple():
+    group = Group.objects.create(name="Group One", slug="catalogue-pack-variant")
+    first_pack = CatalogueProduct.objects.create(
+        display_name="Ibuprofen 400mg tablets",
+        ingredient="Ibuprofen",
+        strength="400mg",
+        dose_form="tablets",
+        pack_size=48,
+    )
+    second_pack = CatalogueProduct.objects.create(
+        display_name="Ibuprofen 400mg tablets",
+        ingredient="Ibuprofen",
+        strength="400mg",
+        dose_form="tablets",
+        pack_size=48,
+        pack_unit="tablets",
+    )
+
+    first = get_or_create_medication_from_product(group, first_pack)
+    second = get_or_create_medication_from_product(group, second_pack)
+
+    assert second == first
+    assert first.catalogue_product == first_pack
+    assert (
+        Medication.objects.filter(
+            group=group,
+            name="Ibuprofen 400mg tablets",
+            form=MedicationForm.TABLET,
+            strength="400mg",
+        ).count()
+        == 1
+    )
