@@ -1,19 +1,43 @@
-import { Contrast, Eye, RotateCcw, Type, Zap } from "lucide-react";
+import {
+  Accessibility,
+  AlignLeft,
+  Contrast,
+  Copy,
+  Eye,
+  FileText,
+  Focus,
+  Palette,
+  Printer,
+  RotateCcw,
+  Type,
+  Zap,
+} from "lucide-react";
 
 import {
   usePreferences,
+  type ColourVisionMode,
   type ContrastMode,
+  type DefaultOutputType,
+  type FocusMode,
   type FontScale,
+  type PaperSize,
+  type PrintOrientation,
+  type PrintScale,
 } from "../../app/PreferencesContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { cn } from "../../lib/cn";
 
 interface SegmentedOption<T extends string> {
   value: T;
   label: string;
+}
+
+interface SelectOption<T extends string> extends SegmentedOption<T> {
+  description?: string;
 }
 
 function Segmented<T extends string>({
@@ -31,7 +55,7 @@ function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className="inline-flex rounded-full border border-line bg-surface-subtle p-1"
+      className="inline-flex flex-wrap rounded-full border border-line bg-surface-subtle p-1"
     >
       {options.map((option) => {
         const active = option.value === value;
@@ -89,6 +113,38 @@ function Toggle({
   );
 }
 
+function SelectField<T extends string>({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: T;
+  options: SelectOption<T>[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <label className={labelClass} htmlFor={id}>
+      {label}
+      <select
+        id={id}
+        className={selectClass}
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function SettingRow({
   icon,
   title,
@@ -127,26 +183,85 @@ const CONTRAST_OPTIONS: SegmentedOption<ContrastMode>[] = [
 ];
 
 const FONT_SCALE_OPTIONS: SegmentedOption<FontScale>[] = [
+  { value: "compact", label: "Compact" },
   { value: "normal", label: "Default" },
   { value: "large", label: "Large" },
-  { value: "xlarge", label: "Larger" },
+  { value: "xlarge", label: "Extra large" },
+];
+
+const FOCUS_OPTIONS: SegmentedOption<FocusMode>[] = [
+  { value: "default", label: "Default" },
+  { value: "enhanced", label: "Enhanced" },
+];
+
+const COLOUR_VISION_OPTIONS: SelectOption<ColourVisionMode>[] = [
+  { value: "default", label: "Default" },
+  { value: "deuteranopia", label: "Deuteranopia support" },
+  { value: "protanopia", label: "Protanopia support" },
+  { value: "tritanopia", label: "Tritanopia support" },
+];
+
+const PAPER_SIZE_OPTIONS: SelectOption<PaperSize>[] = [
+  { value: "a4", label: "A4" },
+  { value: "a5", label: "A5" },
+  { value: "label_4x6", label: "4x6 label" },
+  { value: "label_72x36", label: "72x36 label" },
+];
+
+const ORIENTATION_OPTIONS: SelectOption<PrintOrientation>[] = [
+  { value: "portrait", label: "Portrait" },
+  { value: "landscape", label: "Landscape" },
+];
+
+const PRINT_SCALE_OPTIONS: SelectOption<PrintScale>[] = [
+  { value: "fit", label: "Fit to page" },
+  { value: "actual", label: "Actual size" },
+];
+
+const COPY_OPTIONS: SelectOption<string>[] = Array.from({ length: 9 }, (_, i) => {
+  const value = String(i + 1);
+  return { value, label: value };
+});
+
+const OUTPUT_OPTIONS: SelectOption<DefaultOutputType>[] = [
+  { value: "dosette_tray", label: "Dosette tray sheet" },
+  { value: "picking_list", label: "Picking list" },
+  { value: "stock_label", label: "Stock label" },
 ];
 
 export function SettingsScreen() {
-  const { preferences, setContrast, setFontScale, setReduceMotion, reset } =
-    usePreferences();
+  const {
+    preferences,
+    setContrast,
+    setFontScale,
+    setReduceMotion,
+    setFocusMode,
+    setColourVisionMode,
+    setDyslexiaSpacing,
+    updatePrinterPreferences,
+    reset,
+  } = usePreferences();
 
   const isDefault =
     preferences.contrast === "normal" &&
     preferences.fontScale === "normal" &&
-    !preferences.reduceMotion;
+    !preferences.reduceMotion &&
+    preferences.focusMode === "default" &&
+    preferences.colourVisionMode === "default" &&
+    !preferences.dyslexiaSpacing &&
+    preferences.printer.paperSize === "a4" &&
+    preferences.printer.orientation === "portrait" &&
+    preferences.printer.printScale === "fit" &&
+    preferences.printer.copies === 1 &&
+    preferences.printer.labelPrinterName === "" &&
+    preferences.printer.defaultOutputType === "dosette_tray";
 
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="System"
+        eyebrow="Workspace"
         title="Settings"
-        subtitle="Personalise the workspace for comfort and accessibility. Preferences are saved on this device and apply across the app."
+        subtitle="Changes apply instantly and are saved on this device."
         actions={
           <Button
             variant="secondary"
@@ -159,77 +274,262 @@ export function SettingsScreen() {
         }
       />
 
-      <Panel>
-        <PanelHeader
-          title="Display & accessibility"
-          subtitle="Tune contrast, text size, and motion to suit how you work."
-          icon={<Eye className="h-4 w-4" />}
-          actions={
-            isDefault ? (
-              <Badge variant="neutral">Defaults</Badge>
-            ) : (
-              <Badge variant="brand">Customised</Badge>
-            )
-          }
-        />
-        <PanelBody>
-          <div className="divide-y divide-line">
-            <SettingRow
-              icon={<Contrast className="h-[18px] w-[18px]" />}
-              title="Contrast"
-              description="High contrast darkens muted text and strengthens borders for better readability."
-              control={
-                <Segmented
-                  ariaLabel="Contrast"
-                  value={preferences.contrast}
-                  options={CONTRAST_OPTIONS}
-                  onChange={setContrast}
-                />
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
+        <div className="space-y-5">
+          <Panel>
+            <PanelHeader
+              title="Appearance"
+              subtitle="Adjust density, text scale, and contrast."
+              icon={<Eye className="h-4 w-4" />}
+              actions={
+                isDefault ? (
+                  <Badge variant="neutral">Defaults</Badge>
+                ) : (
+                  <Badge variant="brand">Customised</Badge>
+                )
               }
             />
-            <SettingRow
-              icon={<Type className="h-[18px] w-[18px]" />}
-              title="Text size"
-              description="Increase the base text size across the workspace without zooming the whole browser."
-              control={
-                <Segmented
-                  ariaLabel="Text size"
-                  value={preferences.fontScale}
-                  options={FONT_SCALE_OPTIONS}
-                  onChange={setFontScale}
+            <PanelBody>
+              <div className="divide-y divide-line">
+                <SettingRow
+                  icon={<Type className="h-[18px] w-[18px]" />}
+                  title="Text size"
+                  description="Set the workspace text scale without changing browser zoom."
+                  control={
+                    <Segmented
+                      ariaLabel="Text size"
+                      value={preferences.fontScale}
+                      options={FONT_SCALE_OPTIONS}
+                      onChange={setFontScale}
+                    />
+                  }
                 />
-              }
-            />
-            <SettingRow
-              icon={<Zap className="h-[18px] w-[18px]" />}
-              title="Reduce motion"
-              description="Minimise animations and transitions throughout the app."
-              control={
-                <Toggle
-                  ariaLabel="Reduce motion"
-                  checked={preferences.reduceMotion}
-                  onChange={setReduceMotion}
+                <SettingRow
+                  icon={<Contrast className="h-[18px] w-[18px]" />}
+                  title="High contrast"
+                  description="Strengthen muted text, borders, and focus outlines."
+                  control={
+                    <Segmented
+                      ariaLabel="Contrast"
+                      value={preferences.contrast}
+                      options={CONTRAST_OPTIONS}
+                      onChange={setContrast}
+                    />
+                  }
                 />
-              }
-            />
-          </div>
-        </PanelBody>
-      </Panel>
+              </div>
+            </PanelBody>
+          </Panel>
 
-      <Panel>
-        <PanelHeader
-          title="About these settings"
-          icon={<Eye className="h-4 w-4" />}
-        />
-        <PanelBody>
-          <p className="text-sm leading-relaxed text-ink-soft">
-            These accessibility preferences are stored locally in your browser and
-            take effect immediately. They sit alongside the app's built-in support
-            for full keyboard navigation, visible focus states, screen-reader
-            labelling, and your operating system's own reduced-motion setting.
-          </p>
-        </PanelBody>
-      </Panel>
+          <Panel>
+            <PanelHeader
+              title="Accessibility"
+              subtitle="Colour, focus, and reading preferences."
+              icon={<Accessibility className="h-4 w-4" />}
+            />
+            <PanelBody>
+              <div className="divide-y divide-line">
+                <SettingRow
+                  icon={<Focus className="h-[18px] w-[18px]" />}
+                  title="Focus visibility"
+                  description="Make keyboard focus targets more prominent across the app."
+                  control={
+                    <Segmented
+                      ariaLabel="Focus visibility"
+                      value={preferences.focusMode}
+                      options={FOCUS_OPTIONS}
+                      onChange={setFocusMode}
+                    />
+                  }
+                />
+                <SettingRow
+                  icon={<Palette className="h-[18px] w-[18px]" />}
+                  title="Colour-blind support"
+                  description="Shift key interface accents while keeping text labels visible."
+                  control={
+                    <SelectField
+                      id="settings-colour-vision"
+                      label="Colour vision mode"
+                      value={preferences.colourVisionMode}
+                      options={COLOUR_VISION_OPTIONS}
+                      onChange={setColourVisionMode}
+                    />
+                  }
+                />
+                <SettingRow
+                  icon={<AlignLeft className="h-[18px] w-[18px]" />}
+                  title="Dyslexia-friendly spacing"
+                  description="Relax line spacing and character spacing for easier scanning."
+                  control={
+                    <Toggle
+                      ariaLabel="Dyslexia-friendly spacing"
+                      checked={preferences.dyslexiaSpacing}
+                      onChange={setDyslexiaSpacing}
+                    />
+                  }
+                />
+              </div>
+            </PanelBody>
+          </Panel>
+
+          <Panel>
+            <PanelHeader
+              title="Motion"
+              subtitle="Reduce interface movement when preferred."
+              icon={<Zap className="h-4 w-4" />}
+            />
+            <PanelBody>
+              <SettingRow
+                icon={<Zap className="h-[18px] w-[18px]" />}
+                title="Reduced motion"
+                description="Minimise transitions and animations throughout the workspace."
+                control={
+                  <Toggle
+                    ariaLabel="Reduce motion"
+                    checked={preferences.reduceMotion}
+                    onChange={setReduceMotion}
+                  />
+                }
+              />
+            </PanelBody>
+          </Panel>
+
+          <Panel>
+            <PanelHeader
+              title="Printer preferences"
+              subtitle="Defaults for print sheets, lists, and labels on this device."
+              icon={<Printer className="h-4 w-4" />}
+            />
+            <PanelBody>
+              <div className="grid gap-4 md:grid-cols-2">
+                <SelectField
+                  id="settings-paper-size"
+                  label="Default paper size"
+                  value={preferences.printer.paperSize}
+                  options={PAPER_SIZE_OPTIONS}
+                  onChange={(paperSize) => updatePrinterPreferences({ paperSize })}
+                />
+                <SelectField
+                  id="settings-orientation"
+                  label="Orientation"
+                  value={preferences.printer.orientation}
+                  options={ORIENTATION_OPTIONS}
+                  onChange={(orientation) =>
+                    updatePrinterPreferences({ orientation })
+                  }
+                />
+                <SelectField
+                  id="settings-print-scale"
+                  label="Print scale"
+                  value={preferences.printer.printScale}
+                  options={PRINT_SCALE_OPTIONS}
+                  onChange={(printScale) => updatePrinterPreferences({ printScale })}
+                />
+                <SelectField
+                  id="settings-copies"
+                  label="Default copies"
+                  value={String(preferences.printer.copies)}
+                  options={COPY_OPTIONS}
+                  onChange={(copies) =>
+                    updatePrinterPreferences({ copies: Number(copies) })
+                  }
+                />
+                <SelectField
+                  id="settings-output-type"
+                  label="Default output type"
+                  value={preferences.printer.defaultOutputType}
+                  options={OUTPUT_OPTIONS}
+                  onChange={(defaultOutputType) =>
+                    updatePrinterPreferences({ defaultOutputType })
+                  }
+                />
+                <label className={labelClass} htmlFor="settings-printer-note">
+                  Label printer note
+                  <input
+                    id="settings-printer-note"
+                    className={inputClass}
+                    type="text"
+                    maxLength={80}
+                    placeholder="Zebra ZD230"
+                    value={preferences.printer.labelPrinterName}
+                    onChange={(event) =>
+                      updatePrinterPreferences({
+                        labelPrinterName: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+              </div>
+              <p className="mt-4 rounded-xl border border-line bg-surface-subtle px-4 py-3 text-[13px] font-medium leading-relaxed text-ink-soft">
+                Printer preferences are saved on this device. Browser print
+                settings may still need to be confirmed before printing.
+              </p>
+            </PanelBody>
+          </Panel>
+        </div>
+
+        <div className="space-y-5">
+          <Panel>
+            <PanelHeader
+              title="Preview"
+              subtitle="A quick view of the current accessibility settings."
+              icon={<Palette className="h-4 w-4" />}
+            />
+            <PanelBody>
+              <div className="space-y-4 rounded-2xl border border-line bg-surface-subtle p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="brand" dot>
+                    Review before action
+                  </Badge>
+                  <Badge variant="warning" dot>
+                    Needs attention
+                  </Badge>
+                </div>
+                <Button
+                  variant="primary"
+                  leadingIcon={<FileText className="h-4 w-4" />}
+                >
+                  Open record
+                </Button>
+                <label className={labelClass} htmlFor="settings-preview-field">
+                  Sample form field
+                  <input
+                    id="settings-preview-field"
+                    className={inputClass}
+                    readOnly
+                    value="Batch reference B-102"
+                  />
+                </label>
+                <div className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm leading-relaxed text-info-ink">
+                  Scheduled signals and printer preferences stay readable with
+                  text labels, not colour alone.
+                </div>
+              </div>
+            </PanelBody>
+          </Panel>
+
+          <Panel>
+            <PanelHeader
+              title="Device storage"
+              subtitle="Local preferences only."
+              icon={<Copy className="h-4 w-4" />}
+            />
+            <PanelBody>
+              <div className="space-y-3 text-sm leading-relaxed text-ink-soft">
+                <p>
+                  Accessibility and printer preferences are stored in this
+                  browser. They do not change pharmacy records, stock movement,
+                  Work Queue items, or patient data.
+                </p>
+                <p>
+                  The browser print dialog remains the final place to confirm
+                  printer destination, paper handling, and copies.
+                </p>
+              </div>
+            </PanelBody>
+          </Panel>
+        </div>
+      </section>
     </div>
   );
 }

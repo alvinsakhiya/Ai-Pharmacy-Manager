@@ -285,6 +285,127 @@ html.contrast-high *:focus-visible {
   outline-offset: 2px;
 }
 
+/* Enhanced focus preference: keeps the existing focus-ring pattern, but makes
+   keyboard position clearer for users who prefer a stronger target. */
+html.focus-enhanced .focus-ring:focus-visible,
+html.focus-enhanced *:focus-visible {
+  outline: 3px solid #3d2f8f !important;
+  outline-offset: 3px !important;
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 0 6px rgba(124, 92, 214, 0.38) !important;
+}
+
+/* Dyslexia-friendly spacing preference. No external font is loaded; spacing
+   relaxes just enough to aid scanning without breaking dense tables. */
+html.dyslexia-spacing body {
+  letter-spacing: 0.015em;
+  line-height: 1.65;
+}
+
+html.dyslexia-spacing p,
+html.dyslexia-spacing li,
+html.dyslexia-spacing label,
+html.dyslexia-spacing input,
+html.dyslexia-spacing textarea,
+html.dyslexia-spacing select,
+html.dyslexia-spacing button {
+  line-height: 1.65;
+}
+
+html.dyslexia-spacing table {
+  letter-spacing: 0.005em;
+}
+
+/* Colour-vision support modes. The app already pairs semantic colours with
+   labels; these modes nudge the main accents toward safer separations. */
+html.colour-deuteranopia .bg-brand,
+html.colour-deuteranopia .bg-lilac {
+  background-color: #4d6fd8 !important;
+}
+
+html.colour-deuteranopia .text-brand,
+html.colour-deuteranopia .text-brand-ink,
+html.colour-deuteranopia .text-lilac-ink {
+  color: #233d91 !important;
+}
+
+html.colour-deuteranopia .border-brand,
+html.colour-deuteranopia .border-lilac {
+  border-color: #4d6fd8 !important;
+}
+
+html.colour-deuteranopia .bg-brand-soft,
+html.colour-deuteranopia .bg-lilac-soft {
+  background-color: #e8edff !important;
+}
+
+html.colour-deuteranopia .bg-warning {
+  background-color: #b9821f !important;
+}
+
+html.colour-deuteranopia .bg-danger {
+  background-color: #a95f50 !important;
+}
+
+html.colour-protanopia .bg-brand,
+html.colour-protanopia .bg-lilac {
+  background-color: #436fbd !important;
+}
+
+html.colour-protanopia .text-brand,
+html.colour-protanopia .text-brand-ink,
+html.colour-protanopia .text-lilac-ink {
+  color: #1f477f !important;
+}
+
+html.colour-protanopia .border-brand,
+html.colour-protanopia .border-lilac {
+  border-color: #436fbd !important;
+}
+
+html.colour-protanopia .bg-brand-soft,
+html.colour-protanopia .bg-lilac-soft {
+  background-color: #e6effc !important;
+}
+
+html.colour-protanopia .bg-warning {
+  background-color: #c18a24 !important;
+}
+
+html.colour-protanopia .bg-danger {
+  background-color: #9b6254 !important;
+}
+
+html.colour-tritanopia .bg-brand,
+html.colour-tritanopia .bg-lilac {
+  background-color: #8b4bb3 !important;
+}
+
+html.colour-tritanopia .text-brand,
+html.colour-tritanopia .text-brand-ink,
+html.colour-tritanopia .text-lilac-ink {
+  color: #5b287e !important;
+}
+
+html.colour-tritanopia .border-brand,
+html.colour-tritanopia .border-lilac {
+  border-color: #8b4bb3 !important;
+}
+
+html.colour-tritanopia .bg-brand-soft,
+html.colour-tritanopia .bg-lilac-soft {
+  background-color: #f1e6f8 !important;
+}
+
+html.colour-tritanopia .bg-warning {
+  background-color: #bc735c !important;
+}
+
+html.colour-tritanopia .bg-danger {
+  background-color: #a84f64 !important;
+}
+
 /* Skip-to-content link — visible only when focused. */
 .skip-link {
   position: fixed;
