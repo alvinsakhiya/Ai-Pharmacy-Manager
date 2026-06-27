@@ -404,6 +404,9 @@ describe("DosetteScreen", () => {
     expect(screen.getByText("Metformin")).toBeInTheDocument();
     expect(screen.getByText("Inactive line")).toBeInTheDocument();
     expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Medication line cards" }),
+    ).toBeInTheDocument();
 
     const amlodipineCard = screen.getByRole("article", {
       name: "Medication line Amlodipine",
@@ -414,8 +417,23 @@ describe("DosetteScreen", () => {
     expect(within(amlodipineCard).getByText("Lunchtime")).toBeInTheDocument();
     expect(within(amlodipineCard).getByText("Evening")).toBeInTheDocument();
     expect(within(amlodipineCard).getByText("Bedtime")).toBeInTheDocument();
+    expect(
+      within(amlodipineCard).getByRole("group", { name: "Morning dose 1" }),
+    ).toBeInTheDocument();
+    expect(
+      within(amlodipineCard).getByRole("group", { name: "Lunchtime dose 0" }),
+    ).toBeInTheDocument();
+    expect(
+      within(amlodipineCard).getByRole("group", { name: "Evening dose 0" }),
+    ).toBeInTheDocument();
+    expect(
+      within(amlodipineCard).getByRole("group", { name: "Bedtime dose 1" }),
+    ).toBeInTheDocument();
     expect(within(amlodipineCard).getByText("Blue")).toBeInTheDocument();
     expect(within(amlodipineCard).getByText("Round")).toBeInTheDocument();
+    expect(
+      within(amlodipineCard).getByText("Appearance: Blue · Round"),
+    ).toBeInTheDocument();
     expect(within(amlodipineCard).getByText("01 Jun 2026")).toBeInTheDocument();
     expect(
       within(amlodipineCard).getByRole("img", {

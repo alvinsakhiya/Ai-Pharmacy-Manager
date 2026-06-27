@@ -920,11 +920,15 @@ function MedicationDoseTile({
   value: number;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
+    <div
+      aria-label={`${label} dose ${value}`}
+      role="group"
+      className="rounded-xl border border-line bg-surface-subtle px-3 py-2"
+    >
       <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
         {label}
       </p>
-      <p className="tnum mt-1 text-xl font-extrabold text-ink">{value}</p>
+      <p className="tnum mt-1 text-lg font-extrabold text-ink">{value}</p>
     </div>
   );
 }
@@ -950,11 +954,11 @@ function MedicationLineCard({
     <article
       aria-label={`Medication line ${line.medication_name}`}
       className={cn(
-        "rounded-2xl border border-line bg-surface p-4 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2",
+        "flex h-full flex-col rounded-2xl border border-line bg-surface p-4 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2",
         !line.is_active && "opacity-75",
       )}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 gap-3">
           <MedicationAppearanceMarker colour={line.colour} shape={line.shape} />
           <div className="min-w-0">
@@ -972,12 +976,14 @@ function MedicationLineCard({
             </p>
           </div>
         </div>
-        <Badge variant="brand">
-          <span className="tnum">{totalDaily(line)}</span>/day
-        </Badge>
+        <div className="shrink-0">
+          <Badge variant="brand">
+            <span className="tnum">{totalDaily(line)}</span>/day
+          </Badge>
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
         {SLOT_META.map((slot) => (
           <MedicationDoseTile
             key={slot.key}
@@ -987,7 +993,7 @@ function MedicationLineCard({
         ))}
       </div>
 
-      <dl className="mt-4 grid gap-4 rounded-xl border border-line bg-surface-subtle p-3 sm:grid-cols-2 lg:grid-cols-5">
+      <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface-subtle p-3">
         <MedicationDetailValue label="Strength" value={safeText(line.strength)} />
         <MedicationDetailValue label="Form" value={safeText(line.form)} />
         <MedicationDetailValue label="Colour" value={safeText(line.colour)} />
@@ -998,10 +1004,17 @@ function MedicationLineCard({
         />
       </dl>
 
-      <p className="mt-3 text-xs font-medium text-muted">{appearance}</p>
+      <p
+        className={cn(
+          "mt-3 text-xs font-medium text-muted",
+          (canManage || canMarkStatus) && "mb-4",
+        )}
+      >
+        Appearance: {appearance}
+      </p>
 
       {canManage || canMarkStatus ? (
-        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-line pt-4">
+        <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-line pt-4">
           {canMarkStatus ? (
             <Button
               onClick={() => onEditAppearance(line)}
@@ -1814,17 +1827,22 @@ export function DosetteScreen() {
             </PanelBody>
           ) : (
             <PanelBody>
-              <div className="grid gap-4">
+              <div
+                aria-label="Medication line cards"
+                role="list"
+                className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+              >
                 {medicationsQuery.data.map((line) => (
-                  <MedicationLineCard
-                    canManage={canManage}
-                    canMarkStatus={canMarkStatus}
-                    key={line.id}
-                    line={line}
-                    onDiscontinue={setLineToDiscontinue}
-                    onEdit={openEditMedicationModal}
-                    onEditAppearance={openAppearanceModal}
-                  />
+                  <div key={line.id} className="min-w-0" role="listitem">
+                    <MedicationLineCard
+                      canManage={canManage}
+                      canMarkStatus={canMarkStatus}
+                      line={line}
+                      onDiscontinue={setLineToDiscontinue}
+                      onEdit={openEditMedicationModal}
+                      onEditAppearance={openAppearanceModal}
+                    />
+                  </div>
                 ))}
               </div>
             </PanelBody>
