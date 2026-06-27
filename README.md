@@ -136,6 +136,7 @@ Latest verified suite results at Module 14:
 ## Documentation
 
 - [Demo Evidence Pack](docs/demo-evidence.md)
+- [TRUD dm+d Reference Data Import](docs/trud-dmd-import.md)
 
 ## Demo Users
 

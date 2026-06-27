@@ -38,7 +38,7 @@ password `DemoPass!2026`.
 | Patient records and Patient ID generation | `backend/apps/patients`, patient UI, generated pseudonymous references |
 | Dosette/MDS medication workflow | `backend/apps/blister`, patient Dosette workspace, medication lines, cycles |
 | Medication catalogue and local enablement | `backend/apps/catalogue`, catalogue UI, local medication records |
-| dm+d JSON import foundation | `docs/catalogue-import.md`, catalogue import command and tests |
+| dm+d reference import foundation | `docs/catalogue-import.md`, `docs/trud-dmd-import.md`, catalogue import commands and tests |
 | Inventory receiving, batches, expiry, adjustments, and counts | `backend/apps/inventory`, inventory list/detail, batch movement history |
 | Forecast and reorder suggestions | `backend/apps/analytics`, Stock Intelligence, forecast explanations |
 | Transfer suggestions | `backend/apps/analytics`, superintendent/admin transfer suggestion flow |
@@ -100,7 +100,7 @@ password `DemoPass!2026`.
 | Alerts | Stock alerts contain medication, pharmacy, severity, category, and subject stock item. Dosette alerts use cycle reference and Patient ID only. |
 | Work Queue | Patient-related tasks use pseudonymous Patient ID/reference, existing-record links, and review-before-action wording. |
 | Reviews | Review records are permission-gated and operational workflow records, not clinical recommendations. |
-| Catalogue | Medication catalogue access is permission-gated and supports prepared JSON import foundation only. |
+| Catalogue | Medication catalogue access is permission-gated and supports prepared JSON extracts plus admin-reviewed TRUD reference release imports. |
 | Audit log | Audit metadata is designed to remain PII-free and operational. |
 
 ## RBAC Evidence
@@ -136,8 +136,8 @@ docker compose exec frontend npm run test
 ## Known Non-Functional Notes
 
 - Demo data is fictional and local only.
-- dm+d import currently supports a prepared JSON import foundation, not a full
-  TRUD XML pipeline.
+- dm+d import supports prepared JSON extracts and admin-reviewed TRUD reference
+  release imports for catalogue maintenance.
 - Forecast and transfer outputs are operational decision support only.
 - No live NHS integration is implemented.
 - No live email, SMS, push notification, or external messaging delivery is

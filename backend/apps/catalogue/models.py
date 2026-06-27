@@ -6,8 +6,16 @@ from apps.core.models import TimeStampedModel
 
 class CatalogueProductSource(models.TextChoices):
     DMD = "DMD", "dm+d"
+    TRUD_DMD = "TRUD_DMD", "TRUD dm+d"
     SEED = "SEED", "Seed"
     MANUAL = "MANUAL", "Manual"
+
+
+class CatalogueProductDmdType(models.TextChoices):
+    VMP = "VMP", "Virtual medicinal product"
+    AMP = "AMP", "Actual medicinal product"
+    VMPP = "VMPP", "Virtual medicinal product pack"
+    AMPP = "AMPP", "Actual medicinal product pack"
 
 
 class CatalogueProduct(TimeStampedModel):
@@ -17,20 +25,30 @@ class CatalogueProduct(TimeStampedModel):
         choices=CatalogueProductSource.choices,
         default=CatalogueProductSource.SEED,
     )
+    dmd_type = models.CharField(
+        max_length=8,
+        choices=CatalogueProductDmdType.choices,
+        blank=True,
+        db_index=True,
+    )
+    parent_dmd_code = models.CharField(max_length=64, blank=True, db_index=True)
     vmp_name = models.CharField(max_length=255, blank=True)
     amp_name = models.CharField(max_length=255, blank=True)
     display_name = models.CharField(max_length=255)
     ingredient = models.CharField(max_length=255, blank=True)
     strength = models.CharField(max_length=64, blank=True)
-    dose_form = models.CharField(max_length=64)
+    dose_form = models.CharField(max_length=64, blank=True)
     pack_size = models.PositiveIntegerField(null=True, blank=True)
     pack_unit = models.CharField(max_length=64, blank=True)
     manufacturer = models.CharField(max_length=255, blank=True)
+    release_version = models.CharField(max_length=64, blank=True)
+    release_file = models.CharField(max_length=255, blank=True)
     appearance_colour = models.CharField(max_length=64, blank=True)
     appearance_shape = models.CharField(max_length=64, blank=True)
     appearance_form = models.CharField(max_length=64, blank=True)
     search_text = models.TextField(blank=True, db_index=True)
     is_active = models.BooleanField(default=True)
+    is_discontinued = models.BooleanField(default=False)
 
     objects = models.Manager()
 
@@ -39,6 +57,13 @@ class CatalogueProduct(TimeStampedModel):
         indexes = [
             models.Index(fields=["display_name"], name="catalogue_product_name_idx"),
             models.Index(fields=["ingredient"], name="catalogue_product_ing_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dmd_code"],
+                condition=~Q(dmd_code=""),
+                name="unique_catalogue_product_dmd_code",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -58,6 +83,8 @@ class CatalogueProduct(TimeStampedModel):
     def build_search_text(self) -> str:
         values = [
             self.dmd_code,
+            self.dmd_type,
+            self.parent_dmd_code,
             self.vmp_name,
             self.amp_name,
             self.display_name,
@@ -70,6 +97,8 @@ class CatalogueProduct(TimeStampedModel):
             self.appearance_colour,
             self.appearance_shape,
             self.appearance_form,
+            self.release_version,
+            self.release_file,
             self.full_label,
         ]
         return " ".join(value.strip().lower() for value in values if value).strip()
