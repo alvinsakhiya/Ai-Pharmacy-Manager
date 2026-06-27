@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
   Pill,
   Plus,
   Printer,
+  RefreshCw,
   Sun,
   Sunrise,
   Sunset,
@@ -235,6 +236,15 @@ const PACK_STEPS: TrackStep[] = [
   { key: "DELIVERED", label: "Delivered" },
 ];
 
+const WORKFLOW_STEPS: TrackStep[] = [
+  { key: "DRAFT", label: "Ready to prepare" },
+  { key: "PREPARED", label: "Prepared" },
+  { key: "CHECKED", label: "Checked" },
+  { key: "STOCK_DEDUCTED", label: "Stock deducted" },
+  { key: "COLLECTED", label: "Collected" },
+  { key: "DELIVERED", label: "Delivered" },
+];
+
 function packStatusIndex(status: string): number {
   if (status === "NEEDS_CHANGES") return 0;
   if (status === "COMPLETED" || status === "DELIVERED") {
@@ -242,6 +252,43 @@ function packStatusIndex(status: string): number {
   }
   const index = PACK_STEPS.findIndex((step) => step.key === status);
   return index < 0 ? 0 : index;
+}
+
+function cycleWorkflowIndex(cycle: DosetteCycle): number {
+  if (cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES") {
+    return 0;
+  }
+  if (cycle.status === "COMPLETED" || cycle.status === "DELIVERED") {
+    return WORKFLOW_STEPS.length - 1;
+  }
+  if (cycle.status === "COLLECTED") {
+    return 4;
+  }
+  if (cycle.stock_deducted) {
+    return 3;
+  }
+  if (cycle.status === "CHECKED") {
+    return 2;
+  }
+  if (cycle.status === "PREPARED") {
+    return 1;
+  }
+
+  return 0;
+}
+
+function cycleWorkflowLabel(cycle: DosetteCycle): string {
+  if (cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES") {
+    return statusLabel(cycle.status);
+  }
+  if (cycle.stock_deducted && !["COLLECTED", "DELIVERED", "COMPLETED"].includes(cycle.status)) {
+    return "Stock deducted";
+  }
+  if (cycle.status === "DRAFT") {
+    return "Ready to prepare";
+  }
+
+  return statusLabel(cycle.status);
 }
 
 const SLOT_META = [
@@ -539,6 +586,88 @@ function CycleDetailValue({
   );
 }
 
+function CycleStatusOverview({ cycle }: { cycle: DosetteCycle }) {
+  const workflowLabel = cycleWorkflowLabel(cycle);
+  const isFlagged =
+    cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES";
+
+  return (
+    <section
+      aria-label="Dosette status overview"
+      className="rounded-2xl border border-line bg-surface p-4 shadow-soft sm:p-5"
+    >
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge dot variant={cycleStatusTone(cycle.status)}>
+              {workflowLabel}
+            </Badge>
+            <Badge dot variant={dueStatusTone(cycle.due_status)}>
+              {dueStatusLabel(cycle.due_status)}
+            </Badge>
+            {cycle.stock_deducted ? (
+              <Badge icon={<CheckCircle2 className="h-3 w-3" />} variant="info">
+                Stock deducted
+              </Badge>
+            ) : null}
+          </div>
+          <h2 className="mt-3 text-lg font-extrabold text-ink">
+            {cycleFriendlyLabel(cycle)}
+          </h2>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            Internal reference:{" "}
+            <span className="tnum text-ink-soft">{cycle.reference}</span>
+          </p>
+          {cycle.is_due_soon ? (
+            <p className="mt-2 text-xs font-semibold text-warning-ink">
+              Suggested preparation window: within 3 days. Human review required.
+            </p>
+          ) : null}
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
+          <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+            Current status
+          </p>
+          <p className="mt-1 text-sm font-extrabold text-ink">{workflowLabel}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-xl border border-line bg-surface-subtle px-3 py-4 sm:px-4">
+        <StatusTrack
+          steps={WORKFLOW_STEPS}
+          currentIndex={cycleWorkflowIndex(cycle)}
+          tone={isFlagged ? "danger" : "peach"}
+        />
+      </div>
+
+      <dl className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CycleDetailValue
+          label="Supply period"
+          value={cycleSupplyPeriodLabel(cycle)}
+        />
+        <CycleDetailValue label="Cycle dates" value={cycleDateRange(cycle)} />
+        <CycleDetailValue label="Due signal" value={daysUntilDueLabel(cycle)} />
+        <CycleDetailValue
+          label="Prepared"
+          value={preparedCheckedLabel(cycle.prepared_by_email, cycle.prepared_at)}
+        />
+        <CycleDetailValue
+          label="Checked"
+          value={preparedCheckedLabel(cycle.checked_by_email, cycle.checked_at)}
+        />
+        <CycleDetailValue
+          label="Stock deducted"
+          value={cycle.stock_deducted ? "Yes" : "No"}
+        />
+        <CycleDetailValue
+          label="Deducted at"
+          value={optionalDateTime(cycle.deducted_at)}
+        />
+      </dl>
+    </section>
+  );
+}
+
 function UpcomingCyclePlan({ cycles }: { cycles: DosetteCycle[] }) {
   const plannedCycles = buildUpcomingCyclePlan(cycles);
   if (plannedCycles.length === 0) {
@@ -663,7 +792,7 @@ function CycleCard({
             size="sm"
             variant={isSelected ? "primary" : "secondary"}
           >
-            View picking list
+            Select cycle
           </Button>
           {canManage && canEditCycle(cycle) ? (
             <Button onClick={() => onEdit(cycle)} size="sm" variant="secondary">
@@ -1589,6 +1718,87 @@ function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
   );
 }
 
+function PickingListGate({
+  cycle,
+  hasGenerated,
+  isBusy,
+  onGenerate,
+  onRefresh,
+}: {
+  cycle: DosetteCycle | null;
+  hasGenerated: boolean;
+  isBusy: boolean;
+  onGenerate: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<ClipboardList className="h-4 w-4" />}
+        title="Generate picking list"
+        subtitle="Show the on-screen stock gathering view only when the team is ready."
+        actions={
+          cycle ? (
+            hasGenerated ? (
+              <Button
+                disabled={isBusy}
+                leadingIcon={<RefreshCw className="h-4 w-4" />}
+                onClick={onRefresh}
+                variant="secondary"
+              >
+                Refresh picking list
+              </Button>
+            ) : (
+              <Button
+                disabled={isBusy}
+                leadingIcon={<ClipboardList className="h-4 w-4" />}
+                onClick={onGenerate}
+                variant="primary"
+              >
+                Generate picking list
+              </Button>
+            )
+          ) : null
+        }
+      />
+      <PanelBody>
+        {cycle ? (
+          <div className="rounded-xl border border-line bg-surface-subtle p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+                  Selected cycle
+                </p>
+                <h3 className="mt-1 text-sm font-extrabold text-ink">
+                  {cycleFriendlyLabel(cycle)}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">
+                  Generate a picking list when you are ready to gather stock for
+                  this Dosette cycle.
+                </p>
+              </div>
+              <Badge dot variant={cycleStatusTone(cycle.status)}>
+                {cycleWorkflowLabel(cycle)}
+              </Badge>
+            </div>
+            {hasGenerated ? (
+              <p className="mt-3 text-xs font-semibold text-success-ink">
+                Picking list generated for this selected cycle.
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<ClipboardList className="h-5 w-5" />}
+            title="Select a cycle before generating."
+            description="Choose a Dosette cycle above, then generate the picking list when stock gathering is ready."
+          />
+        )}
+      </PanelBody>
+    </Panel>
+  );
+}
+
 export function DosetteScreen() {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -1601,6 +1811,7 @@ export function DosetteScreen() {
   const parsedPatientId = Number(patientId);
   const isValidPatientId = Number.isFinite(parsedPatientId);
   const [selectedCycleId, setSelectedCycleId] = useState<number | null>(null);
+  const [generatedCycleId, setGeneratedCycleId] = useState<number | null>(null);
   const [editingLine, setEditingLine] = useState<PatientMedicationLine | null>(null);
   const [isMedicationModalOpen, setMedicationModalOpen] = useState(false);
   const [editingCycle, setEditingCycle] = useState<DosetteCycle | null>(null);
@@ -1619,8 +1830,8 @@ export function DosetteScreen() {
   const [isPrintModalOpen, setPrintModalOpen] = useState(false);
   const medicationsQuery = usePatientMedicationsQuery(parsedPatientId);
   const cyclesQuery = useDosetteCyclesQuery(parsedPatientId);
-  const pickingListQuery = usePickingListQuery(parsedPatientId, selectedCycleId);
-  const stockPreviewQuery = useStockPreviewQuery(parsedPatientId, selectedCycleId);
+  const pickingListQuery = usePickingListQuery(parsedPatientId, generatedCycleId);
+  const stockPreviewQuery = useStockPreviewQuery(parsedPatientId, generatedCycleId);
   const discontinueMedication =
     useDiscontinuePatientMedication(parsedPatientId);
   const prepareCycle = usePrepareDosetteCycle(parsedPatientId);
@@ -1628,6 +1839,29 @@ export function DosetteScreen() {
   const cancelCycle = useCancelDosetteCycle(parsedPatientId);
   const updateStatus = useUpdateCycleStatus(parsedPatientId);
   const updateAppearance = useUpdateMedicationAppearance(parsedPatientId);
+
+  useEffect(() => {
+    if (!cyclesQuery.isSuccess) {
+      return;
+    }
+
+    setSelectedCycleId((current) => {
+      if (cyclesQuery.data.length === 0) {
+        return null;
+      }
+      if (current !== null && cyclesQuery.data.some((cycle) => cycle.id === current)) {
+        return current;
+      }
+
+      return cyclesQuery.data[0].id;
+    });
+  }, [cyclesQuery.data, cyclesQuery.isSuccess]);
+
+  useEffect(() => {
+    if (generatedCycleId !== null && generatedCycleId !== selectedCycleId) {
+      setGeneratedCycleId(null);
+    }
+  }, [generatedCycleId, selectedCycleId]);
 
   function openAppearanceModal(line: PatientMedicationLine) {
     setAppearanceLine(line);
@@ -1672,6 +1906,24 @@ export function DosetteScreen() {
     setCycleModalOpen(true);
   }
 
+  function handleSelectCycle(cycle: DosetteCycle) {
+    setSelectedCycleId(cycle.id);
+    setGeneratedCycleId(null);
+  }
+
+  function handleGeneratePickingList() {
+    if (selectedCycleId === null) {
+      return;
+    }
+
+    setGeneratedCycleId(selectedCycleId);
+  }
+
+  function handleRefreshPickingList() {
+    void pickingListQuery.refetch();
+    void stockPreviewQuery.refetch();
+  }
+
   function openDeductStockModal(cycle: DosetteCycle) {
     setDeductStockError(null);
     setCycleToDeduct(cycle);
@@ -1709,6 +1961,9 @@ export function DosetteScreen() {
   const medicationLines = medicationsQuery.data ?? [];
   const selectedCycle =
     cycles.find((cycle) => cycle.id === selectedCycleId) ?? null;
+  const statusCycle = selectedCycle ?? cycles[0] ?? null;
+  const generatedCycle =
+    cycles.find((cycle) => cycle.id === generatedCycleId) ?? null;
   const printableCycle = selectedCycle ?? cycles[0] ?? null;
   const printableMedicationLines = medicationLines.filter((line) => line.is_active);
   const patientReference =
@@ -1723,6 +1978,10 @@ export function DosetteScreen() {
         : "Assigned pharmacy";
   const activeLineCount =
     medicationLines.filter((line) => line.is_active).length ?? 0;
+  const hasGeneratedPickingList =
+    selectedCycleId !== null && generatedCycleId === selectedCycleId;
+  const isPickingListBusy =
+    pickingListQuery.isFetching || stockPreviewQuery.isFetching;
 
   function handlePrintSheet() {
     window.print();
@@ -1774,6 +2033,85 @@ export function DosetteScreen() {
           ) : null
         }
       />
+
+      {cyclesQuery.isLoading ? <LoadingSection text="Loading cycles..." /> : null}
+      {cyclesQuery.isError ? (
+        <ErrorSection
+          onRetry={() => void cyclesQuery.refetch()}
+          title="Could not load cycles."
+        />
+      ) : null}
+      {cyclesQuery.isSuccess ? (
+        <Panel>
+          <PanelHeader
+            icon={<CalendarRange className="h-4 w-4" />}
+            title="Dosette status"
+            subtitle="Track the selected cycle before generating the picking list."
+            actions={
+              canManage ? (
+                <Button
+                  leadingIcon={<Plus className="h-4 w-4" />}
+                  onClick={openCreateCycleModal}
+                  variant="primary"
+                >
+                  Add cycle
+                </Button>
+              ) : null
+            }
+          />
+          {cyclesQuery.data.length === 0 ? (
+            <PanelBody>
+              <EmptyState
+                icon={<CalendarRange className="h-5 w-5" />}
+                title="No dosette cycles yet."
+                description={
+                  canManage
+                    ? "Create a cycle to schedule a compliance pack run."
+                    : "Cycles will appear here once scheduled."
+                }
+                action={
+                  canManage ? (
+                    <Button
+                      leadingIcon={<Plus className="h-4 w-4" />}
+                      onClick={openCreateCycleModal}
+                      variant="primary"
+                    >
+                      Add cycle
+                    </Button>
+                  ) : undefined
+                }
+              />
+            </PanelBody>
+          ) : (
+            <PanelBody>
+              {statusCycle ? <CycleStatusOverview cycle={statusCycle} /> : null}
+              <div className="mt-4 grid gap-4">
+                {cyclesQuery.data.map((cycle: DosetteCycle) => (
+                  <CycleCard
+                    canDeduct={canDeduct}
+                    canManage={canManage}
+                    canMarkPrepared={canMarkPrepared}
+                    canMarkStatus={canMarkStatus}
+                    cycle={cycle}
+                    isSelected={selectedCycleId === cycle.id}
+                    isStatusPending={updateStatus.isPending}
+                    key={cycle.id}
+                    onCancel={setCycleToCancel}
+                    onDeduct={openDeductStockModal}
+                    onEdit={openEditCycleModal}
+                    onPrepare={setCycleToPrepare}
+                    onSelect={handleSelectCycle}
+                    onStatusChange={(selectedCycle, status, label) => {
+                      void handleStatusChange(selectedCycle, status, label);
+                    }}
+                  />
+                ))}
+              </div>
+              <UpcomingCyclePlan cycles={cyclesQuery.data} />
+            </PanelBody>
+          )}
+        </Panel>
+      ) : null}
 
       {medicationsQuery.isLoading ? (
         <LoadingSection text="Loading medication lines..." />
@@ -1850,116 +2188,40 @@ export function DosetteScreen() {
         </Panel>
       ) : null}
 
-      {cyclesQuery.isLoading ? <LoadingSection text="Loading cycles..." /> : null}
-      {cyclesQuery.isError ? (
-        <ErrorSection
-          onRetry={() => void cyclesQuery.refetch()}
-          title="Could not load cycles."
+      {cyclesQuery.isSuccess && cyclesQuery.data.length > 0 ? (
+        <PickingListGate
+          cycle={selectedCycle}
+          hasGenerated={hasGeneratedPickingList}
+          isBusy={isPickingListBusy}
+          onGenerate={handleGeneratePickingList}
+          onRefresh={handleRefreshPickingList}
         />
       ) : null}
-      {cyclesQuery.isSuccess ? (
-        <Panel>
-          <PanelHeader
-            icon={<CalendarRange className="h-4 w-4" />}
-            title="Cycles"
-            subtitle="Pack runs by date range and frequency."
-            actions={
-              canManage ? (
-                <Button
-                  leadingIcon={<Plus className="h-4 w-4" />}
-                  onClick={openCreateCycleModal}
-                  variant="primary"
-                >
-                  Add cycle
-                </Button>
-              ) : null
-            }
-          />
-          {cyclesQuery.data.length === 0 ? (
-            <PanelBody>
-              <EmptyState
-                icon={<CalendarRange className="h-5 w-5" />}
-                title="No dosette cycles yet."
-                description={
-                  canManage
-                    ? "Create a cycle to schedule a compliance pack run."
-                    : "Cycles will appear here once scheduled."
-                }
-                action={
-                  canManage ? (
-                    <Button
-                      leadingIcon={<Plus className="h-4 w-4" />}
-                      onClick={openCreateCycleModal}
-                      variant="primary"
-                    >
-                      Add cycle
-                    </Button>
-                  ) : undefined
-                }
-              />
-            </PanelBody>
-          ) : (
-            <PanelBody>
-              <div className="grid gap-4">
-                {cyclesQuery.data.map((cycle: DosetteCycle) => (
-                  <CycleCard
-                    canDeduct={canDeduct}
-                    canManage={canManage}
-                    canMarkPrepared={canMarkPrepared}
-                    canMarkStatus={canMarkStatus}
-                    cycle={cycle}
-                    isSelected={selectedCycleId === cycle.id}
-                    isStatusPending={updateStatus.isPending}
-                    key={cycle.id}
-                    onCancel={setCycleToCancel}
-                    onDeduct={openDeductStockModal}
-                    onEdit={openEditCycleModal}
-                    onPrepare={setCycleToPrepare}
-                    onSelect={(selectedCycle) => setSelectedCycleId(selectedCycle.id)}
-                    onStatusChange={(selectedCycle, status, label) => {
-                      void handleStatusChange(selectedCycle, status, label);
-                    }}
-                  />
-                ))}
-              </div>
-              <UpcomingCyclePlan cycles={cyclesQuery.data} />
-            </PanelBody>
-          )}
-        </Panel>
-      ) : null}
-
-      {selectedCycleId === null ? (
-        <EmptyState
-          icon={<Grid3x3 className="h-5 w-5" />}
-          title="Select a cycle to view its picking list."
-          description="Choose a cycle above to lay out its blister tray and preview stock."
-        />
-      ) : null}
-      {selectedCycleId !== null && pickingListQuery.isLoading ? (
+      {hasGeneratedPickingList && pickingListQuery.isLoading ? (
         <LoadingSection text="Loading picking list..." />
       ) : null}
-      {selectedCycleId !== null && pickingListQuery.isError ? (
+      {hasGeneratedPickingList && pickingListQuery.isError ? (
         <ErrorSection
           onRetry={() => void pickingListQuery.refetch()}
           title="Could not load picking list."
         />
       ) : null}
-      {selectedCycleId !== null && pickingListQuery.isSuccess ? (
+      {hasGeneratedPickingList && pickingListQuery.isSuccess ? (
         <PickingListSection
-          cycle={selectedCycle}
+          cycle={generatedCycle}
           pickingList={pickingListQuery.data}
         />
       ) : null}
-      {selectedCycleId !== null && stockPreviewQuery.isLoading ? (
+      {hasGeneratedPickingList && stockPreviewQuery.isLoading ? (
         <LoadingSection text="Loading stock availability..." />
       ) : null}
-      {selectedCycleId !== null && stockPreviewQuery.isError ? (
+      {hasGeneratedPickingList && stockPreviewQuery.isError ? (
         <ErrorSection
           onRetry={() => void stockPreviewQuery.refetch()}
           title="Could not load stock availability."
         />
       ) : null}
-      {selectedCycleId !== null && stockPreviewQuery.isSuccess ? (
+      {hasGeneratedPickingList && stockPreviewQuery.isSuccess ? (
         <StockPreviewSection stockPreview={stockPreviewQuery.data} />
       ) : null}
 

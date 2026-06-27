@@ -309,6 +309,17 @@ function getCycleArticle(reference: string): HTMLElement {
 const DEFAULT_PICKING_LIST_HEADING =
   "Picking list: SUT-P1 · 1-week supply · 22 Jun 2026 - 28 Jun 2026";
 
+async function generatePickingList(user: ReturnType<typeof userEvent.setup>) {
+  const selectButtons = await screen.findAllByRole("button", {
+    name: "Select cycle",
+  });
+  await user.click(selectButtons[0]);
+  expect(screen.queryByText(DEFAULT_PICKING_LIST_HEADING)).toBeNull();
+  await user.click(
+    screen.getByRole("button", { name: "Generate picking list" }),
+  );
+}
+
 describe("DosetteScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -466,6 +477,28 @@ describe("DosetteScreen", () => {
     );
   });
 
+  it("renders the status section above the medication grid", async () => {
+    renderDosette();
+
+    const statusSection = await screen.findByLabelText("Dosette status overview");
+    const medicationGrid = await screen.findByRole("list", {
+      name: "Medication line cards",
+    });
+
+    expect(
+      statusSection.compareDocumentPosition(medicationGrid) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(statusSection).getByText("Current status")).toBeInTheDocument();
+    expect(within(statusSection).getAllByText("Ready to prepare").length).toBeGreaterThan(
+      0,
+    );
+    expect(within(statusSection).getByText("MDS-2026-W26")).toBeInTheDocument();
+    expect(
+      within(statusSection).getAllByText("Stock deducted").length,
+    ).toBeGreaterThan(0);
+  });
+
   it("renders upcoming predicted cycle periods without creating cycles", async () => {
     renderDosette();
 
@@ -500,9 +533,7 @@ describe("DosetteScreen", () => {
     ]);
     renderDosette();
 
-    await user.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
-    );
+    await generatePickingList(user);
     expect(
       await screen.findByText(DEFAULT_PICKING_LIST_HEADING),
     ).toBeInTheDocument();
@@ -554,14 +585,17 @@ describe("DosetteScreen", () => {
     });
   });
 
-  it("selecting a cycle renders picking-list rows and totals", async () => {
+  it("generating a picking list renders rows and totals without backend mutation", async () => {
     const user = userEvent.setup();
     renderDosette();
 
-    const actions = await screen.findAllByRole("button", {
-      name: "View picking list",
-    });
-    await user.click(actions[0]);
+    expect(
+      await screen.findByRole("button", { name: "Generate picking list" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(DEFAULT_PICKING_LIST_HEADING)).toBeNull();
+    expect(getPickingListMock).not.toHaveBeenCalled();
+
+    await generatePickingList(user);
 
     expect(getPickingListMock).toHaveBeenCalledWith(20, 40);
     expect(
@@ -580,15 +614,45 @@ describe("DosetteScreen", () => {
     expect(
       within(pickingList as HTMLElement).getAllByText("4").length,
     ).toBeGreaterThan(0);
+    expect(createDosetteCycleMock).not.toHaveBeenCalled();
+    expect(prepareDosetteCycleMock).not.toHaveBeenCalled();
+    expect(cancelDosetteCycleMock).not.toHaveBeenCalled();
+    expect(deductDosetteStockMock).not.toHaveBeenCalled();
   });
 
-  it("selecting a cycle renders stock preview values badges and FEFO batches", async () => {
+  it("switching cycle resets the generated picking-list view", async () => {
     const user = userEvent.setup();
     renderDosette();
 
+    await generatePickingList(user);
+    expect(
+      await screen.findByText(DEFAULT_PICKING_LIST_HEADING),
+    ).toBeInTheDocument();
+
+    const selectButtons = await screen.findAllByRole("button", {
+      name: "Select cycle",
+    });
+    await user.click(selectButtons[1]);
+
+    expect(screen.queryByText(DEFAULT_PICKING_LIST_HEADING)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Generate picking list" }),
+    ).toBeInTheDocument();
+
     await user.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
+      screen.getByRole("button", { name: "Generate picking list" }),
     );
+
+    await waitFor(() => {
+      expect(getPickingListMock).toHaveBeenCalledWith(20, 41);
+    });
+  });
+
+  it("generating a picking list renders stock preview values badges and FEFO batches", async () => {
+    const user = userEvent.setup();
+    renderDosette();
+
+    await generatePickingList(user);
 
     expect(getStockPreviewMock).toHaveBeenCalledWith(20, 40);
     expect(
@@ -675,18 +739,14 @@ describe("DosetteScreen", () => {
     getStockPreviewMock.mockReturnValueOnce(new Promise(() => undefined));
     const loadingRender = renderDosette();
 
-    await user.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
-    );
+    await generatePickingList(user);
     expect(await screen.findByText("Loading stock availability...")).toBeInTheDocument();
     loadingRender.unmount();
 
     getStockPreviewMock.mockRejectedValueOnce(new Error("No stock preview"));
     const errorRender = renderDosette();
 
-    await user.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
-    );
+    await generatePickingList(user);
     expect(
       await screen.findByText("Could not load stock availability."),
     ).toBeInTheDocument();
@@ -695,9 +755,7 @@ describe("DosetteScreen", () => {
     getStockPreviewMock.mockResolvedValueOnce(makeStockPreview({ medications: [] }));
     renderDosette();
 
-    await user.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
-    );
+    await generatePickingList(user);
     expect(
       await screen.findByText("No active medication lines to preview."),
     ).toBeInTheDocument();
@@ -770,9 +828,7 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.manage": true }),
     );
 
-    await user.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
-    );
+    await generatePickingList(user);
     expect(await screen.findByText(DEFAULT_PICKING_LIST_HEADING)).toBeInTheDocument();
     const medicationCallsBefore = listPatientMedicationsMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
@@ -807,8 +863,8 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.manage": true }),
     );
 
-    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
-    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
+    const cyclesSection = screen.getByText("Dosette status").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).getByRole("button", {
@@ -830,8 +886,8 @@ describe("DosetteScreen", () => {
   it("hides cycle add edit and cancel with only blister view", async () => {
     renderDosette();
 
-    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
-    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
+    const cyclesSection = screen.getByText("Dosette status").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).queryByRole("button", {
@@ -856,8 +912,8 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.mark_prepared": true }),
     );
 
-    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
-    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
+    const cyclesSection = screen.getByText("Dosette status").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).getAllByRole("button", {
@@ -883,8 +939,8 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.manage": true }),
     );
 
-    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
-    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
+    const cyclesSection = screen.getByText("Dosette status").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).queryByRole("button", {
@@ -914,7 +970,9 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.deduct": true }),
     );
 
-    expect(await screen.findByText("MDS-2026-DEDUCTED")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("MDS-2026-DEDUCTED")).length,
+    ).toBeGreaterThan(0);
     const draftCycle = getCycleArticle("MDS-2026-DRAFT");
     const preparedCycle = getCycleArticle("MDS-2026-PREPARED");
     const deductedCycle = getCycleArticle("MDS-2026-DEDUCTED");
@@ -940,7 +998,7 @@ describe("DosetteScreen", () => {
     ]);
     const viewOnlyRender = renderDosette();
 
-    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
+    expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Deduct stock" })).toBeNull();
     viewOnlyRender.unmount();
   });
@@ -955,7 +1013,7 @@ describe("DosetteScreen", () => {
       queryClient,
     );
 
-    expect(await screen.findByText("MDS-2026-FW07")).toBeInTheDocument();
+    expect((await screen.findAllByText("MDS-2026-FW07")).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Deduct stock" }));
     expect(
       screen.getByRole("heading", { name: "Deduct stock for this cycle?" }),
@@ -1069,7 +1127,9 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.manage": true, "blister.deduct": true }),
     );
 
-    expect(await screen.findByText("MDS-2026-DEDUCTED")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("MDS-2026-DEDUCTED")).length,
+    ).toBeGreaterThan(0);
     const deductedCycle = getCycleArticle("MDS-2026-DEDUCTED");
     expect(within(deductedCycle).getByText("Stock deducted")).toBeInTheDocument();
     expect(
@@ -1092,7 +1152,9 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.manage": true, "blister.deduct": true }),
     );
 
-    expect(await screen.findByText("Stock deducted")).toBeInTheDocument();
+    expect((await screen.findAllByText("Stock deducted")).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.queryByRole("button", { name: /reverse|undo/i })).toBeNull();
   });
 
@@ -1120,8 +1182,10 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.manage": true }),
     );
 
-    expect(await screen.findByText("MDS-2026-COMPLETED")).toBeInTheDocument();
-    const cyclesSection = screen.getByText("Cycles").closest("section");
+    expect(
+      (await screen.findAllByText("MDS-2026-COMPLETED")).length,
+    ).toBeGreaterThan(0);
+    const cyclesSection = screen.getByText("Dosette status").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).getAllByRole("button", {
@@ -1147,9 +1211,7 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.mark_prepared": true }),
     );
 
-    await user.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
-    );
+    await generatePickingList(user);
     expect(await screen.findByText(DEFAULT_PICKING_LIST_HEADING)).toBeInTheDocument();
     const cycleCallsBefore = listDosetteCyclesMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
@@ -1185,9 +1247,7 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.manage": true }),
     );
 
-    await user.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
-    );
+    await generatePickingList(user);
     expect(await screen.findByText(DEFAULT_PICKING_LIST_HEADING)).toBeInTheDocument();
     const cycleCallsBefore = listDosetteCyclesMock.mock.calls.length;
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
@@ -1225,7 +1285,7 @@ describe("DosetteScreen", () => {
       }),
     );
 
-    expect(await screen.findByText("MDS-2026-W26")).toBeInTheDocument();
+    expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /^check$/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /^complete$/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /stock/i })).toBeNull();
@@ -1253,9 +1313,7 @@ describe("DosetteScreen", () => {
     expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /prepare/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull();
-    await userEvent.click(
-      (await screen.findAllByRole("button", { name: "View picking list" }))[0],
-    );
+    await generatePickingList(userEvent.setup());
     expect(await screen.findByText(DEFAULT_PICKING_LIST_HEADING)).toBeInTheDocument();
     const pickingList = screen.getByText(DEFAULT_PICKING_LIST_HEADING).closest(
       "section",
