@@ -104,6 +104,7 @@ describe("ReviewsScreen", () => {
       makeReview({
         id: 13,
         patient_reference: "CRO-P1",
+        dosette_cycle: null,
         cycle_reference: null,
         status: "COMPLETED",
         priority: "ROUTINE",
@@ -127,30 +128,45 @@ describe("ReviewsScreen", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Pharmacist Reviews",
+        name: "Reviews",
         level: 1,
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Operational review queue for pharmacist checks and follow-up actions.",
-      ),
+      screen.getByText("Review pending pharmacy decisions before action."),
     ).toBeInTheDocument();
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(screen.getByText("Human review required")).toBeInTheDocument();
+    expect(screen.getAllByText("All reviews").length).toBeGreaterThan(0);
+
+    const summary = await screen.findByRole("region", {
+      name: "Reviews summary",
+    });
+    expect(within(summary).getByText("Visible reviews")).toBeInTheDocument();
+    expect(within(summary).getByText("Pending reviews")).toBeInTheDocument();
+    expect(within(summary).getByText("Completed reviews")).toBeInTheDocument();
+    expect(within(summary).getByText("Attention priority")).toBeInTheDocument();
+    expect(within(summary).getByText("Overdue")).toBeInTheDocument();
+    expect(within(summary).getByText("2 reviews in source view"))
+      .toBeInTheDocument();
+
+    expect(screen.getByText("Review for SUT-P1")).toBeInTheDocument();
+    expect(screen.getByText("Dosette review")).toBeInTheDocument();
+    expect(screen.getByText("General review")).toBeInTheDocument();
     expect(screen.getByText("Cycle MDS-2026-FW07")).toBeInTheDocument();
     expect(
       screen.getByText("Check supply timing before next collection."),
     ).toBeInTheDocument();
     expect(screen.getByText("pharmacist@example.com")).toBeInTheDocument();
+    expect(screen.getAllByText("Created").length).toBeGreaterThan(0);
   });
 
   it("renders status priority and overdue badges", async () => {
     renderReviews();
 
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Attention").length).toBeGreaterThan(0);
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getAllByText("Overdue").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Routine").length).toBeGreaterThan(0);
   });
@@ -161,15 +177,52 @@ describe("ReviewsScreen", () => {
     expect(
       await screen.findByRole("button", { name: "New review" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Complete" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("preserves API filters and applies local search to existing review data", async () => {
+    const user = userEvent.setup();
+    renderReviews();
+
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Search reviews"), "CRO");
+    expect(screen.getByText("Review for CRO-P1")).toBeInTheDocument();
+    expect(screen.queryByText("Review for SUT-P1")).toBeNull();
+    expect(screen.getAllByText("1 active filter").length).toBeGreaterThan(0);
+    await user.clear(screen.getByLabelText("Search reviews"));
+
+    await user.selectOptions(screen.getByLabelText("Status"), "COMPLETED");
+    await waitFor(() => {
+      expect(getReviewsMock).toHaveBeenLastCalledWith({
+        status: "COMPLETED",
+      });
+    });
+
+    await user.selectOptions(screen.getByLabelText("Priority"), "URGENT");
+    await waitFor(() => {
+      expect(getReviewsMock).toHaveBeenLastCalledWith({
+        status: "COMPLETED",
+        priority: "URGENT",
+      });
+    });
+
+    await user.click(screen.getByLabelText("Overdue only"));
+    await waitFor(() => {
+      expect(getReviewsMock).toHaveBeenLastCalledWith({
+        status: "COMPLETED",
+        priority: "URGENT",
+        overdue: true,
+      });
+    });
   });
 
   it("keeps view-only users read-only", async () => {
     renderReviews(false);
 
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New review" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
@@ -178,7 +231,7 @@ describe("ReviewsScreen", () => {
   it("renders loading error and empty states", async () => {
     getReviewsMock.mockReturnValueOnce(new Promise<Review[]>(() => undefined));
     const loadingRender = renderReviews();
-    expect(screen.getByText("Loading reviews...")).toBeInTheDocument();
+    expect(screen.getByText("Loading review queue...")).toBeInTheDocument();
     loadingRender.unmount();
     getReviewsMock.mockClear();
 
@@ -194,7 +247,9 @@ describe("ReviewsScreen", () => {
 
     getReviewsMock.mockResolvedValueOnce([]);
     renderReviews();
-    expect(await screen.findByText("No reviews.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No reviews match the current view."),
+    ).toBeInTheDocument();
   });
 
   it("creates reviews without client-controlled status fields", async () => {
@@ -258,17 +313,34 @@ describe("ReviewsScreen", () => {
   it("does not render patient PII or excluded wording in the review queue", async () => {
     renderReviews();
 
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
     for (const forbidden of [
       "PatientOne",
       "PrivateLast",
       "date_of_birth",
+      "DOB",
+      "NHS number",
+      "postcode",
       "1 Private Street",
       "020 0000 0000",
-      "dose",
       "diagnosis",
       "recommendation",
       "clinical",
+      "AI decided",
+      "automatic approval",
+      "automatic rejection",
+      "automatic ordering",
+      "automatic transfer",
+      "automatic cycle creation",
+      "NHS integration",
+      "NCRS",
+      "compliance proof",
+      "Auto approve",
+      "Auto reject",
+      "Order now",
+      "Transfer now",
+      "Generate cycle",
+      "Delete",
     ]) {
       expect(screen.queryByText(forbidden, { exact: false })).toBeNull();
     }

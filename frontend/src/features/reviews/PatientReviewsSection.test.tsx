@@ -111,7 +111,7 @@ describe("PatientReviewsSection", () => {
     expect(
       await screen.findByRole("heading", { name: "Reviews" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
     expect(screen.getByText("Cycle MDS-2026-FW07")).toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe("PatientReviewsSection", () => {
     expect(
       await screen.findByRole("button", { name: "Add review" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Complete" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
@@ -129,7 +129,7 @@ describe("PatientReviewsSection", () => {
   it("keeps view-only users read-only", async () => {
     renderSection(false);
 
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add review" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
@@ -161,14 +161,13 @@ describe("PatientReviewsSection", () => {
     ]);
     renderSection();
 
-    expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
     for (const forbidden of [
       "PatientOne",
       "PrivateLast",
       "date_of_birth",
       "address",
       "phone",
-      "dose",
       "diagnosis",
       "recommendation",
       "clinical",

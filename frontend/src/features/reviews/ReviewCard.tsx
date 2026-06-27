@@ -1,5 +1,13 @@
-import { CalendarClock, CheckCircle2, UserRound, XCircle } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  ClipboardCheck,
+  PackageCheck,
+  UserRound,
+  XCircle,
+} from "lucide-react";
 
+import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import {
   ReviewOverdueBadge,
@@ -69,6 +77,12 @@ function Detail({
   );
 }
 
+function reviewTypeLabel(review: Review): string {
+  return review.dosette_cycle || review.cycle_reference
+    ? "Dosette review"
+    : "General review";
+}
+
 export function ReviewCard({
   review,
   canManage,
@@ -78,16 +92,28 @@ export function ReviewCard({
   const canAct = canManage && ["PENDING", "IN_REVIEW"].includes(review.status);
 
   return (
-    <article className="interactive-card animate-fade-in-up rounded-2xl border border-line bg-surface p-5 shadow-soft">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <article className="interactive-card animate-fade-in-up overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
+      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
             <ReviewStatusBadge status={review.status} />
             <ReviewPriorityBadge priority={review.priority} />
+            <Badge
+              variant={review.cycle_reference ? "info" : "neutral"}
+              icon={
+                review.cycle_reference ? (
+                  <PackageCheck className="h-3.5 w-3.5" />
+                ) : (
+                  <ClipboardCheck className="h-3.5 w-3.5" />
+                )
+              }
+            >
+              {reviewTypeLabel(review)}
+            </Badge>
             {review.is_overdue ? <ReviewOverdueBadge /> : null}
           </div>
-          <h2 className="mt-4 text-base font-bold tracking-[-0.01em] text-ink tnum">
-            {review.patient_reference}
+          <h2 className="mt-4 text-[17px] font-extrabold tracking-[-0.01em] text-ink tnum">
+            Review for {review.patient_reference}
           </h2>
           {review.cycle_reference ? (
             <p className="mt-1 text-sm text-muted">
@@ -118,7 +144,7 @@ export function ReviewCard({
         ) : null}
       </div>
 
-      <dl className="mt-5 grid gap-4 sm:grid-cols-3">
+      <dl className="grid gap-4 border-t border-line px-5 py-5 sm:grid-cols-2 xl:grid-cols-4">
         <Detail
           label="Due date"
           value={formatDate(review.due_date)}
@@ -130,6 +156,11 @@ export function ReviewCard({
           icon={<UserRound className="h-3.5 w-3.5" />}
         />
         <Detail
+          label="Created"
+          value={formatDateTime(review.created_at)}
+          icon={<CalendarClock className="h-3.5 w-3.5" />}
+        />
+        <Detail
           label="Updated"
           value={formatDateTime(review.updated_at)}
           icon={<CalendarClock className="h-3.5 w-3.5" />}
@@ -137,7 +168,7 @@ export function ReviewCard({
       </dl>
 
       {review.notes.trim() ? (
-        <p className="mt-5 whitespace-pre-wrap rounded-xl border border-line bg-surface-subtle p-4 text-sm leading-relaxed text-ink-soft">
+        <p className="mx-5 mb-5 whitespace-pre-wrap rounded-xl border border-line bg-surface-subtle p-4 text-sm leading-relaxed text-ink-soft">
           {review.notes}
         </p>
       ) : null}
