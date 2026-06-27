@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -58,6 +59,7 @@ describe("PatientsScreen actions", () => {
   });
 
   it("shows Create patient with patient.manage", async () => {
+    const user = userEvent.setup();
     renderWithProviders(<PatientsScreen />, {
       auth: patientAuth({ "patient.view": true, "patient.manage": true }),
     });
@@ -65,6 +67,12 @@ describe("PatientsScreen actions", () => {
     expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Create patient" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Create patient" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Create patient" }),
     ).toBeInTheDocument();
   });
 

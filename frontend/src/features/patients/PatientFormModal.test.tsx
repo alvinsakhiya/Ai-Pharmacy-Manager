@@ -87,6 +87,21 @@ describe("PatientFormModal", () => {
       { auth: patientAuth() },
     );
 
+    expect(screen.getByRole("dialog", { name: "Create patient" })).toHaveClass(
+      "max-w-6xl",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Patient details" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Contact details" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Address details" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Safety/status notes" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Patient ID will be generated automatically when saved."),
     ).toBeInTheDocument();
@@ -110,6 +125,9 @@ describe("PatientFormModal", () => {
         notes: "Create note",
       });
     });
+    expect(createPatientMock.mock.calls[0][0]).not.toHaveProperty(
+      "patient_reference",
+    );
     expect(onClose).toHaveBeenCalled();
   });
 

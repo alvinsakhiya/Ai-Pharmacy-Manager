@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
@@ -38,6 +44,23 @@ function FieldErrorList({ messages }: { messages: string[] }) {
         <li key={message}>{message}</li>
       ))}
     </ul>
+  );
+}
+
+function FormSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-4 rounded-2xl border border-line bg-surface-subtle/60 p-4 sm:p-5">
+      <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
 
@@ -152,223 +175,225 @@ export function PatientFormModal({
       isOpen={isOpen}
       onClose={onClose}
       title={patient ? "Edit patient" : "Create patient"}
+      description={
+        patient
+          ? "Update patient details within your assigned pharmacy scope."
+          : "Add a patient record; the Patient ID is assigned when the record is saved."
+      }
+      size="xl"
     >
-      <form className="space-y-5" noValidate onSubmit={handleSubmit}>
+      <form className="space-y-6" noValidate onSubmit={handleSubmit}>
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <section className="space-y-4">
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-            Patient details
-          </h3>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+          <FormSection title="Patient details">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className={labelClass}>
+                Pharmacy
+                {patient || pharmacies.length === 1 ? (
+                  <input
+                    className={inputClass}
+                    disabled
+                    readOnly
+                    type="text"
+                    value={
+                      patient
+                        ? pharmacyName(patient.pharmacy)
+                        : pharmacies[0]?.name ?? ""
+                    }
+                  />
+                ) : (
+                  <select
+                    className={selectClass}
+                    onChange={(event) => setPharmacy(event.target.value)}
+                    required
+                    value={pharmacy}
+                  >
+                    <option value="">Select a pharmacy</option>
+                    {pharmacies.map((pharmacyOption) => (
+                      <option key={pharmacyOption.id} value={pharmacyOption.id}>
+                        {pharmacyOption.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <FieldErrorList messages={errorMessages(errors, "pharmacy")} />
+              </label>
 
-          <label className={labelClass}>
-            Pharmacy
-            {patient || pharmacies.length === 1 ? (
-              <input
-                className={inputClass}
-                disabled
-                readOnly
-                type="text"
-                value={
-                  patient
-                    ? pharmacyName(patient.pharmacy)
-                    : pharmacies[0]?.name ?? ""
-                }
-              />
-            ) : (
-              <select
-                className={selectClass}
-                onChange={(event) => setPharmacy(event.target.value)}
-                required
-                value={pharmacy}
-              >
-                <option value="">Select a pharmacy</option>
-                {pharmacies.map((pharmacyOption) => (
-                  <option key={pharmacyOption.id} value={pharmacyOption.id}>
-                    {pharmacyOption.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <FieldErrorList messages={errorMessages(errors, "pharmacy")} />
-          </label>
-
-          {!hasPharmacyScope ? (
-            <p className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-soft p-3 text-sm text-warning-ink">
-              <AlertTriangle
-                aria-hidden="true"
-                className="mt-0.5 h-4 w-4 shrink-0"
-              />
-              No pharmacies are available for patient creation in your current
-              scope.
-            </p>
-          ) : null}
-
-          {patient ? (
-            <label className={labelClass}>
-              Patient ID
-              <input
-                className={`${inputClass} tnum`}
-                disabled
-                readOnly
-                type="text"
-                value={patient.patient_reference}
-              />
-              <FieldErrorList
-                messages={errorMessages(errors, "patient_reference")}
-              />
-            </label>
-          ) : (
-            <div className="rounded-lg border border-line bg-surface-sunken px-3 py-2">
-              <p className="text-[13px] font-semibold text-ink-soft">Patient ID</p>
-              <p className={fieldHintClass}>
-                Patient ID will be generated automatically when saved.
-              </p>
-              <FieldErrorList
-                messages={errorMessages(errors, "patient_reference")}
-              />
+              {patient ? (
+                <label className={labelClass}>
+                  Patient ID
+                  <input
+                    className={`${inputClass} tnum`}
+                    disabled
+                    readOnly
+                    type="text"
+                    value={patient.patient_reference}
+                  />
+                  <FieldErrorList
+                    messages={errorMessages(errors, "patient_reference")}
+                  />
+                </label>
+              ) : (
+                <div className="rounded-xl border border-line bg-surface px-3 py-2.5 shadow-elev-1">
+                  <p className="text-[13px] font-semibold text-ink-soft">
+                    Patient ID
+                  </p>
+                  <p className={fieldHintClass}>
+                    Patient ID will be generated automatically when saved.
+                  </p>
+                  <FieldErrorList
+                    messages={errorMessages(errors, "patient_reference")}
+                  />
+                </div>
+              )}
             </div>
-          )}
 
-          <div className="grid gap-5 sm:grid-cols-[140px_1fr_1fr]">
-            <label className={labelClass}>
-              Title
-              <select
-                className={selectClass}
-                onChange={(event) => setTitle(event.target.value)}
-                value={title}
-              >
-                <option value="">—</option>
-                {["Mr", "Mrs", "Miss", "Ms", "Dr", "Mx"].map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-              <FieldErrorList messages={errorMessages(errors, "title")} />
-            </label>
+            {!hasPharmacyScope ? (
+              <p className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-soft p-3 text-sm text-warning-ink">
+                <AlertTriangle
+                  aria-hidden="true"
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                />
+                No pharmacies are available for patient creation in your current
+                scope.
+              </p>
+            ) : null}
 
-            <label className={labelClass}>
-              First name
-              <input
-                className={inputClass}
-                onChange={(event) => setFirstName(event.target.value)}
-                required
-                type="text"
-                value={firstName}
-              />
-              <FieldErrorList messages={errorMessages(errors, "first_name")} />
-            </label>
+            <div className="grid gap-4 sm:grid-cols-[120px_1fr_1fr]">
+              <label className={labelClass}>
+                Title
+                <select
+                  className={selectClass}
+                  onChange={(event) => setTitle(event.target.value)}
+                  value={title}
+                >
+                  <option value="">—</option>
+                  {["Mr", "Mrs", "Miss", "Ms", "Dr", "Mx"].map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <FieldErrorList messages={errorMessages(errors, "title")} />
+              </label>
 
-            <label className={labelClass}>
-              Last name
-              <input
-                className={inputClass}
-                onChange={(event) => setLastName(event.target.value)}
-                required
-                type="text"
-                value={lastName}
-              />
-              <FieldErrorList messages={errorMessages(errors, "last_name")} />
-            </label>
+              <label className={labelClass}>
+                First name
+                <input
+                  className={inputClass}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  required
+                  type="text"
+                  value={firstName}
+                />
+                <FieldErrorList messages={errorMessages(errors, "first_name")} />
+              </label>
+
+              <label className={labelClass}>
+                Last name
+                <input
+                  className={inputClass}
+                  onChange={(event) => setLastName(event.target.value)}
+                  required
+                  type="text"
+                  value={lastName}
+                />
+                <FieldErrorList messages={errorMessages(errors, "last_name")} />
+              </label>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className={labelClass}>
+                Date of birth
+                <input
+                  className={`${inputClass} tnum`}
+                  onChange={(event) => setDateOfBirth(event.target.value)}
+                  required
+                  type="date"
+                  value={dateOfBirth}
+                />
+                <FieldErrorList
+                  messages={errorMessages(errors, "date_of_birth")}
+                />
+              </label>
+
+              <label className={labelClass}>
+                Gender
+                <select
+                  className={selectClass}
+                  onChange={(event) => setGender(event.target.value)}
+                  value={gender}
+                >
+                  <option value="">Prefer not to say</option>
+                  {["Female", "Male", "Other"].map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <FieldErrorList messages={errorMessages(errors, "gender")} />
+              </label>
+            </div>
+          </FormSection>
+
+          <div className="space-y-5">
+            <FormSection title="Contact details">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <label className={labelClass}>
+                  Phone
+                  <input
+                    className={`${inputClass} tnum`}
+                    onChange={(event) => setPhone(event.target.value)}
+                    type="tel"
+                    value={phone}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "phone")} />
+                </label>
+
+                <label className={labelClass}>
+                  Email
+                  <input
+                    className={inputClass}
+                    onChange={(event) => setEmail(event.target.value)}
+                    type="email"
+                    value={email}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "email")} />
+                </label>
+              </div>
+            </FormSection>
+
+            <FormSection title="Address details">
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px] lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_160px]">
+                <label className={labelClass}>
+                  Address
+                  <input
+                    className={inputClass}
+                    onChange={(event) => setAddress(event.target.value)}
+                    type="text"
+                    value={address}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "address")} />
+                </label>
+
+                <label className={labelClass}>
+                  Postcode
+                  <input
+                    className={inputClass}
+                    onChange={(event) => setPostcode(event.target.value)}
+                    type="text"
+                    value={postcode}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "postcode")} />
+                </label>
+              </div>
+            </FormSection>
           </div>
+        </div>
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <label className={labelClass}>
-              Date of birth
-              <input
-                className={`${inputClass} tnum`}
-                onChange={(event) => setDateOfBirth(event.target.value)}
-                required
-                type="date"
-                value={dateOfBirth}
-              />
-              <FieldErrorList messages={errorMessages(errors, "date_of_birth")} />
-            </label>
-
-            <label className={labelClass}>
-              Gender
-              <select
-                className={selectClass}
-                onChange={(event) => setGender(event.target.value)}
-                value={gender}
-              >
-                <option value="">Prefer not to say</option>
-                {["Female", "Male", "Other"].map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-              <FieldErrorList messages={errorMessages(errors, "gender")} />
-            </label>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-            Contact details
-          </h3>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <label className={labelClass}>
-              Phone
-              <input
-                className={`${inputClass} tnum`}
-                onChange={(event) => setPhone(event.target.value)}
-                type="tel"
-                value={phone}
-              />
-              <FieldErrorList messages={errorMessages(errors, "phone")} />
-            </label>
-
-            <label className={labelClass}>
-              Email
-              <input
-                className={inputClass}
-                onChange={(event) => setEmail(event.target.value)}
-                type="email"
-                value={email}
-              />
-              <FieldErrorList messages={errorMessages(errors, "email")} />
-            </label>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-            Address details
-          </h3>
-
-          <label className={labelClass}>
-            Address
-            <input
-              className={inputClass}
-              onChange={(event) => setAddress(event.target.value)}
-              type="text"
-              value={address}
-            />
-            <FieldErrorList messages={errorMessages(errors, "address")} />
-          </label>
-
-          <label className={labelClass}>
-            Postcode
-            <input
-              className={inputClass}
-              onChange={(event) => setPostcode(event.target.value)}
-              type="text"
-              value={postcode}
-            />
-            <FieldErrorList messages={errorMessages(errors, "postcode")} />
-          </label>
-        </section>
-
-        <section className="space-y-4">
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-            Notes
-          </h3>
-
+        <FormSection title="Safety/status notes">
           <label className={labelClass}>
             Notes
             <textarea
@@ -378,7 +403,7 @@ export function PatientFormModal({
             />
             <FieldErrorList messages={errorMessages(errors, "notes")} />
           </label>
-        </section>
+        </FormSection>
 
         <div className="flex justify-end gap-3 border-t border-line pt-5">
           <Button variant="secondary" onClick={onClose}>

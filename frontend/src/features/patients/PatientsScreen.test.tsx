@@ -76,10 +76,16 @@ describe("PatientsScreen", () => {
     ]);
   });
 
-  it("renders patient rows from list data", async () => {
+  it("renders polished patient header, summary, and rows from list data", async () => {
     renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
 
     expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
+    expect(screen.getByText("Search and scope")).toBeInTheDocument();
+    expect(screen.getByText("Visible records")).toBeInTheDocument();
+    expect(screen.getByText("Active records")).toBeInTheDocument();
+    expect(screen.getByText("Inactive records")).toBeInTheDocument();
+    expect(screen.getByText("Patient list")).toBeInTheDocument();
+    expect(screen.getByText("2 records shown")).toBeInTheDocument();
     expect(
       screen.getByRole("columnheader", { name: "Patient ID" }),
     ).toBeInTheDocument();
@@ -103,7 +109,9 @@ describe("PatientsScreen", () => {
     const user = userEvent.setup();
     renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
 
-    const viewButtons = await screen.findAllByRole("button", { name: "View" });
+    const viewButtons = await screen.findAllByRole("button", {
+      name: "View record",
+    });
     await user.click(viewButtons[0]);
 
     const dialog = await screen.findByRole("dialog", {
