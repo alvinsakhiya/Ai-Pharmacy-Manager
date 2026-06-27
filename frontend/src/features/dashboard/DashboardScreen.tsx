@@ -9,6 +9,9 @@ import {
   ArrowUpRight,
   Bell,
   CalendarClock,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   Clock,
   ListChecks,
@@ -235,6 +238,10 @@ export function DashboardScreen() {
 
   const hasMain = canWorkQueue || canBlister || canStock;
   const hasRail = canWorkQueue || canBlister || canStock || canAlerts || canAudit;
+  const calendarEvents = buildCalendarEvents({
+    expiryRows: canStock ? (expiry?.rows ?? []) : [],
+    workQueueItems: canWorkQueue ? (workQueueQuery.data?.items ?? []) : [],
+  });
 
   return (
     <div className="space-y-5">
@@ -414,14 +421,15 @@ export function DashboardScreen() {
           {hasMain ? (
             <CalendarCard
               today={today}
-              footer={
-                canBlister
-                  ? `${mdsDue} pack${mdsDue === 1 ? "" : "s"} due in ${mdsWindow}d`
-                  : `${expiry?.row_count ?? 0} batch${
-                      (expiry?.row_count ?? 0) === 1 ? "" : "es"
-                    } expiring soon`
+              events={calendarEvents}
+              loading={
+                (canWorkQueue && workQueueQuery.isLoading) ||
+                (canStock && expiryQuery.isLoading)
               }
-              footerLink={canAlerts ? "/alerts" : undefined}
+              error={
+                (canWorkQueue && workQueueQuery.isError) ||
+                (canStock && expiryQuery.isError)
+              }
             />
           ) : null}
 
@@ -879,73 +887,392 @@ function ExpiringCard({
 
 /* --------------------------- Calendar card -------------------------- */
 
-const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const SHORT_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+type CalendarEventCategory = "work_queue" | "dosette" | "review" | "stock";
+
+interface DashboardCalendarEvent {
+  id: string;
+  dateKey: string;
+  title: string;
+  reason: string;
+  status: string;
+  category: CalendarEventCategory;
+  pharmacyName: string;
+  patientReference: string;
+  actionHref: string;
+  actionLabel: string;
+}
+
+const CALENDAR_CATEGORY_LABEL: Record<CalendarEventCategory, string> = {
+  work_queue: "Work Queue",
+  dosette: "Dosette",
+  review: "Review",
+  stock: "Stock/Expiry",
+};
+
+const CALENDAR_CATEGORY_DOT: Record<CalendarEventCategory, string> = {
+  work_queue: "bg-info",
+  dosette: "bg-peach",
+  review: "bg-brand",
+  stock: "bg-warning",
+};
+
+function dateKey(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dateStringToKey(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return dateKey(parsed);
+}
+
+function addMonths(value: Date, delta: number): Date {
+  return new Date(value.getFullYear(), value.getMonth() + delta, 1);
+}
+
+function calendarDayLabel(value: Date): string {
+  return value.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function selectedDayLabel(value: string): string {
+  return parseDateKey(value).toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function calendarCategoryForItem(item: WorkQueueItem): CalendarEventCategory {
+  if (item.group === "reviews" || item.type.includes("REVIEW")) return "review";
+  if (item.group === "stock_action" || item.type.includes("STOCK")) return "stock";
+  if (item.type.includes("MDS") || item.type.includes("CYCLE")) return "dosette";
+  return "work_queue";
+}
+
+function calendarEventTone(
+  event: DashboardCalendarEvent,
+): "danger" | "warning" | "brand" | "info" | "neutral" {
+  if (event.status === "OVERDUE" || event.status === "CRITICAL") return "danger";
+  if (event.category === "stock" || event.status === "DUE_SOON") return "warning";
+  if (event.category === "review") return "brand";
+  return "info";
+}
+
+function buildCalendarEvents({
+  expiryRows,
+  workQueueItems,
+}: {
+  expiryRows: ExpiryReport["rows"];
+  workQueueItems: WorkQueueItem[];
+}): DashboardCalendarEvent[] {
+  const workQueueEvents = workQueueItems.flatMap((item) => {
+    const key = dateStringToKey(item.due_date);
+    if (!key) return [];
+    return [
+      {
+        id: `work-${item.id}`,
+        dateKey: key,
+        title: item.title,
+        reason: item.reason || "Needs attention. Review before action.",
+        status: item.status,
+        category: calendarCategoryForItem(item),
+        pharmacyName: item.pharmacy_name || `Pharmacy ${item.pharmacy_id}`,
+        patientReference: item.patient_reference,
+        actionHref: item.action_href || "/work-queue",
+        actionLabel: workQueueActionLabel(item),
+      } satisfies DashboardCalendarEvent,
+    ];
+  });
+
+  const expiryEvents = expiryRows.flatMap((row, index) => {
+    const key = dateStringToKey(row.expiry_date);
+    if (!key) return [];
+    return [
+      {
+        id: `expiry-${row.batch_number || row.medication_label}-${index}`,
+        dateKey: key,
+        title: `Expiry review: ${row.medication_label}`,
+        reason: `Batch ${row.batch_number || "not recorded"} expires ${formatWorkQueueDate(row.expiry_date)}. Review before action.`,
+        status: row.severity || "EXPIRY",
+        category: "stock",
+        pharmacyName: row.pharmacy_name || `Pharmacy ${row.pharmacy_id}`,
+        patientReference: "",
+        actionHref: "/reports",
+        actionLabel: "Open Reports",
+      } satisfies DashboardCalendarEvent,
+    ];
+  });
+
+  return [...workQueueEvents, ...expiryEvents].sort((a, b) => {
+    if (a.dateKey !== b.dateKey) return a.dateKey.localeCompare(b.dateKey);
+    return a.title.localeCompare(b.title);
+  });
+}
 
 function CalendarCard({
   today,
-  footer,
-  footerLink,
+  events,
+  loading,
+  error,
 }: {
   today: Date;
-  footer: string;
-  footerLink?: string;
+  events: DashboardCalendarEvent[];
+  loading: boolean;
+  error: boolean;
 }) {
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const todayDate = today.getDate();
+  const todayKey = dateKey(today);
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date(today.getFullYear(), today.getMonth(), 1),
+  );
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const year = visibleMonth.getFullYear();
+  const month = visibleMonth.getMonth();
   const startWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (number | null)[] = [
     ...Array.from({ length: startWeekday }, () => null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
-  const monthLabel = today.toLocaleDateString("en-GB", {
+  const monthLabel = visibleMonth.toLocaleDateString("en-GB", {
     month: "long",
     year: "numeric",
   });
+  const eventsByDay = events.reduce<Record<string, DashboardCalendarEvent[]>>(
+    (acc, event) => {
+      acc[event.dateKey] ??= [];
+      acc[event.dateKey].push(event);
+      return acc;
+    },
+    {},
+  );
+  const selectedEvents = eventsByDay[selectedDate] ?? [];
+  const monthEventCount = events.filter((event) => {
+    const eventDate = parseDateKey(event.dateKey);
+    return (
+      eventDate.getFullYear() === year && eventDate.getMonth() === month
+    );
+  }).length;
+
+  function resetToday() {
+    setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+    setSelectedDate(todayKey);
+  }
 
   return (
-    <article className="rounded-2xl bg-gradient-gold p-5 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2">
-      <h2 className="text-[17px] font-extrabold text-ink">{monthLabel}</h2>
+    <section
+      aria-label="Pharmacy calendar"
+      className="rounded-2xl border border-gold bg-gradient-gold p-5 shadow-soft transition-all duration-200 ease-soft hover:shadow-elev-2"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-gold-ink">
+            <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
+            Scheduled signals
+          </p>
+          <h2 className="mt-1 text-[19px] font-extrabold tracking-[-0.01em] text-ink">
+            {monthLabel}
+          </h2>
+          <p className="mt-1 text-xs font-semibold text-ink-soft">
+            {loading
+              ? "Loading scheduled signals..."
+              : `${monthEventCount} item${monthEventCount === 1 ? "" : "s"} this month`}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            aria-label="Previous month"
+            className="grid h-9 w-9 place-items-center rounded-full border border-gold bg-white/65 text-ink shadow-elev-1 transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-white focus-ring"
+            onClick={() => setVisibleMonth((current) => addMonths(current, -1))}
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+          </button>
+          <button
+            className="h-9 rounded-full border border-gold bg-white/65 px-3 text-[12px] font-extrabold text-ink shadow-elev-1 transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-white focus-ring"
+            onClick={resetToday}
+            type="button"
+          >
+            Today
+          </button>
+          <button
+            aria-label="Next month"
+            className="grid h-9 w-9 place-items-center rounded-full border border-gold bg-white/65 text-ink shadow-elev-1 transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-white focus-ring"
+            onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+            type="button"
+          >
+            <ChevronRight aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
       <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-ink-soft">
-        {WEEKDAYS.map((d) => (
-          <span key={d}>{d}</span>
+        {SHORT_WEEKDAYS.map((d, index) => (
+          <span key={d} title={WEEKDAYS[index]}>
+            {d}
+          </span>
         ))}
       </div>
-      <div className="mt-1.5 grid grid-cols-7 gap-1 text-center">
+      <div className="mt-1.5 grid grid-cols-7 gap-1.5 text-center">
         {cells.map((day, index) => {
           if (day === null) {
-            return <span key={`b-${index}`} className="py-1.5" />;
+            return (
+              <span
+                aria-hidden="true"
+                key={`b-${index}`}
+                className="min-h-[4.15rem] rounded-xl bg-white/20"
+              />
+            );
           }
-          const isToday = day === todayDate;
+          const cellDate = new Date(year, month, day);
+          const cellKey = dateKey(cellDate);
+          const isToday = cellKey === todayKey;
+          const isSelected = cellKey === selectedDate;
+          const dayEvents = eventsByDay[cellKey] ?? [];
+          const categories = Array.from(
+            new Set(dayEvents.map((event) => event.category)),
+          ).slice(0, 4);
+          const signalLabel = `${dayEvents.length} scheduled signal${dayEvents.length === 1 ? "" : "s"}`;
           return (
-            <div
+            <button
+              aria-pressed={isSelected}
+              aria-label={`Select ${calendarDayLabel(cellDate)}, ${signalLabel}`}
               key={day}
               className={cn(
-                "py-1.5 text-[13px] font-bold tnum",
-                isToday
-                  ? "animate-scale-in rounded-full bg-white text-brand shadow-elev-1"
-                  : "text-ink-soft",
+                "group flex min-h-[4.15rem] flex-col items-start rounded-xl border px-2 py-2 text-left transition-all duration-200 ease-soft focus-ring",
+                isSelected
+                  ? "border-brand bg-white text-ink shadow-elev-2"
+                  : "border-white/55 bg-white/45 text-ink-soft hover:-translate-y-px hover:border-gold hover:bg-white/75 hover:shadow-elev-1",
               )}
+              onClick={() => setSelectedDate(cellKey)}
+              type="button"
             >
-              {day}
-            </div>
+              <span
+                className={cn(
+                  "tnum inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[13px] font-extrabold",
+                  isToday && !isSelected && "bg-white text-brand shadow-elev-1",
+                  isSelected && "bg-brand text-white",
+                )}
+              >
+                {day}
+              </span>
+              <span className="mt-auto flex min-h-4 items-center gap-1">
+                {categories.map((category) => (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      CALENDAR_CATEGORY_DOT[category],
+                    )}
+                    key={category}
+                    title={CALENDAR_CATEGORY_LABEL[category]}
+                  />
+                ))}
+              </span>
+              {dayEvents.length > 0 ? (
+                <span className="tnum mt-1 rounded-full bg-sidebar/90 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                  {dayEvents.length}
+                </span>
+              ) : null}
+            </button>
           );
         })}
       </div>
-      <div className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-white/55 px-3 py-2.5">
-        <p className="text-[12px] font-bold text-ink">{footer}</p>
-        {footerLink ? (
-          <Link
-            to={footerLink}
-            className="inline-flex shrink-0 items-center gap-1 text-[12px] font-bold text-brand focus-ring"
-          >
-            Details
-            <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-          </Link>
-        ) : null}
+      <div
+        aria-label="Calendar day details"
+        className="mt-4 rounded-xl border border-gold bg-white/70 p-3"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-extrabold text-ink">
+              {selectedDayLabel(selectedDate)}
+            </h3>
+            <p className="mt-0.5 text-[11px] font-semibold text-muted">
+              Review before action.
+            </p>
+          </div>
+          <Badge variant={selectedEvents.length > 0 ? "info" : "neutral"}>
+            <span className="tnum">{selectedEvents.length}</span> item
+            {selectedEvents.length === 1 ? "" : "s"}
+          </Badge>
+        </div>
+        {error ? (
+          <p className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-sm font-semibold text-danger-ink">
+            Couldn&rsquo;t load scheduled signals.
+          </p>
+        ) : loading ? (
+          <div className="mt-3 space-y-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : selectedEvents.length === 0 ? (
+          <p className="mt-3 rounded-lg bg-white/70 px-3 py-4 text-sm font-semibold text-ink-soft">
+            No items scheduled for this day.
+          </p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {selectedEvents.map((event) => (
+              <article
+                className="rounded-lg border border-line bg-white px-3 py-3 shadow-elev-1"
+                key={event.id}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-extrabold text-ink">
+                      {event.title}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-xs font-semibold leading-relaxed text-ink-soft">
+                      {event.reason}
+                    </p>
+                  </div>
+                  <Badge variant={calendarEventTone(event)}>
+                    {workQueueStatusLabel(event.status)}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-[11px] font-semibold text-muted">
+                  {[
+                    CALENDAR_CATEGORY_LABEL[event.category],
+                    event.patientReference
+                      ? `Patient ID ${event.patientReference}`
+                      : null,
+                    event.pharmacyName,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+                <Link
+                  to={event.actionHref}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[12px] font-bold text-ink-soft transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-surface-subtle hover:text-ink focus-ring"
+                >
+                  {event.actionLabel || "Open record"}
+                  <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+                </Link>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
-    </article>
+    </section>
   );
 }
 

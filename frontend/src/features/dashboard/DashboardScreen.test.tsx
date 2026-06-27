@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   makeAuthContext,
@@ -149,7 +150,13 @@ function renderDashboard() {
 describe("DashboardScreen work queue widget", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-27T12:00:00Z"));
     getWorkQueueMock.mockResolvedValue(makeResponse());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows the Needs attention widget with queue summary counts", async () => {
@@ -209,6 +216,118 @@ describe("DashboardScreen work queue widget", () => {
     const widget = await screen.findByRole("region", { name: "Needs attention" });
 
     expect(await within(widget).findByText("Nothing needs attention right now."))
+      .toBeInTheDocument();
+  });
+
+  it("renders an interactive pharmacy calendar with month controls", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderDashboard();
+
+    const calendar = await screen.findByRole("region", {
+      name: "Pharmacy calendar",
+    });
+
+    expect(within(calendar).getByText("Scheduled signals")).toBeInTheDocument();
+    expect(within(calendar).getByRole("heading", { name: "June 2026" }))
+      .toBeInTheDocument();
+    expect(
+      await within(calendar).findByRole("button", {
+        name: "Select 27 June 2026, 1 scheduled signal",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await within(calendar).findByRole("button", {
+        name: "Select 28 June 2026, 1 scheduled signal",
+      }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(calendar).getByRole("button", { name: "Next month" }),
+    );
+    expect(within(calendar).getByRole("heading", { name: "July 2026" }))
+      .toBeInTheDocument();
+
+    await user.click(
+      within(calendar).getByRole("button", { name: "Previous month" }),
+    );
+    expect(within(calendar).getByRole("heading", { name: "June 2026" }))
+      .toBeInTheDocument();
+
+    await user.click(
+      within(calendar).getByRole("button", { name: "Previous month" }),
+    );
+    expect(within(calendar).getByRole("heading", { name: "May 2026" }))
+      .toBeInTheDocument();
+
+    await user.click(within(calendar).getByRole("button", { name: "Today" }));
+    expect(within(calendar).getByRole("heading", { name: "June 2026" }))
+      .toBeInTheDocument();
+  });
+
+  it("opens safe day details and action links from calendar day clicks", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderDashboard();
+
+    const calendar = await screen.findByRole("region", {
+      name: "Pharmacy calendar",
+    });
+
+    await user.click(
+      await within(calendar).findByRole("button", {
+        name: "Select 28 June 2026, 1 scheduled signal",
+      }),
+    );
+
+    const details = within(calendar).getByLabelText("Calendar day details");
+    expect(
+      within(details).getByRole("heading", {
+        name: "Sunday, 28 June 2026",
+      }),
+    ).toBeInTheDocument();
+    expect(within(details).getByText("Prepare Dosette cycle"))
+      .toBeInTheDocument();
+    expect(
+      within(details).getByText(
+        "Suggested preparation window: due within 3 days.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(details).getByText("Due soon")).toBeInTheDocument();
+    expect(
+      within(details).getByText("Dosette · Patient ID P1-WQ-001 · Pharmacy One"),
+    ).toBeInTheDocument();
+    expect(within(details).getByRole("link", { name: /Open Dosette/ }))
+      .toHaveAttribute("href", "/patients/4/dosette");
+
+    for (const forbidden of [
+      "Patient One",
+      "date_of_birth",
+      "postcode",
+      "phone",
+      "email",
+      "address",
+      "NHS",
+      "Complete task",
+    ]) {
+      expect(within(details).queryByText(forbidden)).toBeNull();
+    }
+  });
+
+  it("shows an empty day state for calendar days without scheduled signals", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderDashboard();
+
+    const calendar = await screen.findByRole("region", {
+      name: "Pharmacy calendar",
+    });
+
+    await user.click(
+      within(calendar).getByRole("button", {
+        name: "Select 26 June 2026, 0 scheduled signals",
+      }),
+    );
+
+    const details = within(calendar).getByLabelText("Calendar day details");
+    expect(within(details).getByText("No items scheduled for this day."))
       .toBeInTheDocument();
   });
 });
