@@ -23,7 +23,6 @@ import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { PageHeader } from "../../components/ui/PageHeader";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import {
   Table,
@@ -36,6 +35,7 @@ import {
 } from "../../components/ui/Table";
 import { labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
+import { scopeLabel } from "../../lib/scope";
 import type {
   DeadStockReportRow,
   ExpiryReportRow,
@@ -251,6 +251,15 @@ function formatDateTime(value: string): string {
   }).format(date);
 }
 
+function formatDateLong(value: Date): string {
+  return value.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-GB").format(value);
 }
@@ -435,7 +444,7 @@ function SummaryMetricCard({
   loading: boolean;
 }) {
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+    <article className="interactive-card flex min-h-[150px] flex-col justify-between rounded-2xl border border-line bg-surface p-4 shadow-soft">
       <div className="flex items-start justify-between gap-3">
         <span
           aria-hidden="true"
@@ -444,14 +453,16 @@ function SummaryMetricCard({
           <Icon className="h-[18px] w-[18px]" />
         </span>
         <Badge variant={count === undefined && !loading ? "neutral" : "brand"}>
-          CSV ready
+          Rows
         </Badge>
       </div>
-      <p className="mt-4 text-sm font-semibold text-muted">{label}</p>
-      <p className="tnum mt-1 text-2xl font-extrabold tracking-[-0.02em] text-ink">
-        {loading ? "..." : count === undefined ? "Not available" : formatNumber(count)}
-      </p>
-      <p className="mt-2 text-xs leading-relaxed text-muted">{helper}</p>
+      <div>
+        <p className="mt-4 text-sm font-semibold text-muted">{label}</p>
+        <p className="tnum mt-1 text-2xl font-extrabold tracking-[-0.02em] text-ink">
+          {loading ? "..." : count === undefined ? "No data" : formatNumber(count)}
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-muted">{helper}</p>
+      </div>
     </article>
   );
 }
@@ -1174,12 +1185,12 @@ function reportFilename(reportId: ReportId): string {
 
 function emptyTitleForReport(reportId: ReportId): string {
   if (reportId === "expiry") {
-    return "No expiry risk found for this period.";
+    return "No report rows match the current view.";
   }
   if (reportId === "dead_stock") {
-    return "No dead-stock lines found.";
+    return "No report rows match the current view.";
   }
-  return "No report data available yet.";
+  return "No report rows match the current view.";
 }
 
 export function ReportsScreen() {
@@ -1198,6 +1209,8 @@ export function ReportsScreen() {
   );
   const [days, setDays] = useState(30);
   const [status, setStatus] = useState("OPEN");
+  const today = useMemo(() => new Date(), []);
+  const dateLabel = useMemo(() => formatDateLong(today), [today]);
 
   useEffect(() => {
     if (!availableReports.some((report) => report.id === activeReportId)) {
@@ -1239,6 +1252,12 @@ export function ReportsScreen() {
   const selectedPharmacy = (user?.pharmacies ?? []).find(
     (pharmacy) => pharmacy.id === selectedPharmacyId,
   );
+  const humanReviewCount = availableReports.filter(
+    (report) => report.humanReview,
+  ).length;
+  const updatedLabel = dashboardQuery.data
+    ? `Updated ${formatDateTime(dashboardQuery.data.generated_at)}`
+    : "Reports use the current scoped data.";
   const filterSummary = [
     activeReportId === "transfer_suggestions"
       ? selectedGroupId
@@ -1257,17 +1276,39 @@ export function ReportsScreen() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        className="animate-fade-in-up"
-        eyebrow="Operational reports"
-        title="Reports"
-        subtitle="Review stock, expiry, workload, and planning insights before taking action."
-        meta={
-          dashboardQuery.data
-            ? `Updated ${formatDateTime(dashboardQuery.data.generated_at)}`
-            : "Reports use the current scoped data."
-        }
-      />
+      <header className="animate-fade-in-up space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+              Operational reports
+            </p>
+            <h1 className="mt-1.5 text-[30px] font-extrabold tracking-[-0.025em] text-ink sm:text-[34px]">
+              Reports
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">
+              Review stock, expiry, and workload signals before action.
+            </p>
+            <p className="mt-2 text-xs font-medium text-muted">{updatedLabel}</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Badge variant="neutral">
+              {user ? scopeLabel(user) : "Scope unavailable"}
+            </Badge>
+            <Badge variant="info">Human review required</Badge>
+            <Badge variant="neutral">{activeReport?.title ?? "Report"}</Badge>
+            <Badge variant="neutral">{dateLabel}</Badge>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
+          <Badge variant="brand" icon={<BarChart3 className="h-3 w-3" />}>
+            {formatNumber(availableReports.length)} reports available
+          </Badge>
+          <Badge variant="warning" icon={<ShieldAlert className="h-3 w-3" />}>
+            {formatNumber(humanReviewCount)} review sections
+          </Badge>
+          <span>{filterSummary}</span>
+        </div>
+      </header>
 
       <ReportsSummaryCards
         availableReports={availableReports}
@@ -1298,7 +1339,7 @@ export function ReportsScreen() {
 
       <Panel>
         <PanelHeader
-          title="Filters"
+          title="Report controls"
           subtitle="Scope the operational report preview and CSV export."
         />
         <PanelBody>
@@ -1400,6 +1441,17 @@ export function ReportsScreen() {
               <h2 className="mt-1 text-[15px] font-bold tracking-[-0.01em] text-ink">
                 {activeReport?.title ?? "Report"}
               </h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge variant="neutral">
+                  {previewQuery.isSuccess
+                    ? `${formatNumber(previewQuery.data.row_count)} rows shown`
+                    : "Rows loading"}
+                </Badge>
+                <Badge variant="neutral">CSV export available</Badge>
+                {activeReport?.humanReview ? (
+                  <Badge variant="warning">Human review required</Badge>
+                ) : null}
+              </div>
               {activeReport?.humanReview ? (
                 <p className="mt-1.5 inline-flex items-start gap-1.5 text-xs text-warning-ink">
                   <AlertTriangle
@@ -1424,6 +1476,9 @@ export function ReportsScreen() {
 
         {previewQuery.isLoading ? (
           <div className="p-5 sm:p-6">
+            <p className="sr-only" role="status">
+              Loading reports...
+            </p>
             <SkeletonRows rows={6} />
           </div>
         ) : null}
@@ -1433,7 +1488,7 @@ export function ReportsScreen() {
             <EmptyState
               tone="danger"
               icon={<AlertTriangle className="h-5 w-5" />}
-              title="Could not load report preview."
+              title="Could not load reports."
               description="Please retry. Your session or permissions may need refreshing."
               action={
                 <Button variant="danger" onClick={() => void previewQuery.refetch()}>

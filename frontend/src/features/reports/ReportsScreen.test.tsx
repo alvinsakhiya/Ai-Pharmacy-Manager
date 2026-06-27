@@ -365,9 +365,13 @@ describe("ReportsScreen", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Review stock, expiry, workload, and planning insights before taking action.",
+        "Review stock, expiry, and workload signals before action.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getAllByText("Sutton Pharmacy").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Human review required").length).toBeGreaterThan(0);
+    expect(screen.getByText("8 reports available")).toBeInTheDocument();
+    expect(screen.getByText("3 review sections")).toBeInTheDocument();
     expect(await screen.findByText("Expiring soon")).toBeInTheDocument();
     expect(screen.getByText("Dead stock lines")).toBeInTheDocument();
     expect(screen.getByText("Reorder suggestions")).toBeInTheDocument();
@@ -523,7 +527,7 @@ describe("ReportsScreen", () => {
     renderReports();
 
     expect(
-      await screen.findByText("No report data available yet."),
+      await screen.findByText("No report rows match the current view."),
     ).toBeInTheDocument();
   });
 
@@ -531,7 +535,7 @@ describe("ReportsScreen", () => {
     getReportPreviewMock.mockRejectedValue(new Error("No report"));
     renderReports();
 
-    expect(await screen.findByText("Could not load report preview."))
+    expect(await screen.findByText("Could not load reports."))
       .toBeInTheDocument();
   });
 
