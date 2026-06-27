@@ -66,7 +66,7 @@ describe("AuditScreen", () => {
     listAuditEventsMock.mockResolvedValue(makePaginatedAuditEvents());
   });
 
-  it("renders rows from a mocked paginated response", async () => {
+  it("renders the polished header, summary cards, and timeline events", async () => {
     listAuditEventsMock.mockResolvedValue(
       makePaginatedAuditEvents({
         count: 1,
@@ -86,11 +86,27 @@ describe("AuditScreen", () => {
 
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    expect(await screen.findByText("PASSWORD_RESET")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Audit Log" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Review operational activity across pharmacy workflows. Human review required.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Events shown")).toBeInTheDocument();
+    expect(screen.getByText("Most recent event")).toBeInTheDocument();
+    expect(screen.getByText("Selected action filter")).toBeInTheDocument();
+    expect(screen.getByText("Current page")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Password reset" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("PASSWORD_RESET")).toBeInTheDocument();
     expect(screen.getByText("pharmacist@example.com")).toBeInTheDocument();
     expect(screen.getByText("PHARMACIST")).toBeInTheDocument();
     expect(screen.getByText("User #88")).toBeInTheDocument();
-    expect(screen.getByText('{"reason":"temporary reset"}')).toBeInTheDocument();
+    expect(screen.getByText("Metadata retained for audit record."))
+      .toBeInTheDocument();
+    expect(screen.queryByText('{"reason":"temporary reset"}')).toBeNull();
     expect(screen.getByText("Showing 1 of 1")).toBeInTheDocument();
   });
 
@@ -107,7 +123,8 @@ describe("AuditScreen", () => {
 
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    expect(await screen.findByText("LOGIN")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Login" }))
+      .toBeInTheDocument();
     expect(screen.getByText("LOGOUT")).toBeInTheDocument();
     expect(screen.getByText("Showing 2 of 2")).toBeInTheDocument();
   });
@@ -119,7 +136,9 @@ describe("AuditScreen", () => {
 
     renderWithProviders(<AuditScreen />, { auth: auditAuth("PHARMACIST") });
 
-    expect(await screen.findByText("No audit events.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No audit events match the current filter."),
+    ).toBeInTheDocument();
   });
 
   it("renders the superintendent phase-limited empty state", async () => {
@@ -130,9 +149,10 @@ describe("AuditScreen", () => {
     renderWithProviders(<AuditScreen />, { auth: auditAuth("SUPERINTENDENT") });
 
     expect(
-      await screen.findByText(
-        "Group-level audit visibility is limited in this phase.",
-      ),
+      await screen.findByText("No audit events match the current filter."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Group-level audit visibility is limited in this phase."),
     ).toBeInTheDocument();
   });
 
@@ -166,7 +186,7 @@ describe("AuditScreen", () => {
     const user = userEvent.setup();
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    await screen.findByText("USER_CREATED");
+    await screen.findByRole("heading", { name: "User created" });
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Action" }),
       "LOGIN_FAILED",
@@ -190,7 +210,7 @@ describe("AuditScreen", () => {
     const user = userEvent.setup();
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    await screen.findByText("USER_CREATED");
+    await screen.findByRole("heading", { name: "User created" });
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
@@ -216,7 +236,8 @@ describe("AuditScreen", () => {
   it("disables Next when next is null", async () => {
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    expect(await screen.findByText("USER_CREATED")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "User created" }))
+      .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 
@@ -229,7 +250,8 @@ describe("AuditScreen", () => {
 
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    expect(await screen.findByText("USER_CREATED")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "User created" }))
+      .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
   });
 
@@ -242,7 +264,7 @@ describe("AuditScreen", () => {
     const user = userEvent.setup();
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    await screen.findByText("USER_CREATED");
+    await screen.findByRole("heading", { name: "User created" });
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
@@ -256,7 +278,58 @@ describe("AuditScreen", () => {
   it("disables Prev on page 1", async () => {
     renderWithProviders(<AuditScreen />, { auth: auditAuth() });
 
-    expect(await screen.findByText("USER_CREATED")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "User created" }))
+      .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Prev" })).toBeDisabled();
+  });
+
+  it("does not expose raw metadata or patient PII from metadata", async () => {
+    listAuditEventsMock.mockResolvedValue(
+      makePaginatedAuditEvents({
+        results: [
+          makeAuditEvent({
+            metadata: {
+              patient_name: "Jane Patient",
+              date_of_birth: "1980-01-01",
+              postcode: "AB1 2CD",
+              phone: "07123456789",
+              email: "patient@example.test",
+              address: "1 Private Street",
+              nhs_number: "999 000 0000",
+            },
+          }),
+        ],
+      }),
+    );
+
+    renderWithProviders(<AuditScreen />, { auth: auditAuth() });
+
+    expect(await screen.findByRole("heading", { name: "User created" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("Metadata retained for audit record."))
+      .toBeInTheDocument();
+    for (const forbidden of [
+      "Jane Patient",
+      "1980-01-01",
+      "AB1 2CD",
+      "07123456789",
+      "patient@example.test",
+      "1 Private Street",
+      "999 000 0000",
+      "patient_name",
+      "nhs_number",
+    ]) {
+      expect(screen.queryByText(forbidden)).toBeNull();
+    }
+  });
+
+  it("does not render audit mutation controls", async () => {
+    renderWithProviders(<AuditScreen />, { auth: auditAuth() });
+
+    expect(await screen.findByRole("heading", { name: "User created" }))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
   });
 });
