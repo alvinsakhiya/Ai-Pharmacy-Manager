@@ -198,6 +198,11 @@
   min-width: 0;
 }
 
+.app-shell__mobile-drawer {
+  border-radius: 0 28px 28px 0;
+  overflow: hidden;
+}
+
 @media (min-width: 1024px) {
   /* Desktop rail sits flush to the app edge; only the content-facing edge softens. */
   .app-shell__desktop-sidebar {
@@ -207,7 +212,7 @@
     display: block;
     width: 16.5rem;
     border-right: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0 24px 24px 0;
+    border-radius: 0 32px 32px 0;
     overflow: hidden;
     box-shadow: 8px 0 24px rgba(42, 35, 64, 0.1);
   }

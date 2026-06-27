@@ -6,7 +6,6 @@ import {
   FileText,
   LayoutDashboard,
   ListChecks,
-  Pill,
   ScrollText,
   Settings,
   TrendingUp,
@@ -50,13 +49,6 @@ export const NAV_ITEMS: NavItem[] = [
     path: "/",
     icon: LayoutDashboard,
     group: "Overview",
-  },
-  {
-    label: "Medication Catalogue",
-    path: "/catalogue",
-    icon: Pill,
-    group: "Administration",
-    requiredAnyOf: ["medication.manage"],
   },
   {
     label: "Inventory",

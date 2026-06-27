@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Building2, Menu, Search } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { NotificationCentre } from "../../features/notifications/NotificationCentre";
 import { NAV_ITEMS } from "../../app/navConfig";
+import { cn } from "../../lib/cn";
 import { scopeLabel } from "../../lib/scope";
 import { CommandPalette } from "./CommandPalette";
 
@@ -20,17 +21,42 @@ function useSectionTitle(): string {
   return match?.label ?? "Workspace";
 }
 
+function useTopBarScrolled(): boolean {
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    function updateScrolled() {
+      setIsScrolled(window.scrollY > 8);
+    }
+
+    updateScrolled();
+    window.addEventListener("scroll", updateScrolled, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrolled);
+  }, []);
+
+  return isScrolled;
+}
+
 export function TopBar({ onMenuClick }: TopBarProps) {
   const { user } = useAuth();
   const section = useSectionTitle();
   const [commandOpen, setCommandOpen] = useState(false);
+  const isScrolled = useTopBarScrolled();
 
   if (!user) {
     return null;
   }
 
   return (
-    <header className="sticky top-0 z-20 bg-canvas/80 backdrop-blur-md">
+    <header
+      className={cn(
+        "sticky top-0 z-20 border-b backdrop-blur-md transition-[background-color,border-color,box-shadow] duration-200 ease-soft",
+        "relative after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-4 after:h-4 after:bg-gradient-to-b after:from-canvas/75 after:to-canvas/0 after:transition-opacity after:duration-200 after:ease-soft",
+        isScrolled
+          ? "border-line/50 bg-canvas/95 shadow-[0_14px_30px_rgba(42,35,64,0.06)] after:opacity-100"
+          : "border-transparent bg-canvas/70 shadow-none after:opacity-0",
+      )}
+    >
       <div className="mx-auto flex min-h-[68px] max-w-[1480px] items-center gap-2.5 px-4 py-3.5 sm:px-6 sm:gap-3 lg:px-8">
         <button
           aria-label="Open navigation"

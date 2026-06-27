@@ -25,7 +25,7 @@ export function AppShell() {
             onClick={() => setMobileNavOpen(false)}
             type="button"
           />
-          <div className="relative h-full w-[16.5rem] max-w-[85vw] animate-slide-in-left shadow-elev-3">
+          <div className="app-shell__mobile-drawer relative h-full w-[16.5rem] max-w-[85vw] animate-slide-in-left shadow-elev-3">
             <Sidebar onNavigate={() => setMobileNavOpen(false)} />
           </div>
         </div>

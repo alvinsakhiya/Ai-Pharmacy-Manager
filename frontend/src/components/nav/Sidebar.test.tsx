@@ -130,7 +130,7 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: "Organisation" })).toBeNull();
   });
 
-  it("user with medication.manage sees Medication Catalogue", () => {
+  it("does not show Medication Catalogue in daily navigation for medication managers", () => {
     renderSidebar(
       makeUser({
         role: "PHARMACIST",
@@ -146,8 +146,8 @@ describe("Sidebar", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "Medication Catalogue" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("link", { name: "Medication Catalogue" }),
+    ).toBeNull();
   });
 
   it("user with stock.view sees Inventory", () => {
