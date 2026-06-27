@@ -42,6 +42,36 @@ function formatDate(value: string | null | undefined): string {
   }).format(date);
 }
 
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) {
+    return NOT_RECORDED;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatTimingValue(
+  value: string | null | undefined,
+  actor?: string | null,
+): string {
+  if (!value) {
+    return NOT_RECORDED;
+  }
+
+  const formatted = formatDateTime(value);
+  const trimmedActor = actor?.trim();
+  return trimmedActor ? `${formatted} by ${trimmedActor}` : formatted;
+}
+
 function formatLabel(value: string): string {
   return value
     .toLowerCase()
@@ -111,16 +141,39 @@ function latestByDate(
   );
 }
 
+function latestRecordedEventDate(
+  cycles: DosetteCycle[],
+  medicationLines: PatientMedicationLine[],
+): string | null {
+  const timestamps = [
+    ...cycles.flatMap((cycle) => [
+      cycle.deducted_at,
+      cycle.checked_at,
+      cycle.prepared_at,
+      cycle.created_at,
+    ]),
+    ...medicationLines.map((line) => line.created_at),
+  ];
+
+  return (
+    timestamps
+      .filter((value): value is string => Boolean(value))
+      .map((value) => ({ value, timestamp: sortTimestamp(value) }))
+      .filter((item) => item.timestamp > Number.NEGATIVE_INFINITY)
+      .sort((left, right) => right.timestamp - left.timestamp)[0]?.value ?? null
+  );
+}
+
 /** Most recent cycle that has actually been prepared/checked/deducted. */
 function latestDispensedCycle(cycles: DosetteCycle[]): DosetteCycle | null {
   return latestByDate(cycles, cycleEventDate);
 }
 
-/** Most recent cycle overall (draft cycles included) for reference context. */
+/** Most recent cycle overall for reference context, using real record timestamps. */
 function latestCycle(cycles: DosetteCycle[]): DosetteCycle | null {
   return latestByDate(
     cycles,
-    (cycle) => cycleEventDate(cycle) ?? cycle.start_date ?? cycle.updated_at,
+    (cycle) => cycleEventDate(cycle) ?? cycle.created_at,
   );
 }
 
@@ -169,12 +222,87 @@ function MetaItem({ label, value }: { label: string; value: string }) {
   );
 }
 
+function TimingItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-line bg-surface px-3 py-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.05em] text-muted">
+        {label}
+      </p>
+      <p className="tnum mt-1 text-xs font-semibold leading-relaxed text-ink-soft">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function MedicationTimingGrid({
+  line,
+  preparedCycle,
+  checkedCycle,
+  deductedCycle,
+  compact = false,
+}: {
+  line: PatientMedicationLine;
+  preparedCycle: DosetteCycle | null;
+  checkedCycle: DosetteCycle | null;
+  deductedCycle: DosetteCycle | null;
+  compact?: boolean;
+}) {
+  const items = [
+    {
+      label: "Prepared",
+      value: formatTimingValue(
+        preparedCycle?.prepared_at,
+        preparedCycle?.prepared_by_email,
+      ),
+    },
+    {
+      label: "Checked",
+      value: formatTimingValue(
+        checkedCycle?.checked_at,
+        checkedCycle?.checked_by_email,
+      ),
+    },
+    {
+      label: "Stock deducted",
+      value: formatTimingValue(deductedCycle?.deducted_at),
+    },
+    {
+      label: "Recorded",
+      value: formatTimingValue(line.created_at),
+    },
+  ];
+
+  return (
+    <div
+      aria-label="Latest event timing"
+      className={cn(
+        "grid gap-2",
+        compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4",
+      )}
+    >
+      {items.map((item) => (
+        <TimingItem key={item.label} label={item.label} value={item.value} />
+      ))}
+    </div>
+  );
+}
+
 function MedicationCard({
   line,
   isSelected,
   eventDate,
   eventType,
   latest,
+  preparedCycle,
+  checkedCycle,
+  deductedCycle,
   onSelect,
 }: {
   line: PatientMedicationLine;
@@ -182,6 +310,9 @@ function MedicationCard({
   eventDate: string | null;
   eventType: string;
   latest: DosetteCycle | null;
+  preparedCycle: DosetteCycle | null;
+  checkedCycle: DosetteCycle | null;
+  deductedCycle: DosetteCycle | null;
   onSelect: (id: number) => void;
 }) {
   const statusVariant: BadgeVariant = line.is_active ? "success" : "neutral";
@@ -216,7 +347,7 @@ function MedicationCard({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3">
-        <MetaItem label="Last recorded event" value={formatDate(eventDate)} />
+        <MetaItem label="Last recorded event" value={formatDateTime(eventDate)} />
         {latest ? (
           <span className="text-xs font-semibold text-ink-soft">
             Latest cycle {latest.reference} · {formatLabel(latest.status)}
@@ -224,6 +355,19 @@ function MedicationCard({
         ) : null}
         <MetaItem label="Appearance" value={appearanceLabel(line)} />
         <MetaItem label="Start date" value={formatDate(line.start_date)} />
+      </div>
+
+      <div className="mt-3 border-t border-line pt-3">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+          Timing
+        </p>
+        <MedicationTimingGrid
+          checkedCycle={checkedCycle}
+          compact
+          deductedCycle={deductedCycle}
+          line={line}
+          preparedCycle={preparedCycle}
+        />
       </div>
     </button>
   );
@@ -234,11 +378,17 @@ function SelectedMedicationPanel({
   eventDate,
   eventType,
   latest,
+  preparedCycle,
+  checkedCycle,
+  deductedCycle,
 }: {
   line: PatientMedicationLine;
   eventDate: string | null;
   eventType: string;
   latest: DosetteCycle | null;
+  preparedCycle: DosetteCycle | null;
+  checkedCycle: DosetteCycle | null;
+  deductedCycle: DosetteCycle | null;
 }) {
   const total = totalDailyDose(line);
   const rows: Array<{ label: string; value: string }> = [
@@ -248,7 +398,9 @@ function SelectedMedicationPanel({
     },
     {
       label: "Latest event",
-      value: eventDate ? `${eventType} · ${formatDate(eventDate)}` : NOT_RECORDED,
+      value: eventDate
+        ? `${eventType} · ${formatDateTime(eventDate)}`
+        : NOT_RECORDED,
     },
     {
       label: "Latest cycle",
@@ -258,6 +410,28 @@ function SelectedMedicationPanel({
     },
     { label: "Appearance", value: appearanceLabel(line) },
     { label: "Start date", value: formatDate(line.start_date) },
+  ];
+  const cycleRows: Array<{ label: string; value: string }> = [
+    {
+      label: "Cycle reference",
+      value: latest?.reference ?? NOT_RECORDED,
+    },
+    {
+      label: "Cycle status",
+      value: latest ? formatLabel(latest.status) : NOT_RECORDED,
+    },
+    {
+      label: "Prepared at",
+      value: formatTimingValue(latest?.prepared_at, latest?.prepared_by_email),
+    },
+    {
+      label: "Checked at",
+      value: formatTimingValue(latest?.checked_at, latest?.checked_by_email),
+    },
+    {
+      label: "Stock deducted at",
+      value: formatTimingValue(latest?.deducted_at),
+    },
   ];
 
   return (
@@ -297,6 +471,36 @@ function SelectedMedicationPanel({
           </div>
         ))}
       </dl>
+
+      <div className="mt-4 border-t border-line pt-3">
+        <h5 className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+          Latest event timing
+        </h5>
+        <div className="mt-3">
+          <MedicationTimingGrid
+            checkedCycle={checkedCycle}
+            deductedCycle={deductedCycle}
+            line={line}
+            preparedCycle={preparedCycle}
+          />
+        </div>
+      </div>
+
+      <dl className="mt-4 space-y-2.5 border-t border-line pt-3">
+        <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+          Cycle context
+        </dt>
+        {cycleRows.map((row) => (
+          <div className="flex items-start justify-between gap-3" key={row.label}>
+            <dt className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted">
+              {row.label}
+            </dt>
+            <dd className="text-right text-xs font-semibold text-ink-soft">
+              {row.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </aside>
   );
 }
@@ -318,6 +522,22 @@ export function MedicationHistoryItemsList({
 
   const dispensed = useMemo(() => latestDispensedCycle(cycles), [cycles]);
   const latest = useMemo(() => latestCycle(cycles), [cycles]);
+  const latestPrepared = useMemo(
+    () => latestByDate(cycles, (cycle) => cycle.prepared_at),
+    [cycles],
+  );
+  const latestChecked = useMemo(
+    () => latestByDate(cycles, (cycle) => cycle.checked_at),
+    [cycles],
+  );
+  const latestDeducted = useMemo(
+    () => latestByDate(cycles, (cycle) => cycle.deducted_at),
+    [cycles],
+  );
+  const recordedEventDate = useMemo(
+    () => latestRecordedEventDate(cycles, medicationLines),
+    [cycles, medicationLines],
+  );
   const eventDate = dispensed ? cycleEventDate(dispensed) : null;
   const eventType = dispensed ? cycleEventType(dispensed) : NOT_RECORDED;
 
@@ -367,13 +587,10 @@ export function MedicationHistoryItemsList({
     medicationLines.find((line) => line.id === selectedId) ?? null;
 
   return (
-    <section
-      aria-label="Patient medication history"
-      className="space-y-4"
-    >
+    <section aria-label="Patient medication history" className="space-y-4">
       <div
         aria-label="Medication history summary"
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7"
       >
         <SummaryStat label="Active medications" value={String(activeCount)} />
         <SummaryStat
@@ -382,7 +599,19 @@ export function MedicationHistoryItemsList({
         />
         <SummaryStat
           label="Latest recorded event"
-          value={dispensed ? formatDate(eventDate) : NOT_RECORDED}
+          value={formatDateTime(recordedEventDate)}
+        />
+        <SummaryStat
+          label="Latest prepared time"
+          value={formatDateTime(latestPrepared?.prepared_at)}
+        />
+        <SummaryStat
+          label="Latest checked time"
+          value={formatDateTime(latestChecked?.checked_at)}
+        />
+        <SummaryStat
+          label="Latest stock deducted time"
+          value={formatDateTime(latestDeducted?.deducted_at)}
         />
         <SummaryStat label="Dosette cycles" value={String(cycles.length)} />
       </div>
@@ -443,6 +672,8 @@ export function MedicationHistoryItemsList({
               ) : (
                 filtered.map((line) => (
                   <MedicationCard
+                    checkedCycle={latestChecked}
+                    deductedCycle={latestDeducted}
                     eventDate={eventDate}
                     eventType={eventType}
                     isSelected={selectedId === line.id}
@@ -450,6 +681,7 @@ export function MedicationHistoryItemsList({
                     latest={latest}
                     line={line}
                     onSelect={setSelectedId}
+                    preparedCycle={latestPrepared}
                   />
                 ))
               )}
@@ -457,10 +689,13 @@ export function MedicationHistoryItemsList({
 
             {selectedLine ? (
               <SelectedMedicationPanel
+                checkedCycle={latestChecked}
+                deductedCycle={latestDeducted}
                 eventDate={eventDate}
                 eventType={eventType}
                 latest={latest}
                 line={selectedLine}
+                preparedCycle={latestPrepared}
               />
             ) : null}
           </div>

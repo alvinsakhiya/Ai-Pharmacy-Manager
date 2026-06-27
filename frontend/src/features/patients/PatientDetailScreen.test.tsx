@@ -234,7 +234,20 @@ describe("PatientDetailScreen", () => {
     ).toBeInTheDocument();
     expect(within(panel).getByText("Dosette cycles")).toBeInTheDocument();
     expect(within(panel).getByText("Latest recorded event")).toBeInTheDocument();
-    expect(within(panel).getAllByText("25 Jun 2026").length).toBeGreaterThan(0);
+    expect(within(panel).getByText("Latest prepared time")).toBeInTheDocument();
+    expect(within(panel).getByText("Latest checked time")).toBeInTheDocument();
+    expect(
+      within(panel).getByText("Latest stock deducted time"),
+    ).toBeInTheDocument();
+    expect(
+      within(panel).getAllByText("25 Jun 2026, 09:30").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(panel).getAllByText("25 Jun 2026, 10:15").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(panel).getAllByText("25 Jun 2026, 11:30").length,
+    ).toBeGreaterThan(0);
 
     const listbox = within(panel).getByRole("listbox", {
       name: "Medication items",
@@ -250,14 +263,34 @@ describe("PatientDetailScreen", () => {
     expect(metformin).toHaveAttribute("aria-selected", "false");
     expect(within(amlodipine).getByText("5 mg - Tablet")).toBeInTheDocument();
     expect(within(amlodipine).getByText("Active")).toBeInTheDocument();
-    expect(within(amlodipine).getByText("Stock deducted")).toBeInTheDocument();
+    expect(within(amlodipine).getAllByText("Stock deducted").length).toBeGreaterThan(
+      0,
+    );
     expect(within(amlodipine).getByText("Morning 1")).toBeInTheDocument();
     expect(within(amlodipine).getByText("Bedtime 1")).toBeInTheDocument();
     expect(within(amlodipine).getByText("Lunchtime 0")).toBeInTheDocument();
     expect(
       within(amlodipine).getByText("Take one twice daily"),
     ).toBeInTheDocument();
-    expect(within(amlodipine).getByText("25 Jun 2026")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Timing")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Prepared")).toBeInTheDocument();
+    expect(within(amlodipine).getByText("Checked")).toBeInTheDocument();
+    expect(within(amlodipine).getAllByText("Stock deducted").length).toBeGreaterThan(
+      0,
+    );
+    expect(within(amlodipine).getByText("Recorded")).toBeInTheDocument();
+    expect(
+      within(amlodipine).getByText(
+        "25 Jun 2026, 09:30 by pharmacist@example.com",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(amlodipine).getByText("25 Jun 2026, 10:15 by checker@example.com"),
+    ).toBeInTheDocument();
+    expect(
+      within(amlodipine).getAllByText("25 Jun 2026, 11:30").length,
+    ).toBeGreaterThan(0);
+    expect(within(amlodipine).getByText("01 Jun 2026, 08:00")).toBeInTheDocument();
     expect(
       within(amlodipine).getByText("Latest cycle MDS-2026-W26 · Prepared"),
     ).toBeInTheDocument();
@@ -269,6 +302,23 @@ describe("PatientDetailScreen", () => {
     expect(
       within(panel).getByRole("heading", { level: 4, name: "Amlodipine" }),
     ).toBeInTheDocument();
+    expect(
+      within(panel).getByRole("heading", {
+        level: 5,
+        name: "Latest event timing",
+      }),
+    ).toBeInTheDocument();
+    expect(within(panel).getByText("Cycle context")).toBeInTheDocument();
+    expect(within(panel).getByText("Prepared at")).toBeInTheDocument();
+    expect(within(panel).getByText("Checked at")).toBeInTheDocument();
+    expect(within(panel).getByText("Stock deducted at")).toBeInTheDocument();
+    expect(
+      within(panel).getAllByText("pharmacist@example.com", { exact: false })
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(panel).getAllByText("checker@example.com", { exact: false }).length,
+    ).toBeGreaterThan(0);
 
     await user.click(metformin);
     expect(amlodipine).toHaveAttribute("aria-selected", "false");
