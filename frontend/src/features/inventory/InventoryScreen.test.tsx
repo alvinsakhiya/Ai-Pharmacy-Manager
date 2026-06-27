@@ -51,6 +51,7 @@ function makeStockItem(overrides: Partial<StockItem> = {}): StockItem {
     is_active: true,
     quantity_on_hand: 18,
     earliest_expiry: "2027-01-31",
+    stock_value: "0.54",
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
     ...overrides,
@@ -147,7 +148,9 @@ describe("InventoryScreen", () => {
     vi.resetAllMocks();
     listCatalogueProductsMock.mockResolvedValue([makeProduct()]);
     listStockItemsMock.mockResolvedValue([
-      makeStockItem(),
+      makeStockItem({
+        earliest_expiry: dateOffsetValue(45),
+      }),
       makeStockItem({
         id: 21,
         pharmacy: 2,
@@ -155,9 +158,37 @@ describe("InventoryScreen", () => {
         quantity_on_hand: 4,
         earliest_expiry: null,
         is_active: false,
+        stock_value: "0.12",
       }),
     ]);
     receiveCatalogueStockMock.mockResolvedValue(intakeResponse());
+  });
+
+  it("renders the polished stock workspace header and summary cards", async () => {
+    renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
+
+    expect(
+      await screen.findByRole("heading", { name: "Inventory", level: 1 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Review stock levels, batches, and expiry risk before action."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Stock workspace")).toBeInTheDocument();
+    expect(screen.getByText("Human review required")).toBeInTheDocument();
+    expect(screen.getAllByText("All stock").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Stock controls")).toBeInTheDocument();
+    expect(screen.getByText("2 records shown")).toBeInTheDocument();
+
+    expect(screen.getAllByText("Stock records").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 active in current view")).toBeInTheDocument();
+    expect(screen.getByText("Units on hand")).toBeInTheDocument();
+    expect(screen.getByText("22")).toBeInTheDocument();
+    expect(screen.getAllByText("Stock risk").length).toBeGreaterThan(0);
+    expect(screen.getByText("At or below reorder level")).toBeInTheDocument();
+    expect(screen.getAllByText("Expiry review").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Stock value").length).toBeGreaterThan(0);
+    expect(screen.getByText("£0.66")).toBeInTheDocument();
+    expect(screen.getByText("2 priced records")).toBeInTheDocument();
   });
 
   it("renders rows from stock item data with resolved pharmacy names", async () => {
@@ -171,9 +202,16 @@ describe("InventoryScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
     expect(screen.getByText("18")).toBeInTheDocument();
+    expect(screen.getAllByText("Reorder level 5").length).toBeGreaterThan(0);
+    expect(screen.getByText("Stock item #20")).toBeInTheDocument();
+    expect(screen.getByText("In range")).toBeInTheDocument();
+    expect(screen.getAllByText("Stock risk").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Expiry review").length).toBeGreaterThan(0);
+    expect(screen.getByText("£0.54")).toBeInTheDocument();
     expect(screen.getByText("Ibuprofen")).toBeInTheDocument();
     expect(screen.getAllByText("JMW Croydon").length).toBeGreaterThan(0);
     expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(screen.getByText("Inactive item")).toBeInTheDocument();
   });
 
   it("shows loading state", () => {
@@ -181,7 +219,7 @@ describe("InventoryScreen", () => {
 
     renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
 
-    expect(screen.getByText("Loading stock...")).toBeInTheDocument();
+    expect(screen.getAllByText("Loading inventory…").length).toBeGreaterThan(0);
   });
 
   it("shows empty state", async () => {
@@ -189,7 +227,12 @@ describe("InventoryScreen", () => {
 
     renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
 
-    expect(await screen.findByText("No stock items yet.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No stock items match the current view."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Adjust search or pharmacy filters, or add stock when appropriate."),
+    ).toBeInTheDocument();
   });
 
   it("links each row to the stock item detail screen", async () => {
@@ -224,6 +267,8 @@ describe("InventoryScreen", () => {
     await screen.findAllByText("Paracetamol");
     await user.selectOptions(screen.getByLabelText("Pharmacy"), "2");
 
+    expect(screen.getAllByText("1 active filter").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("JMW Croydon").length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(listStockItemsMock).toHaveBeenLastCalledWith({ pharmacy: 2 });
     });
@@ -237,6 +282,7 @@ describe("InventoryScreen", () => {
     await user.selectOptions(screen.getByLabelText("Pharmacy"), "2");
     await user.type(screen.getByLabelText("Search"), "ibu");
 
+    expect(screen.getAllByText("2 active filters").length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(listStockItemsMock).toHaveBeenLastCalledWith({
         pharmacy: 2,
@@ -260,6 +306,44 @@ describe("InventoryScreen", () => {
 
     expect((await screen.findAllByText("Paracetamol")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Add Stock" })).toBeNull();
+  });
+
+  it("does not render unsafe wording patient data or new mutation controls", async () => {
+    renderWithProviders(<InventoryScreen />, {
+      auth: inventoryAuth({ canReceive: true }),
+    });
+
+    expect((await screen.findAllByText("Paracetamol")).length).toBeGreaterThan(0);
+    const body = within(document.body);
+
+    for (const forbidden of [
+      "Order now",
+      "Auto order",
+      "Auto transfer",
+      "Generate cycle",
+      "Complete task",
+      "Delete stock",
+      "Delete patient",
+      "AI decided",
+      "clinically recommended",
+      "automatic ordering",
+      "automatic transfer",
+      "NHS integration",
+      "NCRS",
+      "compliance proof",
+      "Patient One",
+      "date_of_birth",
+      "postcode",
+      "phone",
+      "email",
+      "address",
+      "NHS number",
+    ]) {
+      expect(body.queryByText(forbidden)).toBeNull();
+    }
+    expect(screen.getByRole("button", { name: "Add Stock" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "View" }).length)
+      .toBeGreaterThan(0);
   });
 
   it("preselects a single scoped pharmacy and hides the Add Stock pharmacy dropdown", async () => {
