@@ -518,7 +518,7 @@ describe("DosetteScreen", () => {
     expect(createDosetteCycleMock).not.toHaveBeenCalled();
   });
 
-  it("renders a printable dosette sheet preview with cycle and appearance details", async () => {
+  it("renders a printable dosette tray sheet without patient demographics", async () => {
     const user = userEvent.setup();
     listDosetteCyclesMock.mockResolvedValueOnce([
       makeCycle({
@@ -543,23 +543,74 @@ describe("DosetteScreen", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Print Dosette sheet",
     });
-    expect(within(dialog).getByLabelText("Dosette medication sheet")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Dosette tray sheet")).toBeInTheDocument();
+    expect(within(dialog).getByText("Dosette tray sheet")).toBeInTheDocument();
     expect(within(dialog).getByText("JMW Sutton")).toBeInTheDocument();
     expect(within(dialog).getByText("SUT-P1")).toBeInTheDocument();
     expect(within(dialog).getByText("MDS-2026-W26")).toBeInTheDocument();
     expect(
       within(dialog).getByText("22 Jun 2026 - 28 Jun 2026"),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText("pharmacist@example.com · 25 Jun 2026, 09:30")).toBeInTheDocument();
-    expect(within(dialog).getByText("checker@example.com · 25 Jun 2026, 10:15")).toBeInTheDocument();
-    expect(within(dialog).getByText("Private dose directions")).toBeInTheDocument();
-    expect(within(dialog).getByText("Blue")).toBeInTheDocument();
-    expect(within(dialog).getByText("Round")).toBeInTheDocument();
+    for (const day of [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]) {
+      expect(within(dialog).getByText(day)).toBeInTheDocument();
+    }
+    for (const doseTime of ["Morning", "Lunchtime", "Evening", "Bedtime"]) {
+      expect(within(dialog).getByText(doseTime)).toBeInTheDocument();
+    }
+
+    const mondayMorning = within(dialog).getByLabelText("Monday Morning");
+    const mondayMorningAmlodipine = within(mondayMorning).getByLabelText(
+      "Amlodipine 5 mg Monday Morning",
+    );
+    expect(
+      within(mondayMorningAmlodipine).getByText("Amlodipine 5 mg"),
+    ).toBeInTheDocument();
+    expect(
+      within(mondayMorningAmlodipine).getByText("1 tablet"),
+    ).toBeInTheDocument();
+    expect(
+      within(mondayMorningAmlodipine).getByText("Blue · Round"),
+    ).toBeInTheDocument();
+
+    const mondayLunchtime = within(dialog).getByLabelText("Monday Lunchtime");
+    expect(within(mondayLunchtime).queryByText("Amlodipine 5 mg")).toBeNull();
+    expect(within(mondayLunchtime).queryByText("Metformin 500 mg")).toBeNull();
+    expect(within(mondayLunchtime).getByText("-")).toBeInTheDocument();
+
+    const mondayEvening = within(dialog).getByLabelText("Monday Evening");
+    expect(
+      within(mondayEvening).getByLabelText("Metformin 500 mg Monday Evening"),
+    ).toBeInTheDocument();
+    expect(within(mondayEvening).queryByText("Amlodipine 5 mg")).toBeNull();
+
+    const mondayBedtime = within(dialog).getByLabelText("Monday Bedtime");
+    expect(
+      within(mondayBedtime).getByLabelText("Amlodipine 5 mg Monday Bedtime"),
+    ).toBeInTheDocument();
+    expect(within(mondayBedtime).queryByText("Metformin 500 mg")).toBeNull();
+
+    expect(within(dialog).queryByText("Private dose directions")).toBeNull();
+    expect(within(dialog).queryByText("Inactive line")).toBeNull();
+    expect(within(dialog).queryByText("Demo PatientOne")).toBeNull();
+    expect(within(dialog).queryByText("01 Jan 1980")).toBeNull();
+    expect(within(dialog).queryByText("SM1 1AA")).toBeNull();
+    expect(within(dialog).queryByText("020 0000 0001")).toBeNull();
+    expect(within(dialog).queryByText("1 Demo Street, Sutton")).toBeNull();
+    expect(within(dialog).queryByText("Printed date")).toBeNull();
     expect(
       within(dialog).getByText(
-        "This sheet is for pharmacy Dosette preparation and patient/carer identification support. Human review required.",
+        "Pharmacy Dosette preparation support. Human review required.",
       ),
     ).toBeInTheDocument();
+    expect(within(dialog).getByText(/^Printed /)).toBeInTheDocument();
   });
 
   it("prints the dosette sheet from the preview", async () => {

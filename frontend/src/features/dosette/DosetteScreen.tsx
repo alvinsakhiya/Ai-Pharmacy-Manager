@@ -1250,24 +1250,7 @@ function PickingListSection({
 }
 
 const PRINT_DISCLAIMER =
-  "This sheet is for pharmacy Dosette preparation and patient/carer identification support. Human review required.";
-
-function DosettePrintMeta({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div>
-      <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
-        {label}
-      </dt>
-      <dd className="tnum mt-1 text-sm font-bold text-ink">{value}</dd>
-    </div>
-  );
-}
+  "Pharmacy Dosette preparation support. Human review required.";
 
 function preparedCheckedLabel(
   email: string | null,
@@ -1280,6 +1263,98 @@ function preparedCheckedLabel(
   return [email, timestamp ? formatDateTime(timestamp) : null]
     .filter(Boolean)
     .join(" · ");
+}
+
+const PRINT_DAY_LABELS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
+const PRINT_SLOT_ROWS = [
+  { key: "quantity_morning", label: "Morning" },
+  { key: "quantity_lunchtime", label: "Lunchtime" },
+  { key: "quantity_evening", label: "Evening" },
+  { key: "quantity_bedtime", label: "Bedtime" },
+] as const;
+
+function printDoseLabel(line: PatientMedicationLine, quantity: number): string {
+  const form = line.form?.trim().toLowerCase();
+  if (!form || form === "not recorded") {
+    return String(quantity);
+  }
+
+  const unit = quantity === 1 || form.endsWith("s") ? form : `${form}s`;
+  return `${quantity} ${unit}`;
+}
+
+function printMedicineLabel(line: PatientMedicationLine): string {
+  const strength = line.strength?.trim();
+  return strength ? `${line.medication_name} ${strength}` : line.medication_name;
+}
+
+function printAppearanceLabel(line: PatientMedicationLine): string | null {
+  const appearance = [line.colour, line.shape]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(" · ");
+
+  return appearance || null;
+}
+
+function PrintTrayCell({
+  day,
+  lines,
+  slot,
+}: {
+  day: string;
+  lines: PatientMedicationLine[];
+  slot: (typeof PRINT_SLOT_ROWS)[number];
+}) {
+  const medicines = lines.filter((line) => line[slot.key] > 0);
+
+  return (
+    <div
+      aria-label={`${day} ${slot.label}`}
+      className="dosette-print-cell min-h-[7.25rem] border-l border-t border-line bg-white p-2"
+    >
+      {medicines.length === 0 ? (
+        <span className="dosette-print-empty tnum text-sm font-semibold text-muted">
+          -
+        </span>
+      ) : (
+        <ul className="space-y-1.5">
+          {medicines.map((line) => {
+            const appearance = printAppearanceLabel(line);
+            const quantity = line[slot.key];
+            return (
+              <li
+                aria-label={`${printMedicineLabel(line)} ${day} ${slot.label}`}
+                className="dosette-print-item rounded-lg border border-line bg-surface-subtle px-2 py-1.5"
+                key={`${day}-${slot.key}-${line.id}`}
+              >
+                <p className="text-[11px] font-extrabold leading-snug text-ink">
+                  {printMedicineLabel(line)}
+                </p>
+                <p className="tnum mt-0.5 text-[11px] font-bold leading-snug text-ink-soft">
+                  {printDoseLabel(line, quantity)}
+                </p>
+                {appearance ? (
+                  <p className="mt-0.5 text-[10px] font-semibold leading-snug text-muted">
+                    {appearance}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function DosettePrintSheet({
@@ -1297,129 +1372,87 @@ function DosettePrintSheet({
 }) {
   return (
     <section
-      aria-label="Dosette medication sheet"
-      className="dosette-print-sheet rounded-2xl border border-line bg-white p-6 text-ink shadow-soft"
+      aria-label="Dosette tray sheet"
+      className="dosette-print-sheet rounded-2xl border border-line bg-white p-5 text-ink shadow-soft"
     >
-      <header className="border-b border-line pb-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted">
-              Pharmacy Dosette preparation sheet
-            </p>
-            <h2 className="mt-1 text-2xl font-extrabold text-ink">
-              {pharmacyName}
-            </h2>
-          </div>
-          <Badge dot variant={cycleStatusTone(cycle.status)}>
-            {statusLabel(cycle.status)}
-          </Badge>
+      <header className="dosette-print-header flex flex-col gap-3 border-b border-line pb-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted">
+            Dosette tray sheet
+          </p>
+          <h2 className="mt-1 text-xl font-extrabold text-ink">
+            {cycleDateRange(cycle)}
+          </h2>
+          <p className="mt-1 text-xs font-semibold text-ink-soft">
+            {pharmacyName}
+          </p>
         </div>
-
-        <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <DosettePrintMeta label="Patient reference" value={patientReference} />
-          <DosettePrintMeta label="Cycle" value={cycleFriendlyLabel(cycle)} />
-          <DosettePrintMeta label="Internal reference" value={cycle.reference} />
-          <DosettePrintMeta
-            label="Cycle dates"
-            value={`${formatDate(cycle.start_date)} - ${formatDate(cycle.end_date)}`}
-          />
-          <DosettePrintMeta label="Printed date" value={formatDateTime(printedAt)} />
-          <DosettePrintMeta
-            label="Prepared"
-            value={preparedCheckedLabel(cycle.prepared_by_email, cycle.prepared_at)}
-          />
-          <DosettePrintMeta
-            label="Checked"
-            value={preparedCheckedLabel(cycle.checked_by_email, cycle.checked_at)}
-          />
-          <DosettePrintMeta
-            label="Stock deducted"
-            value={cycle.stock_deducted ? "Yes" : "No"}
-          />
-          <DosettePrintMeta
-            label="Deducted at"
-            value={optionalDateTime(cycle.deducted_at)}
-          />
+        <dl className="dosette-print-identifiers grid gap-2 text-right sm:grid-cols-3">
+          <div>
+            <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+              Patient ID
+            </dt>
+            <dd className="tnum mt-0.5 text-sm font-bold text-ink">
+              {patientReference}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+              Cycle ref
+            </dt>
+            <dd className="tnum mt-0.5 text-sm font-bold text-ink">
+              {cycle.reference}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+              Status
+            </dt>
+            <dd className="mt-0.5 text-sm font-bold text-ink">
+              {statusLabel(cycle.status)}
+            </dd>
+          </div>
         </dl>
       </header>
 
-      <div className="mt-5 overflow-hidden rounded-xl border border-line">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-surface-subtle">
-            <tr>
-              <th className="px-3 py-2 font-extrabold text-ink">Medication</th>
-              <th className="px-3 py-2 font-extrabold text-ink">Strength/Form</th>
-              <th className="px-3 py-2 font-extrabold text-ink">
-                Dosage instructions
-              </th>
-              <th className="px-3 py-2 text-center font-extrabold text-ink">
-                Morning
-              </th>
-              <th className="px-3 py-2 text-center font-extrabold text-ink">
-                Lunchtime
-              </th>
-              <th className="px-3 py-2 text-center font-extrabold text-ink">
-                Evening
-              </th>
-              <th className="px-3 py-2 text-center font-extrabold text-ink">
-                Bedtime
-              </th>
-              <th className="px-3 py-2 font-extrabold text-ink">Colour</th>
-              <th className="px-3 py-2 font-extrabold text-ink">Shape</th>
-              <th className="px-3 py-2 font-extrabold text-ink">Start date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {medicationLines.length === 0 ? (
-              <tr>
-                <td className="px-3 py-4 text-center text-muted" colSpan={10}>
-                  No active medication lines recorded for this sheet.
-                </td>
-              </tr>
-            ) : (
-              medicationLines.map((line) => (
-                <tr className="border-t border-line" key={line.id}>
-                  <td className="px-3 py-2 font-bold text-ink">
-                    {line.medication_name}
-                  </td>
-                  <td className="px-3 py-2 text-ink-soft">
-                    {strengthFormLabel(line)}
-                  </td>
-                  <td className="px-3 py-2 text-ink-soft">
-                    {line.dose_instructions.trim()
-                      ? line.dose_instructions
-                      : "Not recorded"}
-                  </td>
-                  <td className="tnum px-3 py-2 text-center font-bold">
-                    {line.quantity_morning}
-                  </td>
-                  <td className="tnum px-3 py-2 text-center font-bold">
-                    {line.quantity_lunchtime}
-                  </td>
-                  <td className="tnum px-3 py-2 text-center font-bold">
-                    {line.quantity_evening}
-                  </td>
-                  <td className="tnum px-3 py-2 text-center font-bold">
-                    {line.quantity_bedtime}
-                  </td>
-                  <td className="px-3 py-2 text-ink-soft">
-                    {safeText(line.colour)}
-                  </td>
-                  <td className="px-3 py-2 text-ink-soft">
-                    {safeText(line.shape)}
-                  </td>
-                  <td className="tnum px-3 py-2 text-ink-soft">
-                    {optionalDate(line.start_date)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div
+        aria-label="Weekly Dosette tray grid"
+        className="dosette-print-tray mt-4 overflow-hidden rounded-xl border border-line bg-white"
+        role="table"
+      >
+        <div className="dosette-print-grid grid grid-cols-[7.5rem_repeat(7,minmax(0,1fr))]">
+          <div className="border-b border-line bg-surface-subtle p-2 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+            Dose time
+          </div>
+          {PRINT_DAY_LABELS.map((day) => (
+            <div
+              className="border-b border-l border-line bg-surface-subtle p-2 text-center text-[11px] font-extrabold text-ink"
+              key={day}
+            >
+              {day}
+            </div>
+          ))}
+          {PRINT_SLOT_ROWS.map((slot) => (
+            <div className="contents" key={slot.key}>
+              <div className="border-t border-line bg-surface-subtle p-2 text-sm font-extrabold text-ink">
+                {slot.label}
+              </div>
+              {PRINT_DAY_LABELS.map((day) => (
+                <PrintTrayCell
+                  day={day}
+                  key={`${slot.key}-${day}`}
+                  lines={medicationLines}
+                  slot={slot}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <footer className="mt-5 border-t border-line pt-3 text-xs font-semibold leading-relaxed text-ink-soft">
-        {PRINT_DISCLAIMER}
+      <footer className="dosette-print-footer mt-3 flex flex-col gap-1 border-t border-line pt-2 text-[10px] font-semibold leading-relaxed text-muted sm:flex-row sm:items-center sm:justify-between">
+        <span>{PRINT_DISCLAIMER}</span>
+        <span className="tnum">Printed {formatDateTime(printedAt)}</span>
       </footer>
     </section>
   );

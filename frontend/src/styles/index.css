@@ -341,22 +341,54 @@ html.contrast-high *:focus-visible {
     padding: 0 !important;
   }
 
-  .dosette-print-sheet table {
-    border-collapse: collapse !important;
-    font-size: 12px !important;
+  .dosette-print-header,
+  .dosette-print-footer {
+    border-color: #111827 !important;
   }
 
-  .dosette-print-sheet th,
-  .dosette-print-sheet td {
-    border: 1px solid #6b7280 !important;
+  .dosette-print-tray {
+    border: 1px solid #111827 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .dosette-print-grid {
+    display: grid !important;
+    grid-template-columns: 30mm repeat(7, minmax(0, 1fr)) !important;
+  }
+
+  .dosette-print-grid > *,
+  .dosette-print-cell {
+    border-color: #111827 !important;
     color: #111827 !important;
-    padding: 6px !important;
   }
 
-  .dosette-print-sheet tr,
-  .dosette-print-sheet article,
+  .dosette-print-cell {
+    min-height: 28mm !important;
+    padding: 4px !important;
+  }
+
+  .dosette-print-item {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    border: 1px solid #4b5563 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    padding: 3px 4px !important;
+  }
+
+  .dosette-print-item p,
+  .dosette-print-empty,
+  .dosette-print-footer {
+    color: #111827 !important;
+  }
+
+  .dosette-print-sheet,
+  .dosette-print-tray,
+  .dosette-print-cell,
+  .dosette-print-item,
   .dosette-print-sheet section {
-    break-inside: avoid;
-    page-break-inside: avoid;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }
