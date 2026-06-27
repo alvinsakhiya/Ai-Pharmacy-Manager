@@ -35,6 +35,7 @@ import {
 import {
   formatWorkQueueDate,
   workQueueActionLabel,
+  workQueuePriorityLabel,
   workQueueStatusLabel,
 } from "../notifications/workQueueDisplay";
 import { getReportPreview } from "../reports/reportsApi";
@@ -114,8 +115,20 @@ function humanizeAction(action: string): string {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+function workQueuePriorityTone(
+  priority: WorkQueueItem["priority"],
+): "danger" | "warning" | "info" | "neutral" {
+  if (priority === "urgent") return "danger";
+  if (priority === "high") return "warning";
+  if (priority === "medium") return "info";
+  return "neutral";
+}
+
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
+  if (typeof window.matchMedia !== "function") {
+    return document.documentElement.classList.contains("reduce-motion");
+  }
   return (
     document.documentElement.classList.contains("reduce-motion") ||
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -214,7 +227,6 @@ export function DashboardScreen() {
     return null;
   }
 
-  const firstName = (user.full_name || user.email).split(/\s+/)[0];
   const today = new Date();
   const dateLabel = today.toLocaleDateString("en-GB", {
     weekday: "long",
@@ -245,50 +257,57 @@ export function DashboardScreen() {
 
   return (
     <div className="space-y-5">
-      {/* Page header */}
-      <header className="flex animate-fade-in-up flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-            {dateLabel}
-          </p>
-          <h1 className="mt-1.5 text-[26px] font-extrabold tracking-[-0.025em] text-ink sm:text-[28px]">
-            Hello, {firstName}
-          </h1>
-          <p className="mt-1.5 text-sm text-ink-soft">
-            Here&rsquo;s your operations overview — {scopeLabel(user)}.
-          </p>
+      <header className="animate-fade-in-up space-y-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+              Pharmacy command centre
+            </p>
+            <h1 className="mt-1.5 text-[30px] font-extrabold tracking-[-0.025em] text-ink sm:text-[34px]">
+              Dashboard
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">
+              Monitor operational signals across stock, dosette preparation,
+              and workload.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+            {canAlerts ? (
+              <Link to="/alerts">
+                <Button
+                  variant="secondary"
+                  leadingIcon={<Bell className="h-4 w-4" />}
+                >
+                  View alerts
+                </Button>
+              </Link>
+            ) : null}
+            {canWorkQueue ? (
+              <Link to="/work-queue">
+                <Button
+                  variant="secondary"
+                  leadingIcon={<ListChecks className="h-4 w-4" />}
+                >
+                  Open Work Queue
+                </Button>
+              </Link>
+            ) : null}
+            {canStock ? (
+              <Link to="/reports">
+                <Button
+                  variant="primary"
+                  trailingIcon={<ArrowRight className="h-4 w-4" />}
+                >
+                  Open reports
+                </Button>
+              </Link>
+            ) : null}
+          </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2.5">
-          {canAlerts ? (
-            <Link to="/alerts">
-              <Button
-                variant="secondary"
-                leadingIcon={<Bell className="h-4 w-4" />}
-              >
-                View alerts
-              </Button>
-            </Link>
-          ) : null}
-          {canWorkQueue ? (
-            <Link to="/work-queue">
-              <Button
-                variant="secondary"
-                leadingIcon={<ListChecks className="h-4 w-4" />}
-              >
-                Open Work Queue
-              </Button>
-            </Link>
-          ) : null}
-          {canStock ? (
-            <Link to="/reports">
-              <Button
-                variant="primary"
-                trailingIcon={<ArrowRight className="h-4 w-4" />}
-              >
-                Open reports
-              </Button>
-            </Link>
-          ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="neutral">{scopeLabel(user)}</Badge>
+          <Badge variant="info">Human review required</Badge>
+          <Badge variant="neutral">{dateLabel}</Badge>
         </div>
       </header>
 
@@ -300,6 +319,7 @@ export function DashboardScreen() {
         {canAlerts ? (
           <Kpi
             label="Open alerts"
+            helper="Operational alerts requiring review"
             icon={<Bell className="h-4 w-4" />}
             tint="bg-lilac-soft text-brand-ink border-lilac"
             loading={alertsQuery.isLoading}
@@ -323,6 +343,7 @@ export function DashboardScreen() {
         {canStock ? (
           <Kpi
             label="Stock value"
+            helper="Current priced inventory value"
             icon={<PoundSterling className="h-4 w-4" />}
             tint="bg-gold-soft text-gold-ink border-gold"
             loading={valuationQuery.isLoading}
@@ -347,6 +368,7 @@ export function DashboardScreen() {
         {canStock ? (
           <Kpi
             label={`Expiring ≤ ${expiryWindow}d`}
+            helper="Batches in the expiry review window"
             icon={<Clock className="h-4 w-4" />}
             tint="bg-info-soft text-info-ink border-info-border"
             loading={expiryQuery.isLoading}
@@ -365,6 +387,7 @@ export function DashboardScreen() {
         {canBlister ? (
           <Kpi
             label="Packs due"
+            helper="Dosette preparation workload"
             icon={<CalendarClock className="h-4 w-4" />}
             tint="bg-peach-soft text-peach-ink border-peach"
             loading={mdsQuery.isLoading}
@@ -460,6 +483,7 @@ export function DashboardScreen() {
 
 function Kpi({
   label,
+  helper,
   value,
   icon,
   tint,
@@ -468,6 +492,7 @@ function Kpi({
   error,
 }: {
   label: ReactNode;
+  helper: ReactNode;
   value: ReactNode;
   icon: ReactNode;
   tint: string;
@@ -478,7 +503,12 @@ function Kpi({
   return (
     <article className="flex min-h-[120px] flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[13px] font-semibold text-ink-soft">{label}</p>
+        <div>
+          <p className="text-[13px] font-semibold text-ink-soft">{label}</p>
+          <p className="mt-1 max-w-[12rem] text-xs leading-relaxed text-muted">
+            {helper}
+          </p>
+        </div>
         <span
           aria-hidden="true"
           className={cn(
@@ -562,14 +592,17 @@ function NeedsAttentionCard({
             </div>
           </div>
         </div>
-        <Link to="/work-queue">
-          <Button
-            variant="secondary"
-            trailingIcon={<ArrowRight className="h-4 w-4" />}
-          >
-            Open Work Queue
-          </Button>
-        </Link>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Badge variant="info">Review before action</Badge>
+          <Link to="/work-queue">
+            <Button
+              variant="secondary"
+              trailingIcon={<ArrowRight className="h-4 w-4" />}
+            >
+              Open Work Queue
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {error ? (
@@ -580,7 +613,7 @@ function NeedsAttentionCard({
         </div>
       ) : loading ? (
         <div className="space-y-4 px-5 py-5">
-          <div className="grid gap-3 sm:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {WORK_QUEUE_SUMMARY.map((item) => (
               <Skeleton className="h-16" key={item.key} />
             ))}
@@ -599,10 +632,10 @@ function NeedsAttentionCard({
         </div>
       ) : (
         <div className="px-5 py-5">
-          <div className="grid gap-3 sm:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {WORK_QUEUE_SUMMARY.map((item) => (
               <div
-                className="rounded-xl border border-line bg-surface-subtle p-3"
+                className="rounded-xl border border-line bg-surface-subtle p-3 transition-colors hover:border-line-strong"
                 key={item.key}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -620,17 +653,20 @@ function NeedsAttentionCard({
             ))}
           </div>
 
-          <div className="mt-5 divide-y divide-line overflow-hidden rounded-xl border border-line">
+          <div className="mt-5 divide-y divide-line overflow-hidden rounded-2xl border border-line">
             {topTasks.map((item) => (
               <div
-                className="grid gap-3 bg-surface px-4 py-3 transition-colors hover:bg-surface-subtle lg:grid-cols-[1fr_auto]"
+                className="grid gap-3 bg-surface px-4 py-4 transition-colors hover:bg-surface-subtle lg:grid-cols-[minmax(0,1fr)_auto]"
                 key={item.id}
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="min-w-0 truncate text-sm font-bold text-ink">
+                    <h3 className="min-w-0 text-sm font-bold text-ink">
                       {item.title}
                     </h3>
+                    <Badge variant={workQueuePriorityTone(item.priority)}>
+                      {workQueuePriorityLabel(item.priority)}
+                    </Badge>
                     <Badge variant={item.priority === "urgent" ? "danger" : "neutral"} dot>
                       {workQueueStatusLabel(item.status)}
                     </Badge>
@@ -651,8 +687,9 @@ function NeedsAttentionCard({
                   </p>
                 </div>
                 <Link
+                  aria-label={`Open record: ${workQueueActionLabel(item)}`}
                   to={item.action_href}
-                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 text-[13px] font-bold text-ink-soft shadow-elev-1 transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-surface-subtle hover:text-ink focus-ring"
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 text-[13px] font-bold text-ink-soft shadow-elev-1 transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-surface-subtle hover:text-ink focus-ring lg:self-center"
                 >
                   {workQueueActionLabel(item)}
                   <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
@@ -695,7 +732,7 @@ function WorkloadCard({
             Dosette workload
           </h2>
           <p className="mt-0.5 text-[13px] font-medium text-muted">
-            Compliance packs across your scope — prepare ahead
+            Preparation workload across your scope
           </p>
         </div>
         {showManage ? (
@@ -724,7 +761,7 @@ function WorkloadCard({
           No active dosette cycles in your scope yet.
         </p>
       ) : (
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <WorkloadStat
             label="Overdue"
             value={overdue}
@@ -809,20 +846,20 @@ function ExpiringCard({
     .slice(0, 5);
 
   return (
-    <article className="overflow-hidden rounded-2xl bg-gradient-feature p-6 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2">
+    <article className="overflow-hidden rounded-2xl border border-line bg-surface p-6 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-extrabold tracking-[-0.01em] text-ink">
             Expiring soon
           </h2>
-          <p className="mt-0.5 text-[13px] font-medium text-ink-soft">
-            Soonest-expiring batches — rotate or use first (FEFO)
+          <p className="mt-0.5 text-[13px] font-medium text-muted">
+            Stock risk signals from the expiry report
           </p>
         </div>
         <Link
           to="/reports"
-          aria-label="Open expiry report"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sidebar text-white transition-transform duration-200 ease-soft hover:scale-105 active:scale-95 focus-ring"
+          aria-label="Open reports"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line-strong bg-surface-subtle text-ink-soft transition-transform duration-200 ease-soft hover:scale-105 hover:text-ink active:scale-95 focus-ring"
         >
           <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
         </Link>
@@ -839,18 +876,18 @@ function ExpiringCard({
           <Skeleton className="h-9 w-full" />
         </div>
       ) : top.length === 0 ? (
-        <p className="mt-5 rounded-xl bg-white/45 px-4 py-6 text-center text-sm font-semibold text-ink-soft">
-          Nothing expiring in the next {window} days. 🎉
+        <p className="mt-5 rounded-xl bg-surface-subtle px-4 py-6 text-center text-sm font-semibold text-ink-soft">
+          No expiry signals in the next {window} days.
         </p>
       ) : (
-        <div className="mt-5 overflow-hidden rounded-xl">
-          <div className="grid grid-cols-[1.6fr_1fr_0.7fr_0.8fr] gap-2 bg-sidebar/90 px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-sidebar-text">
+        <div className="mt-5 overflow-hidden rounded-xl border border-line">
+          <div className="grid grid-cols-[1.6fr_1fr_0.7fr_0.8fr] gap-2 bg-surface-subtle px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
             <span>Medication</span>
             <span>Batch</span>
             <span className="text-right">Qty</span>
             <span className="text-right">Expiry</span>
           </div>
-          <div className="divide-y divide-white/40 bg-white/35">
+          <div className="divide-y divide-line bg-surface">
             {top.map((row, index) => {
               const tag = expiryTone(row.days_until_expiry);
               return (

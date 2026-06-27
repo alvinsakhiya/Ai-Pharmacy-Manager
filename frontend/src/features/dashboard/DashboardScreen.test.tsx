@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,11 +9,19 @@ import {
 } from "../../test/providers";
 import { DashboardScreen } from "./DashboardScreen";
 import type {
+  AlertsResponse,
   WorkQueueItem,
   WorkQueueResponse,
   WorkQueueSummary,
 } from "../notifications/notificationsApi";
 import * as notificationsApi from "../notifications/notificationsApi";
+import type {
+  ExpiryReport,
+  MdsWorkloadReport,
+  ReportId,
+  StockValuationReport,
+} from "../reports/reportsApi";
+import * as reportsApi from "../reports/reportsApi";
 
 vi.mock("../notifications/notificationsApi", async (importOriginal) => {
   const actual = await importOriginal<
@@ -26,7 +34,17 @@ vi.mock("../notifications/notificationsApi", async (importOriginal) => {
   };
 });
 
+vi.mock("../reports/reportsApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../reports/reportsApi")>();
+  return {
+    ...actual,
+    getReportPreview: vi.fn(),
+  };
+});
+
+const getAlertsMock = vi.mocked(notificationsApi.getAlerts);
 const getWorkQueueMock = vi.mocked(notificationsApi.getWorkQueue);
+const getReportPreviewMock = vi.mocked(reportsApi.getReportPreview);
 
 function makeItem(overrides: Partial<WorkQueueItem> = {}): WorkQueueItem {
   return {
@@ -129,6 +147,104 @@ function makeResponse(
   };
 }
 
+function makeAlerts(): AlertsResponse {
+  return {
+    generated_at: "2026-06-26T09:30:00Z",
+    summary: {
+      total: 2,
+      critical: 0,
+      warning: 1,
+      info: 1,
+      by_category: {
+        stock: 1,
+        dosette: 1,
+      },
+    },
+    alerts: [],
+  };
+}
+
+function makeStockValuation(): StockValuationReport {
+  return {
+    report: "stock_valuation",
+    generated_at: "2026-06-26T09:30:00Z",
+    filters: { pharmacy_id: 1 },
+    summary: {
+      total_units: 24138,
+      total_value: "739",
+      priced_items: 2,
+      unpriced_items: 0,
+    },
+    row_count: 2,
+    rows: [],
+  };
+}
+
+function makeExpiry(): ExpiryReport {
+  return {
+    report: "expiry",
+    generated_at: "2026-06-26T09:30:00Z",
+    filters: { pharmacy_id: 1, window_days: 30 },
+    row_count: 2,
+    rows: [
+      {
+        pharmacy_id: 1,
+        pharmacy_name: "Pharmacy One",
+        medication_label: "Paracetamol 500mg tablets",
+        batch_number: "B-123",
+        expiry_date: "2026-06-29",
+        quantity: 12,
+        days_until_expiry: 2,
+        severity: "WARNING",
+      },
+      {
+        pharmacy_id: 1,
+        pharmacy_name: "Pharmacy One",
+        medication_label: "Ibuprofen 200mg tablets",
+        batch_number: "B-456",
+        expiry_date: "2026-07-15",
+        quantity: 6,
+        days_until_expiry: 18,
+        severity: "WARNING",
+      },
+    ],
+  };
+}
+
+function makeMdsWorkload(): MdsWorkloadReport {
+  return {
+    report: "mds_workload",
+    generated_at: "2026-06-26T09:30:00Z",
+    filters: { pharmacy_id: 1, window_days: 30 },
+    row_count: 1,
+    rows: [
+      {
+        pharmacy_id: 1,
+        pharmacy_name: "Pharmacy One",
+        cycle_status: "DRAFT",
+        due_count: 3,
+        overdue_count: 0,
+        upcoming_cycles: 2,
+      },
+    ],
+  };
+}
+
+function mockReportPreview() {
+  getReportPreviewMock.mockImplementation((reportId: ReportId) => {
+    if (reportId === "stock_valuation") {
+      return Promise.resolve(makeStockValuation());
+    }
+    if (reportId === "expiry") {
+      return Promise.resolve(makeExpiry());
+    }
+    if (reportId === "mds_workload") {
+      return Promise.resolve(makeMdsWorkload());
+    }
+    throw new Error(`Unexpected report ${reportId}`);
+  });
+}
+
 function renderDashboard() {
   return renderWithProviders(<DashboardScreen />, {
     auth: makeAuthContext({
@@ -152,7 +268,9 @@ describe("DashboardScreen work queue widget", () => {
     vi.resetAllMocks();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-06-27T12:00:00Z"));
+    getAlertsMock.mockResolvedValue(makeAlerts());
     getWorkQueueMock.mockResolvedValue(makeResponse());
+    mockReportPreview();
   });
 
   afterEach(() => {
@@ -175,6 +293,52 @@ describe("DashboardScreen work queue widget", () => {
       .toBeGreaterThan(0);
     expect(within(widget).getAllByText("Reviews").length).toBeGreaterThan(0);
     expect(within(widget).getAllByText("1").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("renders the polished command-centre header and KPI cards from existing data", async () => {
+    renderWithProviders(<DashboardScreen />, {
+      auth: makeAuthContext({
+        user: makeAuthUser({
+          role: "PHARMACIST",
+          scope: {
+            is_global: false,
+            group_ids: [],
+            pharmacy_ids: [1],
+          },
+          pharmacies: [{ id: 1, name: "Pharmacy One" }],
+          permissions: {
+            "stock.view": true,
+            "blister.view": true,
+            "review.view": true,
+          },
+        }),
+      }),
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Dashboard" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Monitor operational signals across stock, dosette preparation, and workload.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Pharmacy One")).toBeInTheDocument();
+    expect(screen.getByText("Human review required")).toBeInTheDocument();
+    expect(screen.getAllByText("Saturday, 27 June 2026").length)
+      .toBeGreaterThan(0);
+
+    expect(await screen.findByText("Open alerts")).toBeInTheDocument();
+    expect(screen.getByText("Stock value")).toBeInTheDocument();
+    expect(screen.getByText("Current priced inventory value"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Expiring ≤ 30d")).toBeInTheDocument();
+    expect(screen.getByText("Packs due")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("£739")).toBeInTheDocument();
+    });
+    expect(screen.getByText("1 warning")).toBeInTheDocument();
+    expect(screen.getByText("24,138 units")).toBeInTheDocument();
   });
 
   it("shows top tasks with safe patient references and action links", async () => {
@@ -206,6 +370,28 @@ describe("DashboardScreen work queue widget", () => {
       "Private review note",
     ]) {
       expect(within(widget).queryByText(forbidden)).toBeNull();
+    }
+  });
+
+  it("does not render dashboard mutation controls or unsafe wording", async () => {
+    renderDashboard();
+
+    await screen.findByRole("region", { name: "Needs attention" });
+    const pageText = document.body.textContent ?? "";
+
+    for (const forbidden of [
+      "AI decided",
+      "must order",
+      "automatic ordering",
+      "automatic transfer",
+      "automatic cycle creation",
+      "NCRS",
+      "NHS integration",
+      "Complete task",
+      "Transfer now",
+      "Order now",
+    ]) {
+      expect(pageText).not.toContain(forbidden);
     }
   });
 
