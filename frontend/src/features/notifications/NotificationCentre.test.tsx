@@ -113,13 +113,15 @@ describe("NotificationCentre", () => {
 
     await user.click(button);
 
-    expect(screen.getByRole("heading", { name: "Notifications" }))
+    expect(screen.getByRole("heading", { name: "Notification centre" }))
       .toBeInTheDocument();
     expect(
       screen.getByText(
-        "Your latest alerts and updates. Operational tasks are managed in Work Queue.",
+        "Review operational alerts before action. Work Queue keeps tasks separate.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("2 active alerts")).toBeInTheDocument();
+    expect(screen.getByText("Human review required")).toBeInTheDocument();
     expect(screen.getByText("Stockout: Paracetamol")).toBeInTheDocument();
     expect(screen.getAllByText("Critical").length).toBeGreaterThan(0);
     expect(screen.getByText("Stockout")).toBeInTheDocument();
@@ -183,7 +185,7 @@ describe("NotificationCentre", () => {
     await user.click(
       await screen.findByRole("button", { name: "Open notification centre" }),
     );
-    expect(await screen.findByText("Could not load notifications."))
+    expect(await screen.findByText("Could not load alerts."))
       .toBeInTheDocument();
     errorRender.unmount();
 
@@ -194,9 +196,7 @@ describe("NotificationCentre", () => {
     );
     expect(await screen.findByText("No active alerts")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Alerts highlight risks and signals. Work Queue will show tasks that need action.",
-      ),
+      screen.getByText("Work Queue will show tasks that need action."),
     ).toBeInTheDocument();
   });
 

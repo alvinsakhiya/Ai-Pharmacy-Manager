@@ -7,20 +7,29 @@ import {
   BellRing,
   Boxes,
   CalendarClock,
+  Filter,
   ListChecks,
   PackageCheck,
+  Search,
   ShieldAlert,
 } from "lucide-react";
 
+import { useAuth } from "../../auth/AuthContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { KpiCard } from "../../components/ui/KpiCard";
-import { PageHeader } from "../../components/ui/PageHeader";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { SkeletonRows } from "../../components/ui/Skeleton";
+import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
-import type { Alert, AlertSummary } from "./notificationsApi";
+import { scopeLabel } from "../../lib/scope";
+import type {
+  Alert,
+  AlertCategory,
+  AlertSeverity,
+  AlertSummary,
+} from "./notificationsApi";
 import {
   useAlertsQuery,
   useClearAlertsMutation,
@@ -49,6 +58,15 @@ function formatDateTime(value: string): string {
   }).format(date);
 }
 
+function formatDateLong(value: Date): string {
+  return value.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function summaryFor(alerts: Alert[]): AlertSummary {
   return {
     total: alerts.length,
@@ -60,6 +78,43 @@ function summaryFor(alerts: Alert[]): AlertSummary {
       dosette: alerts.filter((alert) => alert.category === "dosette").length,
     },
   };
+}
+
+function alertSearchText(alert: Alert): string {
+  return [
+    alert.title,
+    alert.message,
+    alert.severity,
+    alert.category,
+    alert.type,
+    alertScopeLabel(alert),
+    alert.subject.medication_name,
+    alert.subject.cycle_reference,
+    alert.subject.patient_reference,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function activeFilterLabel({
+  category,
+  searchQuery,
+  severity,
+}: {
+  category: AlertCategory | "";
+  searchQuery: string;
+  severity: AlertSeverity | "";
+}) {
+  const active = [
+    category !== "",
+    severity !== "",
+    searchQuery.trim().length > 0,
+  ].filter(Boolean).length;
+
+  return active === 0
+    ? "All alerts"
+    : `${active} active filter${active === 1 ? "" : "s"}`;
 }
 
 function SubjectDetails({ alert }: { alert: Alert }) {
@@ -116,15 +171,17 @@ function AlertCard({
   const isOperationalDosette = alert.category === "dosette";
 
   return (
-    <article className="interactive-card rounded-2xl border border-line bg-surface p-5 shadow-soft">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <article className="interactive-card overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
+      <div className="h-1 bg-warning" />
+      <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <SeverityBadge alert={alert} />
             <Badge variant="neutral">{ALERT_CATEGORY_LABELS[alert.category]}</Badge>
             <Badge variant="info">{alertTypeLabel(alert.type)}</Badge>
+            <Badge variant="brand">Active alert</Badge>
           </div>
-          <h2 className="mt-4 text-base font-bold tracking-[-0.01em] text-ink">
+          <h2 className="mt-4 text-[17px] font-extrabold tracking-[-0.01em] text-ink">
             {alert.title}
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-ink-soft">
@@ -175,7 +232,7 @@ function DistinctionPanel() {
     {
       icon: BellRing,
       title: "Alerts",
-      body: "Alerts highlight risks and signals. Review them before taking action.",
+      body: "Alerts highlight operational signals. Review before action.",
       tone: "border-warning-border bg-warning-soft text-warning-ink",
     },
   ];
@@ -214,12 +271,18 @@ function DistinctionPanel() {
 }
 
 export function AlertsScreen() {
+  const { user } = useAuth();
   const [hiddenFingerprints, setHiddenFingerprints] = useState<Set<string>>(
     () => new Set(),
   );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<AlertSeverity | "">("");
+  const [categoryFilter, setCategoryFilter] = useState<AlertCategory | "">("");
   const alertsQuery = useAlertsQuery();
   const dismissAlert = useDismissAlertMutation();
   const clearAlerts = useClearAlertsMutation();
+  const today = useMemo(() => new Date(), []);
+  const dateLabel = useMemo(() => formatDateLong(today), [today]);
   const visibleAlerts = useMemo(
     () =>
       (alertsQuery.data?.alerts ?? []).filter(
@@ -227,9 +290,31 @@ export function AlertsScreen() {
       ),
     [alertsQuery.data?.alerts, hiddenFingerprints],
   );
-  const summary = useMemo(() => summaryFor(visibleAlerts), [visibleAlerts]);
-  const expiryCount = visibleAlerts.filter((alert) => alert.type === "near_expiry")
+  const filteredAlerts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return visibleAlerts.filter((alert) => {
+      if (severityFilter && alert.severity !== severityFilter) {
+        return false;
+      }
+      if (categoryFilter && alert.category !== categoryFilter) {
+        return false;
+      }
+      if (query && !alertSearchText(alert).includes(query)) {
+        return false;
+      }
+      return true;
+    });
+  }, [categoryFilter, searchQuery, severityFilter, visibleAlerts]);
+  const summary = useMemo(() => summaryFor(filteredAlerts), [filteredAlerts]);
+  const sourceSummary = useMemo(() => summaryFor(visibleAlerts), [visibleAlerts]);
+  const expiryCount = filteredAlerts.filter((alert) => alert.type === "near_expiry")
     .length;
+  const filterLabel = activeFilterLabel({
+    category: categoryFilter,
+    searchQuery,
+    severity: severityFilter,
+  });
 
   async function handleDismiss(alert: Alert) {
     await dismissAlert.mutateAsync(alert.id);
@@ -237,18 +322,26 @@ export function AlertsScreen() {
   }
 
   async function handleDismissVisible() {
-    const fingerprints = visibleAlerts.map((alert) => alert.id);
+    const fingerprints = filteredAlerts.map((alert) => alert.id);
     await clearAlerts.mutateAsync(fingerprints);
-    setHiddenFingerprints(new Set(fingerprints));
+    setHiddenFingerprints((current) => new Set([...current, ...fingerprints]));
   }
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        eyebrow="System signals"
-        title="Alerts"
-        subtitle="Review stock, expiry, and workflow signals before taking action."
-        actions={
+      <header className="animate-fade-in-up space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+              Alert centre
+            </p>
+            <h1 className="mt-1.5 text-[30px] font-extrabold tracking-[-0.025em] text-ink sm:text-[34px]">
+              Alerts
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">
+              Review operational alerts before taking action.
+            </p>
+          </div>
           <Link to="/work-queue">
             <Button
               variant="secondary"
@@ -257,8 +350,21 @@ export function AlertsScreen() {
               Open Work Queue
             </Button>
           </Link>
-        }
-      />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="neutral">
+            {user ? scopeLabel(user) : "Scope unavailable"}
+          </Badge>
+          <Badge variant="info">Human review required</Badge>
+          <Badge variant="neutral">{filterLabel}</Badge>
+          <Badge variant="neutral">{dateLabel}</Badge>
+          <Badge variant="brand">
+            {alertsQuery.isSuccess
+              ? `${summary.total} alerts shown`
+              : "Alerts loading"}
+          </Badge>
+        </div>
+      </header>
 
       <DistinctionPanel />
 
@@ -266,9 +372,12 @@ export function AlertsScreen() {
         <Panel>
           <PanelHeader
             title="Alerts"
-            subtitle="Loading current risk and system signals..."
+            subtitle="Loading alerts..."
           />
           <PanelBody>
+            <p className="sr-only" role="status">
+              Loading alerts...
+            </p>
             <SkeletonRows rows={4} />
           </PanelBody>
         </Panel>
@@ -328,26 +437,89 @@ export function AlertsScreen() {
               icon={<BellRing className="h-4 w-4" />}
               label="Active alerts"
               value={summary.total}
-              note="Visible alerts in your current scope."
+              note={`${sourceSummary.total} active alerts before filters.`}
             />
           </section>
 
-          {visibleAlerts.length === 0 ? (
+          <Panel>
+            <PanelHeader
+              title="Alert controls"
+              subtitle={`${filteredAlerts.length} of ${visibleAlerts.length} alerts shown`}
+              icon={<Filter className="h-4 w-4" aria-hidden="true" />}
+            />
+            <PanelBody>
+              <div className="grid gap-4 md:grid-cols-3">
+                <label className={labelClass}>
+                  Search alerts
+                  <div className="relative">
+                    <Search
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+                    />
+                    <input
+                      className={cn(inputClass, "pl-9")}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Title, message, reference..."
+                      type="search"
+                      value={searchQuery}
+                    />
+                  </div>
+                </label>
+
+                <label className={labelClass}>
+                  Severity
+                  <select
+                    className={selectClass}
+                    onChange={(event) =>
+                      setSeverityFilter(event.target.value as AlertSeverity | "")
+                    }
+                    value={severityFilter}
+                  >
+                    <option value="">All severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="warning">Warning</option>
+                    <option value="info">Info</option>
+                  </select>
+                </label>
+
+                <label className={labelClass}>
+                  Category
+                  <select
+                    className={selectClass}
+                    onChange={(event) =>
+                      setCategoryFilter(event.target.value as AlertCategory | "")
+                    }
+                    value={categoryFilter}
+                  >
+                    <option value="">All categories</option>
+                    <option value="stock">Stock</option>
+                    <option value="dosette">Dosette</option>
+                  </select>
+                </label>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
+                <Badge variant="info">{filterLabel}</Badge>
+                <span>Existing alert data only</span>
+              </div>
+            </PanelBody>
+          </Panel>
+
+          {filteredAlerts.length === 0 ? (
             <EmptyState
               icon={<BellOff className="h-5 w-5" aria-hidden="true" />}
-              title="No active alerts right now."
-              description="Work Queue will show operational tasks that need action."
+              title="No alerts match the current view."
+              description="Adjust the filters or refresh the alert centre."
             />
           ) : (
             <Panel>
               <PanelHeader
-                title="Active alerts"
-                subtitle="Alerts highlight risks and signals. Review them before taking action."
+                title="Alert inbox"
+                subtitle="Alerts highlight operational signals. Review before action."
                 actions={
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={clearAlerts.isPending}
+                    disabled={clearAlerts.isPending || filteredAlerts.length === 0}
                     onClick={() => void handleDismissVisible()}
                   >
                     Dismiss visible alerts
@@ -355,7 +527,7 @@ export function AlertsScreen() {
                 }
               />
               <PanelBody className="space-y-3">
-                {visibleAlerts.map((alert) => (
+                {filteredAlerts.map((alert) => (
                   <AlertCard
                     alert={alert}
                     generatedAt={alertsQuery.data.generated_at}

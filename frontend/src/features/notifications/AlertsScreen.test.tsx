@@ -140,9 +140,7 @@ describe("AlertsScreen", () => {
       await screen.findByRole("heading", { name: "Alerts", level: 1 }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Review stock, expiry, and workflow signals before taking action.",
-      ),
+      screen.getByText("Review operational alerts before taking action."),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -150,10 +148,52 @@ describe("AlertsScreen", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Alerts highlight risks and signals. Review them before taking action."),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Work Queue" }))
+      screen.getAllByText("Alerts highlight operational signals. Review before action.")
+        .length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Alert centre")).toBeInTheDocument();
+    expect(screen.getByText("Human review required")).toBeInTheDocument();
+    expect(screen.getAllByText("All alerts").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Alert controls")).toBeInTheDocument();
+    expect(screen.getByText("3 alerts shown")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Open Work Queue" })[0])
       .toHaveAttribute("href", "/work-queue");
+  });
+
+  it("filters alerts by search, severity, and category without refetching", async () => {
+    const user = userEvent.setup();
+    renderAlerts();
+
+    expect(await screen.findByText("Stockout: Paracetamol")).toBeInTheDocument();
+    expect(screen.getByText("Prepared cycle awaiting stock deduction"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Dead stock: Ibuprofen")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Search alerts"), "Ibuprofen");
+
+    expect(screen.getByText("Dead stock: Ibuprofen")).toBeInTheDocument();
+    expect(screen.queryByText("Stockout: Paracetamol")).toBeNull();
+    expect(
+      screen.queryByText("Prepared cycle awaiting stock deduction"),
+    ).toBeNull();
+    expect(screen.getAllByText("1 active filter").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 alerts shown")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Search alerts"));
+    await user.selectOptions(screen.getByLabelText("Severity"), "warning");
+
+    expect(screen.getByText("Prepared cycle awaiting stock deduction"))
+      .toBeInTheDocument();
+    expect(screen.queryByText("Stockout: Paracetamol")).toBeNull();
+    expect(screen.queryByText("Dead stock: Ibuprofen")).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText("Category"), "stock");
+
+    expect(
+      screen.getByText("No alerts match the current view."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("2 active filters").length).toBeGreaterThan(0);
+    expect(getAlertsMock).toHaveBeenCalledTimes(1);
   });
 
   it("renders summary counters", async () => {
@@ -172,9 +212,9 @@ describe("AlertsScreen", () => {
   it("renders severity and category chips", async () => {
     renderAlerts();
 
-    expect(await screen.findByText("Critical")).toBeInTheDocument();
-    expect(screen.getByText("Warning")).toBeInTheDocument();
-    expect(screen.getByText("Info")).toBeInTheDocument();
+    expect((await screen.findAllByText("Critical")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Warning").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Info").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Stock").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Dosette").length).toBeGreaterThan(0);
     expect(screen.getByText("Stockout")).toBeInTheDocument();
@@ -271,8 +311,8 @@ describe("AlertsScreen", () => {
     const loadingRender = renderAlerts();
 
     expect(
-      screen.getByText("Loading current risk and system signals..."),
-    ).toBeInTheDocument();
+      screen.getAllByText("Loading alerts...").length,
+    ).toBeGreaterThan(0);
     loadingRender.unmount();
     getAlertsMock.mockClear();
 
@@ -303,10 +343,10 @@ describe("AlertsScreen", () => {
     renderAlerts();
 
     expect(
-      await screen.findByText("No active alerts right now."),
+      await screen.findByText("No alerts match the current view."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Work Queue will show operational tasks that need action."),
+      screen.getByText("Adjust the filters or refresh the alert centre."),
     ).toBeInTheDocument();
   });
 
@@ -344,7 +384,7 @@ describe("AlertsScreen", () => {
       );
     });
     expect(
-      await screen.findByText("No active alerts right now."),
+      await screen.findByText("No alerts match the current view."),
     ).toBeInTheDocument();
   });
 

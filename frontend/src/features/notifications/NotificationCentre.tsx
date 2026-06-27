@@ -91,15 +91,21 @@ export function NotificationCentre() {
 
       {open ? (
         <section className="absolute right-0 z-50 mt-3 w-[min(24rem,calc(100vw-2rem))] origin-top-right animate-scale-in overflow-hidden rounded-2xl border border-line bg-surface shadow-elev-2">
-          <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
-            <div className="min-w-0">
+          <div className="flex items-start justify-between gap-4 border-b border-line bg-surface-subtle/60 px-4 py-3">
+            <div className="min-w-0 space-y-2">
               <h2 className="text-sm font-bold tracking-[-0.01em] text-ink">
-                Notifications
+                Notification centre
               </h2>
               <p className="mt-1 text-xs leading-relaxed text-muted">
-                Your latest alerts and updates. Operational tasks are managed in
-                Work Queue.
+                Review operational alerts before action. Work Queue keeps tasks
+                separate.
               </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant={count > 0 ? "brand" : "neutral"}>
+                  {count} active alert{count === 1 ? "" : "s"}
+                </Badge>
+                <Badge variant="info">Human review required</Badge>
+              </div>
             </div>
             {count > 0 ? (
               <Button
@@ -117,6 +123,9 @@ export function NotificationCentre() {
           <div className="max-h-[28rem] overflow-y-auto">
             {alertsQuery.isLoading ? (
               <div className="px-4 py-4">
+                <p className="sr-only" role="status">
+                  Loading alerts...
+                </p>
                 <SkeletonRows rows={4} />
               </div>
             ) : null}
@@ -125,7 +134,7 @@ export function NotificationCentre() {
               <div className="m-4 rounded-xl border border-danger-border bg-danger-soft px-4 py-4">
                 <p className="flex items-center gap-2 text-sm font-semibold text-danger-ink">
                   <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  Could not load notifications.
+                  Could not load alerts.
                 </p>
                 <Button
                   size="sm"
@@ -146,10 +155,11 @@ export function NotificationCentre() {
                 >
                   <Bell className="h-5 w-5" />
                 </span>
-                <p className="text-sm font-semibold text-ink">No active alerts</p>
+                <p className="text-sm font-semibold text-ink">
+                  No active alerts
+                </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted">
-                  Alerts highlight risks and signals. Work Queue will show tasks
-                  that need action.
+                  Work Queue will show tasks that need action.
                 </p>
               </div>
             ) : null}
