@@ -6,7 +6,6 @@ import {
   CalendarRange,
   CheckCircle2,
   ClipboardList,
-  Grid3x3,
   Moon,
   PackageCheck,
   Pill,
@@ -27,15 +26,6 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SkeletonRows } from "../../components/ui/Skeleton";
-import {
-  Table,
-  TableScroll,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-} from "../../components/ui/Table";
 import { useToast } from "../../components/ui/Toast";
 import { StatusTrack, type TrackStep } from "../../components/ui/StatusTrack";
 import { inputClass, labelClass } from "../../components/ui/forms";
@@ -227,15 +217,6 @@ function MedicationStatusBadge({ value }: { value: boolean | string }) {
   );
 }
 
-// Pack lifecycle as a ShipMates-style route track.
-const PACK_STEPS: TrackStep[] = [
-  { key: "DRAFT", label: "Needs prep" },
-  { key: "PREPARED", label: "Prepared" },
-  { key: "CHECKED", label: "Checked" },
-  { key: "COLLECTED", label: "Collected" },
-  { key: "DELIVERED", label: "Delivered" },
-];
-
 const WORKFLOW_STEPS: TrackStep[] = [
   { key: "DRAFT", label: "Ready to prepare" },
   { key: "PREPARED", label: "Prepared" },
@@ -244,15 +225,6 @@ const WORKFLOW_STEPS: TrackStep[] = [
   { key: "COLLECTED", label: "Collected" },
   { key: "DELIVERED", label: "Delivered" },
 ];
-
-function packStatusIndex(status: string): number {
-  if (status === "NEEDS_CHANGES") return 0;
-  if (status === "COMPLETED" || status === "DELIVERED") {
-    return PACK_STEPS.length - 1;
-  }
-  const index = PACK_STEPS.findIndex((step) => step.key === status);
-  return index < 0 ? 0 : index;
-}
 
 function cycleWorkflowIndex(cycle: DosetteCycle): number {
   if (cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES") {
@@ -297,73 +269,6 @@ const SLOT_META = [
   { key: "quantity_evening", label: "Evening", short: "PM", Icon: Sunset },
   { key: "quantity_bedtime", label: "Bedtime", short: "Night", Icon: Moon },
 ] as const;
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-
-/** A single tactile blister pocket — fills with a satisfying pop when occupied. */
-function Pocket({ count }: { count: number }) {
-  if (count <= 0) {
-    return (
-      <span
-        aria-hidden="true"
-        className="grid h-7 w-7 place-items-center rounded-full border border-dashed border-line bg-surface-sunken/60"
-      />
-    );
-  }
-
-  return (
-    <span
-      aria-hidden="true"
-      className="tnum grid h-7 w-7 animate-scale-in place-items-center rounded-full border border-brand bg-brand-soft text-[11px] font-bold text-brand-ink shadow-elev-1 ease-soft"
-    >
-      {count}
-    </span>
-  );
-}
-
-/**
- * Blister tray — the emotional centrepiece. Rows are time slots (Morning / Noon /
- * Evening / Night), columns are the seven days of the pack. Filled pockets pop in
- * so assembling a pack feels physical, like loading a real tray.
- */
-function BlisterTray({ row }: { row: PickingListRow }) {
-  return (
-    <div className="rounded-xl border border-line bg-surface-subtle/70 p-3">
-      <div className="grid grid-cols-[auto_repeat(7,minmax(0,1fr))] items-center gap-x-2 gap-y-1.5">
-        <span aria-hidden="true" />
-        {DAY_LABELS.map((day) => (
-          <span
-            key={day}
-            aria-hidden="true"
-            className="text-center text-[10px] font-bold uppercase tracking-[0.06em] text-muted"
-          >
-            {day}
-          </span>
-        ))}
-        {SLOT_META.map((slot) => {
-          const count = row[slot.key];
-          const SlotIcon = slot.Icon;
-          return (
-            <div key={slot.key} className="contents">
-              <span
-                className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold text-ink-soft"
-                title={slot.label}
-              >
-                <SlotIcon aria-hidden="true" className="h-3.5 w-3.5 text-muted" />
-                {slot.short}
-              </span>
-              {DAY_LABELS.map((day) => (
-                <div key={`${slot.key}-${day}`} className="flex justify-center">
-                  <Pocket count={count} />
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function canEditCycle(cycle: DosetteCycle): boolean {
   return !["CANCELLED", "COMPLETED"].includes(cycle.status);
@@ -1173,55 +1078,61 @@ function MedicationLineCard({
   );
 }
 
-function PickingListRowView({ row }: { row: PickingListRow }) {
+function PickDetail({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
   return (
-    <TR>
-      <TD className="whitespace-nowrap font-semibold text-ink">
-        {row.medication_name}
-      </TD>
-      <TD className="whitespace-nowrap">
-        {row.strength} / {row.form}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {row.quantity_morning}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {row.quantity_lunchtime}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {row.quantity_evening}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {row.quantity_bedtime}
-      </TD>
-      <TD className="tnum whitespace-nowrap font-bold text-ink">
-        {row.total_daily}
-      </TD>
-    </TR>
+    <div className="rounded-xl border border-line bg-surface-subtle p-3">
+      <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+        {label}
+      </dt>
+      <dd className="tnum mt-1 text-sm font-bold text-ink">{value}</dd>
+      {hint ? (
+        <p className="mt-1 text-[11px] font-semibold leading-relaxed text-muted">
+          {hint}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
-function MedicationTableHeader({
-  includeStatus = false,
-  includeAction = false,
-}: {
-  includeStatus?: boolean;
-  includeAction?: boolean;
-}) {
+function PickingListItemCard({ row }: { row: PickingListRow }) {
   return (
-    <THead>
-      <tr>
-        <TH>Medication</TH>
-        <TH>Strength/Form</TH>
-        <TH>Morning</TH>
-        <TH>Lunchtime</TH>
-        <TH>Evening</TH>
-        <TH>Bedtime</TH>
-        <TH>Total daily</TH>
-        {includeStatus ? <TH>Status</TH> : null}
-        {includeAction ? <TH className="text-right">Action</TH> : null}
-      </tr>
-    </THead>
+    <article
+      aria-label={`Picking item ${row.medication_name}`}
+      className="rounded-2xl border border-line bg-surface p-4 shadow-soft"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-extrabold text-ink">
+            <Pill aria-hidden="true" className="h-4 w-4 shrink-0 text-brand" />
+            <span>{row.medication_name}</span>
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            {strengthFormLabel(row)}
+          </p>
+        </div>
+        <Badge variant="neutral">Review before picking</Badge>
+      </div>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+        <PickDetail
+          label="Required quantity"
+          value={`${row.total_daily} total daily`}
+          hint="From current picking data."
+        />
+        <PickDetail
+          label="Stock check"
+          value="See availability"
+          hint="Review batches and shortages below."
+        />
+      </dl>
+    </article>
   );
 }
 
@@ -1272,16 +1183,21 @@ function PickingListSection({
   pickingList: PickingList;
 }) {
   const internalReference = cycle?.reference ?? pickingList.cycle.reference;
+  const itemCount = pickingList.medications.length;
+  const totalCurrentQuantity = pickingList.totals.total_daily;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft animate-fade-in-up">
-      <div className="flex flex-col gap-1 border-b border-line px-4 py-3.5 sm:px-5">
+    <section
+      aria-label="Picking list"
+      className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft animate-fade-in-up"
+    >
+      <div className="flex flex-col gap-4 border-b border-line px-4 py-4 sm:px-5">
         <div className="flex items-center gap-2">
           <span
             aria-hidden="true"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
           >
-            <Grid3x3 className="h-4 w-4" />
+            <ClipboardList className="h-4 w-4" />
           </span>
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
@@ -1290,102 +1206,43 @@ function PickingListSection({
             <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
               Picking list: {cycle ? cycleFriendlyLabel(cycle) : internalReference}
             </h2>
-            {cycle ? (
-              <p className="mt-0.5 text-[11px] font-semibold text-muted">
-                Internal reference:{" "}
-                <span className="tnum">{internalReference}</span>
-              </p>
-            ) : null}
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
+              Use this list to gather stock for the selected Dosette cycle.
+              Review before preparation.
+            </p>
           </div>
         </div>
-      </div>
-      {/* Pack lifecycle route track (ShipMates-style). */}
-      <div className="border-b border-line px-4 py-5 sm:px-6">
-        <StatusTrack
-          steps={PACK_STEPS}
-          currentIndex={packStatusIndex(pickingList.cycle.status)}
-          tone={pickingList.cycle.status === "NEEDS_CHANGES" ? "danger" : "peach"}
-        />
+        <dl className="grid gap-3 sm:grid-cols-3">
+          <PickDetail label="Items to pick" value={itemCount} />
+          <PickDetail
+            label="Quantity from current picking data"
+            value={totalCurrentQuantity}
+            hint="Existing picking-list total."
+          />
+          <PickDetail
+            label="Selected cycle"
+            value={cycle ? cycleSupplyPeriodLabel(cycle) : internalReference}
+            hint={
+              cycle
+                ? `${cycleDateRange(cycle)} · ${internalReference}`
+                : "Cycle reference"
+            }
+          />
+        </dl>
       </div>
       {pickingList.medications.length === 0 ? (
         <div className="p-4 sm:p-5">
           <EmptyState
             icon={<ClipboardList className="h-5 w-5" />}
-            title="No active medication lines for this cycle."
-            description="Add an active medication line to build this pack."
+            title="No items to pick for this cycle."
+            description="Add an active medication line to build a picking list."
           />
         </div>
       ) : (
-        <div className="space-y-5 p-4 sm:p-5">
-          {/* Tactile blister trays — one per medication, slots × days. */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {pickingList.medications.map((row) => (
-              <article
-                key={`tray-${row.medication_id}`}
-                className="rounded-2xl border border-line bg-surface p-4 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2"
-              >
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-sm font-bold text-ink">
-                      <Pill
-                        aria-hidden="true"
-                        className="h-4 w-4 shrink-0 text-brand"
-                      />
-                      <span>
-                        {`${row.medication_name} · ${row.strength} / ${row.form}`}
-                      </span>
-                    </p>
-                    {row.colour || row.shape ? (
-                      <p className="mt-1 text-[11px] font-medium text-muted">
-                        Label: {[row.colour, row.shape].filter(Boolean).join(" · ")}
-                      </p>
-                    ) : null}
-                  </div>
-                  <Badge variant="brand">
-                    <span className="tnum">{row.total_daily}</span>/day
-                  </Badge>
-                </div>
-                <BlisterTray row={row} />
-              </article>
-            ))}
-          </div>
-
-          {/* Per-medication breakdown the picking team works from. */}
-          <TableScroll>
-            <Table>
-              <MedicationTableHeader />
-              <TBody>
-                {pickingList.medications.map((row) => (
-                  <PickingListRowView key={row.medication_id} row={row} />
-                ))}
-              </TBody>
-              <tfoot className="border-t border-line bg-surface-subtle">
-                <tr>
-                  <td
-                    className="whitespace-nowrap px-3 py-3 text-[13px] font-bold text-ink"
-                    colSpan={2}
-                  >
-                    Totals
-                  </td>
-                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
-                    {pickingList.totals.morning}
-                  </td>
-                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
-                    {pickingList.totals.lunchtime}
-                  </td>
-                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
-                    {pickingList.totals.evening}
-                  </td>
-                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
-                    {pickingList.totals.bedtime}
-                  </td>
-                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
-                    {pickingList.totals.total_daily}
-                  </td>
-                </tr>
-              </tfoot>
-            </Table>
-          </TableScroll>
+        <div className="grid gap-3 p-4 sm:p-5">
+          {pickingList.medications.map((row) => (
+            <PickingListItemCard key={row.medication_id} row={row} />
+          ))}
         </div>
       )}
     </section>
@@ -1571,96 +1428,142 @@ function DosettePrintSheet({
 function StockAvailabilityBadge({ inStock }: { inStock: boolean }) {
   return inStock ? (
     <Badge dot variant="success">
-      In stock
+      Stock available
     </Badge>
   ) : (
     <Badge dot variant="warning">
-      Shortage
+      Short
     </Badge>
   );
 }
 
-function StockPreviewRowView({ row }: { row: StockPreviewRow }) {
+function StockPreviewLineCard({ row }: { row: StockPreviewRow }) {
   return (
-    <TR>
-      <TD className="whitespace-nowrap font-semibold text-ink">
-        {row.medication_name}
-      </TD>
-      <TD className="whitespace-nowrap">
-        {row.strength} / {row.form}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {row.required_quantity}
-      </TD>
-      <TD className="tnum whitespace-nowrap text-ink-soft">
-        {row.available_quantity}
-      </TD>
-      <TD
+    <article
+      aria-label={`Stock availability ${row.medication_name}`}
+      className="rounded-2xl border border-line bg-surface p-4 shadow-soft"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-extrabold text-ink">{row.medication_name}</h3>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            {strengthFormLabel(row)}
+          </p>
+        </div>
+        <StockAvailabilityBadge inStock={row.in_stock} />
+      </div>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-4">
+        <PickDetail label="Required quantity" value={row.required_quantity} />
+        <PickDetail label="Available quantity" value={row.available_quantity} />
+        <PickDetail
+          label="Short / needs review"
+          value={row.shortage_quantity}
+          hint={
+            row.shortage_quantity > 0
+              ? "Review before picking."
+              : "No shortage shown."
+          }
+        />
+        <PickDetail
+          label="Earliest expiry"
+          value={row.earliest_expiry ? formatDate(row.earliest_expiry) : "Not shown"}
+        />
+      </dl>
+      <div
         className={cn(
-          "tnum whitespace-nowrap font-semibold",
-          row.shortage_quantity > 0 ? "text-danger-ink" : "text-ink-soft",
+          "mt-4 rounded-xl border p-3",
+          row.shortage_quantity > 0
+            ? "border-warning-border bg-warning-soft/60"
+            : "border-line bg-surface-subtle",
         )}
       >
-        {row.shortage_quantity}
-      </TD>
-      <TD className="whitespace-nowrap">
-        <StockAvailabilityBadge inStock={row.in_stock} />
-      </TD>
-      <TD>
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+          Suggested batch/expiry
+        </p>
         {row.suggested_batches.length === 0 ? (
-          <span className="text-muted">No batches suggested</span>
+          <p className="mt-1 text-sm font-semibold text-ink-soft">
+            No batch suggestion available.
+          </p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="mt-2 space-y-2">
             {row.suggested_batches.map((batch) => (
-              <li key={batch.batch_id} className="flex flex-wrap items-center gap-1.5">
+              <li
+                key={batch.batch_id}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+              >
                 <span className="font-semibold text-ink">
                   {batch.batch_number}
                 </span>
                 <span className="tnum text-muted">
                   {formatDate(batch.expiry_date)} - pick {batch.quantity_to_pick}
                 </span>
+                <span className="tnum text-muted">
+                  {batch.quantity_available} available
+                </span>
               </li>
             ))}
           </ul>
         )}
-      </TD>
-    </TR>
+      </div>
+    </article>
   );
 }
 
 function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
   const hasShortage = stockPreview.totals.shortage > 0;
+  const availableCount = stockPreview.medications.filter((row) => row.in_stock).length;
+  const shortageCount = stockPreview.medications.filter(
+    (row) => row.shortage_quantity > 0,
+  ).length;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft animate-fade-in-up">
-      <div className="flex flex-col gap-2 border-b border-line px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
-          >
-            <PackageCheck className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-              {stockPreview.patient_reference}
-            </p>
-            <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
-              Stock availability
-            </h2>
+      <div className="flex flex-col gap-4 border-b border-line px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+            >
+              <PackageCheck className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+                {stockPreview.patient_reference}
+              </p>
+              <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
+                Stock availability
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
+                Check available quantity, shortages, and suggested batch expiry
+                before gathering stock.
+              </p>
+            </div>
           </div>
+          {stockPreview.medications.length > 0 ? (
+            hasShortage ? (
+              <Badge dot variant="warning">
+                <span className="tnum">{stockPreview.totals.shortage}</span> short
+              </Badge>
+            ) : (
+              <Badge dot variant="success">
+                Fully covered
+              </Badge>
+            )
+          ) : null}
         </div>
-        {stockPreview.medications.length > 0 ? (
-          hasShortage ? (
-            <Badge dot variant="warning">
-              <span className="tnum">{stockPreview.totals.shortage}</span> short
-            </Badge>
-          ) : (
-            <Badge dot variant="success">
-              Fully covered
-            </Badge>
-          )
-        ) : null}
+        <dl className="grid gap-3 sm:grid-cols-4">
+          <PickDetail label="Available" value={availableCount} />
+          <PickDetail label="Short / needs review" value={shortageCount} />
+          <PickDetail
+            label="Required quantity"
+            value={stockPreview.totals.required}
+          />
+          <PickDetail
+            label="Available quantity"
+            value={stockPreview.totals.available}
+          />
+        </dl>
       </div>
       {stockPreview.medications.length === 0 ? (
         <div className="p-4 sm:p-5">
@@ -1671,47 +1574,10 @@ function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
           />
         </div>
       ) : (
-        <div className="p-4 sm:p-5">
-          <TableScroll>
-            <Table>
-              <THead>
-                <tr>
-                  <TH>Medication</TH>
-                  <TH>Strength/Form</TH>
-                  <TH>Required</TH>
-                  <TH>Available</TH>
-                  <TH>Shortage</TH>
-                  <TH>Status</TH>
-                  <TH>Suggested FEFO batches</TH>
-                </tr>
-              </THead>
-              <TBody>
-                {stockPreview.medications.map((row) => (
-                  <StockPreviewRowView key={row.medication_id} row={row} />
-                ))}
-              </TBody>
-              <tfoot className="border-t border-line bg-surface-subtle">
-                <tr>
-                  <td
-                    className="whitespace-nowrap px-3 py-3 text-[13px] font-bold text-ink"
-                    colSpan={2}
-                  >
-                    Totals
-                  </td>
-                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
-                    {stockPreview.totals.required}
-                  </td>
-                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
-                    {stockPreview.totals.available}
-                  </td>
-                  <td className="tnum px-3 py-3 text-[13px] font-bold text-ink">
-                    {stockPreview.totals.shortage}
-                  </td>
-                  <td className="px-3 py-3" colSpan={2} />
-                </tr>
-              </tfoot>
-            </Table>
-          </TableScroll>
+        <div className="grid gap-3 p-4 sm:p-5">
+          {stockPreview.medications.map((row) => (
+            <StockPreviewLineCard key={row.medication_id} row={row} />
+          ))}
         </div>
       )}
     </section>

@@ -585,7 +585,7 @@ describe("DosetteScreen", () => {
     });
   });
 
-  it("generating a picking list renders rows and totals without backend mutation", async () => {
+  it("generating a picking list renders stock-pick essentials without backend mutation", async () => {
     const user = userEvent.setup();
     renderDosette();
 
@@ -594,6 +594,7 @@ describe("DosetteScreen", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(DEFAULT_PICKING_LIST_HEADING)).toBeNull();
     expect(getPickingListMock).not.toHaveBeenCalled();
+    expect(getStockPreviewMock).not.toHaveBeenCalled();
 
     await generatePickingList(user);
 
@@ -601,19 +602,60 @@ describe("DosetteScreen", () => {
     expect(
       await screen.findByText(DEFAULT_PICKING_LIST_HEADING),
     ).toBeInTheDocument();
-    const pickingList = screen.getByText(DEFAULT_PICKING_LIST_HEADING).closest(
-      "section",
-    );
-    expect(pickingList).not.toBeNull();
-    expect(within(pickingList as HTMLElement).getByText("SUT-P1")).toBeInTheDocument();
+    const pickingList = screen.getByRole("region", {
+      name: "Picking list",
+    });
+    expect(pickingList).toBeInTheDocument();
     expect(
-      within(pickingList as HTMLElement).getAllByText("Amlodipine").length,
-    ).toBeGreaterThan(0);
-    expect(within(pickingList as HTMLElement).getByText("Metformin")).toBeInTheDocument();
-    expect(within(pickingList as HTMLElement).getByText("Totals")).toBeInTheDocument();
+      within(pickingList).getByText(
+        "Use this list to gather stock for the selected Dosette cycle. Review before preparation.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(pickingList).getByText("Items to pick")).toBeInTheDocument();
     expect(
-      within(pickingList as HTMLElement).getAllByText("4").length,
-    ).toBeGreaterThan(0);
+      within(pickingList).getByText("Quantity from current picking data"),
+    ).toBeInTheDocument();
+    expect(within(pickingList).getByText("SUT-P1")).toBeInTheDocument();
+
+    const amlodipineItem = within(pickingList).getByRole("article", {
+      name: "Picking item Amlodipine",
+    });
+    const metforminItem = within(pickingList).getByRole("article", {
+      name: "Picking item Metformin",
+    });
+    expect(within(amlodipineItem).getByText("5 mg / TABLET")).toBeInTheDocument();
+    expect(
+      within(amlodipineItem).getByText("Required quantity"),
+    ).toBeInTheDocument();
+    expect(within(amlodipineItem).getByText("2 total daily")).toBeInTheDocument();
+    expect(
+      within(amlodipineItem).getByText("From current picking data."),
+    ).toBeInTheDocument();
+    expect(within(metforminItem).getByText("500 mg / TABLET")).toBeInTheDocument();
+    expect(within(metforminItem).getByText("2 total daily")).toBeInTheDocument();
+    expect(
+      within(pickingList).queryByText("AM"),
+    ).not.toBeInTheDocument();
+    expect(within(pickingList).queryByText("Lunch")).not.toBeInTheDocument();
+    expect(within(pickingList).queryByText("Morning")).not.toBeInTheDocument();
+    expect(within(pickingList).queryByText("Lunchtime")).not.toBeInTheDocument();
+    expect(within(pickingList).queryByText("Evening")).not.toBeInTheDocument();
+    expect(within(pickingList).queryByText("Bedtime")).not.toBeInTheDocument();
+    expect(
+      within(pickingList).queryByText("Private dose directions"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(pickingList).queryByText("dose_instructions"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Medication line cards" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Stock availability" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Print Dosette sheet" }),
+    ).toBeInTheDocument();
     expect(createDosetteCycleMock).not.toHaveBeenCalled();
     expect(prepareDosetteCycleMock).not.toHaveBeenCalled();
     expect(cancelDosetteCycleMock).not.toHaveBeenCalled();
@@ -648,7 +690,7 @@ describe("DosetteScreen", () => {
     });
   });
 
-  it("generating a picking list renders stock preview values badges and FEFO batches", async () => {
+  it("generating a picking list renders stock availability values and suggested batches", async () => {
     const user = userEvent.setup();
     renderDosette();
 
@@ -663,48 +705,59 @@ describe("DosetteScreen", () => {
       .closest("section");
     expect(stockSection).not.toBeNull();
 
-    const amlodipineRow = within(stockSection as HTMLElement)
-      .getByText("Amlodipine")
-      .closest("tr");
-    const metforminRow = within(stockSection as HTMLElement)
-      .getByText("Metformin")
-      .closest("tr");
-    expect(amlodipineRow).not.toBeNull();
-    expect(metforminRow).not.toBeNull();
-
-    expect(within(amlodipineRow as HTMLElement).getByText("2")).toBeInTheDocument();
-    expect(within(amlodipineRow as HTMLElement).getByText("8")).toBeInTheDocument();
-    expect(within(amlodipineRow as HTMLElement).getByText("0")).toBeInTheDocument();
     expect(
-      within(amlodipineRow as HTMLElement).getByText("In stock"),
+      within(stockSection as HTMLElement).getByText(
+        "Check available quantity, shortages, and suggested batch expiry before gathering stock.",
+      ),
     ).toBeInTheDocument();
     expect(
-      within(amlodipineRow as HTMLElement).getByText("AML-FEFO-1"),
-    ).toBeInTheDocument();
-    expect(
-      within(amlodipineRow as HTMLElement).getByText("10 Jul 2026 - pick 2"),
-    ).toBeInTheDocument();
-
-    expect(within(metforminRow as HTMLElement).getByText("4")).toBeInTheDocument();
-    expect(within(metforminRow as HTMLElement).getByText("1")).toBeInTheDocument();
-    expect(within(metforminRow as HTMLElement).getByText("3")).toBeInTheDocument();
-    expect(
-      within(metforminRow as HTMLElement).getByText("Shortage"),
-    ).toBeInTheDocument();
-    expect(
-      within(metforminRow as HTMLElement).getByText("MET-FEFO-1"),
-    ).toBeInTheDocument();
-    expect(
-      within(metforminRow as HTMLElement).getByText("20 Jul 2026 - pick 1"),
-    ).toBeInTheDocument();
-
-    expect(within(stockSection as HTMLElement).getByText("Totals")).toBeInTheDocument();
+      within(stockSection as HTMLElement).getAllByText("Short / needs review")
+        .length,
+    ).toBeGreaterThan(0);
     expect(
       within(stockSection as HTMLElement).getAllByText("6").length,
     ).toBeGreaterThan(0);
     expect(
       within(stockSection as HTMLElement).getAllByText("9").length,
     ).toBeGreaterThan(0);
+
+    const amlodipineCard = within(stockSection as HTMLElement).getByRole(
+      "article",
+      { name: "Stock availability Amlodipine" },
+    );
+    const metforminCard = within(stockSection as HTMLElement).getByRole("article", {
+      name: "Stock availability Metformin",
+    });
+
+    expect(within(amlodipineCard).getByText("5 mg / TABLET")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Stock available")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Required quantity")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("2")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("Available quantity")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("8")).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("No shortage shown.")).toBeInTheDocument();
+    expect(
+      within(amlodipineCard).getByText("Suggested batch/expiry"),
+    ).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("AML-FEFO-1")).toBeInTheDocument();
+    expect(
+      within(amlodipineCard).getByText("10 Jul 2026 - pick 2"),
+    ).toBeInTheDocument();
+    expect(within(amlodipineCard).getByText("8 available")).toBeInTheDocument();
+
+    expect(within(metforminCard).getByText("500 mg / TABLET")).toBeInTheDocument();
+    expect(within(metforminCard).getByText("Short")).toBeInTheDocument();
+    expect(within(metforminCard).getByText("4")).toBeInTheDocument();
+    expect(within(metforminCard).getByText("1")).toBeInTheDocument();
+    expect(within(metforminCard).getByText("3")).toBeInTheDocument();
+    expect(
+      within(metforminCard).getByText("Review before picking."),
+    ).toBeInTheDocument();
+    expect(within(metforminCard).getByText("MET-FEFO-1")).toBeInTheDocument();
+    expect(
+      within(metforminCard).getByText("20 Jul 2026 - pick 1"),
+    ).toBeInTheDocument();
+    expect(within(metforminCard).getByText("1 available")).toBeInTheDocument();
   });
 
   it("handles loading, error, and empty states", async () => {
