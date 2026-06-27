@@ -14,6 +14,11 @@ import {
 interface CatalogueProductSelectProps {
   selectedProduct: CatalogueProduct | null;
   onSelect: (product: CatalogueProduct) => void;
+  label?: string;
+  placeholder?: string;
+  loadingText?: string;
+  errorText?: string;
+  emptyText?: string;
 }
 
 function productMetadata(product: CatalogueProduct): string {
@@ -31,6 +36,11 @@ function productMetadata(product: CatalogueProduct): string {
 export function CatalogueProductSelect({
   selectedProduct,
   onSelect,
+  label = "Catalogue product",
+  placeholder = "Search medicines, strengths, forms, or packs",
+  loadingText = "Searching catalogue...",
+  errorText = "Could not search the catalogue. Please retry.",
+  emptyText = "No catalogue products found.",
 }: CatalogueProductSelectProps) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -86,7 +96,7 @@ export function CatalogueProductSelect({
   return (
     <div>
       <label className={labelClass}>
-        Catalogue product
+        {label}
         <span className="relative mt-1.5 block">
           <Search
             aria-hidden="true"
@@ -96,11 +106,11 @@ export function CatalogueProductSelect({
             aria-autocomplete="list"
             aria-controls="catalogue-product-results"
             aria-expanded={products.length > 0}
-            aria-label="Catalogue product"
+            aria-label={label}
             className={cn(inputClass, "mt-0 pl-9")}
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search medicines, strengths, forms, or packs"
+            placeholder={placeholder}
             role="combobox"
             type="search"
             value={search}
@@ -111,19 +121,19 @@ export function CatalogueProductSelect({
       <div className="mt-2 min-h-10">
         {productsQuery.isLoading ? (
           <p className="rounded-xl border border-line bg-surface-subtle p-3 text-sm text-muted">
-            Searching catalogue...
+            {loadingText}
           </p>
         ) : null}
 
         {productsQuery.isError ? (
           <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
-            Could not search the catalogue. Please retry.
+            {errorText}
           </p>
         ) : null}
 
         {productsQuery.isSuccess && products.length === 0 ? (
           <p className="rounded-xl border border-line bg-surface-subtle p-3 text-sm text-muted">
-            No catalogue products found.
+            {emptyText}
           </p>
         ) : null}
 

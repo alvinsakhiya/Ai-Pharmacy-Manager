@@ -163,7 +163,7 @@ describe("InventoryScreen", () => {
   it("renders rows from stock item data with resolved pharmacy names", async () => {
     renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
 
-    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect((await screen.findAllByText("Paracetamol")).length).toBeGreaterThan(0);
     expect(
       screen.getByPlaceholderText(
         "Search stock by medicine, strength, batch, or pharmacy…",
@@ -221,7 +221,7 @@ describe("InventoryScreen", () => {
     const user = userEvent.setup();
     renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
 
-    await screen.findByText("Paracetamol");
+    await screen.findAllByText("Paracetamol");
     await user.selectOptions(screen.getByLabelText("Pharmacy"), "2");
 
     await waitFor(() => {
@@ -233,7 +233,7 @@ describe("InventoryScreen", () => {
     const user = userEvent.setup();
     renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
 
-    await screen.findByText("Paracetamol");
+    await screen.findAllByText("Paracetamol");
     await user.selectOptions(screen.getByLabelText("Pharmacy"), "2");
     await user.type(screen.getByLabelText("Search"), "ibu");
 
@@ -258,7 +258,7 @@ describe("InventoryScreen", () => {
   it("hides Add Stock button without stock.receive", async () => {
     renderWithProviders(<InventoryScreen />, { auth: inventoryAuth() });
 
-    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect((await screen.findAllByText("Paracetamol")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Add Stock" })).toBeNull();
   });
 
@@ -330,15 +330,23 @@ describe("InventoryScreen", () => {
     expect(receiveCatalogueStockMock).not.toHaveBeenCalled();
   });
 
-  it("searches catalogue products and submits stock intake", async () => {
+  it("searches dm+d medicine products and submits stock intake", async () => {
     const user = userEvent.setup();
     renderWithProviders(<InventoryScreen />, {
       auth: inventoryAuth({ canReceive: true }),
     });
 
     const dialog = await openAddStockModal(user);
+    expect(
+      within(dialog).getByText("Select medicine from dm+d"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Pack and unit totals are calculated before stock is received.",
+      ),
+    ).toBeInTheDocument();
     await user.selectOptions(within(dialog).getByLabelText("Receiving pharmacy"), "1");
-    await user.type(within(dialog).getByLabelText("Catalogue product"), "amlo");
+    await user.type(within(dialog).getByLabelText("dm+d medicine/product"), "amlo");
     await user.click(
       await screen.findByRole("option", {
         name: /Amlodipine 5mg tablets — pack of 28/,
@@ -347,9 +355,12 @@ describe("InventoryScreen", () => {
     expect(
       screen.getAllByText("Amlodipine 5mg tablets — pack of 28").length,
     ).toBeGreaterThan(0);
-    expect(within(dialog).getByText("Selected catalogue product")).toBeInTheDocument();
+    expect(
+      within(dialog).getAllByText("Selected dm+d medicine").length,
+    ).toBeGreaterThan(0);
     expect(within(dialog).getByText("SEED")).toBeInTheDocument();
     expect(within(dialog).getAllByText("28 tablets").length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText("Catalogue product")).toBeNull();
 
     await user.type(within(dialog).getByLabelText("Packs received"), "500");
     expect(

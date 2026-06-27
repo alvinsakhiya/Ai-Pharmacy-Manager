@@ -121,206 +121,230 @@ export function ReceiveStockModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Receive stock">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Receive stock"
+      description="Add a batch to this existing stock item after checking quantity, expiry, and receipt details."
+      size="xl"
+    >
       <form className="space-y-5" noValidate onSubmit={handleSubmit}>
         <FieldErrorList messages={errorMessages(errors, "detail")} />
         <FieldErrorList messages={errorMessages(errors, "non_field_errors")} />
 
-        <section className="space-y-3 rounded-2xl border border-line bg-surface-subtle p-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
-              Existing stock item
-            </p>
-            <p className="mt-1 text-base font-bold text-ink">
-              {stockItem.medication_name}
-            </p>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(24rem,1fr)]">
+          <div className="space-y-5">
+            <section className="space-y-3 rounded-2xl border border-line bg-surface-subtle p-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
+                  Existing stock item
+                </p>
+                <p className="mt-1 text-base font-bold text-ink">
+                  {stockItem.medication_name}
+                </p>
+              </div>
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold text-muted">On hand</dt>
+                  <dd className="tnum mt-0.5 font-semibold text-ink">
+                    {formatNumber(stockItem.quantity_on_hand)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Reorder level</dt>
+                  <dd className="tnum mt-0.5 font-semibold text-ink">
+                    {formatNumber(stockItem.reorder_level)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-muted">
+                    Current unit price
+                  </dt>
+                  <dd className="tnum mt-0.5 font-semibold text-ink">
+                    {stockItem.unit_price ? `£${stockItem.unit_price}` : "Not set"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-muted">
+                    Current box price
+                  </dt>
+                  <dd className="tnum mt-0.5 font-semibold text-ink">
+                    {stockItem.pack_price ? `£${stockItem.pack_price}` : "Not set"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="space-y-3 rounded-2xl border border-line bg-surface-subtle p-4">
+              <h3 className="text-sm font-bold text-ink">
+                Receipt and stock summary
+              </h3>
+              <p className="text-xs leading-relaxed text-muted">
+                Review quantity, batch, and expiry before receiving this stock.
+              </p>
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Batch number</dt>
+                  <dd className="mt-0.5 font-semibold text-ink">
+                    {batchNumber.trim() || "Not set"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-muted">Expiry date</dt>
+                  <dd className="mt-0.5 font-semibold text-ink">
+                    {expiryDate || "Not set"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-muted">
+                    Received date and time
+                  </dt>
+                  <dd className="mt-0.5 font-semibold text-ink">
+                    {formatDateTimeSummary(receivedAt)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-muted">
+                    Total units added
+                  </dt>
+                  <dd className="tnum mt-0.5 font-semibold text-ink">
+                    {Number.isFinite(parsedQuantity) && parsedQuantity > 0
+                      ? formatNumber(parsedQuantity)
+                      : "Enter quantity"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
           </div>
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-xs font-semibold text-muted">On hand</dt>
-              <dd className="tnum mt-0.5 font-semibold text-ink">
-                {formatNumber(stockItem.quantity_on_hand)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-muted">Reorder level</dt>
-              <dd className="tnum mt-0.5 font-semibold text-ink">
-                {formatNumber(stockItem.reorder_level)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-muted">Current unit price</dt>
-              <dd className="tnum mt-0.5 font-semibold text-ink">
-                {stockItem.unit_price ? `£${stockItem.unit_price}` : "Not set"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-muted">Current box price</dt>
-              <dd className="tnum mt-0.5 font-semibold text-ink">
-                {stockItem.pack_price ? `£${stockItem.pack_price}` : "Not set"}
-              </dd>
-            </div>
-          </dl>
-        </section>
 
-        <section className="space-y-4 rounded-2xl border border-line bg-surface p-4">
-          <h3 className="text-sm font-bold text-ink">Delivery details</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className={labelClass}>
-              Batch number
-              <input
-                className={inputClass}
-                onChange={(event) => setBatchNumber(event.target.value)}
-                required
-                type="text"
-                value={batchNumber}
-              />
-              <FieldErrorList messages={errorMessages(errors, "batch_number")} />
-            </label>
+          <div className="space-y-5">
+            <section className="space-y-4 rounded-2xl border border-line bg-surface p-4">
+              <h3 className="text-sm font-bold text-ink">Batch details</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className={labelClass}>
+                  Batch number
+                  <input
+                    className={inputClass}
+                    onChange={(event) => setBatchNumber(event.target.value)}
+                    required
+                    type="text"
+                    value={batchNumber}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "batch_number")} />
+                </label>
 
-            <label className={labelClass}>
-              Quantity
-              <input
-                className={cn(inputClass, "tnum")}
-                min="1"
-                onChange={(event) => setQuantity(event.target.value)}
-                required
-                type="number"
-                value={quantity}
-              />
-              <FieldErrorList messages={errorMessages(errors, "quantity")} />
-            </label>
+                <label className={labelClass}>
+                  Quantity
+                  <input
+                    className={cn(inputClass, "tnum")}
+                    min="1"
+                    onChange={(event) => setQuantity(event.target.value)}
+                    required
+                    type="number"
+                    value={quantity}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "quantity")} />
+                </label>
 
-            <div>
-              <label className={labelClass} htmlFor="receive-stock-expiry-date">
-                Expiry date
+                <div>
+                  <label
+                    className={labelClass}
+                    htmlFor="receive-stock-expiry-date"
+                  >
+                    Expiry date
+                  </label>
+                  <input
+                    className={cn(inputClass, "tnum")}
+                    id="receive-stock-expiry-date"
+                    onChange={(event) => setExpiryDate(event.target.value)}
+                    required
+                    type="date"
+                    value={expiryDate}
+                  />
+                  <span className={cn(fieldHintClass, "block")}>
+                    Use the date printed on the pack or outer carton.
+                  </span>
+                  {expiryIsPast ? (
+                    <p className="mt-1.5 text-xs font-semibold text-danger-ink">
+                      This expiry date is in the past.
+                    </p>
+                  ) : null}
+                  {expiryIsSoon ? (
+                    <p className="mt-1.5 text-xs font-semibold text-warning-ink">
+                      This batch expires soon. FEFO will prioritise it.
+                    </p>
+                  ) : null}
+                  <FieldErrorList messages={errorMessages(errors, "expiry_date")} />
+                </div>
+
+                <label className={labelClass}>
+                  Received date and time
+                  <input
+                    className={cn(inputClass, "tnum")}
+                    onChange={(event) => setReceivedAt(event.target.value)}
+                    required
+                    type="datetime-local"
+                    value={receivedAt}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "received_at")} />
+                </label>
+              </div>
+            </section>
+
+            <section className="space-y-4 rounded-2xl border border-line bg-surface p-4">
+              <h3 className="text-sm font-bold text-ink">Pricing and notes</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className={labelClass}>
+                  Unit price
+                  <input
+                    className={cn(inputClass, "tnum")}
+                    min="0"
+                    onChange={(event) => setUnitPrice(event.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={unitPrice}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "unit_price")} />
+                </label>
+
+                <label className={labelClass}>
+                  Box price
+                  <input
+                    className={cn(inputClass, "tnum")}
+                    min="0"
+                    onChange={(event) => setPackPrice(event.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={packPrice}
+                  />
+                  <FieldErrorList messages={errorMessages(errors, "pack_price")} />
+                </label>
+              </div>
+
+              <label className={labelClass}>
+                Reason
+                <input
+                  className={inputClass}
+                  onChange={(event) => setReason(event.target.value)}
+                  type="text"
+                  value={reason}
+                />
+                <FieldErrorList messages={errorMessages(errors, "reason")} />
               </label>
-              <input
-                className={cn(inputClass, "tnum")}
-                id="receive-stock-expiry-date"
-                onChange={(event) => setExpiryDate(event.target.value)}
-                required
-                type="date"
-                value={expiryDate}
-              />
-              <span className={cn(fieldHintClass, "block")}>
-                Use the date printed on the pack or outer carton.
-              </span>
-              {expiryIsPast ? (
-                <p className="mt-1.5 text-xs font-semibold text-danger-ink">
-                  This expiry date is in the past.
-                </p>
-              ) : null}
-              {expiryIsSoon ? (
-                <p className="mt-1.5 text-xs font-semibold text-warning-ink">
-                  This batch expires soon. FEFO will prioritise it.
-                </p>
-              ) : null}
-              <FieldErrorList messages={errorMessages(errors, "expiry_date")} />
-            </div>
 
-            <label className={labelClass}>
-              Received date and time
-              <input
-                className={cn(inputClass, "tnum")}
-                onChange={(event) => setReceivedAt(event.target.value)}
-                required
-                type="datetime-local"
-                value={receivedAt}
-              />
-              <FieldErrorList messages={errorMessages(errors, "received_at")} />
-            </label>
+              <label className={labelClass}>
+                Reference
+                <input
+                  className={inputClass}
+                  onChange={(event) => setReference(event.target.value)}
+                  type="text"
+                  value={reference}
+                />
+                <FieldErrorList messages={errorMessages(errors, "reference")} />
+              </label>
+            </section>
           </div>
-        </section>
-
-        <section className="space-y-4 rounded-2xl border border-line bg-surface p-4">
-          <h3 className="text-sm font-bold text-ink">Pricing and notes</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className={labelClass}>
-              Unit price
-              <input
-                className={cn(inputClass, "tnum")}
-                min="0"
-                onChange={(event) => setUnitPrice(event.target.value)}
-                step="0.01"
-                type="number"
-                value={unitPrice}
-              />
-              <FieldErrorList messages={errorMessages(errors, "unit_price")} />
-            </label>
-
-            <label className={labelClass}>
-              Box price
-              <input
-                className={cn(inputClass, "tnum")}
-                min="0"
-                onChange={(event) => setPackPrice(event.target.value)}
-                step="0.01"
-                type="number"
-                value={packPrice}
-              />
-              <FieldErrorList messages={errorMessages(errors, "pack_price")} />
-            </label>
-          </div>
-
-          <label className={labelClass}>
-            Reason
-            <input
-              className={inputClass}
-              onChange={(event) => setReason(event.target.value)}
-              type="text"
-              value={reason}
-            />
-            <FieldErrorList messages={errorMessages(errors, "reason")} />
-          </label>
-
-          <label className={labelClass}>
-            Reference
-            <input
-              className={inputClass}
-              onChange={(event) => setReference(event.target.value)}
-              type="text"
-              value={reference}
-            />
-            <FieldErrorList messages={errorMessages(errors, "reference")} />
-          </label>
-        </section>
-
-        <section className="space-y-3 rounded-2xl border border-line bg-surface-subtle p-4">
-          <h3 className="text-sm font-bold text-ink">Stock summary</h3>
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-xs font-semibold text-muted">Batch number</dt>
-              <dd className="mt-0.5 font-semibold text-ink">
-                {batchNumber.trim() || "Not set"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-muted">Expiry date</dt>
-              <dd className="mt-0.5 font-semibold text-ink">
-                {expiryDate || "Not set"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-muted">
-                Received date and time
-              </dt>
-              <dd className="mt-0.5 font-semibold text-ink">
-                {formatDateTimeSummary(receivedAt)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold text-muted">
-                Total units added
-              </dt>
-              <dd className="tnum mt-0.5 font-semibold text-ink">
-                {Number.isFinite(parsedQuantity) && parsedQuantity > 0
-                  ? formatNumber(parsedQuantity)
-                  : "Enter quantity"}
-              </dd>
-            </div>
-          </dl>
-        </section>
+        </div>
 
         <div className="flex justify-end gap-3 border-t border-line pt-5">
           <Button variant="secondary" onClick={onClose}>
