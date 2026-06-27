@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -164,15 +164,28 @@ describe("WorkQueueScreen", () => {
     getWorkQueueMock.mockResolvedValue(makeResponse());
   });
 
-  it("renders the page header, generated time, summary cards, and groups", async () => {
+  it("renders the polished page header, context chips, summary cards, and groups", async () => {
     renderWorkQueue();
 
     expect(
-      await screen.findByRole("heading", { name: "Pharmacy To-do List" }),
+      await screen.findByRole("heading", { name: "Work Queue" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Review pharmacy tasks that need attention before action."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Human review required")).toBeInTheDocument();
+    expect(screen.getAllByText("All tasks").length).toBeGreaterThan(0);
     expect(await screen.findByText(/Generated/)).toBeInTheDocument();
-    expect(screen.getByText("Total")).toBeInTheDocument();
-    expect(screen.getByText("Waiting check")).toBeInTheDocument();
+
+    const summary = screen.getByRole("region", { name: "Work queue summary" });
+    expect(within(summary).getByText("Visible tasks")).toBeInTheDocument();
+    expect(within(summary).getByText("High priority")).toBeInTheDocument();
+    expect(within(summary).getByText("Due today / overdue")).toBeInTheDocument();
+    expect(within(summary).getByText("Dosette tasks")).toBeInTheDocument();
+    expect(within(summary).getByText("Stock / review")).toBeInTheDocument();
+    expect(within(summary).getByText("5 open tasks in source view"))
+      .toBeInTheDocument();
+
     expect(screen.getByRole("heading", { name: "Urgent" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Due soon" })).toBeInTheDocument();
     expect(
@@ -192,12 +205,16 @@ describe("WorkQueueScreen", () => {
     expect(screen.getByText("MDS-WQ-DUE-SOON")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Open Dosette/ })[0])
       .toHaveAttribute("href", "/patients/4/dosette");
-    expect(screen.getByRole("link", { name: /Open Pharmacist Reviews/ }))
+    expect(screen.getByRole("link", { name: "Open record: Open Pharmacist Reviews" }))
       .toHaveAttribute("href", "/reviews");
-    expect(screen.getByRole("link", { name: /Open Inventory/ }))
+    expect(screen.getByRole("link", { name: "Open record: Open Inventory" }))
       .toHaveAttribute("href", "/inventory/7");
     for (const forbidden of [
       "Patient One",
+      "Date of birth",
+      "DOB",
+      "NHS number",
+      "postcode",
       "first_name",
       "date_of_birth",
       "address",
@@ -208,11 +225,17 @@ describe("WorkQueueScreen", () => {
     }
   });
 
-  it("filters by priority, task type, and pharmacy", async () => {
+  it("filters by search, priority, task type, and pharmacy", async () => {
     const user = userEvent.setup();
     renderWorkQueue();
 
     expect(await screen.findByText("Stockout: Paracetamol")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Search tasks"), "pending");
+    expect(screen.getByText("Review pending")).toBeInTheDocument();
+    expect(screen.queryByText("Stockout: Paracetamol")).toBeNull();
+    expect(screen.getAllByText("1 active filter").length).toBeGreaterThan(0);
+    await user.clear(screen.getByLabelText("Search tasks"));
 
     await user.selectOptions(screen.getByLabelText("Priority"), "high");
     expect(screen.getByText("Review pending")).toBeInTheDocument();
@@ -234,7 +257,7 @@ describe("WorkQueueScreen", () => {
     const emptyRender = renderWorkQueue();
 
     expect(
-      await screen.findByText("Nothing needs attention right now."),
+      await screen.findByText("No tasks match the current view."),
     ).toBeInTheDocument();
     emptyRender.unmount();
     getWorkQueueMock.mockClear();
@@ -243,7 +266,7 @@ describe("WorkQueueScreen", () => {
     const user = userEvent.setup();
     renderWorkQueue();
 
-    expect(await screen.findByText("Could not load the work queue."))
+    expect(await screen.findByText("Could not load work queue."))
       .toBeInTheDocument();
     getWorkQueueMock.mockResolvedValueOnce(makeResponse());
     await user.click(screen.getByRole("button", { name: "Retry" }));
@@ -261,9 +284,28 @@ describe("WorkQueueScreen", () => {
     expect(getWorkQueueMock).toHaveBeenCalledTimes(1);
     expect(
       screen.queryByRole("button", {
-        name: /prepare|check|deduct|complete|resolve|clear|dismiss/i,
+        name: /prepare|check|deduct|complete|resolve|clear|dismiss|mark done|order now|transfer now|generate cycle|delete/i,
       }),
     ).toBeNull();
+    const pageText = document.body.textContent ?? "";
+    for (const forbidden of [
+      "AI decided",
+      "clinically recommended",
+      "automatic ordering",
+      "automatic transfer",
+      "automatic cycle creation",
+      "NHS integration",
+      "NCRS",
+      "compliance proof",
+      "Complete task",
+      "Mark done",
+      "Order now",
+      "Transfer now",
+      "Generate cycle",
+      "Delete",
+    ]) {
+      expect(pageText).not.toContain(forbidden);
+    }
   });
 
   it("refreshes the queue without rendering task mutation controls", async () => {
@@ -280,7 +322,7 @@ describe("WorkQueueScreen", () => {
     });
     expect(
       screen.queryByRole("button", {
-        name: /prepare|check|deduct|complete|resolve|clear|dismiss/i,
+        name: /prepare|check|deduct|complete|resolve|clear|dismiss|mark done|order now|transfer now|generate cycle|delete/i,
       }),
     ).toBeNull();
   });
