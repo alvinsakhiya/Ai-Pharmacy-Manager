@@ -1122,7 +1122,7 @@ function CalendarCard({
       aria-label="Pharmacy calendar"
       className="rounded-2xl border border-gold bg-gradient-gold p-5 shadow-soft transition-all duration-200 ease-soft hover:shadow-elev-2"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-gold-ink">
             <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
@@ -1137,7 +1137,7 @@ function CalendarCard({
               : `${monthEventCount} item${monthEventCount === 1 ? "" : "s"} this month`}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex max-w-full shrink-0 flex-wrap items-center gap-1.5">
           <button
             aria-label="Previous month"
             className="grid h-9 w-9 place-items-center rounded-full border border-gold bg-white/65 text-ink shadow-elev-1 transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-white focus-ring"

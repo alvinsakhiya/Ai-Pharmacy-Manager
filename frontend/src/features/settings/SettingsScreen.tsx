@@ -55,7 +55,7 @@ function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className="inline-flex flex-wrap rounded-full border border-line bg-surface-subtle p-1"
+      className="flex w-full min-w-0 flex-wrap rounded-full border border-line bg-surface-subtle p-1 sm:w-auto"
     >
       {options.map((option) => {
         const active = option.value === value;
@@ -157,8 +157,8 @@ function SettingRow({
   control: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-3">
+    <div className="flex min-w-0 flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
         <span
           aria-hidden="true"
           className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
@@ -172,7 +172,7 @@ function SettingRow({
           </p>
         </div>
       </div>
-      <div className="shrink-0 sm:pl-4">{control}</div>
+      <div className="min-w-0 sm:shrink-0 sm:pl-4">{control}</div>
     </div>
   );
 }
@@ -274,8 +274,8 @@ export function SettingsScreen() {
         }
       />
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
-        <div className="space-y-5">
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
+        <div className="min-w-0 space-y-5">
           <Panel>
             <PanelHeader
               title="Appearance"
@@ -468,7 +468,7 @@ export function SettingsScreen() {
           </Panel>
         </div>
 
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <Panel>
             <PanelHeader
               title="Preview"
