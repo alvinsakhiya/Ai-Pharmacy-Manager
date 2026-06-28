@@ -499,25 +499,35 @@ function periodWeekLabel(cycle: DosettePeriodCycle, index: number): string {
   return `Week ${cycle.week_number ?? index + 1}`;
 }
 
+function validationMessages(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  return [];
+}
+
 function periodActionErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError && isRecord(error.data)) {
-    const detail = error.data.detail;
-    const messages =
-      typeof detail === "string"
-        ? [detail]
-        : Array.isArray(detail)
-          ? detail.filter((item): item is string => typeof item === "string")
-          : [];
+    const detailMessages = validationMessages(error.data.detail);
 
     if (
-      messages.some((message) =>
+      detailMessages.some((message) =>
         message.includes("All four cycles must be checked and stock deducted"),
       )
     ) {
       return COLLECTION_BLOCKED_MESSAGE;
     }
-    if (messages.length > 0) {
-      return messages[0];
+
+    const collectedOnMessages = validationMessages(error.data.collected_on);
+    if (collectedOnMessages.length > 0) {
+      return collectedOnMessages[0];
+    }
+
+    if (detailMessages.length > 0) {
+      return detailMessages[0];
     }
   }
 

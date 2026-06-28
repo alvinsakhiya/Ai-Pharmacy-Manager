@@ -1071,6 +1071,62 @@ describe("DosetteScreen", () => {
     expect(screen.queryByText("PrivateLast")).toBeNull();
   });
 
+  it("shows collected_on validation errors from Patient Collected", async () => {
+    const user = userEvent.setup();
+    listDosettePeriodsMock.mockResolvedValueOnce([makePeriod()]);
+    markDosettePeriodCollectedMock.mockRejectedValueOnce(
+      new ApiError(400, {
+        collected_on: ["Collection date cannot be in the future."],
+      }),
+    );
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Patient Collected" }),
+    );
+
+    expect(
+      await screen.findByText("Collection date cannot be in the future."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Collection can be recorded after the four-week period has been checked and stock deducted.",
+      ),
+    ).toBeNull();
+    expect(screen.queryByText("PrivateFirst")).toBeNull();
+    expect(screen.queryByText("PrivateLast")).toBeNull();
+  });
+
+  it("keeps the safe generic Patient Collected fallback when no safe field error is present", async () => {
+    const user = userEvent.setup();
+    listDosettePeriodsMock.mockResolvedValueOnce([makePeriod()]);
+    markDosettePeriodCollectedMock.mockRejectedValueOnce(
+      new ApiError(400, {
+        non_field_errors: ["Unexpected collection validation."],
+      }),
+    );
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Patient Collected" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Collection can be recorded after the four-week period has been checked and stock deducted.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Unexpected collection validation.")).toBeNull();
+    expect(screen.queryByText("PrivateFirst")).toBeNull();
+    expect(screen.queryByText("PrivateLast")).toBeNull();
+  });
+
   it("renders cycles", async () => {
     renderDosette();
 
