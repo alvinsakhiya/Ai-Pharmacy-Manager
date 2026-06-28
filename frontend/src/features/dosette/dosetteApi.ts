@@ -67,6 +67,39 @@ export interface DosetteCycle {
   updated_at: string;
 }
 
+export interface DosettePeriodCycle {
+  id: number;
+  reference: string;
+  week_number: number | null;
+  start_date: string;
+  end_date: string;
+  status: string;
+  stock_deducted: boolean;
+}
+
+export interface DosettePeriod {
+  id: number;
+  patient_reference: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  submitted_at: string;
+  collected_on: string | null;
+  next_due_date: string | null;
+  reminder_date: string | null;
+  cycles: DosettePeriodCycle[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DosettePeriodSubmitBody {
+  start_date?: string;
+}
+
+export interface DosettePeriodCollectedBody {
+  collected_on?: string;
+}
+
 export const CYCLE_FREQUENCY_OPTIONS = [
   { value: "WEEKLY", label: "1-week supply" },
   { value: "FORTNIGHTLY", label: "2-week supply" },
@@ -202,6 +235,41 @@ export function listPatientMedications(
 
 export function listDosetteCycles(patientId: number): Promise<DosetteCycle[]> {
   return requestJson<DosetteCycle[]>(`/api/patients/${patientId}/cycles/`);
+}
+
+export function listDosettePeriods(patientId: number): Promise<DosettePeriod[]> {
+  return requestJson<DosettePeriod[]>(
+    `/api/patients/${patientId}/dosette-periods/`,
+  );
+}
+
+export function submitDosettePeriod(
+  patientId: number,
+  body: DosettePeriodSubmitBody = {},
+): Promise<DosettePeriod> {
+  return requestJson<DosettePeriod>(
+    `/api/patients/${patientId}/dosette-periods/`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function markDosettePeriodCollected(
+  patientId: number,
+  periodId: number,
+  body: DosettePeriodCollectedBody = {},
+): Promise<DosettePeriod> {
+  return requestJson<DosettePeriod>(
+    `/api/patients/${patientId}/dosette-periods/${periodId}/collected/`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 export function getPickingList(

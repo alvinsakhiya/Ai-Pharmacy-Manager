@@ -16,6 +16,7 @@ import * as catalogueApi from "../catalogue/catalogueApi";
 import { DosetteScreen } from "./DosetteScreen";
 import type {
   DosetteCycle,
+  DosettePeriod,
   PatientMedicationLine,
   PickingList,
   StockPreview,
@@ -37,8 +38,11 @@ vi.mock("./dosetteApi", async (importOriginal) => {
     ...actual,
     listPatientMedications: vi.fn(),
     listDosetteCycles: vi.fn(),
+    listDosettePeriods: vi.fn(),
     getPickingList: vi.fn(),
     getStockPreview: vi.fn(),
+    submitDosettePeriod: vi.fn(),
+    markDosettePeriodCollected: vi.fn(),
     createPatientMedication: vi.fn(),
     updatePatientMedication: vi.fn(),
     discontinuePatientMedication: vi.fn(),
@@ -55,8 +59,13 @@ const listMedicationsMock = vi.mocked(catalogueApi.listMedications);
 const listCatalogueProductsMock = vi.mocked(catalogueApi.listCatalogueProducts);
 const listPatientMedicationsMock = vi.mocked(dosetteApi.listPatientMedications);
 const listDosetteCyclesMock = vi.mocked(dosetteApi.listDosetteCycles);
+const listDosettePeriodsMock = vi.mocked(dosetteApi.listDosettePeriods);
 const getPickingListMock = vi.mocked(dosetteApi.getPickingList);
 const getStockPreviewMock = vi.mocked(dosetteApi.getStockPreview);
+const submitDosettePeriodMock = vi.mocked(dosetteApi.submitDosettePeriod);
+const markDosettePeriodCollectedMock = vi.mocked(
+  dosetteApi.markDosettePeriodCollected,
+);
 const createPatientMedicationMock = vi.mocked(dosetteApi.createPatientMedication);
 const updatePatientMedicationMock = vi.mocked(dosetteApi.updatePatientMedication);
 const createDosetteCycleMock = vi.mocked(dosetteApi.createDosetteCycle);
@@ -192,6 +201,65 @@ function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
       `${cycle.patient_reference} · ${supplyLabel} · ${formatCycleTestDate(
         cycle.start_date,
       )} - ${formatCycleTestDate(cycle.end_date)}`,
+  };
+}
+
+function makePeriod(overrides: Partial<DosettePeriod> = {}): DosettePeriod {
+  const period: DosettePeriod = {
+    id: 70,
+    patient_reference: "SUT-P1",
+    start_date: "2026-06-29",
+    end_date: "2026-07-26",
+    status: "SUBMITTED",
+    submitted_at: "2026-06-28T10:00:00Z",
+    collected_on: null,
+    next_due_date: null,
+    reminder_date: null,
+    cycles: [
+      {
+        id: 701,
+        reference: "MDS-PERIOD-70-W1",
+        week_number: 1,
+        start_date: "2026-06-29",
+        end_date: "2026-07-05",
+        status: "DRAFT",
+        stock_deducted: false,
+      },
+      {
+        id: 702,
+        reference: "MDS-PERIOD-70-W2",
+        week_number: 2,
+        start_date: "2026-07-06",
+        end_date: "2026-07-12",
+        status: "DRAFT",
+        stock_deducted: false,
+      },
+      {
+        id: 703,
+        reference: "MDS-PERIOD-70-W3",
+        week_number: 3,
+        start_date: "2026-07-13",
+        end_date: "2026-07-19",
+        status: "DRAFT",
+        stock_deducted: false,
+      },
+      {
+        id: 704,
+        reference: "MDS-PERIOD-70-W4",
+        week_number: 4,
+        start_date: "2026-07-20",
+        end_date: "2026-07-26",
+        status: "DRAFT",
+        stock_deducted: false,
+      },
+    ],
+    created_at: "2026-06-28T10:00:00Z",
+    updated_at: "2026-06-28T10:00:00Z",
+    ...overrides,
+  };
+  return {
+    ...period,
+    cycles: overrides.cycles ?? period.cycles,
   };
 }
 
@@ -425,8 +493,18 @@ describe("DosetteScreen", () => {
         status: "PREPARED",
       }),
     ]);
+    listDosettePeriodsMock.mockResolvedValue([]);
     getPickingListMock.mockResolvedValue(makePickingList());
     getStockPreviewMock.mockResolvedValue(makeStockPreview());
+    submitDosettePeriodMock.mockResolvedValue(makePeriod());
+    markDosettePeriodCollectedMock.mockResolvedValue(
+      makePeriod({
+        status: "COLLECTED",
+        collected_on: "2026-07-27",
+        next_due_date: "2026-08-24",
+        reminder_date: "2026-08-17",
+      }),
+    );
     createPatientMedicationMock.mockResolvedValue(
       makeLine({
         id: 4,
@@ -889,7 +967,108 @@ describe("DosetteScreen", () => {
     expect(
       screen.queryByRole("button", { name: /patient collected/i }),
     ).toBeNull();
-    expect(screen.queryByText(/4-week period/i)).toBeNull();
+    expect(screen.getAllByText(/four-week period/i).length).toBeGreaterThan(0);
+  });
+
+  it("submits the medication schedule and renders the four weekly period cycles", async () => {
+    const user = userEvent.setup();
+    const period = makePeriod();
+    listDosettePeriodsMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([period]);
+    submitDosettePeriodMock.mockResolvedValueOnce(period);
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Submit medication schedule",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(submitDosettePeriodMock).toHaveBeenCalledWith(20, {});
+    });
+    expect(createDosetteCycleMock).not.toHaveBeenCalled();
+    expect(deductDosetteStockMock).not.toHaveBeenCalled();
+    expect(prepareDosetteCycleMock).not.toHaveBeenCalled();
+
+    const summary = await screen.findByText("Four-week cycles");
+    expect(summary).toBeInTheDocument();
+    for (const week of ["Week 1", "Week 2", "Week 3", "Week 4"]) {
+      expect(screen.getByRole("article", { name: `${week} cycle` })).toBeInTheDocument();
+    }
+    expect(
+      screen.getAllByText("29 Jun 2026 - 26 Jul 2026").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("records Patient Collected and shows next due and prepare reminder dates", async () => {
+    const user = userEvent.setup();
+    const submittedPeriod = makePeriod();
+    const collectedPeriod = makePeriod({
+      status: "COLLECTED",
+      collected_on: "2026-07-27",
+      next_due_date: "2026-08-24",
+      reminder_date: "2026-08-17",
+    });
+    listDosettePeriodsMock
+      .mockResolvedValueOnce([submittedPeriod])
+      .mockResolvedValueOnce([collectedPeriod]);
+    markDosettePeriodCollectedMock.mockResolvedValueOnce(collectedPeriod);
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    const collectionDate = await screen.findByLabelText("Collection date");
+    await user.clear(collectionDate);
+    await user.type(collectionDate, "2026-06-28");
+    await user.click(screen.getByRole("button", { name: "Patient Collected" }));
+
+    await waitFor(() => {
+      expect(markDosettePeriodCollectedMock).toHaveBeenCalledWith(20, 70, {
+        collected_on: "2026-06-28",
+      });
+    });
+    expect(await screen.findByText("27 Jul 2026")).toBeInTheDocument();
+    expect(screen.getByText("24 Aug 2026")).toBeInTheDocument();
+    expect(screen.getByText("17 Aug 2026")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Work Queue reminder appears seven days before the next due date.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows safe collection error copy when backend blocks collection", async () => {
+    const user = userEvent.setup();
+    listDosettePeriodsMock.mockResolvedValueOnce([makePeriod()]);
+    markDosettePeriodCollectedMock.mockRejectedValueOnce(
+      new ApiError(400, {
+        detail: [
+          "All four cycles must be checked and stock deducted before collection can be recorded.",
+        ],
+      }),
+    );
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Patient Collected" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Collection can be recorded after the four-week period has been checked and stock deducted.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("PrivateFirst")).toBeNull();
+    expect(screen.queryByText("PrivateLast")).toBeNull();
   });
 
   it("renders cycles", async () => {
@@ -993,7 +1172,7 @@ describe("DosetteScreen", () => {
     const planSection = screen.getByLabelText("Upcoming cycle plan");
     expect(
       within(planSection).getByText(
-        "Predicted dates only. Human review required; create each cycle when ready.",
+        "Predicted dates only. Human review required before any future period is submitted.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -1481,7 +1660,7 @@ describe("DosetteScreen", () => {
     );
 
     expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
-    const cyclesSection = screen.getByText("Dosette status").closest("section");
+    const cyclesSection = screen.getByText("Advanced cycle tools").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).getByRole("button", {
@@ -1504,7 +1683,7 @@ describe("DosetteScreen", () => {
     renderDosette();
 
     expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
-    const cyclesSection = screen.getByText("Dosette status").closest("section");
+    const cyclesSection = screen.getByText("Advanced cycle tools").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).queryByRole("button", {
@@ -1530,7 +1709,7 @@ describe("DosetteScreen", () => {
     );
 
     expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
-    const cyclesSection = screen.getByText("Dosette status").closest("section");
+    const cyclesSection = screen.getByText("Advanced cycle tools").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).getAllByRole("button", {
@@ -1557,7 +1736,7 @@ describe("DosetteScreen", () => {
     );
 
     expect((await screen.findAllByText("MDS-2026-W26")).length).toBeGreaterThan(0);
-    const cyclesSection = screen.getByText("Dosette status").closest("section");
+    const cyclesSection = screen.getByText("Advanced cycle tools").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).queryByRole("button", {
@@ -1802,7 +1981,7 @@ describe("DosetteScreen", () => {
     expect(
       (await screen.findAllByText("MDS-2026-COMPLETED")).length,
     ).toBeGreaterThan(0);
-    const cyclesSection = screen.getByText("Dosette status").closest("section");
+    const cyclesSection = screen.getByText("Advanced cycle tools").closest("section");
     expect(cyclesSection).not.toBeNull();
     expect(
       within(cyclesSection as HTMLElement).getAllByRole("button", {

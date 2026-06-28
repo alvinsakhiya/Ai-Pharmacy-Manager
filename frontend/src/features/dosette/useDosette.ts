@@ -10,12 +10,18 @@ import {
   getStockPreview,
   listDosetteCycles,
   listPatientMedications,
+  listDosettePeriods,
+  markDosettePeriodCollected,
   prepareDosetteCycle,
+  submitDosettePeriod,
   updateCycleStatus,
   updateDosetteCycle,
   updateMedicationAppearance,
   updatePatientMedication,
   type CycleStatusTransition,
+  type DosettePeriod,
+  type DosettePeriodCollectedBody,
+  type DosettePeriodSubmitBody,
   type DosetteCycleWriteBody,
   type MedicationAppearanceBody,
   type PatientMedicationWriteBody,
@@ -33,6 +39,14 @@ export function useDosetteCyclesQuery(patientId: number) {
   return useQuery({
     queryKey: ["dosette", "cycles", patientId],
     queryFn: () => listDosetteCycles(patientId),
+    enabled: Number.isFinite(patientId),
+  });
+}
+
+export function useDosettePeriodsQuery(patientId: number) {
+  return useQuery({
+    queryKey: ["dosette", "periods", patientId],
+    queryFn: () => listDosettePeriods(patientId),
     enabled: Number.isFinite(patientId),
   });
 }
@@ -111,6 +125,9 @@ function useInvalidateDosetteCycleData(patientId: number) {
 
   return () => {
     void queryClient.invalidateQueries({
+      queryKey: ["dosette", "periods", patientId],
+    });
+    void queryClient.invalidateQueries({
       queryKey: ["dosette", "cycles", patientId],
     });
     void queryClient.invalidateQueries({
@@ -120,6 +137,59 @@ function useInvalidateDosetteCycleData(patientId: number) {
       queryKey: ["dosette", "stock-preview", patientId],
     });
   };
+}
+
+function useInvalidateDosettePeriodData(patientId: number) {
+  const invalidateDosetteCycleData = useInvalidateDosetteCycleData(patientId);
+
+  return () => {
+    invalidateDosetteCycleData();
+  };
+}
+
+export function useSubmitDosettePeriod(patientId: number) {
+  const queryClient = useQueryClient();
+  const invalidateDosettePeriodData = useInvalidateDosettePeriodData(patientId);
+
+  return useMutation({
+    mutationFn: (body?: DosettePeriodSubmitBody) =>
+      submitDosettePeriod(patientId, body ?? {}),
+    onSuccess: (period) => {
+      queryClient.setQueryData<DosettePeriod[]>(
+        ["dosette", "periods", patientId],
+        (current = []) => [
+          period,
+          ...current.filter((item) => item.id !== period.id),
+        ],
+      );
+      invalidateDosettePeriodData();
+    },
+  });
+}
+
+export function useMarkDosettePeriodCollected(patientId: number) {
+  const queryClient = useQueryClient();
+  const invalidateDosettePeriodData = useInvalidateDosettePeriodData(patientId);
+
+  return useMutation({
+    mutationFn: ({
+      periodId,
+      body,
+    }: {
+      periodId: number;
+      body?: DosettePeriodCollectedBody;
+    }) => markDosettePeriodCollected(patientId, periodId, body ?? {}),
+    onSuccess: (period) => {
+      queryClient.setQueryData<DosettePeriod[]>(
+        ["dosette", "periods", patientId],
+        (current = []) =>
+          current.length
+            ? current.map((item) => (item.id === period.id ? period : item))
+            : [period],
+      );
+      invalidateDosettePeriodData();
+    },
+  });
 }
 
 export function useCreateDosetteCycle(patientId: number) {

@@ -54,6 +54,8 @@ import { DosetteCycleFormModal } from "./DosetteCycleFormModal";
 import { PatientMedicationFormModal } from "./PatientMedicationFormModal";
 import type {
   DosetteCycle,
+  DosettePeriod,
+  DosettePeriodCycle,
   PatientMedicationLine,
   PatientMedicationWriteBody,
   PickingList,
@@ -68,9 +70,12 @@ import {
   useDeductDosetteStock,
   useDiscontinuePatientMedication,
   useDosetteCyclesQuery,
+  useDosettePeriodsQuery,
+  useMarkDosettePeriodCollected,
   usePatientMedicationsQuery,
   usePickingListQuery,
   usePrepareDosetteCycle,
+  useSubmitDosettePeriod,
   useStockPreviewQuery,
   useUpdateCycleStatus,
   useUpdateMedicationAppearance,
@@ -464,6 +469,60 @@ const TRAY_DAY_LABELS = [
 ] as const;
 
 const TRAY_MEDICINE_FORM_ID = "tray-medicine-editor-form";
+const COLLECTION_BLOCKED_MESSAGE =
+  "Collection can be recorded after the four-week period has been checked and stock deducted.";
+
+function todayIsoDate(): string {
+  return toIsoDate(new Date());
+}
+
+function periodStatusTone(status: string): StatusTone {
+  switch (status) {
+    case "SUBMITTED":
+      return "brand";
+    case "COLLECTED":
+      return "success";
+    case "CANCELLED":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function periodDateRange(
+  value: Pick<DosettePeriod | DosettePeriodCycle, "start_date" | "end_date">,
+): string {
+  return `${formatDate(value.start_date)} - ${formatDate(value.end_date)}`;
+}
+
+function periodWeekLabel(cycle: DosettePeriodCycle, index: number): string {
+  return `Week ${cycle.week_number ?? index + 1}`;
+}
+
+function periodActionErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && isRecord(error.data)) {
+    const detail = error.data.detail;
+    const messages =
+      typeof detail === "string"
+        ? [detail]
+        : Array.isArray(detail)
+          ? detail.filter((item): item is string => typeof item === "string")
+          : [];
+
+    if (
+      messages.some((message) =>
+        message.includes("All four cycles must be checked and stock deducted"),
+      )
+    ) {
+      return COLLECTION_BLOCKED_MESSAGE;
+    }
+    if (messages.length > 0) {
+      return messages[0];
+    }
+  }
+
+  return fallback;
+}
 
 function canEditCycle(cycle: DosetteCycle): boolean {
   return !["CANCELLED", "COMPLETED"].includes(cycle.status);
@@ -831,6 +890,223 @@ function CycleStatusOverview({
   );
 }
 
+function DosettePeriodStatusPanel({
+  actionError,
+  activeLineCount,
+  canManage,
+  collectionDate,
+  isCollecting,
+  isSubmitting,
+  latestPeriod,
+  onCollect,
+  onCollectionDateChange,
+  onSubmit,
+  openPeriod,
+}: {
+  actionError: string | null;
+  activeLineCount: number;
+  canManage: boolean;
+  collectionDate: string;
+  isCollecting: boolean;
+  isSubmitting: boolean;
+  latestPeriod: DosettePeriod | null;
+  onCollect: () => void;
+  onCollectionDateChange: (value: string) => void;
+  onSubmit: () => void;
+  openPeriod: DosettePeriod | null;
+}) {
+  const today = todayIsoDate();
+  const collectionDateIsFuture = collectionDate > today;
+  const hasOpenPeriod = openPeriod !== null;
+  const period = openPeriod ?? latestPeriod;
+  const headline = hasOpenPeriod
+    ? "Four-week period in progress"
+    : latestPeriod?.status === "COLLECTED"
+      ? "Last four-week period collected"
+      : "Ready for medication schedule review";
+  const summary = hasOpenPeriod
+    ? "Review before preparation, then record Patient Collected after the four weekly cycles are checked and stock deducted."
+    : activeLineCount > 0
+      ? "Submit medication schedule to create one four-week period and four weekly cycles for human review."
+      : "Add at least one active medication before submitting the medication schedule.";
+
+  return (
+    <section
+      aria-label="Dosette period workflow"
+      className="rounded-2xl border border-line bg-surface p-4 shadow-soft sm:p-5"
+    >
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge dot variant={period ? periodStatusTone(period.status) : "info"}>
+              Four-week period
+            </Badge>
+            {period ? (
+              <Badge dot variant={periodStatusTone(period.status)}>
+                {statusLabel(period.status)}
+              </Badge>
+            ) : (
+              <Badge dot variant="neutral">Not submitted</Badge>
+            )}
+          </div>
+          <h2 className="mt-3 text-xl font-extrabold text-ink">{headline}</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
+            {summary}
+          </p>
+          {period ? (
+            <p className="mt-2 tnum text-xs font-semibold text-muted">
+              {periodDateRange(period)}
+            </p>
+          ) : null}
+        </div>
+
+        {canManage ? (
+          <div className="flex w-full flex-col gap-3 xl:w-[25rem]">
+            {!hasOpenPeriod ? (
+              <Button
+                disabled={isSubmitting || activeLineCount === 0}
+                leadingIcon={<CalendarRange className="h-4 w-4" />}
+                onClick={onSubmit}
+                variant="primary"
+              >
+                {isSubmitting ? "Submitting..." : "Submit medication schedule"}
+              </Button>
+            ) : (
+              <div className="rounded-xl border border-line bg-surface-subtle p-3">
+                <label className={labelClass}>
+                  Collection date
+                  <input
+                    className={`${inputClass} tnum`}
+                    max={today}
+                    onChange={(event) =>
+                      onCollectionDateChange(event.currentTarget.value)
+                    }
+                    type="date"
+                    value={collectionDate}
+                  />
+                </label>
+                {collectionDateIsFuture ? (
+                  <p className="mt-2 text-xs font-semibold text-danger-ink">
+                    Collection date cannot be in the future.
+                  </p>
+                ) : null}
+                <Button
+                  className="mt-3"
+                  disabled={isCollecting || collectionDateIsFuture}
+                  fullWidth
+                  leadingIcon={<PackageCheck className="h-4 w-4" />}
+                  onClick={onCollect}
+                  variant="primary"
+                >
+                  {isCollecting ? "Recording..." : "Patient Collected"}
+                </Button>
+              </div>
+            )}
+            {actionError ? (
+              <div
+                className="rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm font-semibold text-danger-ink"
+                role="alert"
+              >
+                {actionError}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function FourWeekPeriodSummary({
+  period,
+}: {
+  period: DosettePeriod | null;
+}) {
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<CalendarRange className="h-4 w-4" />}
+        title="Four-week cycles"
+        subtitle="Period summary for the submitted medication schedule."
+      />
+      <PanelBody>
+        {!period ? (
+          <EmptyState
+            icon={<CalendarRange className="h-5 w-5" />}
+            title="No four-week period submitted."
+            description="Submit medication schedule when the tray has been reviewed."
+          />
+        ) : (
+          <div className="space-y-5">
+            <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-xl border border-line bg-surface-subtle p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge dot variant={periodStatusTone(period.status)}>
+                    {statusLabel(period.status)}
+                  </Badge>
+                  <Badge variant="info">Four-week period</Badge>
+                </div>
+                <h3 className="mt-3 text-base font-extrabold text-ink">
+                  {periodDateRange(period)}
+                </h3>
+                <p className="mt-1 text-xs font-semibold text-muted">
+                  Review before preparation. Human review required.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-line bg-surface-subtle p-4">
+                <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                  <CycleDetailValue
+                    label="Collected on"
+                    value={optionalDate(period.collected_on)}
+                  />
+                  <CycleDetailValue
+                    label="Next due"
+                    value={optionalDate(period.next_due_date)}
+                  />
+                  <CycleDetailValue
+                    label="Prepare reminder"
+                    value={optionalDate(period.reminder_date)}
+                  />
+                </dl>
+                {period.collected_on ? (
+                  <p className="mt-3 text-xs font-semibold text-ink-soft">
+                    Work Queue reminder appears seven days before the next due date.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {period.cycles.map((cycle, index) => {
+                const label = periodWeekLabel(cycle, index);
+                return (
+                  <article
+                    aria-label={`${label} cycle`}
+                    className="rounded-xl border border-line bg-surface p-3"
+                    key={cycle.id}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-sm font-extrabold text-ink">{label}</h4>
+                      <MedicationStatusBadge value={cycle.status} />
+                    </div>
+                    <p className="mt-2 tnum text-sm font-semibold text-ink-soft">
+                      {periodDateRange(cycle)}
+                    </p>
+                    <p className="mt-2 text-xs font-semibold text-muted">
+                      {cycle.stock_deducted ? "Stock deducted" : "Stock not deducted"}
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </PanelBody>
+    </Panel>
+  );
+}
+
 function UpcomingCyclePlan({ cycles }: { cycles: DosetteCycle[] }) {
   const plannedCycles = buildUpcomingCyclePlan(cycles);
   if (plannedCycles.length === 0) {
@@ -846,8 +1122,8 @@ function UpcomingCyclePlan({ cycles }: { cycles: DosetteCycle[] }) {
         <div>
           <h3 className="text-sm font-extrabold text-ink">Upcoming cycle plan</h3>
           <p className="mt-1 text-xs font-medium text-muted">
-            Predicted dates only. Human review required; create each cycle when
-            ready.
+            Predicted dates only. Human review required before any future period is
+            submitted.
           </p>
         </div>
         <Badge variant="info">Planning preview</Badge>
@@ -2884,17 +3160,27 @@ export function DosetteScreen() {
   const [appearanceColour, setAppearanceColour] = useState("");
   const [appearanceShape, setAppearanceShape] = useState("");
   const [isPrintModalOpen, setPrintModalOpen] = useState(false);
+  const [periodActionError, setPeriodActionError] = useState<string | null>(null);
+  const [collectionDate, setCollectionDate] = useState(todayIsoDate());
   const medicationsQuery = usePatientMedicationsQuery(parsedPatientId);
   const cyclesQuery = useDosetteCyclesQuery(parsedPatientId);
+  const periodsQuery = useDosettePeriodsQuery(parsedPatientId);
   const pickingListQuery = usePickingListQuery(parsedPatientId, generatedCycleId);
   const stockPreviewQuery = useStockPreviewQuery(parsedPatientId, generatedCycleId);
   const discontinueMedication =
     useDiscontinuePatientMedication(parsedPatientId);
+  const submitPeriod = useSubmitDosettePeriod(parsedPatientId);
+  const collectPeriod = useMarkDosettePeriodCollected(parsedPatientId);
   const prepareCycle = usePrepareDosetteCycle(parsedPatientId);
   const deductCycle = useDeductDosetteStock(parsedPatientId);
   const cancelCycle = useCancelDosetteCycle(parsedPatientId);
   const updateStatus = useUpdateCycleStatus(parsedPatientId);
   const updateAppearance = useUpdateMedicationAppearance(parsedPatientId);
+  const periods = periodsQuery.data ?? [];
+  const openPeriod =
+    periods.find((period) => period.status === "SUBMITTED") ?? null;
+  const latestPeriod = openPeriod ?? periods[0] ?? null;
+  const openPeriodId = openPeriod?.id ?? null;
 
   useEffect(() => {
     if (!cyclesQuery.isSuccess) {
@@ -2919,6 +3205,14 @@ export function DosetteScreen() {
     }
   }, [generatedCycleId, selectedCycleId]);
 
+  useEffect(() => {
+    if (openPeriodId === null) {
+      return;
+    }
+    setCollectionDate(todayIsoDate());
+    setPeriodActionError(null);
+  }, [openPeriodId]);
+
   function openAppearanceModal(line: PatientMedicationLine) {
     setAppearanceLine(line);
     setAppearanceColour(line.colour ?? "");
@@ -2939,6 +3233,43 @@ export function DosetteScreen() {
       success(`Marked ${label.toLowerCase()}`, cycle.reference);
     } catch {
       toastError(`Could not mark ${label.toLowerCase()}`, "Please try again.");
+    }
+  }
+
+  async function handleSubmitMedicationSchedule() {
+    setPeriodActionError(null);
+    try {
+      await submitPeriod.mutateAsync({});
+      success(
+        "Medication schedule submitted",
+        "Four-week period created for review before preparation.",
+      );
+    } catch (error) {
+      setPeriodActionError(
+        periodActionErrorMessage(
+          error,
+          "Could not submit medication schedule.",
+        ),
+      );
+    }
+  }
+
+  async function handlePatientCollected() {
+    if (!openPeriod) {
+      return;
+    }
+
+    setPeriodActionError(null);
+    try {
+      await collectPeriod.mutateAsync({
+        periodId: openPeriod.id,
+        body: collectionDate ? { collected_on: collectionDate } : {},
+      });
+      success("Patient Collected", "Next due and prepare reminder updated.");
+    } catch (error) {
+      setPeriodActionError(
+        periodActionErrorMessage(error, COLLECTION_BLOCKED_MESSAGE),
+      );
     }
   }
 
@@ -3085,6 +3416,15 @@ export function DosetteScreen() {
         }
       />
 
+      {periodsQuery.isLoading ? (
+        <LoadingSection text="Loading four-week periods..." />
+      ) : null}
+      {periodsQuery.isError ? (
+        <ErrorSection
+          onRetry={() => void periodsQuery.refetch()}
+          title="Could not load four-week periods."
+        />
+      ) : null}
       {cyclesQuery.isLoading ? <LoadingSection text="Loading cycles..." /> : null}
       {cyclesQuery.isError ? (
         <ErrorSection
@@ -3092,18 +3432,84 @@ export function DosetteScreen() {
           title="Could not load cycles."
         />
       ) : null}
-      {cyclesQuery.isSuccess ? (
+      {periodsQuery.isSuccess &&
+      medicationsQuery.isSuccess &&
+      cyclesQuery.isSuccess ? (
         <Panel>
           <PanelHeader
             icon={<CalendarRange className="h-4 w-4" />}
             title="Dosette status"
-            subtitle="Track the selected cycle before generating the picking list."
+            subtitle="Submit the medication schedule and track collection readiness."
+          />
+          <PanelBody className="space-y-5">
+            <DosettePeriodStatusPanel
+              actionError={periodActionError}
+              activeLineCount={activeLineCount}
+              canManage={canManage}
+              collectionDate={collectionDate}
+              isCollecting={collectPeriod.isPending}
+              isSubmitting={submitPeriod.isPending}
+              latestPeriod={latestPeriod}
+              onCollect={() => {
+                void handlePatientCollected();
+              }}
+              onCollectionDateChange={setCollectionDate}
+              onSubmit={() => {
+                void handleSubmitMedicationSchedule();
+              }}
+              openPeriod={openPeriod}
+            />
+            {statusCycle ? (
+              <CycleStatusOverview
+                activeLineCount={activeLineCount}
+                cycle={statusCycle}
+                hasGeneratedPickingList={
+                  hasGeneratedPickingList && statusCycle.id === selectedCycleId
+                }
+              />
+            ) : null}
+          </PanelBody>
+        </Panel>
+      ) : null}
+
+      {medicationsQuery.isLoading ? (
+        <LoadingSection text="Loading medication lines..." />
+      ) : null}
+      {medicationsQuery.isError ? (
+        <ErrorSection
+          onRetry={() => void medicationsQuery.refetch()}
+          title="Could not load medication lines."
+        />
+      ) : null}
+      {medicationsQuery.isSuccess ? (
+        <MdsTrayBuilder
+          canManage={canManage}
+          canMarkStatus={canMarkStatus}
+          lines={medicationsQuery.data}
+          onAdvancedManualEntry={openCreateMedicationModal}
+          onDiscontinue={setLineToDiscontinue}
+          onEditAppearance={openAppearanceModal}
+          patientId={parsedPatientId}
+        />
+      ) : null}
+
+      {periodsQuery.isSuccess ? (
+        <FourWeekPeriodSummary period={latestPeriod} />
+      ) : null}
+
+      {cyclesQuery.isSuccess ? (
+        <Panel>
+          <PanelHeader
+            icon={<ClipboardList className="h-4 w-4" />}
+            title="Advanced cycle tools"
+            subtitle="Use these controls for preparation, checking, stock deduction, and exceptional manual cycle maintenance."
             actions={
               canManage ? (
                 <Button
                   leadingIcon={<Plus className="h-4 w-4" />}
                   onClick={openCreateCycleModal}
-                  variant="primary"
+                  size="sm"
+                  variant="subtle"
                 >
                   Add cycle
                 </Button>
@@ -3117,15 +3523,16 @@ export function DosetteScreen() {
                 title="No dosette cycles yet."
                 description={
                   canManage
-                    ? "Create a cycle to schedule a compliance pack run."
-                    : "Cycles will appear here once scheduled."
+                    ? "Submit medication schedule to create the four weekly cycles."
+                    : "Four weekly cycles will appear after the medication schedule is submitted."
                 }
                 action={
                   canManage ? (
                     <Button
                       leadingIcon={<Plus className="h-4 w-4" />}
                       onClick={openCreateCycleModal}
-                      variant="primary"
+                      size="sm"
+                      variant="subtle"
                     >
                       Add cycle
                     </Button>
@@ -3135,16 +3542,7 @@ export function DosetteScreen() {
             </PanelBody>
           ) : (
             <PanelBody>
-              {statusCycle ? (
-                <CycleStatusOverview
-                  activeLineCount={activeLineCount}
-                  cycle={statusCycle}
-                  hasGeneratedPickingList={
-                    hasGeneratedPickingList && statusCycle.id === selectedCycleId
-                  }
-                />
-              ) : null}
-              <div className="mt-4 grid gap-4">
+              <div className="grid gap-4">
                 {cyclesQuery.data.map((cycle: DosetteCycle) => (
                   <CycleCard
                     canDeduct={canDeduct}
@@ -3170,27 +3568,6 @@ export function DosetteScreen() {
             </PanelBody>
           )}
         </Panel>
-      ) : null}
-
-      {medicationsQuery.isLoading ? (
-        <LoadingSection text="Loading medication lines..." />
-      ) : null}
-      {medicationsQuery.isError ? (
-        <ErrorSection
-          onRetry={() => void medicationsQuery.refetch()}
-          title="Could not load medication lines."
-        />
-      ) : null}
-      {medicationsQuery.isSuccess ? (
-        <MdsTrayBuilder
-          canManage={canManage}
-          canMarkStatus={canMarkStatus}
-          lines={medicationsQuery.data}
-          onAdvancedManualEntry={openCreateMedicationModal}
-          onDiscontinue={setLineToDiscontinue}
-          onEditAppearance={openAppearanceModal}
-          patientId={parsedPatientId}
-        />
       ) : null}
 
       {cyclesQuery.isSuccess && cyclesQuery.data.length > 0 ? (
