@@ -27,7 +27,6 @@ import { Modal } from "../../components/ui/Modal";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useToast } from "../../components/ui/Toast";
-import { StatusTrack, type TrackStep } from "../../components/ui/StatusTrack";
 import {
   fieldErrorClass,
   inputClass,
@@ -232,38 +231,6 @@ function MedicationStatusBadge({ value }: { value: boolean | string }) {
   );
 }
 
-const WORKFLOW_STEPS: TrackStep[] = [
-  { key: "DRAFT", label: "Ready to prepare" },
-  { key: "PREPARED", label: "Prepared" },
-  { key: "CHECKED", label: "Checked" },
-  { key: "STOCK_DEDUCTED", label: "Stock deducted" },
-  { key: "COLLECTED", label: "Collected" },
-  { key: "DELIVERED", label: "Delivered" },
-];
-
-function cycleWorkflowIndex(cycle: DosetteCycle): number {
-  if (cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES") {
-    return 0;
-  }
-  if (cycle.status === "COMPLETED" || cycle.status === "DELIVERED") {
-    return WORKFLOW_STEPS.length - 1;
-  }
-  if (cycle.status === "COLLECTED") {
-    return 4;
-  }
-  if (cycle.stock_deducted) {
-    return 3;
-  }
-  if (cycle.status === "CHECKED") {
-    return 2;
-  }
-  if (cycle.status === "PREPARED") {
-    return 1;
-  }
-
-  return 0;
-}
-
 function cycleWorkflowLabel(cycle: DosetteCycle): string {
   if (cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES") {
     return statusLabel(cycle.status);
@@ -276,6 +243,138 @@ function cycleWorkflowLabel(cycle: DosetteCycle): string {
   }
 
   return statusLabel(cycle.status);
+}
+
+type ChecklistState = "done" | "current" | "pending";
+
+interface CycleChecklistStep {
+  key: string;
+  label: string;
+  state: ChecklistState;
+}
+
+function isCyclePrepared(cycle: DosetteCycle): boolean {
+  return (
+    Boolean(cycle.prepared_at) ||
+    ["PREPARED", "CHECKED", "COLLECTED", "DELIVERED", "COMPLETED"].includes(
+      cycle.status,
+    ) ||
+    cycle.stock_deducted
+  );
+}
+
+function isCycleChecked(cycle: DosetteCycle): boolean {
+  return (
+    Boolean(cycle.checked_at) ||
+    ["CHECKED", "COLLECTED", "DELIVERED", "COMPLETED"].includes(cycle.status) ||
+    cycle.stock_deducted
+  );
+}
+
+function cycleStageLabel(
+  cycle: DosetteCycle,
+  hasGeneratedPickingList: boolean,
+): string {
+  if (cycle.status === "CANCELLED") {
+    return "Cancelled / blocked";
+  }
+  if (cycle.status === "NEEDS_CHANGES") {
+    return "Cancelled / blocked";
+  }
+  if (cycle.stock_deducted) {
+    return "Stock deducted";
+  }
+  if (cycle.status === "CHECKED") {
+    return "Checked";
+  }
+  if (cycle.status === "PREPARED") {
+    return "Prepared";
+  }
+  if (hasGeneratedPickingList) {
+    return "Picking list generated";
+  }
+  if (cycle.status === "DRAFT") {
+    return "Ready to prepare";
+  }
+
+  return statusLabel(cycle.status);
+}
+
+function cycleNextStep(
+  cycle: DosetteCycle,
+  activeLineCount: number,
+  hasGeneratedPickingList: boolean,
+): string {
+  if (cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES") {
+    return "Review the cycle before continuing.";
+  }
+  if (
+    cycle.stock_deducted ||
+    ["COLLECTED", "DELIVERED", "COMPLETED"].includes(cycle.status)
+  ) {
+    return "Completed for this cycle.";
+  }
+  if (cycle.status === "CHECKED") {
+    return "Checked. Deduct stock when the pack is handed over.";
+  }
+  if (cycle.status === "PREPARED") {
+    return "Ready for pharmacist check.";
+  }
+  if (activeLineCount === 0) {
+    return "Add medicines, then generate a picking list.";
+  }
+  if (hasGeneratedPickingList) {
+    return "Prepare the tray, then mark as prepared.";
+  }
+
+  return "Generate the picking list before preparing.";
+}
+
+function buildCycleChecklist(
+  cycle: DosetteCycle,
+  activeLineCount: number,
+  hasGeneratedPickingList: boolean,
+): CycleChecklistStep[] {
+  const pickingListDone =
+    hasGeneratedPickingList ||
+    isCyclePrepared(cycle) ||
+    isCycleChecked(cycle) ||
+    cycle.stock_deducted;
+  const completion = [
+    activeLineCount > 0,
+    pickingListDone,
+    isCyclePrepared(cycle),
+    isCycleChecked(cycle),
+    cycle.stock_deducted,
+  ];
+  const firstPending = completion.findIndex((done) => !done);
+
+  return [
+    "Medicines",
+    "Picking list",
+    "Prepared",
+    "Checked",
+    "Stock deducted",
+  ].map((label, index) => ({
+    key: label.toLowerCase().replaceAll(" ", "-"),
+    label,
+    state: completion[index]
+      ? "done"
+      : firstPending === index
+        ? "current"
+        : "pending",
+  }));
+}
+
+function checklistStateLabel(state: ChecklistState): string {
+  if (state === "done") {
+    return "Done";
+  }
+  if (state === "current") {
+    return "Current";
+  }
+
+  return "Pending";
 }
 
 const SLOT_META = [
@@ -569,8 +668,23 @@ function CycleDetailValue({
   );
 }
 
-function CycleStatusOverview({ cycle }: { cycle: DosetteCycle }) {
-  const workflowLabel = cycleWorkflowLabel(cycle);
+function CycleStatusOverview({
+  activeLineCount,
+  cycle,
+  hasGeneratedPickingList,
+}: {
+  activeLineCount: number;
+  cycle: DosetteCycle;
+  hasGeneratedPickingList: boolean;
+}) {
+  const stageLabel = cycleStageLabel(cycle, hasGeneratedPickingList);
+  const nextStep = cycleNextStep(cycle, activeLineCount, hasGeneratedPickingList);
+  const checklist = buildCycleChecklist(
+    cycle,
+    activeLineCount,
+    hasGeneratedPickingList,
+  );
+  const completedSteps = checklist.filter((step) => step.state === "done").length;
   const isFlagged =
     cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES";
 
@@ -582,71 +696,115 @@ function CycleStatusOverview({ cycle }: { cycle: DosetteCycle }) {
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge dot variant={cycleStatusTone(cycle.status)}>
-              {workflowLabel}
+            <Badge dot variant={isFlagged ? "danger" : cycleStatusTone(cycle.status)}>
+              Current stage
             </Badge>
             <Badge dot variant={dueStatusTone(cycle.due_status)}>
               {dueStatusLabel(cycle.due_status)}
             </Badge>
-            {cycle.stock_deducted ? (
-              <Badge icon={<CheckCircle2 className="h-3 w-3" />} variant="info">
-                Stock deducted
+            {hasGeneratedPickingList ? (
+              <Badge icon={<ClipboardList className="h-3 w-3" />} variant="info">
+                Picking list generated
               </Badge>
             ) : null}
           </div>
-          <h2 className="mt-3 text-lg font-extrabold text-ink">
-            {cycleFriendlyLabel(cycle)}
-          </h2>
-          <p className="mt-1 text-xs font-semibold text-muted">
-            Internal reference:{" "}
-            <span className="tnum text-ink-soft">{cycle.reference}</span>
+          <h2 className="mt-3 text-xl font-extrabold text-ink">{stageLabel}</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
+            {nextStep}
           </p>
           {cycle.is_due_soon ? (
             <p className="mt-2 text-xs font-semibold text-warning-ink">
-              Suggested preparation window: within 3 days. Human review required.
+              Review before preparation. Human review required.
             </p>
           ) : null}
         </div>
-        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
-          <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-            Current status
-          </p>
-          <p className="mt-1 text-sm font-extrabold text-ink">{workflowLabel}</p>
+        <div className="grid gap-2 sm:grid-cols-2 xl:w-[26rem]">
+          <div className="rounded-xl border border-line bg-surface-subtle p-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+              Preparation progress
+            </p>
+            <p className="mt-1 text-sm font-extrabold text-ink">
+              <span className="tnum">{completedSteps}</span> of{" "}
+              <span className="tnum">{checklist.length}</span> steps complete
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-subtle p-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+              Stock action
+            </p>
+            <p className="mt-1 text-sm font-extrabold text-ink">
+              {cycle.stock_deducted ? "Stock deducted" : "Not deducted"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-subtle p-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+              Pharmacist check
+            </p>
+            <p className="mt-1 text-sm font-extrabold text-ink">
+              {isCycleChecked(cycle)
+                ? "Checked"
+                : cycle.status === "PREPARED"
+                  ? "Ready for check"
+                  : "Pending"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-subtle p-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+              Open schedule
+            </p>
+            <p className="mt-1 text-sm font-extrabold text-ink">
+              {cycleSupplyPeriodLabel(cycle)}
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="mt-5 rounded-xl border border-line bg-surface-subtle px-3 py-4 sm:px-4">
-        <StatusTrack
-          steps={WORKFLOW_STEPS}
-          currentIndex={cycleWorkflowIndex(cycle)}
-          tone={isFlagged ? "danger" : "peach"}
-        />
-      </div>
-
-      <dl className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2 lg:grid-cols-4">
-        <CycleDetailValue
-          label="Supply period"
-          value={cycleSupplyPeriodLabel(cycle)}
-        />
-        <CycleDetailValue label="Cycle dates" value={cycleDateRange(cycle)} />
-        <CycleDetailValue label="Due signal" value={daysUntilDueLabel(cycle)} />
-        <CycleDetailValue
-          label="Prepared"
-          value={preparedCheckedLabel(cycle.prepared_by_email, cycle.prepared_at)}
-        />
-        <CycleDetailValue
-          label="Checked"
-          value={preparedCheckedLabel(cycle.checked_by_email, cycle.checked_at)}
-        />
-        <CycleDetailValue
-          label="Stock deducted"
-          value={cycle.stock_deducted ? "Yes" : "No"}
-        />
-        <CycleDetailValue
-          label="Deducted at"
-          value={optionalDateTime(cycle.deducted_at)}
-        />
-      </dl>
+      <ol
+        aria-label="Dosette preparation checklist"
+        className="mt-5 grid gap-2 sm:grid-cols-5"
+      >
+        {checklist.map((step, index) => (
+          <li
+            className={cn(
+              "rounded-xl border px-3 py-3",
+              step.state === "done" &&
+                "border-success-border bg-success-soft text-success-ink",
+              step.state === "current" &&
+                "border-brand/25 bg-brand-soft/70 text-brand-ink",
+              step.state === "pending" &&
+                "border-line bg-surface-subtle text-ink-soft",
+            )}
+            key={step.key}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-extrabold",
+                  step.state === "done" &&
+                    "border-success bg-success text-white",
+                  step.state === "current" &&
+                    "border-brand bg-brand text-white",
+                  step.state === "pending" &&
+                    "border-line-strong bg-surface text-muted",
+                )}
+              >
+                {step.state === "done" ? (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                ) : (
+                  index + 1
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-extrabold">{step.label}</span>
+                <span className="mt-0.5 block text-[11px] font-bold uppercase tracking-[0.06em] opacity-75">
+                  {checklistStateLabel(step.state)}
+                </span>
+              </span>
+            </div>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -1064,7 +1222,105 @@ function medicationSlotQuantities(
   };
 }
 
-function TrayMedicationSummary({
+const MAX_VISIBLE_TRAY_MEDICINES = 6;
+
+function stableMedicineHash(line: PatientMedicationLine, slot: DoseSlot): number {
+  const key = `${line.id}-${line.medication_name}-${slot.key}`;
+  return Array.from(key).reduce(
+    (total, character) => (total * 31 + character.charCodeAt(0)) % 997,
+    7,
+  );
+}
+
+function medicineInitial(line: PatientMedicationLine): string {
+  return line.medication_name.trim().charAt(0).toUpperCase() || "M";
+}
+
+function medicineParticleShapeClass(shape: string | undefined): string {
+  const normalised = shape?.trim().toLowerCase() ?? "";
+  if (/capsule/.test(normalised)) {
+    return "h-7 w-12 rounded-full";
+  }
+  if (/caplet/.test(normalised)) {
+    return "h-7 w-12 rounded-[1rem]";
+  }
+  if (/(oval|oblong)/.test(normalised)) {
+    return "h-7 w-11 rounded-full";
+  }
+  if (/small/.test(normalised)) {
+    return "h-7 w-7 rounded-full";
+  }
+  if (/round/.test(normalised)) {
+    return "h-9 w-9 rounded-full";
+  }
+
+  return "h-8 w-8 rounded-full";
+}
+
+function medicineParticleOffset(line: PatientMedicationLine, slot: DoseSlot): string {
+  const options = [
+    "rotate-0 translate-y-0",
+    "-rotate-6 -translate-y-0.5",
+    "rotate-6 translate-y-0.5",
+    "-rotate-3 translate-x-0.5",
+    "rotate-3 -translate-x-0.5",
+  ];
+  return options[stableMedicineHash(line, slot) % options.length];
+}
+
+function TrayMedicationParticle({
+  day,
+  line,
+  onHideDetails,
+  onShowDetails,
+  quantity,
+  slot,
+}: {
+  day: string;
+  line: PatientMedicationLine;
+  onHideDetails: () => void;
+  onShowDetails: () => void;
+  quantity: number;
+  slot: DoseSlot;
+}) {
+  const shape = line.shape ?? undefined;
+
+  return (
+    <button
+      aria-label={`Show ${line.medication_name} details for ${day} ${slot.label}, ${doseQuantityLabel(
+        line,
+        quantity,
+      )}`}
+      className="pointer-events-auto relative z-20 grid min-h-14 min-w-12 place-items-center rounded-xl px-1 py-1.5 text-center transition-transform duration-150 ease-soft hover:-translate-y-0.5 focus-ring focus:-translate-y-0.5"
+      onBlur={onHideDetails}
+      onClick={(event) => {
+        event.stopPropagation();
+        onShowDetails();
+      }}
+      onFocus={onShowDetails}
+      onMouseEnter={onShowDetails}
+      onMouseLeave={onHideDetails}
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          "grid place-items-center border border-line-strong text-[11px] font-extrabold text-ink shadow-[inset_0_1px_2px_rgba(255,255,255,0.85),0_6px_14px_rgba(42,35,64,0.12)]",
+          medicineParticleShapeClass(shape),
+          medicineParticleOffset(line, slot),
+        )}
+        style={{ backgroundColor: appearanceColour(line.colour ?? undefined) }}
+      >
+        {medicineInitial(line)}
+      </span>
+      <span className="mt-1 max-w-16 truncate rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-extrabold text-ink-soft shadow-sm">
+        {doseQuantityLabel(line, quantity)}
+      </span>
+    </button>
+  );
+}
+
+function TrayMedicationDetailCard({
   line,
   quantity,
   slot,
@@ -1074,32 +1330,28 @@ function TrayMedicationSummary({
   slot: DoseSlot;
 }) {
   return (
-    <span className="block rounded-lg border border-line bg-surface/95 px-2.5 py-2 text-left shadow-elev-1 transition-transform duration-150 ease-soft group-hover:-translate-y-px">
-      <span className="flex min-w-0 items-start gap-2">
-        <MedicationAppearanceMarker colour={line.colour} shape={line.shape} />
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-extrabold text-ink">
-            {line.medication_name}
-          </span>
-          <span className="mt-0.5 block truncate text-[11px] font-semibold text-muted">
-            {strengthFormLabel(line)}
-          </span>
-        </span>
-      </span>
-      <span
-        className={cn(
-          "mt-2 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold",
-          slot.tone.accent,
-        )}
-      >
-        {doseQuantityLabel(line, quantity)}
-      </span>
-      {printAppearanceLabel(line) ? (
-        <span className="mt-0.5 block truncate text-[10px] font-semibold text-muted">
-          {printAppearanceLabel(line)}
-        </span>
-      ) : null}
-    </span>
+    <div
+      aria-label={`${line.medication_name} details`}
+      className="pointer-events-none absolute bottom-2 left-2 right-2 z-30 rounded-xl border border-line bg-white/95 p-2.5 text-left shadow-elev-2 backdrop-blur"
+      role="status"
+    >
+      <p className="truncate text-xs font-extrabold text-ink">
+        {line.medication_name}
+      </p>
+      <p className="mt-0.5 truncate text-[11px] font-semibold text-muted">
+        {strengthFormLabel(line)}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Badge variant="brand">{doseQuantityLabel(line, quantity)}</Badge>
+        <Badge variant="neutral">{slot.label}</Badge>
+      </div>
+      <p className="mt-2 truncate text-[11px] font-semibold text-muted">
+        {appearanceLabel(line)}
+      </p>
+      <p className="mt-1 text-[11px] font-semibold text-ink-soft">
+        {statusLabel(line.is_active)}
+      </p>
+    </div>
   );
 }
 
@@ -1121,6 +1373,12 @@ function TrayCell({
   slot: DoseSlot;
 }) {
   const medicines = medicationSlotLines(lines, slot);
+  const visibleMedicines = medicines.slice(0, MAX_VISIBLE_TRAY_MEDICINES);
+  const hiddenMedicineCount = Math.max(0, medicines.length - visibleMedicines.length);
+  const [activeMedicineId, setActiveMedicineId] = useState<number | null>(null);
+  const activeMedicine =
+    medicines.find((line) => line.id === activeMedicineId) ?? null;
+  const activeQuantity = activeMedicine ? activeMedicine[slot.key] : 0;
   const content = (
     <>
       <span className="flex items-center justify-between gap-2">
@@ -1132,10 +1390,22 @@ function TrayCell({
         >
           {slot.short}
         </span>
-        {canManage ? (
-          <span className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-brand">
-            {medicines.length > 0 ? "Edit medicine" : "Add medicine"}
-          </span>
+        {canInteract ? (
+          <button
+            aria-label={`${day} ${slot.label} tray cell`}
+            className="relative z-20 rounded-full px-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-brand transition-colors duration-150 ease-soft hover:text-brand-hover focus-ring"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(day, slot);
+            }}
+            type="button"
+          >
+            {canManage
+              ? medicines.length > 0
+                ? "Edit medicine"
+                : "Add medicine"
+              : "Open schedule"}
+          </button>
         ) : null}
       </span>
       {medicines.length === 0 ? (
@@ -1153,43 +1423,52 @@ function TrayCell({
           </span>
         </span>
       ) : (
-        <span className="mt-2 flex flex-col gap-2">
-          {medicines.map((line) => (
-            <TrayMedicationSummary
+        <span
+          aria-label={`${day} ${slot.label} medicines`}
+          className="mt-3 grid min-h-28 grid-cols-3 content-center justify-items-center gap-2 rounded-xl border border-white/70 bg-white/45 px-2 py-3 shadow-inner"
+        >
+          {visibleMedicines.map((line) => (
+            <TrayMedicationParticle
+              day={day}
               key={`${day}-${slot.key}-${line.id}`}
               line={line}
+              onHideDetails={() => setActiveMedicineId(null)}
+              onShowDetails={() => setActiveMedicineId(line.id)}
               quantity={line[slot.key]}
               slot={slot}
             />
           ))}
+          {hiddenMedicineCount > 0 ? (
+            <span className="grid h-10 w-10 place-items-center rounded-full border border-line-strong bg-surface text-xs font-extrabold text-ink shadow-elev-1">
+              +{hiddenMedicineCount}
+            </span>
+          ) : null}
         </span>
       )}
     </>
   );
   const className = cn(
-    "group min-h-[10rem] w-full border-l border-t border-line p-2 text-left transition-[background-color,box-shadow,transform] duration-150 ease-soft",
+    "group relative min-h-[10rem] w-full overflow-hidden border-l border-t border-line p-2 text-left transition-[background-color,box-shadow,transform] duration-150 ease-soft",
     slot.tone.cell,
-    canInteract && "focus-ring hover:shadow-inner",
+    canInteract && "cursor-pointer hover:shadow-inner",
     isSelected && slot.tone.selected,
   );
 
-  if (!canInteract) {
-    return (
-      <div aria-label={`${day} ${slot.label} tray cell`} className={className}>
-        {content}
-      </div>
-    );
-  }
-
   return (
-    <button
-      aria-label={`${day} ${slot.label} tray cell`}
+    <div
+      aria-label={!canInteract ? `${day} ${slot.label} tray cell` : undefined}
       className={className}
-      onClick={() => onSelect(day, slot)}
-      type="button"
+      onClick={canInteract ? () => onSelect(day, slot) : undefined}
     >
-      {content}
-    </button>
+      <span className="relative z-10 block">{content}</span>
+      {activeMedicine ? (
+        <TrayMedicationDetailCard
+          line={activeMedicine}
+          quantity={activeQuantity}
+          slot={slot}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -2639,7 +2918,15 @@ export function DosetteScreen() {
             </PanelBody>
           ) : (
             <PanelBody>
-              {statusCycle ? <CycleStatusOverview cycle={statusCycle} /> : null}
+              {statusCycle ? (
+                <CycleStatusOverview
+                  activeLineCount={activeLineCount}
+                  cycle={statusCycle}
+                  hasGeneratedPickingList={
+                    hasGeneratedPickingList && statusCycle.id === selectedCycleId
+                  }
+                />
+              ) : null}
               <div className="mt-4 grid gap-4">
                 {cyclesQuery.data.map((cycle: DosetteCycle) => (
                   <CycleCard

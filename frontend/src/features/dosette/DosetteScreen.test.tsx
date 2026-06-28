@@ -453,7 +453,8 @@ describe("DosetteScreen", () => {
     });
   });
 
-  it("renders the MDS tray builder with days dose-times and saved slot medicines", async () => {
+  it("renders the MDS tray builder with days dose-times and saved medicine particles", async () => {
+    const user = userEvent.setup();
     renderDosette();
 
     expect(await screen.findByText("MDS tray builder")).toBeInTheDocument();
@@ -486,14 +487,43 @@ describe("DosetteScreen", () => {
     }
 
     const mondayMorning = within(tray).getByLabelText("Monday Morning tray cell");
-    expect(within(mondayMorning).getByText("Amlodipine")).toBeInTheDocument();
-    expect(within(mondayMorning).getByText("Metformin")).toBeInTheDocument();
-    expect(within(mondayMorning).getByText("5 mg / TABLET")).toBeInTheDocument();
-    expect(within(mondayMorning).getByText("500 mg / TABLET")).toBeInTheDocument();
-    expect(within(mondayMorning).getAllByText("1 tablet").length).toBeGreaterThan(
-      0,
-    );
-    expect(within(mondayMorning).getByText("Blue · Round")).toBeInTheDocument();
+    expect(
+      within(mondayMorning).getByLabelText("Monday Morning medicines"),
+    ).toBeInTheDocument();
+    const amlodipineParticle = within(mondayMorning).getByRole("button", {
+      name: "Show Amlodipine details for Monday Morning, 1 tablet",
+    });
+    const metforminParticle = within(mondayMorning).getByRole("button", {
+      name: "Show Metformin details for Monday Morning, 1 tablet",
+    });
+    expect(amlodipineParticle).toBeInTheDocument();
+    expect(metforminParticle).toBeInTheDocument();
+    expect(within(mondayMorning).queryByText("5 mg / TABLET")).toBeNull();
+    expect(within(mondayMorning).queryByText("500 mg / TABLET")).toBeNull();
+    expect(within(mondayMorning).queryByText("Blue · Round")).toBeNull();
+
+    await user.hover(amlodipineParticle);
+    const details = within(mondayMorning).getByRole("status", {
+      name: "Amlodipine details",
+    });
+    expect(within(details).getByText("Amlodipine")).toBeInTheDocument();
+    expect(within(details).getByText("5 mg / TABLET")).toBeInTheDocument();
+    expect(within(details).getByText("Blue · Round")).toBeInTheDocument();
+    expect(
+      within(details).getByText("1 tablet"),
+    ).toBeInTheDocument();
+    await user.unhover(amlodipineParticle);
+    await user.click(metforminParticle);
+    expect(
+      within(mondayMorning).getByRole("status", {
+        name: "Metformin details",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(mondayMorning).queryByRole("status", {
+        name: "Amlodipine details",
+      }),
+    ).toBeNull();
 
     const mondayLunchtime = within(tray).getByLabelText(
       "Monday Lunchtime tray cell",
@@ -504,8 +534,16 @@ describe("DosetteScreen", () => {
     const tuesdayBedtime = within(tray).getByLabelText(
       "Tuesday Bedtime tray cell",
     );
-    expect(within(tuesdayBedtime).getByText("Amlodipine")).toBeInTheDocument();
-    expect(within(tuesdayBedtime).queryByText("Metformin")).toBeNull();
+    expect(
+      within(tuesdayBedtime).getByRole("button", {
+        name: "Show Amlodipine details for Tuesday Bedtime, 1 tablet",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(tuesdayBedtime).queryByRole("button", {
+        name: "Show Metformin details for Tuesday Bedtime, 1 tablet",
+      }),
+    ).toBeNull();
     expect(within(tray).queryByText("Inactive line")).toBeNull();
   });
 
@@ -601,6 +639,14 @@ describe("DosetteScreen", () => {
       await within(dialog).findByRole("option", {
         name: /Paracetamol 500mg tablets/i,
       }),
+    );
+    expect(
+      within(dialog).queryByRole("option", {
+        name: /Paracetamol 500mg tablets/i,
+      }),
+    ).toBeNull();
+    expect(within(dialog).getByLabelText("Selected catalogue product")).toHaveTextContent(
+      "Paracetamol 500mg tablets",
     );
     await user.clear(within(dialog).getByLabelText("Lunchtime dose quantity"));
     await user.type(within(dialog).getByLabelText("Lunchtime dose quantity"), "3");
@@ -721,13 +767,10 @@ describe("DosetteScreen", () => {
     ).toBeInTheDocument();
   });
 
-  it("uses safe wording in the tray builder", async () => {
+  it("uses safe wording in the patient dosette screen", async () => {
     renderDosette();
 
-    const traySection = (await screen.findByText("MDS tray builder")).closest(
-      "section",
-    );
-    expect(traySection).not.toBeNull();
+    expect(await screen.findByText("MDS tray builder")).toBeInTheDocument();
     for (const phrase of [
       "AI decided",
       "guaranteed",
@@ -740,9 +783,7 @@ describe("DosetteScreen", () => {
       "NCRS",
       "compliance proof",
     ]) {
-      expect(
-        within(traySection as HTMLElement).queryByText(new RegExp(phrase, "i")),
-      ).toBeNull();
+      expect(screen.queryByText(new RegExp(phrase, "i"))).toBeNull();
     }
   });
 
@@ -770,7 +811,7 @@ describe("DosetteScreen", () => {
     );
   });
 
-  it("renders the status section above the tray builder", async () => {
+  it("renders a simplified status panel above the tray builder", async () => {
     renderDosette();
 
     const statusSection = await screen.findByLabelText("Dosette status overview");
@@ -782,14 +823,61 @@ describe("DosetteScreen", () => {
       statusSection.compareDocumentPosition(trayBuilder) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(within(statusSection).getByText("Current status")).toBeInTheDocument();
-    expect(within(statusSection).getAllByText("Ready to prepare").length).toBeGreaterThan(
-      0,
-    );
-    expect(within(statusSection).getByText("MDS-2026-W26")).toBeInTheDocument();
+    expect(within(statusSection).getByText("Current stage")).toBeInTheDocument();
+    expect(within(statusSection).getByText("Ready to prepare")).toBeInTheDocument();
     expect(
-      within(statusSection).getAllByText("Stock deducted").length,
+      within(statusSection).getByText("Generate the picking list before preparing."),
+    ).toBeInTheDocument();
+    expect(
+      within(statusSection).getByText("Preparation progress"),
+    ).toBeInTheDocument();
+    expect(within(statusSection).getByText("Stock action")).toBeInTheDocument();
+    expect(
+      within(statusSection).getByText("Pharmacist check"),
+    ).toBeInTheDocument();
+    expect(
+      within(statusSection).queryByText("Internal reference:"),
+    ).toBeNull();
+
+    const checklist = within(statusSection).getByRole("list", {
+      name: "Dosette preparation checklist",
+    });
+    for (const step of [
+      "Medicines",
+      "Picking list",
+      "Prepared",
+      "Checked",
+      "Stock deducted",
+    ]) {
+      expect(within(checklist).getByText(step)).toBeInTheDocument();
+    }
+    expect(within(checklist).getByText("Current")).toBeInTheDocument();
+    expect(
+      within(checklist).getAllByText("Pending").length,
     ).toBeGreaterThan(0);
+  });
+
+  it("shows picking-list generated as the current status step after generation", async () => {
+    const user = userEvent.setup();
+    renderDosette();
+
+    await generatePickingList(user);
+    const statusSection = await screen.findByLabelText("Dosette status overview");
+
+    expect(
+      within(statusSection).getAllByText("Picking list generated").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(statusSection).getByText("Prepare the tray, then mark as prepared."),
+    ).toBeInTheDocument();
+    const checklist = within(statusSection).getByRole("list", {
+      name: "Dosette preparation checklist",
+    });
+    expect(
+      within(checklist).getAllByText("Done").length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(within(checklist).getByText("Prepared")).toBeInTheDocument();
+    expect(within(checklist).getByText("Current")).toBeInTheDocument();
   });
 
   it("renders upcoming predicted cycle periods without creating cycles", async () => {
@@ -1189,7 +1277,11 @@ describe("DosetteScreen", () => {
   it("hides medication management controls with only blister view", async () => {
     renderDosette();
 
-    expect((await screen.findAllByText("Amlodipine")).length).toBeGreaterThan(0);
+    expect(
+      await screen.findByRole("button", {
+        name: "Show Amlodipine details for Monday Morning, 1 tablet",
+      }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Advanced manual entry" }),
     ).toBeNull();
@@ -1727,7 +1819,11 @@ describe("DosetteScreen", () => {
     ]);
     renderDosette();
 
-    expect((await screen.findAllByText("Amlodipine")).length).toBeGreaterThan(0);
+    expect(
+      await screen.findByRole("button", {
+        name: "Show Amlodipine details for Monday Morning, 1 tablet",
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /create/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /prepare/i })).toBeNull();
