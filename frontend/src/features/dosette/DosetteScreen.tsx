@@ -239,7 +239,7 @@ function cycleWorkflowLabel(cycle: DosetteCycle): string {
     return "Stock deducted";
   }
   if (cycle.status === "DRAFT") {
-    return "Ready to prepare";
+    return "Draft";
   }
 
   return statusLabel(cycle.status);
@@ -273,13 +273,17 @@ function isCycleChecked(cycle: DosetteCycle): boolean {
 
 function cycleStageLabel(
   cycle: DosetteCycle,
+  activeLineCount: number,
   hasGeneratedPickingList: boolean,
 ): string {
   if (cycle.status === "CANCELLED") {
-    return "Cancelled / blocked";
+    return "Cancelled";
   }
   if (cycle.status === "NEEDS_CHANGES") {
-    return "Cancelled / blocked";
+    return "Needs changes";
+  }
+  if (["COLLECTED", "DELIVERED", "COMPLETED"].includes(cycle.status)) {
+    return statusLabel(cycle.status);
   }
   if (cycle.stock_deducted) {
     return "Stock deducted";
@@ -291,10 +295,10 @@ function cycleStageLabel(
     return "Prepared";
   }
   if (hasGeneratedPickingList) {
-    return "Picking list generated";
+    return "Picking list ready";
   }
   if (cycle.status === "DRAFT") {
-    return "Ready to prepare";
+    return activeLineCount > 0 ? "Medicines added" : "Draft";
   }
 
   return statusLabel(cycle.status);
@@ -305,17 +309,23 @@ function cycleNextStep(
   activeLineCount: number,
   hasGeneratedPickingList: boolean,
 ): string {
-  if (cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES") {
-    return "Review the cycle before continuing.";
+  if (cycle.status === "CANCELLED") {
+    return "This cycle is cancelled.";
   }
-  if (
-    cycle.stock_deducted ||
-    ["COLLECTED", "DELIVERED", "COMPLETED"].includes(cycle.status)
-  ) {
+  if (cycle.status === "NEEDS_CHANGES") {
+    return "Review changes before continuing.";
+  }
+  if (cycle.status === "COMPLETED") {
     return "Completed for this cycle.";
   }
+  if (["COLLECTED", "DELIVERED"].includes(cycle.status)) {
+    return "This cycle is complete.";
+  }
+  if (cycle.stock_deducted) {
+    return "Stock deducted. Record collection when available.";
+  }
   if (cycle.status === "CHECKED") {
-    return "Checked. Deduct stock when the pack is handed over.";
+    return "Checked. Deduct stock when ready.";
   }
   if (cycle.status === "PREPARED") {
     return "Ready for pharmacist check.";
@@ -677,7 +687,11 @@ function CycleStatusOverview({
   cycle: DosetteCycle;
   hasGeneratedPickingList: boolean;
 }) {
-  const stageLabel = cycleStageLabel(cycle, hasGeneratedPickingList);
+  const stageLabel = cycleStageLabel(
+    cycle,
+    activeLineCount,
+    hasGeneratedPickingList,
+  );
   const nextStep = cycleNextStep(cycle, activeLineCount, hasGeneratedPickingList);
   const checklist = buildCycleChecklist(
     cycle,
@@ -1270,6 +1284,7 @@ function medicineParticleOffset(line: PatientMedicationLine, slot: DoseSlot): st
 
 function TrayMedicationParticle({
   day,
+  isActive,
   line,
   onHideDetails,
   onShowDetails,
@@ -1277,6 +1292,7 @@ function TrayMedicationParticle({
   slot,
 }: {
   day: string;
+  isActive: boolean;
   line: PatientMedicationLine;
   onHideDetails: () => void;
   onShowDetails: () => void;
@@ -1286,37 +1302,49 @@ function TrayMedicationParticle({
   const shape = line.shape ?? undefined;
 
   return (
-    <button
-      aria-label={`Show ${line.medication_name} details for ${day} ${slot.label}, ${doseQuantityLabel(
-        line,
-        quantity,
-      )}`}
-      className="pointer-events-auto relative z-20 grid min-h-14 min-w-12 place-items-center rounded-xl px-1 py-1.5 text-center transition-transform duration-150 ease-soft hover:-translate-y-0.5 focus-ring focus:-translate-y-0.5"
-      onBlur={onHideDetails}
-      onClick={(event) => {
-        event.stopPropagation();
-        onShowDetails();
-      }}
-      onFocus={onShowDetails}
+    <span
+      className="relative inline-grid place-items-center"
       onMouseEnter={onShowDetails}
       onMouseLeave={onHideDetails}
-      type="button"
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "grid place-items-center border border-line-strong text-[11px] font-extrabold text-ink shadow-[inset_0_1px_2px_rgba(255,255,255,0.85),0_6px_14px_rgba(42,35,64,0.12)]",
-          medicineParticleShapeClass(shape),
-          medicineParticleOffset(line, slot),
-        )}
-        style={{ backgroundColor: appearanceColour(line.colour ?? undefined) }}
+      <button
+        aria-label={`Show ${line.medication_name} details for ${day} ${slot.label}, ${doseQuantityLabel(
+          line,
+          quantity,
+        )}`}
+        aria-expanded={isActive}
+        className="pointer-events-auto relative z-20 grid min-h-14 min-w-12 place-items-center rounded-xl px-1 py-1.5 text-center transition-transform duration-150 ease-soft hover:-translate-y-0.5 focus-ring focus:-translate-y-0.5"
+        onBlur={onHideDetails}
+        onClick={(event) => {
+          event.stopPropagation();
+          onShowDetails();
+        }}
+        onFocus={onShowDetails}
+        type="button"
       >
-        {medicineInitial(line)}
-      </span>
-      <span className="mt-1 max-w-16 truncate rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-extrabold text-ink-soft shadow-sm">
-        {doseQuantityLabel(line, quantity)}
-      </span>
-    </button>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "grid place-items-center border border-line-strong text-[11px] font-extrabold text-ink shadow-[inset_0_1px_2px_rgba(255,255,255,0.85),0_6px_14px_rgba(42,35,64,0.12)]",
+            medicineParticleShapeClass(shape),
+            medicineParticleOffset(line, slot),
+          )}
+          style={{ backgroundColor: appearanceColour(line.colour ?? undefined) }}
+        >
+          {medicineInitial(line)}
+        </span>
+        <span className="mt-1 max-w-16 truncate rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-extrabold text-ink-soft shadow-sm">
+          {doseQuantityLabel(line, quantity)}
+        </span>
+      </button>
+      {isActive ? (
+        <TrayMedicationDetailCard
+          line={line}
+          quantity={quantity}
+          slot={slot}
+        />
+      ) : null}
+    </span>
   );
 }
 
@@ -1332,7 +1360,7 @@ function TrayMedicationDetailCard({
   return (
     <div
       aria-label={`${line.medication_name} details`}
-      className="pointer-events-none absolute bottom-2 left-2 right-2 z-30 rounded-xl border border-line bg-white/95 p-2.5 text-left shadow-elev-2 backdrop-blur"
+      className="pointer-events-none absolute left-1/2 top-[calc(100%+0.35rem)] z-50 w-56 max-w-xs -translate-x-1/2 rounded-lg border border-line bg-white/95 p-2 text-left shadow-elev-2 backdrop-blur"
       role="status"
     >
       <p className="truncate text-xs font-extrabold text-ink">
@@ -1378,7 +1406,6 @@ function TrayCell({
   const [activeMedicineId, setActiveMedicineId] = useState<number | null>(null);
   const activeMedicine =
     medicines.find((line) => line.id === activeMedicineId) ?? null;
-  const activeQuantity = activeMedicine ? activeMedicine[slot.key] : 0;
   const content = (
     <>
       <span className="flex items-center justify-between gap-2">
@@ -1430,6 +1457,7 @@ function TrayCell({
           {visibleMedicines.map((line) => (
             <TrayMedicationParticle
               day={day}
+              isActive={activeMedicineId === line.id}
               key={`${day}-${slot.key}-${line.id}`}
               line={line}
               onHideDetails={() => setActiveMedicineId(null)}
@@ -1448,10 +1476,11 @@ function TrayCell({
     </>
   );
   const className = cn(
-    "group relative min-h-[10rem] w-full overflow-hidden border-l border-t border-line p-2 text-left transition-[background-color,box-shadow,transform] duration-150 ease-soft",
+    "group relative min-h-[10rem] w-full overflow-visible border-l border-t border-line p-2 text-left transition-[background-color,box-shadow,transform] duration-150 ease-soft",
     slot.tone.cell,
     canInteract && "cursor-pointer hover:shadow-inner",
     isSelected && slot.tone.selected,
+    activeMedicine && "z-30",
   );
 
   return (
@@ -1461,13 +1490,6 @@ function TrayCell({
       onClick={canInteract ? () => onSelect(day, slot) : undefined}
     >
       <span className="relative z-10 block">{content}</span>
-      {activeMedicine ? (
-        <TrayMedicationDetailCard
-          line={activeMedicine}
-          quantity={activeQuantity}
-          slot={slot}
-        />
-      ) : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import type { QueryClient } from "@tanstack/react-query";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -498,12 +498,37 @@ describe("DosetteScreen", () => {
     });
     expect(amlodipineParticle).toBeInTheDocument();
     expect(metforminParticle).toBeInTheDocument();
+    expect(amlodipineParticle).toHaveAttribute("aria-expanded", "false");
     expect(within(mondayMorning).queryByText("5 mg / TABLET")).toBeNull();
     expect(within(mondayMorning).queryByText("500 mg / TABLET")).toBeNull();
     expect(within(mondayMorning).queryByText("Blue · Round")).toBeNull();
 
+    act(() => {
+      amlodipineParticle.focus();
+    });
+    let details = within(mondayMorning).getByRole("status", {
+      name: "Amlodipine details",
+    });
+    expect(amlodipineParticle).toHaveAttribute("aria-expanded", "true");
+    expect(amlodipineParticle.parentElement).toContainElement(details);
+    expect(details).toHaveClass("w-56");
+    expect(details).toHaveClass("max-w-xs");
+    expect(details).not.toHaveClass("left-2");
+    expect(details).not.toHaveClass("right-2");
+    expect(metforminParticle).toBeVisible();
+    act(() => {
+      amlodipineParticle.blur();
+    });
+    await waitFor(() => {
+      expect(
+        within(mondayMorning).queryByRole("status", {
+          name: "Amlodipine details",
+        }),
+      ).toBeNull();
+    });
+
     await user.hover(amlodipineParticle);
-    const details = within(mondayMorning).getByRole("status", {
+    details = within(mondayMorning).getByRole("status", {
       name: "Amlodipine details",
     });
     expect(within(details).getByText("Amlodipine")).toBeInTheDocument();
@@ -512,6 +537,8 @@ describe("DosetteScreen", () => {
     expect(
       within(details).getByText("1 tablet"),
     ).toBeInTheDocument();
+    expect(within(details).getByText("Active")).toBeInTheDocument();
+    expect(metforminParticle).toBeVisible();
     await user.unhover(amlodipineParticle);
     await user.click(metforminParticle);
     expect(
@@ -545,6 +572,10 @@ describe("DosetteScreen", () => {
       }),
     ).toBeNull();
     expect(within(tray).queryByText("Inactive line")).toBeNull();
+    expect(createDosetteCycleMock).not.toHaveBeenCalled();
+    expect(prepareDosetteCycleMock).not.toHaveBeenCalled();
+    expect(cancelDosetteCycleMock).not.toHaveBeenCalled();
+    expect(deductDosetteStockMock).not.toHaveBeenCalled();
   });
 
   it("opens a tray medicine modal from a tray cell without an inline editor", async () => {
@@ -785,6 +816,10 @@ describe("DosetteScreen", () => {
     ]) {
       expect(screen.queryByText(new RegExp(phrase, "i"))).toBeNull();
     }
+    expect(
+      screen.queryByRole("button", { name: /patient collected/i }),
+    ).toBeNull();
+    expect(screen.queryByText(/4-week period/i)).toBeNull();
   });
 
   it("renders cycles", async () => {
@@ -824,7 +859,7 @@ describe("DosetteScreen", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(within(statusSection).getByText("Current stage")).toBeInTheDocument();
-    expect(within(statusSection).getByText("Ready to prepare")).toBeInTheDocument();
+    expect(within(statusSection).getByText("Medicines added")).toBeInTheDocument();
     expect(
       within(statusSection).getByText("Generate the picking list before preparing."),
     ).toBeInTheDocument();
@@ -867,6 +902,7 @@ describe("DosetteScreen", () => {
     expect(
       within(statusSection).getAllByText("Picking list generated").length,
     ).toBeGreaterThan(0);
+    expect(within(statusSection).getByText("Picking list ready")).toBeInTheDocument();
     expect(
       within(statusSection).getByText("Prepare the tray, then mark as prepared."),
     ).toBeInTheDocument();
