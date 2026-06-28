@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -1237,6 +1245,79 @@ function medicationSlotQuantities(
 }
 
 const MAX_VISIBLE_TRAY_MEDICINES = 6;
+const TRAY_POPOVER_WIDTH = 224;
+const TRAY_POPOVER_MIN_WIDTH = 160;
+const TRAY_POPOVER_MARGIN = 12;
+const TRAY_POPOVER_OFFSET = 8;
+const TRAY_POPOVER_FALLBACK_HEIGHT = 132;
+
+interface TrayPopoverPosition {
+  left: number;
+  placement: "bottom" | "top";
+  top: number;
+  width: number;
+}
+
+function clampValue(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
+function sameTrayPopoverPosition(
+  left: TrayPopoverPosition | null,
+  right: TrayPopoverPosition,
+): boolean {
+  return (
+    left?.left === right.left &&
+    left.top === right.top &&
+    left.width === right.width &&
+    left.placement === right.placement
+  );
+}
+
+function trayPopoverPosition(
+  anchorRect: DOMRect,
+  popoverHeight = TRAY_POPOVER_FALLBACK_HEIGHT,
+): TrayPopoverPosition {
+  const viewportWidth =
+    typeof window === "undefined" ? TRAY_POPOVER_WIDTH : window.innerWidth;
+  const viewportHeight =
+    typeof window === "undefined" ? 768 : window.innerHeight;
+  const width = Math.min(
+    TRAY_POPOVER_WIDTH,
+    Math.max(TRAY_POPOVER_MIN_WIDTH, viewportWidth - TRAY_POPOVER_MARGIN * 2),
+  );
+  const maxLeft = Math.max(
+    TRAY_POPOVER_MARGIN,
+    viewportWidth - TRAY_POPOVER_MARGIN - width,
+  );
+  const left = clampValue(
+    anchorRect.left + anchorRect.width / 2 - width / 2,
+    TRAY_POPOVER_MARGIN,
+    maxLeft,
+  );
+  const belowSpace = viewportHeight - anchorRect.bottom - TRAY_POPOVER_MARGIN;
+  const aboveSpace = anchorRect.top - TRAY_POPOVER_MARGIN;
+  const placement =
+    belowSpace < popoverHeight + TRAY_POPOVER_OFFSET && aboveSpace > belowSpace
+      ? "top"
+      : "bottom";
+  const rawTop =
+    placement === "top"
+      ? anchorRect.top - TRAY_POPOVER_OFFSET - popoverHeight
+      : anchorRect.bottom + TRAY_POPOVER_OFFSET;
+  const maxTop = Math.max(
+    TRAY_POPOVER_MARGIN,
+    viewportHeight - TRAY_POPOVER_MARGIN - popoverHeight,
+  );
+  const top = clampValue(rawTop, TRAY_POPOVER_MARGIN, maxTop);
+
+  return {
+    left: Math.round(left),
+    placement,
+    top: Math.round(top),
+    width: Math.round(width),
+  };
+}
 
 function stableMedicineHash(line: PatientMedicationLine, slot: DoseSlot): number {
   const key = `${line.id}-${line.medication_name}-${slot.key}`;
@@ -1300,10 +1381,102 @@ function TrayMedicationParticle({
   slot: DoseSlot;
 }) {
   const shape = line.shape ?? undefined;
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const detailCardRef = useRef<HTMLDivElement | null>(null);
+  const [popoverPosition, setPopoverPosition] =
+    useState<TrayPopoverPosition | null>(null);
+  const detailId = `tray-medicine-detail-${day.toLowerCase()}-${slot.key}-${line.id}`;
+  const updatePopoverPosition = useCallback((height?: number) => {
+    const anchor = buttonRef.current;
+    if (!anchor || typeof window === "undefined") {
+      return;
+    }
+    const measuredHeight =
+      height ??
+      detailCardRef.current?.getBoundingClientRect().height ??
+      TRAY_POPOVER_FALLBACK_HEIGHT;
+    const nextPosition = trayPopoverPosition(
+      anchor.getBoundingClientRect(),
+      measuredHeight || TRAY_POPOVER_FALLBACK_HEIGHT,
+    );
+    setPopoverPosition((currentPosition) =>
+      sameTrayPopoverPosition(currentPosition, nextPosition)
+        ? currentPosition
+        : nextPosition,
+    );
+  }, []);
+  const setDetailCardElement = useCallback(
+    (element: HTMLDivElement | null) => {
+      detailCardRef.current = element;
+      if (element && isActive) {
+        updatePopoverPosition(
+          element.getBoundingClientRect().height || TRAY_POPOVER_FALLBACK_HEIGHT,
+        );
+      }
+    },
+    [isActive, updatePopoverPosition],
+  );
+
+  useLayoutEffect(() => {
+    if (!isActive) {
+      setPopoverPosition(null);
+      return;
+    }
+
+    updatePopoverPosition();
+  }, [isActive, updatePopoverPosition]);
+
+  useEffect(() => {
+    if (!isActive) {
+      return undefined;
+    }
+
+    const reposition = () => updatePopoverPosition();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [isActive, updatePopoverPosition]);
+
+  useEffect(() => {
+    if (!isActive || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onHideDetails();
+      }
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (
+        buttonRef.current?.contains(target) ||
+        detailCardRef.current?.contains(target)
+      ) {
+        return;
+      }
+      onHideDetails();
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+    };
+  }, [isActive, onHideDetails]);
 
   return (
     <span
-      className="relative inline-grid place-items-center"
+      className="inline-grid place-items-center"
       onMouseEnter={onShowDetails}
       onMouseLeave={onHideDetails}
     >
@@ -1312,6 +1485,7 @@ function TrayMedicationParticle({
           line,
           quantity,
         )}`}
+        aria-describedby={isActive ? detailId : undefined}
         aria-expanded={isActive}
         className="pointer-events-auto relative z-20 grid min-h-14 min-w-12 place-items-center rounded-xl px-1 py-1.5 text-center transition-transform duration-150 ease-soft hover:-translate-y-0.5 focus-ring focus:-translate-y-0.5"
         onBlur={onHideDetails}
@@ -1320,6 +1494,7 @@ function TrayMedicationParticle({
           onShowDetails();
         }}
         onFocus={onShowDetails}
+        ref={buttonRef}
         type="button"
       >
         <span
@@ -1337,31 +1512,51 @@ function TrayMedicationParticle({
           {doseQuantityLabel(line, quantity)}
         </span>
       </button>
-      {isActive ? (
-        <TrayMedicationDetailCard
-          line={line}
-          quantity={quantity}
-          slot={slot}
-        />
-      ) : null}
+      {isActive && popoverPosition && typeof document !== "undefined"
+        ? createPortal(
+            <TrayMedicationDetailCard
+              cardRef={setDetailCardElement}
+              id={detailId}
+              line={line}
+              position={popoverPosition}
+              quantity={quantity}
+              slot={slot}
+            />,
+            document.body,
+          )
+        : null}
     </span>
   );
 }
 
 function TrayMedicationDetailCard({
+  cardRef,
+  id,
   line,
+  position,
   quantity,
   slot,
 }: {
+  cardRef: (element: HTMLDivElement | null) => void;
+  id: string;
   line: PatientMedicationLine;
+  position: TrayPopoverPosition;
   quantity: number;
   slot: DoseSlot;
 }) {
   return (
     <div
       aria-label={`${line.medication_name} details`}
-      className="pointer-events-none absolute left-1/2 top-[calc(100%+0.35rem)] z-50 w-56 max-w-xs -translate-x-1/2 rounded-lg border border-line bg-white/95 p-2 text-left shadow-elev-2 backdrop-blur"
+      className="pointer-events-none fixed z-[80] w-56 max-w-xs rounded-lg border border-line bg-white/95 p-2 text-left shadow-elev-2 backdrop-blur"
+      data-placement={position.placement}
+      id={id}
+      ref={cardRef}
       role="status"
+      style={{
+        left: position.left,
+        top: position.top,
+        width: position.width,
+      }}
     >
       <p className="truncate text-xs font-extrabold text-ink">
         {line.medication_name}

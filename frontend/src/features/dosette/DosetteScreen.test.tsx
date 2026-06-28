@@ -351,9 +351,42 @@ async function generatePickingList(user: ReturnType<typeof userEvent.setup>) {
   );
 }
 
+function setViewportSize(width: number, height: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width,
+  });
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    value: height,
+  });
+}
+
+function mockElementRect(
+  element: Element,
+  rect: { height: number; left: number; top: number; width: number },
+) {
+  const domRect = {
+    bottom: rect.top + rect.height,
+    height: rect.height,
+    left: rect.left,
+    right: rect.left + rect.width,
+    top: rect.top,
+    width: rect.width,
+    x: rect.left,
+    y: rect.top,
+    toJSON: () => ({}),
+  } as DOMRect;
+  Object.defineProperty(element, "getBoundingClientRect", {
+    configurable: true,
+    value: () => domRect,
+  });
+}
+
 describe("DosetteScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    setViewportSize(1024, 768);
     listMedicationsMock.mockResolvedValue([
       makeMedication(),
       makeMedication({ id: 11, name: "Metformin", strength: "500 mg" }),
@@ -503,32 +536,46 @@ describe("DosetteScreen", () => {
     expect(within(mondayMorning).queryByText("500 mg / TABLET")).toBeNull();
     expect(within(mondayMorning).queryByText("Blue · Round")).toBeNull();
 
+    setViewportSize(320, 240);
+    mockElementRect(amlodipineParticle, {
+      height: 56,
+      left: 4,
+      top: 40,
+      width: 48,
+    });
     act(() => {
       amlodipineParticle.focus();
     });
-    let details = within(mondayMorning).getByRole("status", {
+    let details = await screen.findByRole("status", {
       name: "Amlodipine details",
     });
     expect(amlodipineParticle).toHaveAttribute("aria-expanded", "true");
-    expect(amlodipineParticle.parentElement).toContainElement(details);
+    expect(amlodipineParticle).toHaveAttribute(
+      "aria-describedby",
+      details.id,
+    );
+    expect(document.body).toContainElement(details);
+    expect(mondayMorning).not.toContainElement(details);
+    expect(details.closest('[role="table"]')).toBeNull();
+    expect(details).toHaveAttribute("data-placement", "bottom");
     expect(details).toHaveClass("w-56");
     expect(details).toHaveClass("max-w-xs");
+    expect(details).toHaveClass("fixed");
+    expect(details).not.toHaveClass("absolute");
+    expect(details).not.toHaveClass("w-full");
     expect(details).not.toHaveClass("left-2");
     expect(details).not.toHaveClass("right-2");
+    expect(details).toHaveStyle({ left: "12px", top: "96px" });
     expect(metforminParticle).toBeVisible();
     act(() => {
       amlodipineParticle.blur();
     });
     await waitFor(() => {
-      expect(
-        within(mondayMorning).queryByRole("status", {
-          name: "Amlodipine details",
-        }),
-      ).toBeNull();
+      expect(screen.queryByRole("status", { name: "Amlodipine details" })).toBeNull();
     });
 
     await user.hover(amlodipineParticle);
-    details = within(mondayMorning).getByRole("status", {
+    details = await screen.findByRole("status", {
       name: "Amlodipine details",
     });
     expect(within(details).getByText("Amlodipine")).toBeInTheDocument();
@@ -541,16 +588,39 @@ describe("DosetteScreen", () => {
     expect(metforminParticle).toBeVisible();
     await user.unhover(amlodipineParticle);
     await user.click(metforminParticle);
-    expect(
-      within(mondayMorning).getByRole("status", {
-        name: "Metformin details",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(mondayMorning).queryByRole("status", {
-        name: "Amlodipine details",
-      }),
-    ).toBeNull();
+    expect(await screen.findByRole("status", { name: "Metformin details" })).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Amlodipine details" })).toBeNull();
+    expect(metforminParticle).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("status", { name: "Metformin details" })).toBeNull();
+    });
+    expect(metforminParticle).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(metforminParticle);
+    expect(await screen.findByRole("status", { name: "Metformin details" })).toBeInTheDocument();
+    await user.click(document.body);
+    await waitFor(() => {
+      expect(screen.queryByRole("status", { name: "Metformin details" })).toBeNull();
+    });
+
+    const sundayBedtime = within(tray).getByLabelText("Sunday Bedtime tray cell");
+    const sundayBedtimeParticle = within(sundayBedtime).getByRole("button", {
+      name: "Show Amlodipine details for Sunday Bedtime, 1 tablet",
+    });
+    mockElementRect(sundayBedtimeParticle, {
+      height: 40,
+      left: 290,
+      top: 210,
+      width: 40,
+    });
+    await user.click(sundayBedtimeParticle);
+    const sundayDetails = await screen.findByRole("status", {
+      name: "Amlodipine details",
+    });
+    expect(sundayDetails).toHaveAttribute("data-placement", "top");
+    expect(sundayDetails).toHaveStyle({ left: "84px", top: "70px" });
+    expect(sundayDetails.closest('[role="table"]')).toBeNull();
 
     const mondayLunchtime = within(tray).getByLabelText(
       "Monday Lunchtime tray cell",
