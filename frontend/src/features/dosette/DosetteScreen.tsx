@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -28,14 +28,27 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useToast } from "../../components/ui/Toast";
 import { StatusTrack, type TrackStep } from "../../components/ui/StatusTrack";
-import { inputClass, labelClass } from "../../components/ui/forms";
+import {
+  fieldErrorClass,
+  inputClass,
+  labelClass,
+  textareaClass,
+} from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 import { ApiError } from "../../lib/apiClient";
+import {
+  errorMessages,
+  normalizeErrors,
+  type FieldErrors,
+} from "../../lib/apiErrors";
+import { CatalogueProductSelect } from "../catalogue/CatalogueProductSelect";
+import type { CatalogueProduct } from "../catalogue/catalogueApi";
 import { DosetteCycleFormModal } from "./DosetteCycleFormModal";
 import { PatientMedicationFormModal } from "./PatientMedicationFormModal";
 import type {
   DosetteCycle,
   PatientMedicationLine,
+  PatientMedicationWriteBody,
   PickingList,
   PickingListRow,
   StockPreview,
@@ -44,6 +57,7 @@ import type {
 import type { CycleStatusTransition } from "./dosetteApi";
 import {
   useCancelDosetteCycle,
+  useCreatePatientMedication,
   useDeductDosetteStock,
   useDiscontinuePatientMedication,
   useDosetteCyclesQuery,
@@ -53,6 +67,7 @@ import {
   useStockPreviewQuery,
   useUpdateCycleStatus,
   useUpdateMedicationAppearance,
+  useUpdatePatientMedication,
 } from "./useDosette";
 
 function formatDate(value: string): string {
@@ -268,6 +283,19 @@ const SLOT_META = [
   { key: "quantity_lunchtime", label: "Lunchtime", short: "Lunch", Icon: Sun },
   { key: "quantity_evening", label: "Evening", short: "PM", Icon: Sunset },
   { key: "quantity_bedtime", label: "Bedtime", short: "Night", Icon: Moon },
+] as const;
+
+type DoseSlot = (typeof SLOT_META)[number];
+type DoseSlotKey = DoseSlot["key"];
+
+const TRAY_DAY_LABELS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
 ] as const;
 
 function canEditCycle(cycle: DosetteCycle): boolean {
@@ -929,51 +957,176 @@ function MedicationAppearanceMarker({
   );
 }
 
-function MedicationDetailValue({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function FieldErrorList({ messages }: { messages: string[] }) {
+  if (messages.length === 0) {
+    return null;
+  }
+
   return (
-    <div>
-      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-        {label}
-      </dt>
-      <dd className="mt-1 text-sm font-semibold text-ink">{value}</dd>
-    </div>
+    <ul className={fieldErrorClass}>
+      {messages.map((message) => (
+        <li key={message}>{message}</li>
+      ))}
+    </ul>
   );
 }
 
-function MedicationDoseTile({
-  label,
-  value,
+function toQuantity(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return Math.floor(parsed);
+}
+
+function doseQuantityLabel(line: Pick<PatientMedicationLine, "form">, quantity: number): string {
+  const form = line.form?.trim().toLowerCase();
+  if (!form || form === "not recorded") {
+    return String(quantity);
+  }
+
+  const unit = quantity === 1 || form.endsWith("s") ? form : `${form}s`;
+  return `${quantity} ${unit}`;
+}
+
+function productPackLabel(product: CatalogueProduct): string {
+  if (product.pack_size === null) {
+    return "Not specified";
+  }
+  return `${product.pack_size}${product.pack_unit ? ` ${product.pack_unit}` : ""}`;
+}
+
+function medicationSlotLines(
+  lines: PatientMedicationLine[],
+  slot: DoseSlot,
+): PatientMedicationLine[] {
+  return lines.filter((line) => line.is_active && line[slot.key] > 0);
+}
+
+function medicationSlotQuantities(
+  line: PatientMedicationLine | null,
+): Record<DoseSlotKey, number> {
+  return {
+    quantity_morning: line?.quantity_morning ?? 0,
+    quantity_lunchtime: line?.quantity_lunchtime ?? 0,
+    quantity_evening: line?.quantity_evening ?? 0,
+    quantity_bedtime: line?.quantity_bedtime ?? 0,
+  };
+}
+
+function TrayMedicationSummary({
+  line,
+  quantity,
 }: {
-  label: string;
-  value: number;
+  line: PatientMedicationLine;
+  quantity: number;
 }) {
   return (
-    <div
-      aria-label={`${label} dose ${value}`}
-      role="group"
-      className="rounded-xl border border-line bg-surface-subtle px-3 py-2"
+    <span className="block rounded-lg border border-line bg-surface px-2 py-2 text-left shadow-soft">
+      <span className="flex min-w-0 items-start gap-2">
+        <MedicationAppearanceMarker colour={line.colour} shape={line.shape} />
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-extrabold text-ink">
+            {line.medication_name}
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] font-semibold text-muted">
+            {strengthFormLabel(line)}
+          </span>
+        </span>
+      </span>
+      <span className="mt-2 block text-[11px] font-bold text-ink-soft">
+        {doseQuantityLabel(line, quantity)}
+      </span>
+      {printAppearanceLabel(line) ? (
+        <span className="mt-0.5 block truncate text-[10px] font-semibold text-muted">
+          {printAppearanceLabel(line)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function TrayCell({
+  canInteract,
+  canManage,
+  day,
+  isSelected,
+  lines,
+  onSelect,
+  slot,
+}: {
+  canInteract: boolean;
+  canManage: boolean;
+  day: string;
+  isSelected: boolean;
+  lines: PatientMedicationLine[];
+  onSelect: (day: string, slot: DoseSlot) => void;
+  slot: DoseSlot;
+}) {
+  const medicines = medicationSlotLines(lines, slot);
+  const content = (
+    <>
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+          {slot.short}
+        </span>
+        {canManage ? (
+          <span className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-brand">
+            {medicines.length > 0 ? "Edit medicine" : "Add medicine"}
+          </span>
+        ) : null}
+      </span>
+      {medicines.length === 0 ? (
+        <span className="mt-5 grid min-h-20 place-items-center rounded-lg border border-dashed border-line bg-surface/70 px-2 py-4 text-center text-xs font-bold text-muted">
+          Add medicine
+        </span>
+      ) : (
+        <span className="mt-2 flex flex-col gap-2">
+          {medicines.map((line) => (
+            <TrayMedicationSummary
+              key={`${day}-${slot.key}-${line.id}`}
+              line={line}
+              quantity={line[slot.key]}
+            />
+          ))}
+        </span>
+      )}
+    </>
+  );
+  const className = cn(
+    "min-h-[10rem] w-full border-l border-t border-line bg-white p-2 text-left transition-colors duration-150 ease-soft",
+    canInteract && "hover:bg-brand-soft/40 focus-ring",
+    isSelected && "bg-brand-soft/60 ring-2 ring-brand ring-offset-0",
+  );
+
+  if (!canInteract) {
+    return (
+      <div aria-label={`${day} ${slot.label} tray cell`} className={className}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      aria-label={`${day} ${slot.label} tray cell`}
+      className={className}
+      onClick={() => onSelect(day, slot)}
+      type="button"
     >
-      <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-        {label}
-      </p>
-      <p className="tnum mt-1 text-lg font-extrabold text-ink">{value}</p>
-    </div>
+      {content}
+    </button>
   );
 }
 
-function MedicationLineCard({
+function TrayEditorLineCard({
   canManage,
   canMarkStatus,
   line,
   onDiscontinue,
   onEdit,
   onEditAppearance,
+  slot,
 }: {
   canManage: boolean;
   canMarkStatus: boolean;
@@ -981,74 +1134,46 @@ function MedicationLineCard({
   onDiscontinue: (line: PatientMedicationLine) => void;
   onEdit: (line: PatientMedicationLine) => void;
   onEditAppearance: (line: PatientMedicationLine) => void;
+  slot: DoseSlot;
 }) {
   const appearance = appearanceLabel(line);
 
   return (
     <article
-      aria-label={`Medication line ${line.medication_name}`}
-      className={cn(
-        "flex h-full flex-col rounded-2xl border border-line bg-surface p-4 shadow-soft transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:shadow-elev-2",
-        !line.is_active && "opacity-75",
-      )}
+      aria-label={`Medicine in ${slot.label} ${line.medication_name}`}
+      className="rounded-xl border border-line bg-surface p-3"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           <MedicationAppearanceMarker colour={line.colour} shape={line.shape} />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-bold text-ink">{line.medication_name}</h3>
+              <h4 className="text-sm font-extrabold text-ink">
+                {line.medication_name}
+              </h4>
               <MedicationStatusBadge value={line.is_active} />
+              <Badge variant="brand">
+                {doseQuantityLabel(line, line[slot.key])}
+              </Badge>
             </div>
             <p className="mt-1 text-xs font-semibold text-muted">
               {strengthFormLabel(line)}
             </p>
-            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-              {line.dose_instructions.trim()
-                ? line.dose_instructions
-                : "Dosage instructions not recorded"}
+            <p className="mt-2 text-xs font-semibold text-muted">
+              Appearance: {appearance}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-muted">
+              Start date: {optionalDate(line.start_date)}
             </p>
           </div>
         </div>
-        <div className="shrink-0">
-          <Badge variant="brand">
-            <span className="tnum">{totalDaily(line)}</span>/day
-          </Badge>
-        </div>
+        <Badge variant="neutral">
+          <span className="tnum">{totalDaily(line)}</span>/day
+        </Badge>
       </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
-        {SLOT_META.map((slot) => (
-          <MedicationDoseTile
-            key={slot.key}
-            label={slot.label}
-            value={line[slot.key]}
-          />
-        ))}
-      </div>
-
-      <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface-subtle p-3">
-        <MedicationDetailValue label="Strength" value={safeText(line.strength)} />
-        <MedicationDetailValue label="Form" value={safeText(line.form)} />
-        <MedicationDetailValue label="Colour" value={safeText(line.colour)} />
-        <MedicationDetailValue label="Shape" value={safeText(line.shape)} />
-        <MedicationDetailValue
-          label="Start date"
-          value={optionalDate(line.start_date)}
-        />
-      </dl>
-
-      <p
-        className={cn(
-          "mt-3 text-xs font-medium text-muted",
-          (canManage || canMarkStatus) && "mb-4",
-        )}
-      >
-        Appearance: {appearance}
-      </p>
 
       {canManage || canMarkStatus ? (
-        <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-line pt-4">
+        <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-line pt-3">
           {canMarkStatus ? (
             <Button
               onClick={() => onEditAppearance(line)}
@@ -1060,10 +1185,10 @@ function MedicationLineCard({
           ) : null}
           {canManage ? (
             <Button onClick={() => onEdit(line)} size="sm" variant="secondary">
-              Edit
+              Edit medicine
             </Button>
           ) : null}
-          {canManage && line.is_active ? (
+          {canManage ? (
             <Button
               onClick={() => onDiscontinue(line)}
               size="sm"
@@ -1075,6 +1200,424 @@ function MedicationLineCard({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function MdsTrayBuilder({
+  canManage,
+  canMarkStatus,
+  lines,
+  onAdvancedManualEntry,
+  onDiscontinue,
+  onEditAppearance,
+  patientId,
+}: {
+  canManage: boolean;
+  canMarkStatus: boolean;
+  lines: PatientMedicationLine[];
+  onAdvancedManualEntry: () => void;
+  onDiscontinue: (line: PatientMedicationLine) => void;
+  onEditAppearance: (line: PatientMedicationLine) => void;
+  patientId: number;
+}) {
+  const createMedication = useCreatePatientMedication(patientId);
+  const updateMedication = useUpdatePatientMedication(patientId);
+  const { success } = useToast();
+  const [selectedCell, setSelectedCell] =
+    useState<{ day: string; slot: DoseSlot } | null>(null);
+  const [editorMode, setEditorMode] = useState<"choose" | "form">("form");
+  const [editingLine, setEditingLine] = useState<PatientMedicationLine | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<CatalogueProduct | null>(
+    null,
+  );
+  const [doseQuantity, setDoseQuantity] = useState("1");
+  const [doseInstructions, setDoseInstructions] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [colour, setColour] = useState("");
+  const [shape, setShape] = useState("");
+  const [errors, setErrors] = useState<FieldErrors>({});
+
+  const activeLines = lines.filter((line) => line.is_active);
+  const canInteract = canManage || canMarkStatus;
+  const selectedSlotLines = selectedCell
+    ? medicationSlotLines(activeLines, selectedCell.slot)
+    : [];
+
+  useEffect(() => {
+    if (!selectedCell || editorMode !== "form") {
+      setErrors({});
+      return;
+    }
+
+    setSelectedProduct(null);
+    setDoseInstructions(editingLine?.dose_instructions ?? "");
+    setDoseQuantity(String(editingLine?.[selectedCell.slot.key] ?? 1));
+    setStartDate(editingLine?.start_date ?? "");
+    setColour(editingLine?.colour ?? "");
+    setShape(editingLine?.shape ?? "");
+    setErrors({});
+  }, [editingLine, editorMode, selectedCell]);
+
+  function openTrayCell(day: string, slot: DoseSlot) {
+    const linesInSlot = medicationSlotLines(activeLines, slot);
+    setSelectedCell({ day, slot });
+    setEditingLine(null);
+    setEditorMode(linesInSlot.length > 0 ? "choose" : "form");
+  }
+
+  function openAddAnother() {
+    setEditingLine(null);
+    setEditorMode("form");
+  }
+
+  function openEditLine(line: PatientMedicationLine) {
+    setEditingLine(line);
+    setEditorMode("form");
+  }
+
+  function closeEditor() {
+    setSelectedCell(null);
+    setEditingLine(null);
+    setEditorMode("form");
+    setErrors({});
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedCell) {
+      return;
+    }
+
+    setErrors({});
+    const nextErrors: FieldErrors = {};
+    if (!editingLine && selectedProduct === null) {
+      nextErrors.catalogue_product = ["Select a catalogue product."];
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    const quantities = medicationSlotQuantities(editingLine);
+    quantities[selectedCell.slot.key] = toQuantity(doseQuantity);
+    const body: PatientMedicationWriteBody = {
+      ...quantities,
+      dose_instructions: doseInstructions.trim(),
+      start_date: startDate || null,
+      colour: colour.trim(),
+      shape: shape.trim(),
+    };
+    if (editingLine) {
+      body.medication = editingLine.medication;
+    } else if (selectedProduct) {
+      body.catalogue_product = selectedProduct.id;
+    }
+
+    try {
+      if (editingLine) {
+        await updateMedication.mutateAsync({ id: editingLine.id, body });
+        success("Medication line updated", editingLine.medication_name);
+      } else {
+        await createMedication.mutateAsync(body);
+        success("Medication line added");
+      }
+      closeEditor();
+    } catch (error) {
+      setErrors(normalizeErrors(error));
+    }
+  }
+
+  const isSaving = createMedication.isPending || updateMedication.isPending;
+
+  return (
+    <Panel>
+      <PanelHeader
+        icon={<Pill className="h-4 w-4" />}
+        title="MDS tray builder"
+        subtitle="Click a dose-time cell to add or update a medicine for that schedule."
+        actions={
+          canManage ? (
+            <Button
+              leadingIcon={<Plus className="h-4 w-4" />}
+              onClick={onAdvancedManualEntry}
+              variant="secondary"
+            >
+              Advanced manual entry
+            </Button>
+          ) : null
+        }
+      />
+      <PanelBody>
+        <div className="rounded-xl border border-line bg-surface-subtle p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-4xl">
+              <p className="text-sm font-semibold leading-6 text-ink-soft">
+                This tray repeats the saved dose slots across the cycle using the
+                current MDS schedule model. Review before preparation.
+              </p>
+              <p className="mt-1 text-xs font-semibold text-muted">
+                Timing will be saved as Morning/Lunchtime/Evening/Bedtime and
+                repeated across the cycle.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="info">Saved dose slots</Badge>
+              <Badge variant="warning">Human review required</Badge>
+            </div>
+          </div>
+        </div>
+
+        <div
+          aria-label="MDS tray builder"
+          className="mt-4 overflow-x-auto rounded-xl border border-line bg-white"
+          role="table"
+        >
+          <div className="grid min-w-[74rem] grid-cols-[8rem_repeat(7,minmax(0,1fr))]">
+            <div className="border-b border-line bg-surface-subtle p-3 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+              Dose time
+            </div>
+            {TRAY_DAY_LABELS.map((day) => (
+              <div
+                className="border-b border-l border-line bg-surface-subtle p-3 text-center text-xs font-extrabold text-ink"
+                key={day}
+              >
+                {day}
+              </div>
+            ))}
+            {SLOT_META.map((slot) => (
+              <div className="contents" key={slot.key}>
+                <div className="border-t border-line bg-surface-subtle p-3">
+                  <div className="flex items-center gap-2 text-sm font-extrabold text-ink">
+                    <slot.Icon aria-hidden="true" className="h-4 w-4 text-brand" />
+                    {slot.label}
+                  </div>
+                </div>
+                {TRAY_DAY_LABELS.map((day) => (
+                  <TrayCell
+                    canInteract={canInteract}
+                    canManage={canManage}
+                    day={day}
+                    isSelected={
+                      selectedCell?.day === day &&
+                      selectedCell.slot.key === slot.key
+                    }
+                    key={`${slot.key}-${day}`}
+                    lines={activeLines}
+                    onSelect={openTrayCell}
+                    slot={slot}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {!canInteract ? (
+          <p className="mt-3 text-xs font-semibold text-muted">
+            Open schedule access is view-only for this role.
+          </p>
+        ) : null}
+
+        {selectedCell ? (
+          <section
+            aria-label="Inline medicine editor"
+            className="mt-4 rounded-xl border border-brand/30 bg-brand-soft/20 p-4"
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-brand">
+                  Selected cell
+                </p>
+                <h3 className="mt-1 text-lg font-extrabold text-ink">
+                  {selectedCell.day} · {selectedCell.slot.label}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">
+                  Timing will be saved as {selectedCell.slot.label} and repeated
+                  across the cycle.
+                </p>
+              </div>
+              <Button onClick={closeEditor} size="sm" variant="secondary">
+                Cancel
+              </Button>
+            </div>
+
+            {selectedSlotLines.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h4 className="text-sm font-extrabold text-ink">
+                    Medicines in this dose-time
+                  </h4>
+                  {canManage ? (
+                    <Button onClick={openAddAnother} size="sm" variant="primary">
+                      Add another medicine
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="grid gap-3">
+                  {selectedSlotLines.map((line) => (
+                    <TrayEditorLineCard
+                      canManage={canManage}
+                      canMarkStatus={canMarkStatus}
+                      key={line.id}
+                      line={line}
+                      onDiscontinue={onDiscontinue}
+                      onEdit={openEditLine}
+                      onEditAppearance={onEditAppearance}
+                      slot={selectedCell.slot}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {canManage && (editorMode === "form" || selectedSlotLines.length === 0) ? (
+              <form className="mt-5 space-y-5" noValidate onSubmit={handleSubmit}>
+                <FieldErrorList messages={errorMessages(errors, "detail")} />
+                <FieldErrorList
+                  messages={errorMessages(errors, "non_field_errors")}
+                />
+
+                {editingLine ? (
+                  <div
+                    aria-label="Selected medication"
+                    className="rounded-xl border border-line bg-surface p-4 text-sm"
+                  >
+                    <p className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
+                      Editing medicine
+                    </p>
+                    <p className="mt-1 font-semibold text-ink">
+                      {editingLine.medication_name}
+                    </p>
+                    <p className="mt-1 text-ink-soft">
+                      {strengthFormLabel(editingLine)}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <CatalogueProductSelect
+                      label="Medicine"
+                      onSelect={setSelectedProduct}
+                      selectedProduct={selectedProduct}
+                    />
+                    <FieldErrorList
+                      messages={errorMessages(errors, "catalogue_product")}
+                    />
+                    <FieldErrorList messages={errorMessages(errors, "medication")} />
+
+                    {selectedProduct ? (
+                      <div
+                        aria-label="Selected catalogue product"
+                        className="mt-3 rounded-xl border border-brand/20 bg-surface p-3 text-sm"
+                      >
+                        <p className="text-xs font-bold uppercase tracking-[0.06em] text-brand">
+                          Selected catalogue product
+                        </p>
+                        <p className="mt-1 font-semibold text-brand-ink">
+                          {selectedProduct.full_label}
+                        </p>
+                        <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+                          <div>
+                            <dt className="text-xs font-semibold text-muted">
+                              Strength
+                            </dt>
+                            <dd className="mt-0.5 font-semibold text-brand-ink">
+                              {selectedProduct.strength || "Not specified"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs font-semibold text-muted">
+                              Form
+                            </dt>
+                            <dd className="mt-0.5 font-semibold text-brand-ink">
+                              {selectedProduct.dose_form || "Not specified"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs font-semibold text-muted">
+                              Pack size
+                            </dt>
+                            <dd className="mt-0.5 font-semibold text-brand-ink">
+                              {productPackLabel(selectedProduct)}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,16rem)]">
+                  <label className={labelClass}>
+                    Dose instructions
+                    <textarea
+                      className={textareaClass}
+                      onChange={(event) => setDoseInstructions(event.target.value)}
+                      value={doseInstructions}
+                    />
+                    <FieldErrorList
+                      messages={errorMessages(errors, "dose_instructions")}
+                    />
+                  </label>
+                  <label className={labelClass}>
+                    {selectedCell.slot.label} dose quantity
+                    <input
+                      className={`${inputClass} tnum`}
+                      min={0}
+                      onChange={(event) => setDoseQuantity(event.target.value)}
+                      type="number"
+                      value={doseQuantity}
+                    />
+                    <FieldErrorList
+                      messages={errorMessages(errors, selectedCell.slot.key)}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <label className={labelClass}>
+                    Colour
+                    <input
+                      className={inputClass}
+                      onChange={(event) => setColour(event.target.value)}
+                      value={colour}
+                    />
+                    <FieldErrorList messages={errorMessages(errors, "colour")} />
+                  </label>
+                  <label className={labelClass}>
+                    Shape
+                    <input
+                      className={inputClass}
+                      onChange={(event) => setShape(event.target.value)}
+                      value={shape}
+                    />
+                    <FieldErrorList messages={errorMessages(errors, "shape")} />
+                  </label>
+                  <label className={labelClass}>
+                    Start date
+                    <input
+                      className={inputClass}
+                      onChange={(event) => setStartDate(event.target.value)}
+                      type="date"
+                      value={startDate}
+                    />
+                    <FieldErrorList messages={errorMessages(errors, "start_date")} />
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-3 border-t border-line pt-5">
+                  <Button onClick={closeEditor} variant="secondary">
+                    Cancel
+                  </Button>
+                  <Button disabled={isSaving} type="submit" variant="primary">
+                    {isSaving ? "Saving..." : "Save medicine"}
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+          </section>
+        ) : null}
+      </PanelBody>
+    </Panel>
   );
 }
 
@@ -1790,11 +2333,6 @@ export function DosetteScreen() {
     setMedicationModalOpen(true);
   }
 
-  function openEditMedicationModal(line: PatientMedicationLine) {
-    setEditingLine(line);
-    setMedicationModalOpen(true);
-  }
-
   function openCreateCycleModal() {
     setEditingCycle(null);
     setCycleModalOpen(true);
@@ -2022,69 +2560,15 @@ export function DosetteScreen() {
         />
       ) : null}
       {medicationsQuery.isSuccess ? (
-        <Panel>
-          <PanelHeader
-            icon={<Pill className="h-4 w-4" />}
-            title="Medication lines"
-            subtitle="Per-slot doses that fill the pack each day."
-            actions={
-              canManage ? (
-                <Button
-                  leadingIcon={<Plus className="h-4 w-4" />}
-                  onClick={openCreateMedicationModal}
-                  variant="primary"
-                >
-                  Add medication
-                </Button>
-              ) : null
-            }
-          />
-          {medicationsQuery.data.length === 0 ? (
-            <PanelBody>
-              <EmptyState
-                icon={<Pill className="h-5 w-5" />}
-                title="No medication lines yet."
-                description={
-                  canManage
-                    ? "Add the first medication line to start building packs."
-                    : "Medication lines will appear here once added."
-                }
-                action={
-                  canManage ? (
-                    <Button
-                      leadingIcon={<Plus className="h-4 w-4" />}
-                      onClick={openCreateMedicationModal}
-                      variant="primary"
-                    >
-                      Add medication
-                    </Button>
-                  ) : undefined
-                }
-              />
-            </PanelBody>
-          ) : (
-            <PanelBody>
-              <div
-                aria-label="Medication line cards"
-                role="list"
-                className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
-              >
-                {medicationsQuery.data.map((line) => (
-                  <div key={line.id} className="min-w-0" role="listitem">
-                    <MedicationLineCard
-                      canManage={canManage}
-                      canMarkStatus={canMarkStatus}
-                      line={line}
-                      onDiscontinue={setLineToDiscontinue}
-                      onEdit={openEditMedicationModal}
-                      onEditAppearance={openAppearanceModal}
-                    />
-                  </div>
-                ))}
-              </div>
-            </PanelBody>
-          )}
-        </Panel>
+        <MdsTrayBuilder
+          canManage={canManage}
+          canMarkStatus={canMarkStatus}
+          lines={medicationsQuery.data}
+          onAdvancedManualEntry={openCreateMedicationModal}
+          onDiscontinue={setLineToDiscontinue}
+          onEditAppearance={openAppearanceModal}
+          patientId={parsedPatientId}
+        />
       ) : null}
 
       {cyclesQuery.isSuccess && cyclesQuery.data.length > 0 ? (

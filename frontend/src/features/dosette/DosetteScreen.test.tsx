@@ -11,7 +11,7 @@ import {
   renderWithProviders,
 } from "../../test/providers";
 import { ApiError } from "../../lib/apiClient";
-import type { Medication } from "../catalogue/catalogueApi";
+import type { CatalogueProduct, Medication } from "../catalogue/catalogueApi";
 import * as catalogueApi from "../catalogue/catalogueApi";
 import { DosetteScreen } from "./DosetteScreen";
 import type {
@@ -26,6 +26,7 @@ vi.mock("../catalogue/catalogueApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../catalogue/catalogueApi")>();
   return {
     ...actual,
+    listCatalogueProducts: vi.fn(),
     listMedications: vi.fn(),
   };
 });
@@ -51,10 +52,13 @@ vi.mock("./dosetteApi", async (importOriginal) => {
 });
 
 const listMedicationsMock = vi.mocked(catalogueApi.listMedications);
+const listCatalogueProductsMock = vi.mocked(catalogueApi.listCatalogueProducts);
 const listPatientMedicationsMock = vi.mocked(dosetteApi.listPatientMedications);
 const listDosetteCyclesMock = vi.mocked(dosetteApi.listDosetteCycles);
 const getPickingListMock = vi.mocked(dosetteApi.getPickingList);
 const getStockPreviewMock = vi.mocked(dosetteApi.getStockPreview);
+const createPatientMedicationMock = vi.mocked(dosetteApi.createPatientMedication);
+const updatePatientMedicationMock = vi.mocked(dosetteApi.updatePatientMedication);
 const createDosetteCycleMock = vi.mocked(dosetteApi.createDosetteCycle);
 const discontinuePatientMedicationMock = vi.mocked(
   dosetteApi.discontinuePatientMedication,
@@ -79,6 +83,33 @@ function makeMedication(overrides: Partial<Medication> = {}): Medication {
     strength: "5 mg",
     manufacturer: "",
     notes: "",
+    is_active: true,
+    created_at: "2026-06-19T09:00:00Z",
+    updated_at: "2026-06-19T09:00:00Z",
+    ...overrides,
+  };
+}
+
+function makeCatalogueProduct(
+  overrides: Partial<CatalogueProduct> = {},
+): CatalogueProduct {
+  return {
+    id: 210,
+    dmd_code: "DMD-210",
+    source: "dm+d",
+    vmp_name: "Paracetamol 500mg tablets",
+    amp_name: "",
+    display_name: "Paracetamol 500mg tablets",
+    ingredient: "Paracetamol",
+    strength: "500 mg",
+    dose_form: "TABLET",
+    pack_size: 32,
+    pack_unit: "tablets",
+    manufacturer: "",
+    appearance_colour: "White",
+    appearance_shape: "Round",
+    appearance_form: "Tablet",
+    full_label: "Paracetamol 500mg tablets",
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
@@ -327,6 +358,7 @@ describe("DosetteScreen", () => {
       makeMedication(),
       makeMedication({ id: 11, name: "Metformin", strength: "500 mg" }),
     ]);
+    listCatalogueProductsMock.mockResolvedValue([makeCatalogueProduct()]);
     listPatientMedicationsMock.mockResolvedValue([
       makeLine(),
       makeLine({
@@ -362,6 +394,19 @@ describe("DosetteScreen", () => {
     ]);
     getPickingListMock.mockResolvedValue(makePickingList());
     getStockPreviewMock.mockResolvedValue(makeStockPreview());
+    createPatientMedicationMock.mockResolvedValue(
+      makeLine({
+        id: 4,
+        medication: 13,
+        medication_name: "Paracetamol",
+        strength: "500 mg",
+        quantity_morning: 0,
+        quantity_bedtime: 2,
+        colour: "White",
+        shape: "Round",
+      }),
+    );
+    updatePatientMedicationMock.mockResolvedValue(makeLine({ quantity_morning: 2 }));
     discontinuePatientMedicationMock.mockResolvedValue(
       makeLine({ is_active: false }),
     );
@@ -408,49 +453,201 @@ describe("DosetteScreen", () => {
     });
   });
 
-  it("renders medication lines", async () => {
+  it("renders the MDS tray builder with days dose-times and saved slot medicines", async () => {
     renderDosette();
 
-    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
-    expect(screen.getByText("Metformin")).toBeInTheDocument();
-    expect(screen.getByText("Inactive line")).toBeInTheDocument();
-    expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(await screen.findByText("MDS tray builder")).toBeInTheDocument();
     expect(
-      screen.getByRole("list", { name: "Medication line cards" }),
+      screen.getByText(
+        "Click a dose-time cell to add or update a medicine for that schedule.",
+      ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This tray repeats the saved dose slots across the cycle using the current MDS schedule model. Review before preparation.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Human review required")).toBeInTheDocument();
 
-    const amlodipineCard = screen.getByRole("article", {
-      name: "Medication line Amlodipine",
+    const tray = screen.getByRole("table", { name: "MDS tray builder" });
+    for (const day of [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]) {
+      expect(within(tray).getByText(day)).toBeInTheDocument();
+    }
+    for (const doseTime of ["Morning", "Lunchtime", "Evening", "Bedtime"]) {
+      expect(within(tray).getByText(doseTime)).toBeInTheDocument();
+    }
+
+    const mondayMorning = within(tray).getByLabelText("Monday Morning tray cell");
+    expect(within(mondayMorning).getByText("Amlodipine")).toBeInTheDocument();
+    expect(within(mondayMorning).getByText("Metformin")).toBeInTheDocument();
+    expect(within(mondayMorning).getByText("5 mg / TABLET")).toBeInTheDocument();
+    expect(within(mondayMorning).getByText("500 mg / TABLET")).toBeInTheDocument();
+    expect(within(mondayMorning).getAllByText("1 tablet").length).toBeGreaterThan(
+      0,
+    );
+    expect(within(mondayMorning).getByText("Blue · Round")).toBeInTheDocument();
+
+    const mondayLunchtime = within(tray).getByLabelText(
+      "Monday Lunchtime tray cell",
+    );
+    expect(within(mondayLunchtime).getByText("Add medicine")).toBeInTheDocument();
+    expect(within(mondayLunchtime).queryByText("Amlodipine")).toBeNull();
+
+    const tuesdayBedtime = within(tray).getByLabelText(
+      "Tuesday Bedtime tray cell",
+    );
+    expect(within(tuesdayBedtime).getByText("Amlodipine")).toBeInTheDocument();
+    expect(within(tuesdayBedtime).queryByText("Metformin")).toBeNull();
+    expect(within(tray).queryByText("Inactive line")).toBeNull();
+  });
+
+  it("opens an inline editor from a tray cell without a modal", async () => {
+    const user = userEvent.setup();
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    const tray = await screen.findByRole("table", { name: "MDS tray builder" });
+    await user.click(within(tray).getByLabelText("Monday Morning tray cell"));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const editor = screen.getByRole("region", { name: "Inline medicine editor" });
+    expect(within(editor).getByText("Selected cell")).toBeInTheDocument();
+    expect(within(editor).getByText("Monday · Morning")).toBeInTheDocument();
+    expect(
+      within(editor).getByText(
+        "Timing will be saved as Morning and repeated across the cycle.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(editor).getByText("Medicines in this dose-time")).toBeInTheDocument();
+    expect(
+      within(editor).getByRole("button", { name: "Add another medicine" }),
+    ).toBeInTheDocument();
+    expect(
+      within(editor).getAllByRole("button", { name: "Edit medicine" }),
+    ).toHaveLength(2);
+  });
+
+  it("updates the selected Morning slot through the existing medication payload", async () => {
+    const user = userEvent.setup();
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    const tray = await screen.findByRole("table", { name: "MDS tray builder" });
+    await user.click(within(tray).getByLabelText("Monday Morning tray cell"));
+    const editor = screen.getByRole("region", { name: "Inline medicine editor" });
+    const amlodipineCard = within(editor).getByRole("article", {
+      name: "Medicine in Morning Amlodipine",
     });
-    expect(within(amlodipineCard).getByText("5 mg / TABLET")).toBeInTheDocument();
-    expect(within(amlodipineCard).getByText("Private dose directions")).toBeInTheDocument();
-    expect(within(amlodipineCard).getByText("Morning")).toBeInTheDocument();
-    expect(within(amlodipineCard).getByText("Lunchtime")).toBeInTheDocument();
-    expect(within(amlodipineCard).getByText("Evening")).toBeInTheDocument();
-    expect(within(amlodipineCard).getByText("Bedtime")).toBeInTheDocument();
-    expect(
-      within(amlodipineCard).getByRole("group", { name: "Morning dose 1" }),
-    ).toBeInTheDocument();
-    expect(
-      within(amlodipineCard).getByRole("group", { name: "Lunchtime dose 0" }),
-    ).toBeInTheDocument();
-    expect(
-      within(amlodipineCard).getByRole("group", { name: "Evening dose 0" }),
-    ).toBeInTheDocument();
-    expect(
-      within(amlodipineCard).getByRole("group", { name: "Bedtime dose 1" }),
-    ).toBeInTheDocument();
-    expect(within(amlodipineCard).getByText("Blue")).toBeInTheDocument();
-    expect(within(amlodipineCard).getByText("Round")).toBeInTheDocument();
-    expect(
-      within(amlodipineCard).getByText("Appearance: Blue · Round"),
-    ).toBeInTheDocument();
-    expect(within(amlodipineCard).getByText("01 Jun 2026")).toBeInTheDocument();
-    expect(
-      within(amlodipineCard).getByRole("img", {
-        name: "Appearance marker: Blue · Round",
+    await user.click(within(amlodipineCard).getByRole("button", { name: "Edit medicine" }));
+    await user.clear(screen.getByLabelText("Morning dose quantity"));
+    await user.type(screen.getByLabelText("Morning dose quantity"), "2");
+    await user.click(screen.getByRole("button", { name: "Save medicine" }));
+
+    await waitFor(() => {
+      expect(updatePatientMedicationMock).toHaveBeenCalledWith(20, 1, {
+        medication: 10,
+        dose_instructions: "Private dose directions",
+        quantity_morning: 2,
+        quantity_lunchtime: 0,
+        quantity_evening: 0,
+        quantity_bedtime: 1,
+        start_date: "2026-06-01",
+        colour: "Blue",
+        shape: "Round",
+      });
+    });
+  });
+
+  it("creates from the selected Bedtime slot with only the Bedtime dose set", async () => {
+    const user = userEvent.setup();
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    const tray = await screen.findByRole("table", { name: "MDS tray builder" });
+    await user.click(within(tray).getByLabelText("Monday Bedtime tray cell"));
+    await user.click(screen.getByRole("button", { name: "Add another medicine" }));
+    await user.type(screen.getByLabelText("Medicine"), "Para");
+    await user.click(
+      await screen.findByRole("option", {
+        name: /Paracetamol 500mg tablets/i,
       }),
+    );
+    await user.clear(screen.getByLabelText("Bedtime dose quantity"));
+    await user.type(screen.getByLabelText("Bedtime dose quantity"), "2");
+    await user.type(screen.getByLabelText("Dose instructions"), "Take at night");
+    await user.type(screen.getByLabelText("Colour"), "White");
+    await user.type(screen.getByLabelText("Shape"), "Round");
+    await user.type(screen.getByLabelText("Start date"), "2026-06-29");
+    await user.click(screen.getByRole("button", { name: "Save medicine" }));
+
+    await waitFor(() => {
+      expect(createPatientMedicationMock).toHaveBeenCalledWith(20, {
+        catalogue_product: 210,
+        dose_instructions: "Take at night",
+        quantity_morning: 0,
+        quantity_lunchtime: 0,
+        quantity_evening: 0,
+        quantity_bedtime: 2,
+        start_date: "2026-06-29",
+        colour: "White",
+        shape: "Round",
+      });
+    });
+  });
+
+  it("keeps advanced manual entry available through the old form", async () => {
+    const user = userEvent.setup();
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.manage": true }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Advanced manual entry" }),
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Add medication" }),
     ).toBeInTheDocument();
+  });
+
+  it("uses safe wording in the tray builder", async () => {
+    renderDosette();
+
+    const traySection = (await screen.findByText("MDS tray builder")).closest(
+      "section",
+    );
+    expect(traySection).not.toBeNull();
+    for (const phrase of [
+      "AI decided",
+      "guaranteed",
+      "clinically recommended",
+      "automatic ordering",
+      "automatic transfer",
+      "automatic cycle creation",
+      "automatic dispensing",
+      "NHS integration",
+      "NCRS",
+      "compliance proof",
+    ]) {
+      expect(
+        within(traySection as HTMLElement).queryByText(new RegExp(phrase, "i")),
+      ).toBeNull();
+    }
   });
 
   it("renders cycles", async () => {
@@ -477,16 +674,16 @@ describe("DosetteScreen", () => {
     );
   });
 
-  it("renders the status section above the medication grid", async () => {
+  it("renders the status section above the tray builder", async () => {
     renderDosette();
 
     const statusSection = await screen.findByLabelText("Dosette status overview");
-    const medicationGrid = await screen.findByRole("list", {
-      name: "Medication line cards",
+    const trayBuilder = await screen.findByRole("table", {
+      name: "MDS tray builder",
     });
 
     expect(
-      statusSection.compareDocumentPosition(medicationGrid) &
+      statusSection.compareDocumentPosition(trayBuilder) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(within(statusSection).getByText("Current status")).toBeInTheDocument();
@@ -699,7 +896,7 @@ describe("DosetteScreen", () => {
       within(pickingList).queryByText("dose_instructions"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("list", { name: "Medication line cards" }),
+      screen.getByRole("table", { name: "MDS tray builder" }),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole("heading", { name: "Stock availability" }),
@@ -834,7 +1031,11 @@ describe("DosetteScreen", () => {
     listDosetteCyclesMock.mockResolvedValueOnce([]);
     renderDosette();
 
-    expect(await screen.findByText("No medication lines yet.")).toBeInTheDocument();
+    expect(await screen.findByText("MDS tray builder")).toBeInTheDocument();
+    const emptyTray = screen.getByRole("table", { name: "MDS tray builder" });
+    expect(within(emptyTray).getAllByText("Add medicine").length).toBeGreaterThan(
+      0,
+    );
     expect(await screen.findByText("No dosette cycles yet.")).toBeInTheDocument();
   });
 
@@ -866,35 +1067,40 @@ describe("DosetteScreen", () => {
   });
 
   it("shows medication management controls with blister manage", async () => {
+    const user = userEvent.setup();
     renderDosette(
       "/patients/20/dosette",
       dosetteAuth({ "blister.manage": true }),
     );
 
-    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
+    const tray = await screen.findByRole("table", { name: "MDS tray builder" });
     expect(
-      screen.getByRole("button", { name: "Add medication" }),
+      screen.getByRole("button", { name: "Advanced manual entry" }),
     ).toBeInTheDocument();
-    const medicationSection = screen.getByText("Medication lines").closest("section");
-    expect(medicationSection).not.toBeNull();
+    await user.click(within(tray).getByLabelText("Monday Morning tray cell"));
+    const editor = screen.getByRole("region", { name: "Inline medicine editor" });
     expect(
-      within(medicationSection as HTMLElement).getAllByRole("button", {
-        name: "Edit",
-      }),
-    ).toHaveLength(3);
+      within(editor).getByRole("button", { name: "Add another medicine" }),
+    ).toBeInTheDocument();
     expect(
-      within(medicationSection as HTMLElement).getAllByRole("button", {
-        name: "Discontinue",
-      }),
+      within(editor).getAllByRole("button", { name: "Edit medicine" }),
+    ).toHaveLength(2);
+    expect(
+      within(editor).getAllByRole("button", { name: "Discontinue" }),
     ).toHaveLength(2);
   });
 
   it("hides medication management controls with only blister view", async () => {
     renderDosette();
 
-    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add medication" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect((await screen.findAllByText("Amlodipine")).length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Advanced manual entry" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Monday Morning tray cell" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit medicine" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Discontinue" })).toBeNull();
   });
 
@@ -905,8 +1111,11 @@ describe("DosetteScreen", () => {
       dosetteAuth({ "blister.mark_status": true }),
     );
 
-    const amlodipineCard = await screen.findByRole("article", {
-      name: "Medication line Amlodipine",
+    const tray = await screen.findByRole("table", { name: "MDS tray builder" });
+    await user.click(within(tray).getByLabelText("Monday Morning tray cell"));
+    const editor = screen.getByRole("region", { name: "Inline medicine editor" });
+    const amlodipineCard = within(editor).getByRole("article", {
+      name: "Medicine in Morning Amlodipine",
     });
     await user.click(within(amlodipineCard).getByRole("button", { name: "Appearance" }));
 
@@ -938,7 +1147,15 @@ describe("DosetteScreen", () => {
     const pickingCallsBefore = getPickingListMock.mock.calls.length;
     const stockPreviewCallsBefore = getStockPreviewMock.mock.calls.length;
 
-    await user.click(screen.getAllByRole("button", { name: "Discontinue" })[0]);
+    const tray = screen.getByRole("table", { name: "MDS tray builder" });
+    await user.click(within(tray).getByLabelText("Monday Morning tray cell"));
+    const editor = screen.getByRole("region", { name: "Inline medicine editor" });
+    const amlodipineCard = within(editor).getByRole("article", {
+      name: "Medicine in Morning Amlodipine",
+    });
+    await user.click(
+      within(amlodipineCard).getByRole("button", { name: "Discontinue" }),
+    );
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", {
         name: "Discontinue",
@@ -1412,7 +1629,7 @@ describe("DosetteScreen", () => {
     ]);
     renderDosette();
 
-    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
+    expect((await screen.findAllByText("Amlodipine")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /create/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /prepare/i })).toBeNull();
