@@ -39,11 +39,11 @@ function NavItemLink({
       <NavLink
         className={({ isActive }) =>
           cn(
-            "group flex items-center gap-3.5 rounded-full px-4 py-3 text-[15px] font-semibold outline-none transition-all duration-200 ease-soft",
+            "group relative flex items-center gap-3.5 rounded-full px-4 py-3 text-[15px] font-semibold outline-none transition-all duration-200 ease-soft active:scale-[0.98]",
             "focus-visible:ring-2 focus-visible:ring-lilac focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
             isActive
-              ? "bg-lilac text-lilac-ink shadow-elev-1"
-              : "text-sidebar-text/85 hover:bg-sidebar-raised hover:text-white",
+              ? "bg-gradient-lilac text-lilac-ink shadow-[0_8px_22px_-8px_rgba(201,182,246,0.7)] ring-1 ring-inset ring-white/40"
+              : "text-sidebar-text/80 hover:translate-x-1 hover:bg-sidebar-raised hover:text-white",
           )
         }
         end={item.path === "/"}
@@ -52,13 +52,22 @@ function NavItemLink({
       >
         {({ isActive }) => (
           <>
+            {/* "You are here" anchor — a lilac bar that grows in beside the
+                active pill. Decorative, so hidden from assistive tech. */}
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute left-0 top-1/2 h-6 w-1 -translate-x-2 -translate-y-1/2 rounded-full bg-lilac transition-all duration-300 ease-soft",
+                isActive ? "scale-y-100 opacity-100" : "scale-y-0 opacity-0",
+              )}
+            />
             <Icon
               aria-hidden="true"
               className={cn(
-                "h-[20px] w-[20px] shrink-0 transition-colors",
+                "h-[20px] w-[20px] shrink-0 transition-transform duration-200 ease-soft",
                 isActive
-                  ? "text-lilac-ink"
-                  : "text-sidebar-muted group-hover:text-white",
+                  ? "animate-pop text-lilac-ink"
+                  : "text-sidebar-muted group-hover:-rotate-6 group-hover:scale-110 group-hover:text-white group-active:scale-95",
               )}
             />
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -66,10 +75,10 @@ function NavItemLink({
               <span
                 aria-label={`${badgeCount} tasks`}
                 className={cn(
-                  "tnum ml-auto inline-flex min-w-6 shrink-0 animate-scale-in items-center justify-center rounded-full px-2 py-0.5 text-xs font-extrabold shadow-elev-1",
+                  "tnum ml-auto inline-flex min-w-6 shrink-0 animate-scale-in items-center justify-center rounded-full px-2 py-0.5 text-xs font-extrabold transition-colors duration-200",
                   isActive
-                    ? "bg-white/80 text-lilac-ink"
-                    : "bg-lilac text-lilac-ink",
+                    ? "bg-white/85 text-lilac-ink"
+                    : "bg-lilac text-lilac-ink shadow-[0_2px_12px_rgba(201,182,246,0.55)]",
                 )}
               >
                 {badgeCount > 99 ? "99+" : badgeCount}
@@ -109,9 +118,18 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const displayName = user ? user.full_name || user.email : "";
 
   return (
-    <aside className="flex h-full w-full flex-col bg-sidebar text-sidebar-text">
-      <div className="flex items-center gap-3 px-6 py-6">
-        <Logo size={44} />
+    <aside className="relative isolate flex h-full w-full flex-col overflow-hidden bg-sidebar text-sidebar-text">
+      {/* Soft lilac aura at the top of the rail for depth — calm, on-brand,
+          pointer-transparent so it never interferes with the nav. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-48 bg-[radial-gradient(130%_80%_at_28%_-12%,rgba(124,92,214,0.24),transparent_72%)]"
+      />
+
+      <div className="group/brand flex animate-fade-in items-center gap-3 px-6 py-6">
+        <span className="transition-transform duration-300 ease-soft group-hover/brand:scale-105">
+          <Logo size={44} />
+        </span>
         <div className="min-w-0">
           <p className="truncate text-[15px] font-bold leading-tight text-white">
             AI Pharmacy Manager
@@ -126,7 +144,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         aria-label="Primary navigation"
         className="scroll-dark flex-1 overflow-y-auto px-3 pb-3"
       >
-        <ul className="space-y-1">
+        <ul className="stagger space-y-1">
           {mainItems.map((item) => (
             <NavItemLink
               badgeCount={
@@ -142,7 +160,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         {utilityItems.length > 0 ? (
           <>
             <div className="mx-3 my-4 border-t border-sidebar-line" />
-            <ul className="space-y-1">
+            <ul className="stagger space-y-1">
               {utilityItems.map((item) => (
                 <NavItemLink
                   badgeCount={
@@ -181,11 +199,11 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
       {/* Profile + logout in the rail. */}
       {user ? (
-        <div className="space-y-2 border-t border-sidebar-line px-4 py-4">
-          <div className="flex items-center gap-3 rounded-2xl bg-sidebar-raised p-3">
+        <div className="animate-slide-up space-y-2 border-t border-sidebar-line px-4 py-4">
+          <div className="flex items-center gap-3 rounded-2xl bg-sidebar-raised p-3 ring-1 ring-inset ring-white/5 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:bg-sidebar-line/70 hover:shadow-elev-2">
             <span
               aria-hidden="true"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-lilac text-sm font-bold text-lilac-ink"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-lilac text-sm font-bold text-lilac-ink shadow-[0_4px_14px_-4px_rgba(201,182,246,0.7)] ring-2 ring-inset ring-white/30"
             >
               {initials(displayName)}
             </span>
@@ -200,11 +218,14 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           </div>
           <button
             aria-label="Logout"
-            className="flex w-full items-center gap-3.5 rounded-full px-4 py-3 text-[15px] font-semibold text-sidebar-text/85 outline-none transition-colors duration-200 ease-soft hover:bg-sidebar-raised hover:text-white focus-visible:ring-2 focus-visible:ring-lilac focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+            className="group flex w-full items-center gap-3.5 rounded-full px-4 py-3 text-[15px] font-semibold text-sidebar-text/80 outline-none transition-all duration-200 ease-soft hover:bg-sidebar-raised hover:text-white focus-visible:ring-2 focus-visible:ring-lilac focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar active:scale-[0.98]"
             onClick={() => void handleLogout()}
             type="button"
           >
-            <LogOut aria-hidden="true" className="h-[20px] w-[20px] text-sidebar-muted" />
+            <LogOut
+              aria-hidden="true"
+              className="h-[20px] w-[20px] text-sidebar-muted transition-transform duration-200 ease-soft group-hover:translate-x-0.5 group-hover:text-white"
+            />
             Log out
           </button>
         </div>
