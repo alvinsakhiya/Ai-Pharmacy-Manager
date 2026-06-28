@@ -45,6 +45,7 @@ export function CatalogueProductSelect({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -64,6 +65,8 @@ export function CatalogueProductSelect({
     () => productsQuery.data ?? [],
     [productsQuery.data],
   );
+  const hasSearchTerm = debouncedSearch.length >= 2;
+  const isResultsOpen = isOpen && hasSearchTerm;
 
   useEffect(() => {
     setActiveIndex(0);
@@ -72,22 +75,46 @@ export function CatalogueProductSelect({
   function chooseProduct(product: CatalogueProduct) {
     onSelect(product);
     setSearch(product.full_label);
+    setIsOpen(false);
+  }
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setIsOpen(value.trim().length >= 2);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      setIsOpen(false);
+      return;
+    }
+
     if (products.length === 0) {
       return;
     }
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((current) => Math.min(current + 1, products.length - 1));
+      if (!isResultsOpen) {
+        setIsOpen(true);
+        setActiveIndex(0);
+      } else {
+        setActiveIndex((current) => Math.min(current + 1, products.length - 1));
+      }
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((current) => Math.max(current - 1, 0));
+      if (!isResultsOpen) {
+        setIsOpen(true);
+        setActiveIndex(products.length - 1);
+      } else {
+        setActiveIndex((current) => Math.max(current - 1, 0));
+      }
     }
     if (event.key === "Enter") {
+      if (!isResultsOpen) {
+        return;
+      }
       event.preventDefault();
       chooseProduct(products[activeIndex]);
     }
@@ -105,10 +132,11 @@ export function CatalogueProductSelect({
           <input
             aria-autocomplete="list"
             aria-controls="catalogue-product-results"
-            aria-expanded={products.length > 0}
+            aria-expanded={isResultsOpen}
             aria-label={label}
             className={cn(inputClass, "mt-0 pl-9")}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => handleSearchChange(event.target.value)}
+            onFocus={() => setIsOpen(search.trim().length >= 2)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             role="combobox"
@@ -119,25 +147,25 @@ export function CatalogueProductSelect({
       </label>
 
       <div className="mt-2 min-h-10">
-        {productsQuery.isLoading ? (
+        {isResultsOpen && productsQuery.isLoading ? (
           <p className="rounded-xl border border-line bg-surface-subtle p-3 text-sm text-muted">
             {loadingText}
           </p>
         ) : null}
 
-        {productsQuery.isError ? (
+        {isResultsOpen && productsQuery.isError ? (
           <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
             {errorText}
           </p>
         ) : null}
 
-        {productsQuery.isSuccess && products.length === 0 ? (
+        {isResultsOpen && productsQuery.isSuccess && products.length === 0 ? (
           <p className="rounded-xl border border-line bg-surface-subtle p-3 text-sm text-muted">
             {emptyText}
           </p>
         ) : null}
 
-        {products.length > 0 ? (
+        {isResultsOpen && products.length > 0 ? (
           <ul
             className="max-h-64 overflow-y-auto rounded-2xl border border-line bg-surface shadow-elev-2"
             id="catalogue-product-results"

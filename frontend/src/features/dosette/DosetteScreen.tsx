@@ -279,10 +279,58 @@ function cycleWorkflowLabel(cycle: DosetteCycle): string {
 }
 
 const SLOT_META = [
-  { key: "quantity_morning", label: "Morning", short: "AM", Icon: Sunrise },
-  { key: "quantity_lunchtime", label: "Lunchtime", short: "Lunch", Icon: Sun },
-  { key: "quantity_evening", label: "Evening", short: "PM", Icon: Sunset },
-  { key: "quantity_bedtime", label: "Bedtime", short: "Night", Icon: Moon },
+  {
+    key: "quantity_morning",
+    label: "Morning",
+    short: "AM",
+    Icon: Sunrise,
+    tone: {
+      accent: "border-amber-200 bg-amber-50 text-amber-800",
+      cell: "bg-amber-50/35 hover:bg-amber-50/70",
+      empty: "border-amber-200 bg-amber-50/70 text-amber-800",
+      selected:
+        "bg-gradient-to-br from-amber-50 to-white ring-2 ring-amber-300 ring-offset-0",
+    },
+  },
+  {
+    key: "quantity_lunchtime",
+    label: "Lunchtime",
+    short: "Lunch",
+    Icon: Sun,
+    tone: {
+      accent: "border-sky-200 bg-sky-50 text-sky-800",
+      cell: "bg-sky-50/35 hover:bg-sky-50/70",
+      empty: "border-sky-200 bg-sky-50/70 text-sky-800",
+      selected:
+        "bg-gradient-to-br from-sky-50 to-white ring-2 ring-sky-300 ring-offset-0",
+    },
+  },
+  {
+    key: "quantity_evening",
+    label: "Evening",
+    short: "PM",
+    Icon: Sunset,
+    tone: {
+      accent: "border-indigo-200 bg-indigo-50 text-indigo-800",
+      cell: "bg-indigo-50/35 hover:bg-indigo-50/70",
+      empty: "border-indigo-200 bg-indigo-50/70 text-indigo-800",
+      selected:
+        "bg-gradient-to-br from-indigo-50 to-white ring-2 ring-indigo-300 ring-offset-0",
+    },
+  },
+  {
+    key: "quantity_bedtime",
+    label: "Bedtime",
+    short: "Night",
+    Icon: Moon,
+    tone: {
+      accent: "border-slate-300 bg-slate-100 text-slate-800",
+      cell: "bg-slate-50/80 hover:bg-slate-100",
+      empty: "border-slate-300 bg-slate-100/80 text-slate-800",
+      selected:
+        "bg-gradient-to-br from-slate-100 to-white ring-2 ring-slate-400 ring-offset-0",
+    },
+  },
 ] as const;
 
 type DoseSlot = (typeof SLOT_META)[number];
@@ -297,6 +345,8 @@ const TRAY_DAY_LABELS = [
   "Saturday",
   "Sunday",
 ] as const;
+
+const TRAY_MEDICINE_FORM_ID = "tray-medicine-editor-form";
 
 function canEditCycle(cycle: DosetteCycle): boolean {
   return !["CANCELLED", "COMPLETED"].includes(cycle.status);
@@ -1017,12 +1067,14 @@ function medicationSlotQuantities(
 function TrayMedicationSummary({
   line,
   quantity,
+  slot,
 }: {
   line: PatientMedicationLine;
   quantity: number;
+  slot: DoseSlot;
 }) {
   return (
-    <span className="block rounded-lg border border-line bg-surface px-2 py-2 text-left shadow-soft">
+    <span className="block rounded-lg border border-line bg-surface/95 px-2.5 py-2 text-left shadow-elev-1 transition-transform duration-150 ease-soft group-hover:-translate-y-px">
       <span className="flex min-w-0 items-start gap-2">
         <MedicationAppearanceMarker colour={line.colour} shape={line.shape} />
         <span className="min-w-0">
@@ -1034,7 +1086,12 @@ function TrayMedicationSummary({
           </span>
         </span>
       </span>
-      <span className="mt-2 block text-[11px] font-bold text-ink-soft">
+      <span
+        className={cn(
+          "mt-2 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold",
+          slot.tone.accent,
+        )}
+      >
         {doseQuantityLabel(line, quantity)}
       </span>
       {printAppearanceLabel(line) ? (
@@ -1067,7 +1124,12 @@ function TrayCell({
   const content = (
     <>
       <span className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+        <span
+          className={cn(
+            "rounded-full border px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em]",
+            slot.tone.accent,
+          )}
+        >
           {slot.short}
         </span>
         {canManage ? (
@@ -1077,8 +1139,18 @@ function TrayCell({
         ) : null}
       </span>
       {medicines.length === 0 ? (
-        <span className="mt-5 grid min-h-20 place-items-center rounded-lg border border-dashed border-line bg-surface/70 px-2 py-4 text-center text-xs font-bold text-muted">
-          Add medicine
+        <span
+          className={cn(
+            "mt-4 grid min-h-24 place-items-center rounded-xl border border-dashed px-2 py-4 text-center text-xs font-bold",
+            slot.tone.empty,
+          )}
+        >
+          <span>
+            <span className="mx-auto mb-2 grid h-8 w-8 place-items-center rounded-full border border-current/25 bg-white/70">
+              <Plus aria-hidden="true" className="h-4 w-4" />
+            </span>
+            Add medicine
+          </span>
         </span>
       ) : (
         <span className="mt-2 flex flex-col gap-2">
@@ -1087,6 +1159,7 @@ function TrayCell({
               key={`${day}-${slot.key}-${line.id}`}
               line={line}
               quantity={line[slot.key]}
+              slot={slot}
             />
           ))}
         </span>
@@ -1094,9 +1167,10 @@ function TrayCell({
     </>
   );
   const className = cn(
-    "min-h-[10rem] w-full border-l border-t border-line bg-white p-2 text-left transition-colors duration-150 ease-soft",
-    canInteract && "hover:bg-brand-soft/40 focus-ring",
-    isSelected && "bg-brand-soft/60 ring-2 ring-brand ring-offset-0",
+    "group min-h-[10rem] w-full border-l border-t border-line p-2 text-left transition-[background-color,box-shadow,transform] duration-150 ease-soft",
+    slot.tone.cell,
+    canInteract && "focus-ring hover:shadow-inner",
+    isSelected && slot.tone.selected,
   );
 
   if (!canInteract) {
@@ -1275,12 +1349,12 @@ function MdsTrayBuilder({
     setEditorMode("form");
   }
 
-  function closeEditor() {
+  const closeEditor = useCallback(() => {
     setSelectedCell(null);
     setEditingLine(null);
     setEditorMode("form");
     setErrors({});
-  }
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1328,8 +1402,14 @@ function MdsTrayBuilder({
   }
 
   const isSaving = createMedication.isPending || updateMedication.isPending;
+  const isFormVisible =
+    selectedCell !== null &&
+    canManage &&
+    (editorMode === "form" || selectedSlotLines.length === 0);
+  const modalTitle = editingLine ? "Edit tray medicine" : "Add medicine to tray";
 
   return (
+    <>
     <Panel>
       <PanelHeader
         icon={<Pill className="h-4 w-4" />}
@@ -1369,11 +1449,11 @@ function MdsTrayBuilder({
 
         <div
           aria-label="MDS tray builder"
-          className="mt-4 overflow-x-auto rounded-xl border border-line bg-white"
+          className="mt-4 overflow-x-auto rounded-xl border border-line bg-white shadow-elev-1"
           role="table"
         >
           <div className="grid min-w-[74rem] grid-cols-[8rem_repeat(7,minmax(0,1fr))]">
-            <div className="border-b border-line bg-surface-subtle p-3 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+            <div className="sticky left-0 z-20 border-b border-r border-line bg-surface-subtle p-3 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted shadow-[4px_0_10px_rgba(42,35,64,0.05)]">
               Dose time
             </div>
             {TRAY_DAY_LABELS.map((day) => (
@@ -1386,11 +1466,19 @@ function MdsTrayBuilder({
             ))}
             {SLOT_META.map((slot) => (
               <div className="contents" key={slot.key}>
-                <div className="border-t border-line bg-surface-subtle p-3">
-                  <div className="flex items-center gap-2 text-sm font-extrabold text-ink">
-                    <slot.Icon aria-hidden="true" className="h-4 w-4 text-brand" />
+                <div
+                  className={cn(
+                    "sticky left-0 z-10 border-r border-t border-line p-3 shadow-[4px_0_10px_rgba(42,35,64,0.05)]",
+                    slot.tone.accent,
+                  )}
+                >
+                  <div className="flex items-center gap-2 text-sm font-extrabold">
+                    <slot.Icon aria-hidden="true" className="h-4 w-4" />
                     {slot.label}
                   </div>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] opacity-75">
+                    {slot.short}
+                  </p>
                 </div>
                 {TRAY_DAY_LABELS.map((day) => (
                   <TrayCell
@@ -1418,35 +1506,57 @@ function MdsTrayBuilder({
           </p>
         ) : null}
 
-        {selectedCell ? (
-          <section
-            aria-label="Inline medicine editor"
-            className="mt-4 rounded-xl border border-brand/30 bg-brand-soft/20 p-4"
-          >
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
+      </PanelBody>
+    </Panel>
+    <Modal
+      description={
+        selectedCell
+          ? `${selectedCell.day} · ${selectedCell.slot.label}`
+          : undefined
+      }
+      isOpen={selectedCell !== null}
+      onClose={closeEditor}
+      size="lg"
+      title={modalTitle}
+    >
+      {selectedCell ? (
+        <div className="-m-6 flex max-h-[min(82vh,48rem)] flex-col overflow-hidden">
+          <div className="border-b border-line bg-surface-subtle px-6 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-brand">
-                  Selected cell
+                  Selected tray cell
                 </p>
                 <h3 className="mt-1 text-lg font-extrabold text-ink">
                   {selectedCell.day} · {selectedCell.slot.label}
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-ink-soft">
-                  Timing will be saved as {selectedCell.slot.label} and repeated
-                  across the cycle.
+                  This schedule repeats across the cycle using saved dose slots.
+                  Review before preparation.
                 </p>
               </div>
-              <Button onClick={closeEditor} size="sm" variant="secondary">
-                Cancel
-              </Button>
+              <Badge variant="info">Saved as {selectedCell.slot.label}</Badge>
             </div>
+          </div>
 
+          <form
+            className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5"
+            id={TRAY_MEDICINE_FORM_ID}
+            noValidate
+            onSubmit={handleSubmit}
+          >
             {selectedSlotLines.length > 0 ? (
-              <div className="mt-4 space-y-3">
+              <div className="space-y-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <h4 className="text-sm font-extrabold text-ink">
-                    Medicines in this dose-time
-                  </h4>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-ink">
+                      Medicines in this dose-time
+                    </h4>
+                    <p className="mt-1 text-xs font-semibold text-muted">
+                      Choose a medicine to edit, or add another medicine to this
+                      saved slot.
+                    </p>
+                  </div>
                   {canManage ? (
                     <Button onClick={openAddAnother} size="sm" variant="primary">
                       Add another medicine
@@ -1470,8 +1580,8 @@ function MdsTrayBuilder({
               </div>
             ) : null}
 
-            {canManage && (editorMode === "form" || selectedSlotLines.length === 0) ? (
-              <form className="mt-5 space-y-5" noValidate onSubmit={handleSubmit}>
+            {isFormVisible ? (
+              <>
                 <FieldErrorList messages={errorMessages(errors, "detail")} />
                 <FieldErrorList
                   messages={errorMessages(errors, "non_field_errors")}
@@ -1480,7 +1590,7 @@ function MdsTrayBuilder({
                 {editingLine ? (
                   <div
                     aria-label="Selected medication"
-                    className="rounded-xl border border-line bg-surface p-4 text-sm"
+                    className="rounded-xl border border-line bg-surface p-4 text-sm shadow-elev-1"
                   >
                     <p className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
                       Editing medicine
@@ -1507,7 +1617,7 @@ function MdsTrayBuilder({
                     {selectedProduct ? (
                       <div
                         aria-label="Selected catalogue product"
-                        className="mt-3 rounded-xl border border-brand/20 bg-surface p-3 text-sm"
+                        className="mt-3 rounded-xl border border-brand/20 bg-surface p-3 text-sm shadow-elev-1"
                       >
                         <p className="text-xs font-bold uppercase tracking-[0.06em] text-brand">
                           Selected catalogue product
@@ -1603,21 +1713,29 @@ function MdsTrayBuilder({
                     <FieldErrorList messages={errorMessages(errors, "start_date")} />
                   </label>
                 </div>
-
-                <div className="flex flex-wrap justify-end gap-3 border-t border-line pt-5">
-                  <Button onClick={closeEditor} variant="secondary">
-                    Cancel
-                  </Button>
-                  <Button disabled={isSaving} type="submit" variant="primary">
-                    {isSaving ? "Saving..." : "Save medicine"}
-                  </Button>
-                </div>
-              </form>
+              </>
             ) : null}
-          </section>
-        ) : null}
-      </PanelBody>
-    </Panel>
+          </form>
+
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line bg-surface/95 px-6 py-4 shadow-[0_-10px_24px_rgba(42,35,64,0.08)] backdrop-blur">
+            <Button onClick={closeEditor} variant="secondary">
+              Cancel
+            </Button>
+            {canManage ? (
+              <Button
+                disabled={!isFormVisible || isSaving}
+                form={TRAY_MEDICINE_FORM_ID}
+                type="submit"
+                variant="primary"
+              >
+                {isSaving ? "Saving..." : "Save medication"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </Modal>
+    </>
   );
 }
 
