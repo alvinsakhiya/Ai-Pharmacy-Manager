@@ -263,6 +263,26 @@ function makePeriod(overrides: Partial<DosettePeriod> = {}): DosettePeriod {
   };
 }
 
+function makeCycleForPeriod(
+  periodCycle: DosettePeriod["cycles"][number],
+  overrides: Partial<DosetteCycle> = {},
+): DosetteCycle {
+  return makeCycle({
+    id: periodCycle.id,
+    reference: periodCycle.reference,
+    frequency: "WEEKLY",
+    start_date: periodCycle.start_date,
+    end_date: periodCycle.end_date,
+    status: periodCycle.status,
+    stock_deducted: periodCycle.stock_deducted,
+    ...overrides,
+  });
+}
+
+function makeCyclesForPeriod(period: DosettePeriod): DosetteCycle[] {
+  return period.cycles.map((cycle) => makeCycleForPeriod(cycle));
+}
+
 function makePickingList(overrides: Partial<PickingList> = {}): PickingList {
   return {
     cycle: {
@@ -1358,12 +1378,113 @@ describe("DosetteScreen", () => {
     });
   });
 
+  it("renders the Picking List workflow with the current period week selector", async () => {
+    const period = makePeriod();
+    listDosettePeriodsMock.mockResolvedValueOnce([period]);
+    listDosetteCyclesMock.mockResolvedValueOnce(makeCyclesForPeriod(period));
+    renderDosette();
+
+    const workflow = await screen.findByRole("region", {
+      name: "Picking List workflow",
+    });
+    expect(
+      within(workflow).getByRole("heading", { name: "Picking List" }),
+    ).toBeInTheDocument();
+    expect(
+      within(workflow).getByText(
+        "Choose a week from the current four-week period, then generate the stock-pick view.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(workflow).getByText(
+        "Creates a stock-pick view for the selected week. Stock is deducted later after pharmacist checks.",
+      ),
+    ).toBeInTheDocument();
+
+    const selector = within(workflow).getByRole("group", {
+      name: "Four-week period weeks",
+    });
+    for (const week of ["Week 1", "Week 2", "Week 3", "Week 4"]) {
+      expect(
+        within(selector).getByRole("button", {
+          name: `Select ${week} for picking list`,
+        }),
+      ).toBeInTheDocument();
+    }
+    expect(within(selector).getByText("29 Jun 2026 - 05 Jul 2026")).toBeInTheDocument();
+    expect(within(selector).getByText("20 Jul 2026 - 26 Jul 2026")).toBeInTheDocument();
+    expect(within(selector).getAllByText("Stock not deducted")).toHaveLength(4);
+    expect(getPickingListMock).not.toHaveBeenCalled();
+    expect(getStockPreviewMock).not.toHaveBeenCalled();
+  });
+
+  it("selects a period week for generation and resets the stock-pick view when switching weeks", async () => {
+    const user = userEvent.setup();
+    const period = makePeriod();
+    listDosettePeriodsMock.mockResolvedValueOnce([period]);
+    listDosetteCyclesMock.mockResolvedValueOnce(makeCyclesForPeriod(period));
+    renderDosette();
+
+    const workflow = await screen.findByRole("region", {
+      name: "Picking List workflow",
+    });
+    const week2Button = within(workflow).getByRole("button", {
+      name: "Select Week 2 for picking list",
+    });
+    await user.click(week2Button);
+
+    expect(week2Button).toHaveAttribute("aria-pressed", "true");
+    expect(getPickingListMock).not.toHaveBeenCalled();
+    expect(getStockPreviewMock).not.toHaveBeenCalled();
+    expect(createDosetteCycleMock).not.toHaveBeenCalled();
+    expect(prepareDosetteCycleMock).not.toHaveBeenCalled();
+    expect(deductDosetteStockMock).not.toHaveBeenCalled();
+
+    await user.click(
+      within(workflow).getByRole("button", { name: "Generate picking list" }),
+    );
+
+    await waitFor(() => {
+      expect(getPickingListMock).toHaveBeenCalledWith(20, 702);
+      expect(getStockPreviewMock).toHaveBeenCalledWith(20, 702);
+    });
+    const week2Heading =
+      "Picking list: SUT-P1 · 1-week supply · 06 Jul 2026 - 12 Jul 2026";
+    expect(await screen.findByText(week2Heading)).toBeInTheDocument();
+
+    await user.click(
+      within(workflow).getByRole("button", {
+        name: "Select Week 3 for picking list",
+      }),
+    );
+
+    expect(screen.queryByText(week2Heading)).toBeNull();
+    await user.click(
+      within(workflow).getByRole("button", { name: "Generate picking list" }),
+    );
+
+    await waitFor(() => {
+      expect(getPickingListMock).toHaveBeenCalledWith(20, 703);
+    });
+    expect(createDosetteCycleMock).not.toHaveBeenCalled();
+    expect(prepareDosetteCycleMock).not.toHaveBeenCalled();
+    expect(cancelDosetteCycleMock).not.toHaveBeenCalled();
+    expect(deductDosetteStockMock).not.toHaveBeenCalled();
+  });
+
   it("generating a picking list renders stock-pick essentials without backend mutation", async () => {
     const user = userEvent.setup();
     renderDosette();
 
+    const workflow = await screen.findByRole("region", {
+      name: "Picking List workflow",
+    });
+    expect(within(workflow).getByText("Legacy cycles available")).toBeInTheDocument();
     expect(
-      await screen.findByRole("button", { name: "Generate picking list" }),
+      within(workflow).getByRole("group", { name: "Legacy cycles" }),
+    ).toBeInTheDocument();
+    expect(
+      within(workflow).getByRole("button", { name: "Generate picking list" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(DEFAULT_PICKING_LIST_HEADING)).toBeNull();
     expect(getPickingListMock).not.toHaveBeenCalled();
@@ -1562,6 +1683,11 @@ describe("DosetteScreen", () => {
       0,
     );
     expect(await screen.findByText("No dosette cycles yet.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Submit the medication schedule to create four weekly cycles, then generate a picking list.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("handles stock preview loading error and empty states", async () => {

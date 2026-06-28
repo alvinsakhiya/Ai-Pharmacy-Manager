@@ -244,20 +244,6 @@ function MedicationStatusBadge({ value }: { value: boolean | string }) {
   );
 }
 
-function cycleWorkflowLabel(cycle: DosetteCycle): string {
-  if (cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES") {
-    return statusLabel(cycle.status);
-  }
-  if (cycle.stock_deducted && !["COLLECTED", "DELIVERED", "COMPLETED"].includes(cycle.status)) {
-    return "Stock deducted";
-  }
-  if (cycle.status === "DRAFT") {
-    return "Draft";
-  }
-
-  return statusLabel(cycle.status);
-}
-
 type ChecklistState = "done" | "current" | "pending";
 
 interface CycleChecklistStep {
@@ -3060,27 +3046,116 @@ function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
   );
 }
 
+interface PickingCycleOption {
+  id: number;
+  label: string;
+  detail: string;
+  dateRange: string;
+  status: string;
+  stockDeducted: boolean;
+}
+
+function periodPickingOptions(period: DosettePeriod): PickingCycleOption[] {
+  return period.cycles.map((cycle, index) => ({
+    id: cycle.id,
+    label: periodWeekLabel(cycle, index),
+    detail: "Four-week period",
+    dateRange: periodDateRange(cycle),
+    status: cycle.status,
+    stockDeducted: cycle.stock_deducted,
+  }));
+}
+
+function legacyPickingOptions(cycles: DosetteCycle[]): PickingCycleOption[] {
+  return cycles.map((cycle, index) => ({
+    id: cycle.id,
+    label: `Legacy cycle ${index + 1}`,
+    detail: cycleSupplyPeriodLabel(cycle),
+    dateRange: cycleDateRange(cycle),
+    status: cycle.status,
+    stockDeducted: cycle.stock_deducted,
+  }));
+}
+
+function PickingWeekButton({
+  isSelected,
+  onSelect,
+  option,
+}: {
+  isSelected: boolean;
+  onSelect: () => void;
+  option: PickingCycleOption;
+}) {
+  return (
+    <button
+      aria-label={`Select ${option.label} for picking list`}
+      aria-pressed={isSelected}
+      className={cn(
+        "flex min-h-[112px] flex-col items-start justify-between rounded-xl border p-3 text-left transition-colors duration-150 focus-ring",
+        isSelected
+          ? "border-lilac bg-lilac-soft text-ink shadow-elev-1"
+          : "border-line bg-surface-subtle text-ink-soft hover:border-line-strong hover:bg-surface",
+      )}
+      onClick={onSelect}
+      type="button"
+    >
+      <span className="flex w-full items-start justify-between gap-2">
+        <span>
+          <span className="block text-sm font-extrabold text-ink">
+            {option.label}
+          </span>
+          <span className="mt-1 block tnum text-xs font-semibold text-muted">
+            {option.dateRange}
+          </span>
+        </span>
+        <Badge dot variant={cycleStatusTone(option.status)}>
+          {statusLabel(option.status)}
+        </Badge>
+      </span>
+      <span className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
+        <span>{option.detail}</span>
+        <span aria-hidden="true">·</span>
+        <span>
+          {option.stockDeducted ? "Stock deducted" : "Stock not deducted"}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function PickingListGate({
-  cycle,
+  cycles,
   hasGenerated,
   isBusy,
   onGenerate,
   onRefresh,
+  onSelectCycleId,
+  period,
+  selectedCycleId,
 }: {
-  cycle: DosetteCycle | null;
+  cycles: DosetteCycle[];
   hasGenerated: boolean;
   isBusy: boolean;
   onGenerate: () => void;
   onRefresh: () => void;
+  onSelectCycleId: (cycleId: number) => void;
+  period: DosettePeriod | null;
+  selectedCycleId: number | null;
 }) {
+  const periodOptions = period ? periodPickingOptions(period) : [];
+  const isPeriodMode = periodOptions.length > 0;
+  const options = isPeriodMode ? periodOptions : legacyPickingOptions(cycles);
+  const selectedOption =
+    options.find((option) => option.id === selectedCycleId) ?? null;
+
   return (
-    <Panel>
+    <Panel aria-label="Picking List workflow">
       <PanelHeader
         icon={<ClipboardList className="h-4 w-4" />}
-        title="Generate picking list"
-        subtitle="Show the on-screen stock gathering view only when the team is ready."
+        title="Picking List"
+        subtitle="Choose a week from the current four-week period, then generate the stock-pick view."
         actions={
-          cycle ? (
+          selectedOption ? (
             hasGenerated ? (
               <Button
                 disabled={isBusy}
@@ -3103,38 +3178,79 @@ function PickingListGate({
           ) : null
         }
       />
-      <PanelBody>
-        {cycle ? (
-          <div className="rounded-xl border border-line bg-surface-subtle p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-                  Selected cycle
-                </p>
-                <h3 className="mt-1 text-sm font-extrabold text-ink">
-                  {cycleFriendlyLabel(cycle)}
+      <PanelBody className="space-y-4">
+        <div className="rounded-xl border border-line bg-surface-subtle p-4">
+          <p className="text-sm font-semibold leading-6 text-ink-soft">
+            Creates a stock-pick view for the selected week. Stock is deducted
+            later after pharmacist checks.
+          </p>
+        </div>
+
+        {options.length === 0 ? (
+          <EmptyState
+            description="Submit the medication schedule to create four weekly cycles, then generate a picking list."
+            icon={<ClipboardList className="h-5 w-5" />}
+            title="No four-week period yet."
+          />
+        ) : (
+          <>
+            {!isPeriodMode ? (
+              <div className="rounded-xl border border-line bg-surface-subtle p-4">
+                <h3 className="text-sm font-extrabold text-ink">
+                  Legacy cycles available
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-ink-soft">
-                  Generate a picking list when you are ready to gather stock for
-                  this Dosette cycle.
+                  Choose an existing cycle to create the stock-pick view.
                 </p>
               </div>
-              <Badge dot variant={cycleStatusTone(cycle.status)}>
-                {cycleWorkflowLabel(cycle)}
-              </Badge>
-            </div>
-            {hasGenerated ? (
-              <p className="mt-3 text-xs font-semibold text-success-ink">
-                Picking list generated for this selected cycle.
-              </p>
             ) : null}
-          </div>
-        ) : (
-          <EmptyState
-            icon={<ClipboardList className="h-5 w-5" />}
-            title="Select a cycle before generating."
-            description="Choose a Dosette cycle above, then generate the picking list when stock gathering is ready."
-          />
+
+            <div
+              aria-label={
+                isPeriodMode ? "Four-week period weeks" : "Legacy cycles"
+              }
+              className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+              role="group"
+            >
+              {options.map((option) => (
+                <PickingWeekButton
+                  isSelected={selectedCycleId === option.id}
+                  key={option.id}
+                  onSelect={() => onSelectCycleId(option.id)}
+                  option={option}
+                />
+              ))}
+            </div>
+
+            {selectedOption ? (
+              <div
+                aria-label="Selected picking week"
+                className="rounded-xl border border-line bg-surface-subtle p-4"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+                      {isPeriodMode ? "Selected week" : "Selected cycle"}
+                    </p>
+                    <h3 className="mt-1 text-sm font-extrabold text-ink">
+                      {selectedOption.label}
+                    </h3>
+                    <p className="mt-1 tnum text-sm font-semibold text-ink-soft">
+                      {selectedOption.dateRange}
+                    </p>
+                  </div>
+                  <Badge dot variant={cycleStatusTone(selectedOption.status)}>
+                    {statusLabel(selectedOption.status)}
+                  </Badge>
+                </div>
+                {hasGenerated ? (
+                  <p className="mt-3 text-xs font-semibold text-success-ink">
+                    Stock-pick view shown for this selected week.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </>
         )}
       </PanelBody>
     </Panel>
@@ -3199,15 +3315,31 @@ export function DosetteScreen() {
 
     setSelectedCycleId((current) => {
       if (cyclesQuery.data.length === 0) {
-        return null;
+        return latestPeriod?.cycles[0]?.id ?? null;
       }
-      if (current !== null && cyclesQuery.data.some((cycle) => cycle.id === current)) {
+      const periodCycleIds = latestPeriod?.cycles.map((cycle) => cycle.id) ?? [];
+      const currentExists = cyclesQuery.data.some((cycle) => cycle.id === current);
+      if (
+        current !== null &&
+        (currentExists || periodCycleIds.includes(current)) &&
+        (periodCycleIds.length === 0 || periodCycleIds.includes(current))
+      ) {
         return current;
+      }
+
+      const firstPeriodCycle = periodCycleIds
+        .map((cycleId) => cyclesQuery.data.find((cycle) => cycle.id === cycleId))
+        .find(Boolean);
+      if (firstPeriodCycle) {
+        return firstPeriodCycle.id;
+      }
+      if (periodCycleIds.length > 0) {
+        return periodCycleIds[0];
       }
 
       return cyclesQuery.data[0].id;
     });
-  }, [cyclesQuery.data, cyclesQuery.isSuccess]);
+  }, [cyclesQuery.data, cyclesQuery.isSuccess, latestPeriod]);
 
   useEffect(() => {
     if (generatedCycleId !== null && generatedCycleId !== selectedCycleId) {
@@ -3299,7 +3431,11 @@ export function DosetteScreen() {
   }
 
   function handleSelectCycle(cycle: DosetteCycle) {
-    setSelectedCycleId(cycle.id);
+    handleSelectCycleId(cycle.id);
+  }
+
+  function handleSelectCycleId(cycleId: number) {
+    setSelectedCycleId(cycleId);
     setGeneratedCycleId(null);
   }
 
@@ -3580,13 +3716,16 @@ export function DosetteScreen() {
         </Panel>
       ) : null}
 
-      {cyclesQuery.isSuccess && cyclesQuery.data.length > 0 ? (
+      {cyclesQuery.isSuccess && periodsQuery.isSuccess ? (
         <PickingListGate
-          cycle={selectedCycle}
+          cycles={cycles}
           hasGenerated={hasGeneratedPickingList}
           isBusy={isPickingListBusy}
           onGenerate={handleGeneratePickingList}
           onRefresh={handleRefreshPickingList}
+          onSelectCycleId={handleSelectCycleId}
+          period={latestPeriod}
+          selectedCycleId={selectedCycleId}
         />
       ) : null}
       {hasGeneratedPickingList && pickingListQuery.isLoading ? (
