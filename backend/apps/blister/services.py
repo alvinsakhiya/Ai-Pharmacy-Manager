@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.audit.models import AuditAction
@@ -60,6 +60,29 @@ class DosettePeriodValidationError(Exception):
     def __init__(self, detail):
         self.detail = detail
         super().__init__(str(detail))
+
+
+_DUPLICATE_OPEN_PERIOD_CONSTRAINT = "unique_submitted_dosette_period_per_patient"
+_DUPLICATE_OPEN_PERIOD_SQLITE_MARKER = "blister_dosetteperiod.patient_id"
+_DUPLICATE_OPEN_PERIOD_MESSAGE = "Patient already has an open dosette period."
+
+
+def _duplicate_open_period_error() -> DosettePeriodValidationError:
+    return DosettePeriodValidationError({"detail": [_DUPLICATE_OPEN_PERIOD_MESSAGE]})
+
+
+def _is_duplicate_open_period_integrity_error(exc: IntegrityError) -> bool:
+    cause = exc.__cause__
+    diag = getattr(cause, "diag", None)
+    constraint_name = getattr(diag, "constraint_name", None)
+    if constraint_name == _DUPLICATE_OPEN_PERIOD_CONSTRAINT:
+        return True
+
+    message = " ".join(str(part) for part in (*exc.args, cause) if part)
+    return (
+        _DUPLICATE_OPEN_PERIOD_CONSTRAINT in message
+        or _DUPLICATE_OPEN_PERIOD_SQLITE_MARKER in message
+    )
 
 
 def _line_daily_required(line: PatientMedication) -> int:
@@ -121,33 +144,38 @@ def submit_dosette_period(
         patient=patient,
         status=DosettePeriodStatus.SUBMITTED,
     ).exists():
-        raise DosettePeriodValidationError(
-            {"detail": ["Patient already has an open dosette period."]}
-        )
+        raise _duplicate_open_period_error()
 
-    with transaction.atomic():
-        period = DosettePeriod.objects.create(
-            patient=patient,
-            start_date=period_start,
-            end_date=period_end,
-            status=DosettePeriodStatus.SUBMITTED,
-            submitted_at=timezone.now(),
-            submitted_by=actor if getattr(actor, "is_authenticated", False) else None,
-        )
-        cycles = _create_period_cycles(period)
-        record(
-            action="BLISTER_PERIOD_SUBMITTED",
-            actor=actor,
-            pharmacy=patient.pharmacy,
-            target=period,
-            request=request,
-            metadata={
-                **_period_audit_metadata(period),
-                "start_date": str(period.start_date),
-                "end_date": str(period.end_date),
-                "cycle_ids": [cycle.id for cycle in cycles],
-            },
-        )
+    try:
+        with transaction.atomic():
+            period = DosettePeriod.objects.create(
+                patient=patient,
+                start_date=period_start,
+                end_date=period_end,
+                status=DosettePeriodStatus.SUBMITTED,
+                submitted_at=timezone.now(),
+                submitted_by=actor
+                if getattr(actor, "is_authenticated", False)
+                else None,
+            )
+            cycles = _create_period_cycles(period)
+            record(
+                action="BLISTER_PERIOD_SUBMITTED",
+                actor=actor,
+                pharmacy=patient.pharmacy,
+                target=period,
+                request=request,
+                metadata={
+                    **_period_audit_metadata(period),
+                    "start_date": str(period.start_date),
+                    "end_date": str(period.end_date),
+                    "cycle_ids": [cycle.id for cycle in cycles],
+                },
+            )
+    except IntegrityError as exc:
+        if _is_duplicate_open_period_integrity_error(exc):
+            raise _duplicate_open_period_error() from exc
+        raise
 
     return period
 

@@ -262,6 +262,111 @@ def test_submit_rejects_duplicate_open_period(period_data):
 
 
 @pytest.mark.django_db
+def test_submit_period_endpoint_rejects_duplicate_open_period(client, period_data):
+    patient = period_data["patient"]
+    authenticate(client, period_data["pharmacist"])
+
+    first_response = client.post(
+        period_url(patient),
+        {"start_date": "2026-06-29"},
+        format="json",
+    )
+    duplicate_response = client.post(
+        period_url(patient),
+        {"start_date": "2026-07-27"},
+        format="json",
+    )
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 400
+    assert duplicate_response.json() == {
+        "detail": ["Patient already has an open dosette period."]
+    }
+    assert DosettePeriod.objects.filter(patient=patient).count() == 1
+    assert DosetteCycle.objects.filter(patient=patient).count() == 4
+
+    payload_text = duplicate_response.content.decode()
+    for forbidden in [
+        patient.first_name,
+        patient.last_name,
+        str(patient.date_of_birth),
+        patient.address,
+        patient.postcode,
+        patient.phone,
+        patient.email,
+        patient.notes,
+    ]:
+        assert forbidden not in payload_text
+
+
+@pytest.mark.django_db
+def test_submit_period_endpoint_handles_duplicate_integrity_error(
+    client,
+    period_data,
+    monkeypatch,
+):
+    patient = period_data["patient"]
+    authenticate(client, period_data["pharmacist"])
+
+    def raise_duplicate_open_period_error(self, *args, **kwargs):
+        raise IntegrityError("unique_submitted_dosette_period_per_patient")
+
+    monkeypatch.setattr(
+        services.DosettePeriod,
+        "save",
+        raise_duplicate_open_period_error,
+    )
+
+    response = client.post(
+        period_url(patient),
+        {"start_date": "2026-06-29"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": ["Patient already has an open dosette period."]
+    }
+    assert DosettePeriod.objects.filter(patient=patient).count() == 0
+    assert DosetteCycle.objects.filter(patient=patient).count() == 0
+
+    payload_text = response.content.decode()
+    for forbidden in [
+        patient.first_name,
+        patient.last_name,
+        str(patient.date_of_birth),
+        patient.address,
+        patient.postcode,
+        patient.phone,
+        patient.email,
+        patient.notes,
+    ]:
+        assert forbidden not in payload_text
+
+
+@pytest.mark.django_db
+def test_submit_does_not_swallow_unrelated_integrity_error(period_data, monkeypatch):
+    def raise_unrelated_integrity_error(self, *args, **kwargs):
+        raise IntegrityError("unrelated_constraint")
+
+    monkeypatch.setattr(
+        services.DosettePeriod,
+        "save",
+        raise_unrelated_integrity_error,
+    )
+
+    with pytest.raises(IntegrityError, match="unrelated_constraint"):
+        services.submit_dosette_period(
+            actor=period_data["pharmacist"],
+            patient=period_data["patient"],
+            start_date=date(2026, 6, 29),
+        )
+
+    assert DosettePeriod.objects.filter(patient=period_data["patient"]).count() == 0
+    assert DosetteCycle.objects.filter(patient=period_data["patient"]).count() == 0
+
+
+@pytest.mark.django_db
 def test_submit_period_endpoint_returns_safe_payload(client, period_data):
     authenticate(client, period_data["pharmacist"])
 
