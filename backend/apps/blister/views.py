@@ -15,20 +15,26 @@ from apps.inventory.models import StockBatch, StockItem
 from apps.patients.selectors import patients_for
 from apps.tenancy.permissions import Action, can, require
 
-from .models import CycleStatus, DosetteCycle, PatientMedication
+from .models import CycleStatus, DosetteCycle, DosettePeriod, PatientMedication
 from .serializers import (
     DosetteCycleSerializer,
     DosetteDeductionSummarySerializer,
+    DosettePeriodCollectSerializer,
+    DosettePeriodSerializer,
+    DosettePeriodSubmitSerializer,
     PatientMedicationSerializer,
     PickingListSerializer,
     StockPreviewSerializer,
 )
 from .services import (
     DosetteDeductionStatusError,
+    DosettePeriodValidationError,
     DosetteStockAlreadyDeducted,
     InsufficientDosetteStock,
     InvalidDosetteCycleDates,
     deduct_dosette_stock,
+    record_dosette_period_collection,
+    submit_dosette_period,
 )
 
 
@@ -132,6 +138,112 @@ class DosetteCycleMixin:
             "view": self,
             "patient": self._get_patient(),
         }
+
+
+class DosettePeriodMixin:
+    serializer_class = DosettePeriodSerializer
+    request: Any
+    kwargs: dict[str, Any]
+    format_kwarg: Any
+
+    def get_permissions(self):
+        action = (
+            Action.BLISTER_VIEW
+            if self.request.method in SAFE_METHODS
+            else Action.BLISTER_MANAGE
+        )
+        return [require(action)()]
+
+    def check_object_permissions(self, request, obj) -> None:
+        return None
+
+    def _get_patient(self):
+        return get_object_or_404(
+            patients_for(self.request.user),
+            pk=self.kwargs["patient_pk"],
+        )
+
+    def get_queryset(self):
+        patient = self._get_patient()
+        return (
+            DosettePeriod.scoped.for_user(self.request.user)
+            .filter(patient=patient)
+            .select_related("patient", "patient__pharmacy")
+            .prefetch_related("cycles")
+        )
+
+    def get_serializer_context(self):
+        return {
+            "request": self.request,
+            "format": self.format_kwarg,
+            "view": self,
+            "patient": self._get_patient(),
+        }
+
+
+class DosettePeriodListCreateView(DosettePeriodMixin, ListCreateAPIView):
+    def create(self, request, *args, **kwargs):
+        patient = self._get_patient()
+        serializer = DosettePeriodSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            period = submit_dosette_period(
+                actor=request.user,
+                patient=patient,
+                start_date=serializer.validated_data.get("start_date"),
+                request=request,
+            )
+        except DosettePeriodValidationError as exc:
+            raise serializers.ValidationError(exc.detail) from exc
+
+        return Response(
+            DosettePeriodSerializer(
+                period,
+                context={"request": request, "patient": patient},
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class DosettePeriodCollectedView(APIView):
+    permission_classes = [require(Action.BLISTER_MANAGE)]
+
+    def _get_patient(self, request, patient_pk):
+        return get_object_or_404(patients_for(request.user), pk=patient_pk)
+
+    def _get_period(self, request, patient, period_pk):
+        return get_object_or_404(
+            DosettePeriod.scoped.for_user(request.user)
+            .filter(patient=patient)
+            .select_related("patient", "patient__pharmacy")
+            .prefetch_related("cycles"),
+            pk=period_pk,
+        )
+
+    def post(self, request, patient_pk, period_pk):
+        patient = self._get_patient(request, patient_pk)
+        period = self._get_period(request, patient, period_pk)
+        serializer = DosettePeriodCollectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            period = record_dosette_period_collection(
+                actor=request.user,
+                period=period,
+                collected_on=serializer.validated_data.get("collected_on"),
+                request=request,
+            )
+        except DosettePeriodValidationError as exc:
+            raise serializers.ValidationError(exc.detail) from exc
+
+        return Response(
+            DosettePeriodSerializer(
+                period,
+                context={"request": request, "patient": patient},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class DosetteCycleListCreateView(DosetteCycleMixin, ListCreateAPIView):

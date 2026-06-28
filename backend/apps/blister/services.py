@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any
 
 from django.db import transaction
@@ -8,7 +9,14 @@ from apps.audit.models import AuditAction
 from apps.audit.services import record
 from apps.inventory.models import MovementType, StockBatch, StockItem, StockMovement
 
-from .models import CycleStatus, DosetteCycle, PatientMedication
+from .models import (
+    CycleFrequency,
+    CycleStatus,
+    DosetteCycle,
+    DosettePeriod,
+    DosettePeriodStatus,
+    PatientMedication,
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +56,12 @@ class InsufficientDosetteStock(Exception):
         super().__init__(self.detail)
 
 
+class DosettePeriodValidationError(Exception):
+    def __init__(self, detail):
+        self.detail = detail
+        super().__init__(str(detail))
+
+
 def _line_daily_required(line: PatientMedication) -> int:
     return (
         line.quantity_morning
@@ -55,6 +69,164 @@ def _line_daily_required(line: PatientMedication) -> int:
         + line.quantity_evening
         + line.quantity_bedtime
     )
+
+
+def _period_audit_metadata(period: DosettePeriod) -> dict[str, object]:
+    return {
+        "pharmacy_id": period.patient.pharmacy_id,
+        "patient_id": period.patient_id,
+        "patient_reference": period.patient.patient_reference,
+        "dosette_period_id": period.id,
+        "status": period.status,
+    }
+
+
+def _create_period_cycles(period: DosettePeriod) -> list[DosetteCycle]:
+    cycles = []
+    for index in range(4):
+        week_number = index + 1
+        start_date = period.start_date + timedelta(days=index * 7)
+        end_date = start_date + timedelta(days=6)
+        cycles.append(
+            DosetteCycle.objects.create(
+                patient=period.patient,
+                period=period,
+                week_number=week_number,
+                reference=f"MDS-PERIOD-{period.id}-W{week_number}",
+                frequency=CycleFrequency.WEEKLY,
+                start_date=start_date,
+                end_date=end_date,
+                status=CycleStatus.DRAFT,
+            )
+        )
+    return cycles
+
+
+def submit_dosette_period(
+    *,
+    actor,
+    patient,
+    start_date: date | None = None,
+    request=None,
+) -> DosettePeriod:
+    period_start = start_date or timezone.localdate()
+    period_end = period_start + timedelta(days=27)
+
+    if not PatientMedication.objects.filter(patient=patient, is_active=True).exists():
+        raise DosettePeriodValidationError(
+            {"detail": ["Add at least one active medication before submitting."]}
+        )
+
+    if DosettePeriod.objects.filter(
+        patient=patient,
+        status=DosettePeriodStatus.SUBMITTED,
+    ).exists():
+        raise DosettePeriodValidationError(
+            {"detail": ["Patient already has an open dosette period."]}
+        )
+
+    with transaction.atomic():
+        period = DosettePeriod.objects.create(
+            patient=patient,
+            start_date=period_start,
+            end_date=period_end,
+            status=DosettePeriodStatus.SUBMITTED,
+            submitted_at=timezone.now(),
+            submitted_by=actor if getattr(actor, "is_authenticated", False) else None,
+        )
+        cycles = _create_period_cycles(period)
+        record(
+            action="BLISTER_PERIOD_SUBMITTED",
+            actor=actor,
+            pharmacy=patient.pharmacy,
+            target=period,
+            request=request,
+            metadata={
+                **_period_audit_metadata(period),
+                "start_date": str(period.start_date),
+                "end_date": str(period.end_date),
+                "cycle_ids": [cycle.id for cycle in cycles],
+            },
+        )
+
+    return period
+
+
+def record_dosette_period_collection(
+    *,
+    actor,
+    period,
+    collected_on: date | None = None,
+    request=None,
+) -> DosettePeriod:
+    collection_date = collected_on or timezone.localdate()
+    if collection_date > timezone.localdate():
+        raise DosettePeriodValidationError(
+            {"collected_on": ["Collection date cannot be in the future."]}
+        )
+
+    with transaction.atomic():
+        locked_period = (
+            DosettePeriod.objects.select_for_update()
+            .select_related("patient", "patient__pharmacy")
+            .get(pk=period.pk)
+        )
+        if locked_period.status == DosettePeriodStatus.CANCELLED:
+            raise DosettePeriodValidationError(
+                {"detail": ["Cannot collect a cancelled dosette period."]}
+            )
+        if locked_period.collected_on is not None:
+            raise DosettePeriodValidationError(
+                {"detail": ["Collection has already been recorded."]}
+            )
+
+        cycles = list(
+            DosetteCycle.objects.select_for_update()
+            .filter(period=locked_period)
+            .order_by("week_number", "id")
+        )
+        if len(cycles) != 4:
+            raise DosettePeriodValidationError(
+                {"detail": ["Period must have four weekly cycles before collection."]}
+            )
+        if any(
+            cycle.status != CycleStatus.CHECKED or not cycle.stock_deducted
+            for cycle in cycles
+        ):
+            raise DosettePeriodValidationError(
+                {
+                    "detail": [
+                        "All four cycles must be checked and stock deducted before "
+                        "collection can be recorded."
+                    ]
+                }
+            )
+
+        locked_period.status = DosettePeriodStatus.COLLECTED
+        locked_period.collected_on = collection_date
+        locked_period.collected_by = (
+            actor if getattr(actor, "is_authenticated", False) else None
+        )
+        locked_period.save(
+            update_fields=["status", "collected_on", "collected_by", "updated_at"]
+        )
+        # Period collection is the source of truth for next due reminders. Linked
+        # cycles are deliberately left checked/deducted so existing stock and pack
+        # lifecycle rules remain unchanged.
+        record(
+            action="BLISTER_PERIOD_COLLECTED",
+            actor=actor,
+            pharmacy=locked_period.patient.pharmacy,
+            target=locked_period,
+            request=request,
+            metadata={
+                **_period_audit_metadata(locked_period),
+                "collected_on": str(collection_date),
+                "cycle_ids": [cycle.id for cycle in cycles],
+            },
+        )
+
+    return locked_period
 
 
 def deduct_dosette_stock(*, actor, cycle, request=None) -> dict[str, Any]:

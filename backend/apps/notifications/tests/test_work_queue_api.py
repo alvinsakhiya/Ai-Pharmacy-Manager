@@ -5,7 +5,12 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.blister.models import CycleFrequency, DosetteCycle
+from apps.blister.models import (
+    CycleFrequency,
+    DosetteCycle,
+    DosettePeriod,
+    DosettePeriodStatus,
+)
 from apps.catalogue.models import Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem, StockMovement
 from apps.notifications import work_queue
@@ -91,6 +96,22 @@ def make_cycle(
         status=status,
         stock_deducted=stock_deducted,
         deducted_at=timezone.now() if stock_deducted else None,
+    )
+
+
+def make_period(
+    patient: Patient,
+    *,
+    collected_on: date,
+    start_date: date = date(2026, 5, 1),
+) -> DosettePeriod:
+    return DosettePeriod.objects.create(
+        patient=patient,
+        start_date=start_date,
+        end_date=start_date + timedelta(days=27),
+        status=DosettePeriodStatus.COLLECTED,
+        submitted_at=timezone.now(),
+        collected_on=collected_on,
     )
 
 
@@ -460,6 +481,87 @@ def test_patient_pii_is_absent_from_work_queue_response(client, work_queue_data)
         "private.example",
         "private patient note",
         "Private review note",
+    ]:
+        assert forbidden not in payload_text
+    assert "P1-WQ-001" in payload_text
+
+
+@pytest.mark.django_db
+def test_collected_period_reminder_appears_from_reminder_date(
+    client,
+    work_queue_data,
+):
+    make_period(
+        work_queue_data["patient_one"],
+        collected_on=date(2026, 6, 5),
+    )
+    make_period(
+        work_queue_data["patient_one"],
+        collected_on=date(2026, 6, 6),
+        start_date=date(2026, 6, 1),
+    )
+    authenticate(client, work_queue_data["pharmacist"])
+
+    response = client.get(work_queue_url())
+
+    assert response.status_code == 200
+    period_items = [
+        item for item in queue_items(response) if item["type"] == "MDS_PERIOD_DUE"
+    ]
+    assert len(period_items) == 1
+    item = period_items[0]
+    assert item["group"] == "due_soon"
+    assert item["priority"] == "high"
+    assert item["status"] == "DUE_SOON"
+    assert item["patient_reference"] == "P1-WQ-001"
+    assert item["cycle_id"] is None
+    assert item["cycle_reference"] == ""
+    assert item["due_date"] == "2026-07-03"
+    assert (
+        item["action_href"] == f"/patients/{work_queue_data['patient_one'].id}/dosette"
+    )
+    assert item["reason"] == (
+        "Patient ID P1-WQ-001 collected their dosette on 05 Jun 2026. "
+        "Next dosette is due in 7 days. Prepare the next dosette."
+    )
+
+
+@pytest.mark.django_db
+def test_collected_period_overdue_reminder_uses_patient_reference_only(
+    client,
+    work_queue_data,
+):
+    make_period(
+        work_queue_data["patient_one"],
+        collected_on=date(2026, 5, 20),
+    )
+    authenticate(client, work_queue_data["pharmacist"])
+
+    response = client.get(work_queue_url())
+
+    assert response.status_code == 200
+    item = next(
+        item for item in queue_items(response) if item["type"] == "MDS_PERIOD_DUE"
+    )
+    assert item["group"] == "urgent"
+    assert item["priority"] == "urgent"
+    assert item["status"] == "OVERDUE"
+    assert item["due_date"] == "2026-06-17"
+    assert item["reason"] == (
+        "Patient ID P1-WQ-001 collected their dosette on 20 May 2026. "
+        "Next dosette is 9 days overdue. Prepare the next dosette."
+    )
+
+    payload_text = str(response.json())
+    for forbidden in [
+        "PrivateFirst",
+        "PrivateLast",
+        "date_of_birth",
+        "Hidden Address",
+        "TE1 1ST",
+        "020 0000 1111",
+        "private.example",
+        "private patient note",
     ]:
         assert forbidden not in payload_text
     assert "P1-WQ-001" in payload_text

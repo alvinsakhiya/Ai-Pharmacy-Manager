@@ -10,7 +10,13 @@ from typing import Any
 
 from django.utils import timezone
 
-from apps.blister.models import CycleFrequency, CycleStatus, DosetteCycle
+from apps.blister.models import (
+    CycleFrequency,
+    CycleStatus,
+    DosetteCycle,
+    DosettePeriod,
+    DosettePeriodStatus,
+)
 from apps.reviews.models import ReviewPriority, ReviewRecord, ReviewStatus
 from apps.tenancy.models import Pharmacy
 from apps.tenancy.permissions import Action, can
@@ -227,6 +233,107 @@ def _cycle_tasks(user, *, pharmacy_id: int | None, today: date) -> list[dict[str
     return tasks
 
 
+def _period_due_reason(period: DosettePeriod, today: date) -> str:
+    next_due_date = period.next_due_date
+    if period.collected_on is None or next_due_date is None:
+        return "Review next dosette due date. Human review required."
+
+    collected_on = _format_cycle_date(period.collected_on)
+    days_until_due = (next_due_date - today).days
+    if days_until_due < 0:
+        overdue_days = abs(days_until_due)
+        return (
+            f"Patient ID {period.patient.patient_reference} collected their dosette "
+            f"on {collected_on}. Next dosette is {overdue_days} "
+            f"day{'s' if overdue_days != 1 else ''} overdue. Prepare the next "
+            "dosette."
+        )
+    return (
+        f"Patient ID {period.patient.patient_reference} collected their dosette on "
+        f"{collected_on}. Next dosette is due in {days_until_due} "
+        f"day{'s' if days_until_due != 1 else ''}. Prepare the next dosette."
+    )
+
+
+def _period_task(
+    *,
+    period: DosettePeriod,
+    priority: str,
+    group: str,
+    status: str,
+    today: date,
+) -> dict[str, Any]:
+    next_due_date = period.next_due_date
+    return {
+        "id": f"dosette-period-due-{period.id}",
+        "type": "MDS_PERIOD_DUE",
+        "group": group,
+        "priority": priority,
+        "title": "Prepare next Dosette",
+        "reason": _period_due_reason(period, today),
+        "pharmacy_id": period.patient.pharmacy_id,
+        "pharmacy_name": period.patient.pharmacy.name,
+        "patient_reference": period.patient.patient_reference,
+        "cycle_id": None,
+        "cycle_reference": "",
+        "cycle_display_label": "",
+        "cycle_start_date": None,
+        "cycle_end_date": None,
+        "due_date": next_due_date,
+        "status": status,
+        "action_label": "Open Dosette",
+        "action_href": f"/patients/{period.patient_id}/dosette",
+    }
+
+
+def _period_tasks(
+    user, *, pharmacy_id: int | None, today: date
+) -> list[dict[str, Any]]:
+    if not can(user, Action.BLISTER_VIEW):
+        return []
+
+    periods = (
+        DosettePeriod.scoped.for_user(user)
+        .filter(
+            status=DosettePeriodStatus.COLLECTED,
+            collected_on__isnull=False,
+        )
+        .select_related("patient", "patient__pharmacy")
+    )
+    if pharmacy_id is not None:
+        periods = periods.filter(patient__pharmacy_id=pharmacy_id)
+
+    tasks = []
+    for period in periods:
+        next_due_date = period.next_due_date
+        reminder_date = period.reminder_date
+        if next_due_date is None or reminder_date is None or today < reminder_date:
+            continue
+
+        if today > next_due_date:
+            tasks.append(
+                _period_task(
+                    period=period,
+                    priority="urgent",
+                    group="urgent",
+                    status="OVERDUE",
+                    today=today,
+                )
+            )
+        else:
+            tasks.append(
+                _period_task(
+                    period=period,
+                    priority="high",
+                    group="due_soon",
+                    status="DUE_SOON",
+                    today=today,
+                )
+            )
+
+    return tasks
+
+
 def _review_priority(review: ReviewRecord, today: date) -> str:
     if review.due_date is not None and review.due_date < today:
         return "urgent"
@@ -357,6 +464,7 @@ def work_queue_for(user, *, pharmacy_id: int | None = None) -> dict[str, Any]:
     generated_at = timezone.now()
     items = [
         *_cycle_tasks(user, pharmacy_id=pharmacy_id, today=today),
+        *_period_tasks(user, pharmacy_id=pharmacy_id, today=today),
         *_review_tasks(user, pharmacy_id=pharmacy_id, today=today),
         *_stock_tasks(user, pharmacy_id=pharmacy_id),
     ]

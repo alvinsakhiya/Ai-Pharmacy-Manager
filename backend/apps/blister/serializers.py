@@ -6,7 +6,13 @@ from rest_framework import serializers
 from apps.catalogue.models import CatalogueProduct
 from apps.catalogue.services import get_or_create_medication_from_product
 
-from .models import CycleFrequency, CycleStatus, DosetteCycle, PatientMedication
+from .models import (
+    CycleFrequency,
+    CycleStatus,
+    DosetteCycle,
+    DosettePeriod,
+    PatientMedication,
+)
 
 PREPARE_SOON_DAYS = 3
 SUPPLY_PERIOD_LABELS = {
@@ -318,6 +324,61 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
                 )
 
         return attrs
+
+
+class DosettePeriodSubmitSerializer(serializers.Serializer):
+    start_date = serializers.DateField(required=False)
+
+
+class DosettePeriodCollectSerializer(serializers.Serializer):
+    collected_on = serializers.DateField(required=False)
+
+
+class DosettePeriodCycleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DosetteCycle
+        fields = [
+            "id",
+            "reference",
+            "week_number",
+            "start_date",
+            "end_date",
+            "status",
+            "stock_deducted",
+        ]
+        read_only_fields = fields
+
+
+class DosettePeriodSerializer(serializers.ModelSerializer):
+    patient_reference = serializers.CharField(
+        source="patient.patient_reference",
+        read_only=True,
+    )
+    cycles = serializers.SerializerMethodField()
+    next_due_date = serializers.DateField(read_only=True)
+    reminder_date = serializers.DateField(read_only=True)
+
+    class Meta:
+        model = DosettePeriod
+        fields = [
+            "id",
+            "patient_reference",
+            "start_date",
+            "end_date",
+            "status",
+            "submitted_at",
+            "collected_on",
+            "next_due_date",
+            "reminder_date",
+            "cycles",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_cycles(self, obj: DosettePeriod):
+        cycles = obj.cycles.order_by("week_number", "id")
+        return DosettePeriodCycleSerializer(cycles, many=True).data
 
 
 class PickingListRowSerializer(serializers.Serializer):
