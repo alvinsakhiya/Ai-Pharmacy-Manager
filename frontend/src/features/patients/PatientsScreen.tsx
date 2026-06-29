@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
+  CalendarDays,
   Eye,
   Filter,
+  MapPin,
   Plus,
   Search,
   UserRound,
@@ -18,8 +21,8 @@ import { Modal } from "../../components/ui/Modal";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { SkeletonRows } from "../../components/ui/Skeleton";
-import { Table, TBody, TD, TH, THead, TR } from "../../components/ui/Table";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
+import { cn } from "../../lib/cn";
 import {
   collectionMethodLabel,
   normaliseCollectionMethod,
@@ -70,11 +73,11 @@ function SummaryCard({
   helper: string;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface px-4 py-3.5 shadow-soft">
-      <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+    <div className="rounded-xl border border-line bg-surface px-4 py-3 shadow-soft">
+      <p className="text-xs font-semibold text-muted">
         {label}
       </p>
-      <p className="tnum mt-2 text-2xl font-extrabold tracking-[-0.02em] text-ink">
+      <p className="tnum mt-1.5 text-2xl font-extrabold tracking-[-0.02em] text-ink">
         {value}
       </p>
       <p className="mt-1 text-xs font-medium text-muted">{helper}</p>
@@ -82,7 +85,32 @@ function SummaryCard({
   );
 }
 
-function PatientRow({
+function DirectoryMeta({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
+      <span
+        aria-hidden="true"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface-subtle text-brand"
+      >
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="font-semibold text-ink-soft">{label}</span>{" "}
+        <span className="tnum text-muted">{value}</span>
+      </span>
+    </div>
+  );
+}
+
+function PatientDirectoryCard({
   patient,
   pharmacyName,
   onView,
@@ -92,51 +120,63 @@ function PatientRow({
   onView: (patientId: number) => void;
 }) {
   return (
-    <TR>
-      <TD className="whitespace-nowrap font-semibold tnum text-ink">
-        <span title={`Full Patient ID ${patient.patient_reference}`}>
-          {patient.patient_reference}
+    <article
+      role="listitem"
+      className={cn(
+        "grid gap-4 rounded-2xl border border-line bg-surface p-4 shadow-elev-1 transition-all duration-150 ease-soft",
+        "hover:border-line-strong hover:shadow-elev-2",
+        "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto]",
+      )}
+    >
+      <div className="flex min-w-0 gap-3.5">
+        <span
+          aria-hidden="true"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lilac-soft text-brand"
+        >
+          <UserRound className="h-5 w-5" />
         </span>
-      </TD>
-      <TD className="min-w-[220px] text-ink">
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface-sunken text-brand"
-          >
-            <UserRound className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-ink">
-              {patient.first_name} {patient.last_name}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="tnum text-xs font-bold text-brand">
+              {patient.patient_reference}
             </p>
-            <p className="mt-0.5 text-xs text-muted">
-              {patient.phone || patient.postcode || "Contact details not recorded"}
-            </p>
+            <StatusBadge active={patient.is_active} />
+            <CollectionMethodBadge patient={patient} />
           </div>
+          <h3 className="mt-1 truncate text-base font-extrabold tracking-[-0.01em] text-ink">
+            {patient.first_name} {patient.last_name}
+          </h3>
+          <p className="mt-1 truncate text-sm text-muted">
+            {patient.phone || patient.postcode || "Contact details not recorded"}
+          </p>
         </div>
-      </TD>
-      <TD className="whitespace-nowrap tnum">
-        {formatDate(patient.date_of_birth)}
-      </TD>
-      <TD className="whitespace-nowrap">{pharmacyName(patient.pharmacy)}</TD>
-      <TD className="whitespace-nowrap">
-        <CollectionMethodBadge patient={patient} />
-      </TD>
-      <TD className="whitespace-nowrap">
-        <StatusBadge active={patient.is_active} />
-      </TD>
-      <TD className="whitespace-nowrap text-right">
+      </div>
+
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        <DirectoryMeta
+          icon={<CalendarDays className="h-3.5 w-3.5" />}
+          label="DOB"
+          value={formatDate(patient.date_of_birth)}
+        />
+        <DirectoryMeta
+          icon={<MapPin className="h-3.5 w-3.5" />}
+          label="Pharmacy"
+          value={pharmacyName(patient.pharmacy)}
+        />
+      </div>
+
+      <div className="flex items-center justify-start lg:justify-end">
         <Button
           variant="secondary"
           size="sm"
           leadingIcon={<Eye className="h-4 w-4" />}
+          trailingIcon={<ArrowRight className="h-4 w-4" />}
           onClick={() => onView(patient.id)}
         >
           View record
         </Button>
-      </TD>
-    </TR>
+      </div>
+    </article>
   );
 }
 
@@ -266,40 +306,31 @@ export function PatientsScreen() {
       </Panel>
 
       {patientsQuery.isSuccess && patients.length > 0 ? (
-        <Panel className="overflow-hidden">
+        <Panel>
           <PanelHeader
-            title="Patient list"
+            title="Patient directory"
             subtitle={`${patients.length} ${patients.length === 1 ? "record" : "records"} shown`}
             icon={<Users className="h-4 w-4" />}
             actions={
               <Badge variant="neutral">{selectedScopeLabel}</Badge>
             }
           />
-          <div className="overflow-x-auto">
-            <Table>
-              <THead>
-                <TR className="hover:bg-transparent">
-                  <TH>Patient ID</TH>
-                  <TH>Name</TH>
-                  <TH>Date of birth</TH>
-                  <TH>Pharmacy</TH>
-                  <TH>Collection</TH>
-                  <TH>Status</TH>
-                  <TH className="text-right">Action</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {patients.map((patient) => (
-                  <PatientRow
-                    key={patient.id}
-                    patient={patient}
-                    pharmacyName={pharmacyName}
-                    onView={setWorkspacePatientId}
-                  />
-                ))}
-              </TBody>
-            </Table>
-          </div>
+          <PanelBody>
+            <div
+              aria-label="Patient directory"
+              className="grid gap-3"
+              role="list"
+            >
+              {patients.map((patient) => (
+                <PatientDirectoryCard
+                  key={patient.id}
+                  patient={patient}
+                  pharmacyName={pharmacyName}
+                  onView={setWorkspacePatientId}
+                />
+              ))}
+            </div>
+          </PanelBody>
         </Panel>
       ) : null}
 

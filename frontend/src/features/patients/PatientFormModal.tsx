@@ -64,7 +64,7 @@ function FormSection({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-2xl border border-line bg-surface-subtle/60 p-4 sm:p-5">
+    <section className="space-y-4 rounded-2xl border border-line bg-surface-subtle p-4 sm:p-5">
       <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
         {title}
       </h3>

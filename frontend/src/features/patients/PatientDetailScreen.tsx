@@ -112,11 +112,13 @@ function DetailValue({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
-      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+    <div className="min-w-0 rounded-xl bg-surface-subtle px-3.5 py-3">
+      <dt className="text-xs font-semibold text-muted">
         {label}
       </dt>
-      <dd className="mt-1 text-sm font-semibold text-ink">{value}</dd>
+      <dd className="mt-1 break-words text-sm font-bold leading-relaxed text-ink">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -218,6 +220,7 @@ export function PatientRecordWorkspace({
   const displayName = [patient.title, patient.first_name, patient.last_name]
     .filter((part) => part && String(part).trim())
     .join(" ");
+  const hasHeaderActions = Boolean(fullRecordHref || canViewDosette || canManage);
 
   return (
     <div className="space-y-5">
@@ -232,70 +235,79 @@ export function PatientRecordWorkspace({
       ) : null}
 
       {/* Header — always visible, actions gated by permission. */}
-      <Panel className="overflow-hidden">
-        <PanelBody className="bg-gradient-to-br from-surface via-surface to-surface-subtle">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3.5">
+      <Panel>
+        <PanelBody className="space-y-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="flex min-w-0 items-start gap-3.5">
               <span
                 aria-hidden="true"
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-lilac-soft text-brand"
+                className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-2xl bg-lilac-soft text-brand"
               >
                 <UserRound className="h-6 w-6" />
               </span>
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-                  {pharmacyName(patient.pharmacy)} · {patient.patient_reference}
-                </p>
-                <h1 className="mt-1 text-2xl font-extrabold tracking-[-0.02em] text-ink">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="brand">{patient.patient_reference}</Badge>
+                  <StatusBadge active={patient.is_active} />
+                  <CollectionMethodBadge patient={patient} />
+                </div>
+                <h1 className="mt-2 text-2xl font-extrabold tracking-[-0.02em] text-ink">
                   {displayName}
                 </h1>
+                <p className="mt-1 text-sm font-medium text-muted">
+                  {pharmacyName(patient.pharmacy)}
+                </p>
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-2.5">
-              <StatusBadge active={patient.is_active} />
-              <CollectionMethodBadge patient={patient} />
-              {fullRecordHref ? (
-                <Link to={fullRecordHref}>
+            {hasHeaderActions ? (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl bg-surface-subtle p-2">
+                {fullRecordHref ? (
+                  <Link to={fullRecordHref}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      leadingIcon={<ExternalLink className="h-4 w-4" />}
+                    >
+                      Open full record
+                    </Button>
+                  </Link>
+                ) : null}
+                {canViewDosette ? (
+                  <Link to={`/patients/${patient.id}/dosette`}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      leadingIcon={<Pill className="h-4 w-4" />}
+                    >
+                      Dosette / MDS
+                    </Button>
+                  </Link>
+                ) : null}
+                {canManage ? (
                   <Button
+                    size="sm"
                     variant="secondary"
-                    leadingIcon={<ExternalLink className="h-4 w-4" />}
+                    leadingIcon={<Pencil className="h-4 w-4" />}
+                    onClick={() => setEditModalOpen(true)}
                   >
-                    Open full record
+                    Edit
                   </Button>
-                </Link>
-              ) : null}
-              {canViewDosette ? (
-                <Link to={`/patients/${patient.id}/dosette`}>
+                ) : null}
+                {canManage && patient.is_active ? (
                   <Button
-                    variant="secondary"
-                    leadingIcon={<Pill className="h-4 w-4" />}
+                    size="sm"
+                    variant="danger"
+                    leadingIcon={<UserX className="h-4 w-4" />}
+                    onClick={() => setDeactivateModalOpen(true)}
                   >
-                    Dosette / MDS
+                    Deactivate
                   </Button>
-                </Link>
-              ) : null}
-              {canManage ? (
-                <Button
-                  variant="secondary"
-                  leadingIcon={<Pencil className="h-4 w-4" />}
-                  onClick={() => setEditModalOpen(true)}
-                >
-                  Edit
-                </Button>
-              ) : null}
-              {canManage && patient.is_active ? (
-                <Button
-                  variant="danger"
-                  leadingIcon={<UserX className="h-4 w-4" />}
-                  onClick={() => setDeactivateModalOpen(true)}
-                >
-                  Deactivate
-                </Button>
-              ) : null}
-            </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
-          <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <DetailValue label="Date of birth" value={formatDate(patient.date_of_birth)} />
             <DetailValue label="Phone" value={fallback(patient.phone)} />
             <DetailValue label="Postcode" value={fallback(patient.postcode)} />
@@ -308,10 +320,10 @@ export function PatientRecordWorkspace({
       </Panel>
 
       {/* Record: side-panel of pages + a constant-size content area. */}
-      <div className="grid gap-5 lg:grid-cols-[230px_1fr]">
+      <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
         <nav
           aria-label="Patient record sections"
-          className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-1.5 lg:overflow-visible"
+          className="flex gap-2 overflow-x-auto rounded-2xl border border-line bg-surface p-2 shadow-soft lg:flex-col lg:overflow-visible"
         >
           {PAGES.map((page) => {
             const Icon = page.icon;
@@ -323,10 +335,10 @@ export function PatientRecordWorkspace({
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => setActivePage(page.id)}
                 className={cn(
-                  "flex shrink-0 items-center gap-2.5 rounded-full px-3.5 py-2.5 text-left text-[13px] font-semibold transition-all duration-150 ease-soft active:scale-[0.97] focus-ring lg:w-full",
+                  "flex shrink-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[13px] font-semibold transition-all duration-150 ease-soft active:scale-[0.97] focus-ring lg:w-full",
                   isActive
-                    ? "bg-brand-soft text-brand-ink"
-                    : "text-ink-soft hover:bg-surface-sunken",
+                    ? "border-lilac bg-lilac-soft text-brand-ink shadow-elev-1"
+                    : "border-transparent text-ink-soft hover:bg-surface-subtle",
                 )}
               >
                 <Icon
@@ -342,7 +354,7 @@ export function PatientRecordWorkspace({
           })}
         </nav>
 
-        <Panel className="lg:min-h-[440px]">
+        <Panel className="lg:min-h-[420px]">
           {activePage === "info" ? (
             <InfoPage patient={patient} pharmacyName={pharmacyName} />
           ) : null}
@@ -432,7 +444,7 @@ function InfoPage({
     <>
       <PanelHeader title="Patient info" icon={<Info className="h-4 w-4" />} />
       <PanelBody>
-        <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <DetailValue label="Title" value={fallback(patient.title)} />
           <DetailValue label="Patient ID" value={patient.patient_reference} />
           <DetailValue label="Pharmacy" value={pharmacyName(patient.pharmacy)} />
@@ -450,8 +462,8 @@ function InfoPage({
           <DetailValue label="Postcode" value={fallback(patient.postcode)} />
           <DetailValue label="Address" value={fallback(patient.address)} />
         </dl>
-        <div className="mt-6 border-t border-line pt-5">
-          <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        <div className="mt-5 rounded-xl bg-surface-subtle px-3.5 py-3">
+          <dt className="text-xs font-semibold text-muted">
             Summary note
           </dt>
           <dd className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
@@ -498,7 +510,7 @@ function GpPage({
       <PanelBody className="space-y-5">
         {!canManage ? <PharmacistOnlyHint /> : null}
         {hasGp ? (
-          <dl className="grid gap-5 sm:grid-cols-2">
+          <dl className="grid gap-3 sm:grid-cols-2">
             <DetailValue label="Doctor" value={fallback(gp?.doctor_name)} />
             <DetailValue label="Practice" value={fallback(gp?.practice_name)} />
             <DetailValue
@@ -563,7 +575,7 @@ function cycleStatusVariant(status: string): BadgeVariant {
 
 function CycleHistoryCard({ cycle }: { cycle: DosetteCycle }) {
   return (
-    <article className="rounded-xl border border-line bg-surface p-4">
+    <article className="rounded-2xl border border-line bg-surface p-4 shadow-elev-1">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="text-sm font-bold text-ink">{cycle.reference}</h4>
@@ -577,7 +589,7 @@ function CycleHistoryCard({ cycle }: { cycle: DosetteCycle }) {
         </Badge>
       </div>
 
-      <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <dl className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         <DetailValue label="Prepared by" value={fallback(cycle.prepared_by_email)} />
         <DetailValue label="Prepared at" value={optionalDateTime(cycle.prepared_at)} />
         <DetailValue label="Checked by" value={fallback(cycle.checked_by_email)} />

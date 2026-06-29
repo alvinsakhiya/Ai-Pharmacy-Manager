@@ -78,7 +78,7 @@ describe("PatientsScreen", () => {
     ]);
   });
 
-  it("renders polished patient header, summary, and rows from list data", async () => {
+  it("renders the modern patient directory cards from list data", async () => {
     renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
 
     expect(await screen.findByText("SUT-P1")).toBeInTheDocument();
@@ -88,11 +88,12 @@ describe("PatientsScreen", () => {
     expect(screen.getAllByText("Delivery").length).toBeGreaterThan(0);
     expect(screen.getByText("Patients marked for delivery")).toBeInTheDocument();
     expect(screen.getByText("Inactive records")).toBeInTheDocument();
-    expect(screen.getByText("Patient list")).toBeInTheDocument();
+    expect(screen.getByText("Patient directory")).toBeInTheDocument();
     expect(screen.getByText("2 records shown")).toBeInTheDocument();
     expect(
-      screen.getByRole("columnheader", { name: "Patient ID" }),
+      screen.getByRole("list", { name: "Patient directory" }),
     ).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByText("Alice Sutton")).toBeInTheDocument();
     expect(screen.getByText("In-store collection")).toBeInTheDocument();
     expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
@@ -101,6 +102,9 @@ describe("PatientsScreen", () => {
     expect(screen.getAllByText("Delivery").length).toBeGreaterThan(0);
     expect(screen.getAllByText("JMW Croydon").length).toBeGreaterThan(0);
     expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /View record/ })).toHaveLength(
+      2,
+    );
   });
 
   it("shows empty state", async () => {

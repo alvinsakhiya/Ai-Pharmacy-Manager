@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pill, Search } from "lucide-react";
+import { Clock3, Pill, Search } from "lucide-react";
 
 import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -202,93 +202,73 @@ function DoseSlots({ line }: { line: PatientMedicationLine }) {
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
-      <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+    <div className="rounded-xl bg-surface-subtle px-3.5 py-3">
+      <p className="text-xs font-semibold text-muted">
         {label}
       </p>
-      <p className="tnum mt-1 text-lg font-extrabold text-ink">{value}</p>
-    </div>
-  );
-}
-
-function MetaItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-1.5">
-      <span className="text-[10px] font-bold uppercase tracking-[0.04em] text-muted">
-        {label}
-      </span>
-      <span className="text-xs font-semibold text-ink-soft">{value}</span>
-    </div>
-  );
-}
-
-function TimingItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-surface px-3 py-2">
-      <p className="text-[10px] font-bold uppercase tracking-[0.05em] text-muted">
-        {label}
-      </p>
-      <p className="tnum mt-1 text-xs font-semibold leading-relaxed text-ink-soft">
+      <p className="tnum mt-1 text-lg font-extrabold leading-tight text-ink">
         {value}
       </p>
     </div>
   );
 }
 
-function MedicationTimingGrid({
-  line,
+function MetaItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+      <span className="text-xs font-semibold text-muted">
+        {label}
+      </span>
+      <span className="tnum truncate text-xs font-bold text-ink-soft">{value}</span>
+    </div>
+  );
+}
+
+function EventRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1 border-b border-line py-2.5 last:border-b-0 sm:grid-cols-[130px_1fr] sm:items-baseline">
+      <dt className="text-xs font-semibold text-muted">{label}</dt>
+      <dd className="tnum min-w-0 break-words text-sm font-semibold leading-relaxed text-ink-soft">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function TimingSummary({
   preparedCycle,
   checkedCycle,
   deductedCycle,
-  compact = false,
 }: {
-  line: PatientMedicationLine;
   preparedCycle: DosetteCycle | null;
   checkedCycle: DosetteCycle | null;
   deductedCycle: DosetteCycle | null;
-  compact?: boolean;
 }) {
   const items = [
     {
       label: "Prepared",
-      value: formatTimingValue(
-        preparedCycle?.prepared_at,
-        preparedCycle?.prepared_by_email,
-      ),
+      value: formatDateTime(preparedCycle?.prepared_at),
     },
     {
       label: "Checked",
-      value: formatTimingValue(
-        checkedCycle?.checked_at,
-        checkedCycle?.checked_by_email,
-      ),
+      value: formatDateTime(checkedCycle?.checked_at),
     },
     {
-      label: "Stock deducted",
-      value: formatTimingValue(deductedCycle?.deducted_at),
-    },
-    {
-      label: "Recorded",
-      value: formatTimingValue(line.created_at),
+      label: "Deducted",
+      value: formatDateTime(deductedCycle?.deducted_at),
     },
   ];
 
   return (
-    <div
-      aria-label="Latest event timing"
-      className={cn(
-        "grid gap-2",
-        compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4",
-      )}
-    >
+    <div className="flex flex-wrap gap-2" aria-label="Compact timing summary">
       {items.map((item) => (
-        <TimingItem key={item.label} label={item.label} value={item.value} />
+        <span
+          key={item.label}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-semibold text-ink-soft"
+        >
+          <span className="text-muted">{item.label}</span>
+          <span className="tnum truncate">{item.value}</span>
+        </span>
       ))}
     </div>
   );
@@ -316,56 +296,66 @@ function MedicationCard({
   onSelect: (id: number) => void;
 }) {
   const statusVariant: BadgeVariant = line.is_active ? "success" : "neutral";
+  const hasDeductedStock = deductedCycle !== null;
 
   return (
     <button
       aria-selected={isSelected}
       className={cn(
-        "block w-full rounded-2xl border border-l-4 p-4 text-left shadow-soft transition-all duration-150 ease-soft focus-ring",
+        "block w-full rounded-2xl border p-4 text-left shadow-elev-1 transition-all duration-150 ease-soft focus-ring",
         isSelected
-          ? "border-info border-l-info bg-info-soft/50 ring-1 ring-info/30"
-          : "border-line border-l-transparent bg-surface hover:-translate-y-px hover:border-line-strong hover:shadow-elev-1",
+          ? "border-lilac bg-lilac-soft shadow-elev-2"
+          : "border-line bg-surface hover:-translate-y-px hover:border-line-strong hover:shadow-elev-2",
       )}
       onClick={() => onSelect(line.id)}
       role="option"
       type="button"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-bold text-ink">{line.medication_name}</span>
-        <Badge variant="neutral">{medicationDescriptor(line)}</Badge>
-        <Badge dot variant={statusVariant}>
-          {line.is_active ? "Active" : "Discontinued"}
-        </Badge>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-base font-extrabold tracking-[-0.01em] text-ink">
+              {line.medication_name}
+            </span>
+            <Badge dot variant={statusVariant}>
+              {line.is_active ? "Active" : "Discontinued"}
+            </Badge>
+            <Badge dot variant={hasDeductedStock ? "success" : "neutral"}>
+              {hasDeductedStock ? "Stock deducted" : "Stock not deducted"}
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            {medicationDescriptor(line)}
+          </p>
+        </div>
         <Badge variant={eventDate ? "info" : "neutral"}>{eventType}</Badge>
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-4 space-y-3">
         <DoseSlots line={line} />
         <p className="text-[13px] leading-relaxed text-ink-soft">
           {dosageInstructions(line)}
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3">
-        <MetaItem label="Last recorded event" value={formatDateTime(eventDate)} />
-        {latest ? (
-          <span className="text-xs font-semibold text-ink-soft">
-            Latest cycle {latest.reference} · {formatLabel(latest.status)}
-          </span>
-        ) : null}
+      <div className="mt-4 grid gap-2.5 border-t border-line pt-3 md:grid-cols-2">
+        <MetaItem label="Latest event" value={formatDateTime(eventDate)} />
+        <MetaItem
+          label="Latest cycle"
+          value={
+            latest
+              ? `${latest.reference} - ${formatLabel(latest.status)}`
+              : NOT_RECORDED
+          }
+        />
         <MetaItem label="Appearance" value={appearanceLabel(line)} />
         <MetaItem label="Start date" value={formatDate(line.start_date)} />
       </div>
 
-      <div className="mt-3 border-t border-line pt-3">
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
-          Timing
-        </p>
-        <MedicationTimingGrid
+      <div className="mt-3">
+        <TimingSummary
           checkedCycle={checkedCycle}
-          compact
           deductedCycle={deductedCycle}
-          line={line}
           preparedCycle={preparedCycle}
         />
       </div>
@@ -433,17 +423,43 @@ function SelectedMedicationPanel({
       value: formatTimingValue(latest?.deducted_at),
     },
   ];
+  const eventRows: Array<{ label: string; value: string }> = [
+    {
+      label: "Prepared",
+      value: formatTimingValue(
+        preparedCycle?.prepared_at,
+        preparedCycle?.prepared_by_email,
+      ),
+    },
+    {
+      label: "Checked",
+      value: formatTimingValue(
+        checkedCycle?.checked_at,
+        checkedCycle?.checked_by_email,
+      ),
+    },
+    {
+      label: "Stock deducted",
+      value: formatTimingValue(deductedCycle?.deducted_at),
+    },
+    {
+      label: "Recorded",
+      value: formatTimingValue(line.created_at),
+    },
+  ];
 
   return (
     <aside
       aria-label="Selected medication"
-      className="h-fit rounded-2xl border border-line bg-surface-subtle p-4 shadow-soft lg:sticky lg:top-4"
+      className="h-fit rounded-2xl border border-line bg-surface p-5 shadow-soft xl:sticky xl:top-4"
     >
-      <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+      <p className="text-xs font-semibold text-muted">
         Selected medication
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h4 className="text-sm font-bold text-ink">{line.medication_name}</h4>
+      <div className="mt-2 flex flex-wrap items-center gap-2.5">
+        <h4 className="text-lg font-extrabold tracking-[-0.01em] text-ink">
+          {line.medication_name}
+        </h4>
         <Badge dot variant={line.is_active ? "success" : "neutral"}>
           {line.is_active ? "Active" : "Discontinued"}
         </Badge>
@@ -459,43 +475,47 @@ function SelectedMedicationPanel({
         {dosageInstructions(line)}
       </p>
 
-      <dl className="mt-4 space-y-2.5 border-t border-line pt-3">
+      <dl className="mt-5 divide-y divide-line rounded-xl bg-surface-subtle px-3">
         {rows.map((row) => (
-          <div className="flex items-start justify-between gap-3" key={row.label}>
-            <dt className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted">
+          <div
+            className="grid gap-1 py-2.5 sm:grid-cols-[120px_1fr] sm:items-baseline"
+            key={row.label}
+          >
+            <dt className="text-xs font-semibold text-muted">
               {row.label}
             </dt>
-            <dd className="text-right text-xs font-semibold text-ink-soft">
+            <dd className="tnum min-w-0 break-words text-sm font-bold leading-relaxed text-ink-soft sm:text-right">
               {row.value}
             </dd>
           </div>
         ))}
       </dl>
 
-      <div className="mt-4 border-t border-line pt-3">
-        <h5 className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+      <div className="mt-5">
+        <h5 className="flex items-center gap-2 text-sm font-bold text-ink">
+          <Clock3 aria-hidden="true" className="h-4 w-4 text-brand" />
           Latest event timing
         </h5>
-        <div className="mt-3">
-          <MedicationTimingGrid
-            checkedCycle={checkedCycle}
-            deductedCycle={deductedCycle}
-            line={line}
-            preparedCycle={preparedCycle}
-          />
-        </div>
+        <dl className="mt-2 divide-y divide-line rounded-xl bg-surface-subtle px-3">
+          {eventRows.map((row) => (
+            <EventRow key={row.label} label={row.label} value={row.value} />
+          ))}
+        </dl>
       </div>
 
-      <dl className="mt-4 space-y-2.5 border-t border-line pt-3">
-        <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+      <dl className="mt-5 divide-y divide-line rounded-xl bg-surface-subtle px-3">
+        <dt className="py-2.5 text-sm font-bold text-ink">
           Cycle context
         </dt>
         {cycleRows.map((row) => (
-          <div className="flex items-start justify-between gap-3" key={row.label}>
-            <dt className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted">
+          <div
+            className="grid gap-1 py-2.5 sm:grid-cols-[120px_1fr] sm:items-baseline"
+            key={row.label}
+          >
+            <dt className="text-xs font-semibold text-muted">
               {row.label}
             </dt>
-            <dd className="text-right text-xs font-semibold text-ink-soft">
+            <dd className="tnum min-w-0 break-words text-sm font-semibold leading-relaxed text-ink-soft sm:text-right">
               {row.value}
             </dd>
           </div>
@@ -589,7 +609,7 @@ export function MedicationHistoryItemsList({
   return (
     <section
       aria-label="Patient medication history"
-      className="space-y-4 rounded-2xl border border-line bg-surface-subtle/60 p-3 sm:p-4"
+      className="space-y-5"
     >
       <div
         aria-label="Medication history summary"
@@ -601,20 +621,8 @@ export function MedicationHistoryItemsList({
           value={String(discontinuedCount)}
         />
         <SummaryStat
-          label="Latest recorded event"
+          label="Latest event"
           value={formatDateTime(recordedEventDate)}
-        />
-        <SummaryStat
-          label="Latest prepared time"
-          value={formatDateTime(latestPrepared?.prepared_at)}
-        />
-        <SummaryStat
-          label="Latest checked time"
-          value={formatDateTime(latestChecked?.checked_at)}
-        />
-        <SummaryStat
-          label="Latest stock deducted time"
-          value={formatDateTime(latestDeducted?.deducted_at)}
         />
         <SummaryStat label="Dosette cycles" value={String(cycles.length)} />
       </div>
@@ -627,43 +635,45 @@ export function MedicationHistoryItemsList({
         />
       ) : (
         <>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="relative flex-1">
-              <span className="sr-only">Search medications</span>
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-              />
-              <input
-                className={cn(inputClass, "pl-9")}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search medication name or instructions"
-                type="search"
-                value={search}
-              />
-            </label>
-            <label className="sm:w-56">
-              <span className="sr-only">Filter by status</span>
-              <select
-                className={selectClass}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as StatusFilter)
-                }
-                value={statusFilter}
-              >
-                {STATUS_FILTERS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="rounded-2xl border border-line bg-surface p-3 shadow-elev-1">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="relative flex-1">
+                <span className="sr-only">Search medications</span>
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+                />
+                <input
+                  className={cn(inputClass, "pl-9")}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search medication name or instructions"
+                  type="search"
+                  value={search}
+                />
+              </label>
+              <label className="sm:w-56">
+                <span className="sr-only">Filter by status</span>
+                <select
+                  className={selectClass}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as StatusFilter)
+                  }
+                  value={statusFilter}
+                >
+                  {STATUS_FILTERS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
 
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
             <div
               aria-label="Medication items"
-              className="space-y-2.5"
+              className="space-y-3"
               role="listbox"
             >
               {filtered.length === 0 ? (
