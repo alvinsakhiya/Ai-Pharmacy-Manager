@@ -58,6 +58,8 @@ function makeReview(overrides: Partial<Review> = {}): Review {
 function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
   return {
     id: 21,
+    period: null,
+    week_number: null,
     reference: "MDS-2026-FW07",
     patient_reference: "SUT-P1",
     display_label: "SUT-P1 · 1-week supply · 01 Jul 2026 - 07 Jul 2026",

@@ -32,6 +32,7 @@ def test_can_create_patient():
     assert patient.pharmacy == pharmacy
     assert patient.patient_reference == "P-1"
     assert patient.is_active is True
+    assert patient.collection_method == Patient.CollectionMethod.IN_STORE
 
 
 @pytest.mark.django_db

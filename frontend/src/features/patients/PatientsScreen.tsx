@@ -20,7 +20,11 @@ import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "../../components/ui/Table";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
-import type { Patient } from "./patientApi";
+import {
+  collectionMethodLabel,
+  normaliseCollectionMethod,
+  type Patient,
+} from "./patientApi";
 import { PatientRecordWorkspace } from "./PatientDetailScreen";
 import { PatientFormModal } from "./PatientFormModal";
 import { usePatientsQuery } from "./usePatients";
@@ -43,6 +47,15 @@ function StatusBadge({ active }: { active: boolean }) {
   return (
     <Badge dot variant={active ? "success" : "neutral"}>
       {active ? "Active" : "Inactive"}
+    </Badge>
+  );
+}
+
+function CollectionMethodBadge({ patient }: { patient: Patient }) {
+  const method = normaliseCollectionMethod(patient.collection_method);
+  return (
+    <Badge dot variant={method === "DELIVERY" ? "info" : "brand"}>
+      {collectionMethodLabel(method)}
     </Badge>
   );
 }
@@ -108,6 +121,9 @@ function PatientRow({
       </TD>
       <TD className="whitespace-nowrap">{pharmacyName(patient.pharmacy)}</TD>
       <TD className="whitespace-nowrap">
+        <CollectionMethodBadge patient={patient} />
+      </TD>
+      <TD className="whitespace-nowrap">
         <StatusBadge active={patient.is_active} />
       </TD>
       <TD className="whitespace-nowrap text-right">
@@ -145,6 +161,9 @@ export function PatientsScreen() {
   const patients = patientsQuery.data ?? [];
   const activePatients = patients.filter((patient) => patient.is_active).length;
   const inactivePatients = patients.length - activePatients;
+  const deliveryPatients = patients.filter(
+    (patient) => normaliseCollectionMethod(patient.collection_method) === "DELIVERY",
+  ).length;
   const selectedScopeLabel =
     selectedPharmacyId === undefined
       ? pharmacies.length > 1
@@ -171,7 +190,7 @@ export function PatientsScreen() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           label="Visible records"
           value={patientsQuery.isSuccess ? String(patients.length) : "-"}
@@ -181,6 +200,11 @@ export function PatientsScreen() {
           label="Active records"
           value={patientsQuery.isSuccess ? String(activePatients) : "-"}
           helper="Available in current filters"
+        />
+        <SummaryCard
+          label="Delivery"
+          value={patientsQuery.isSuccess ? String(deliveryPatients) : "-"}
+          helper="Patients marked for delivery"
         />
         <SummaryCard
           label="Inactive records"
@@ -242,7 +266,7 @@ export function PatientsScreen() {
       </Panel>
 
       {patientsQuery.isSuccess && patients.length > 0 ? (
-        <Panel>
+        <Panel className="overflow-hidden">
           <PanelHeader
             title="Patient list"
             subtitle={`${patients.length} ${patients.length === 1 ? "record" : "records"} shown`}
@@ -259,6 +283,7 @@ export function PatientsScreen() {
                   <TH>Name</TH>
                   <TH>Date of birth</TH>
                   <TH>Pharmacy</TH>
+                  <TH>Collection</TH>
                   <TH>Status</TH>
                   <TH className="text-right">Action</TH>
                 </TR>

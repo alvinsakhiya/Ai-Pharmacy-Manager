@@ -329,6 +329,7 @@ def test_patient_detail_returns_plaintext_sensitive_fields(client, patient_api_d
     assert response.json()["last_name"] == "Sutton"
     assert response.json()["date_of_birth"] == "1980-01-01"
     assert response.json()["notes"] == "P1-001 private note"
+    assert response.json()["collection_method"] == Patient.CollectionMethod.IN_STORE
     assert "last_name_index" not in response.json()
 
 
@@ -372,6 +373,38 @@ def test_create_without_patient_reference_generates_patient_id(
     patient = Patient.objects.get(pk=response.json()["id"])
     assert response.json()["patient_reference"] == "P1-P0001"
     assert patient.patient_reference == "P1-P0001"
+    assert response.json()["collection_method"] == Patient.CollectionMethod.IN_STORE
+    assert patient.collection_method == Patient.CollectionMethod.IN_STORE
+
+
+@pytest.mark.django_db
+def test_patient_collection_method_can_be_created_and_updated(
+    client,
+    patient_api_data,
+):
+    authenticate(client, patient_api_data["admin"])
+
+    create_response = client.post(
+        "/api/patients/",
+        {
+            **patient_payload(patient_api_data["pharmacy_one"]),
+            "collection_method": Patient.CollectionMethod.DELIVERY,
+        },
+        format="json",
+    )
+    patient_id = create_response.json()["id"]
+    update_response = client.patch(
+        f"/api/patients/{patient_id}/",
+        {"collection_method": Patient.CollectionMethod.IN_STORE},
+        format="json",
+    )
+    patient = Patient.objects.get(pk=patient_id)
+
+    assert create_response.status_code == 201
+    assert create_response.json()["collection_method"] == Patient.CollectionMethod.DELIVERY
+    assert update_response.status_code == 200
+    assert update_response.json()["collection_method"] == Patient.CollectionMethod.IN_STORE
+    assert patient.collection_method == Patient.CollectionMethod.IN_STORE
 
 
 @pytest.mark.django_db

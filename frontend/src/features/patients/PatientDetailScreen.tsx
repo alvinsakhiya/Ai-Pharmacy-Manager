@@ -41,7 +41,11 @@ import {
 } from "./usePatients";
 import { usePharmacyNames } from "./usePharmacyNames";
 import { PatientReviewsSection } from "../reviews/PatientReviewsSection";
-import type { Patient } from "./patientApi";
+import {
+  collectionMethodLabel,
+  normaliseCollectionMethod,
+  type Patient,
+} from "./patientApi";
 
 type DetailPage = "info" | "gp" | "medication" | "notes";
 
@@ -90,6 +94,16 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
+function CollectionMethodBadge({ patient }: { patient: Patient }) {
+  const method = normaliseCollectionMethod(patient.collection_method);
+
+  return (
+    <Badge dot variant={method === "DELIVERY" ? "info" : "brand"}>
+      {collectionMethodLabel(method)}
+    </Badge>
+  );
+}
+
 function DetailValue({
   label,
   value,
@@ -98,7 +112,7 @@ function DetailValue({
   value: string;
 }) {
   return (
-    <div>
+    <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
       <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
         {label}
       </dt>
@@ -218,8 +232,8 @@ export function PatientRecordWorkspace({
       ) : null}
 
       {/* Header — always visible, actions gated by permission. */}
-      <Panel>
-        <PanelBody>
+      <Panel className="overflow-hidden">
+        <PanelBody className="bg-gradient-to-br from-surface via-surface to-surface-subtle">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-center gap-3.5">
               <span
@@ -239,6 +253,7 @@ export function PatientRecordWorkspace({
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2.5">
               <StatusBadge active={patient.is_active} />
+              <CollectionMethodBadge patient={patient} />
               {fullRecordHref ? (
                 <Link to={fullRecordHref}>
                   <Button
@@ -279,6 +294,16 @@ export function PatientRecordWorkspace({
               ) : null}
             </div>
           </div>
+
+          <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <DetailValue label="Date of birth" value={formatDate(patient.date_of_birth)} />
+            <DetailValue label="Phone" value={fallback(patient.phone)} />
+            <DetailValue label="Postcode" value={fallback(patient.postcode)} />
+            <DetailValue
+              label="MDS handover"
+              value={collectionMethodLabel(patient.collection_method)}
+            />
+          </dl>
         </PanelBody>
       </Panel>
 
@@ -411,6 +436,10 @@ function InfoPage({
           <DetailValue label="Title" value={fallback(patient.title)} />
           <DetailValue label="Patient ID" value={patient.patient_reference} />
           <DetailValue label="Pharmacy" value={pharmacyName(patient.pharmacy)} />
+          <DetailValue
+            label="Collection method"
+            value={collectionMethodLabel(patient.collection_method)}
+          />
           <DetailValue
             label="Date of birth"
             value={formatDate(patient.date_of_birth)}

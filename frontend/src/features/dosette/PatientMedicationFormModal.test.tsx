@@ -139,7 +139,7 @@ describe("PatientMedicationFormModal", () => {
     await user.type(screen.getByLabelText("Evening"), "0");
     await user.clear(screen.getByLabelText("Bedtime"));
     await user.type(screen.getByLabelText("Bedtime"), "1");
-    await user.type(screen.getByLabelText("Start date"), "2026-06-22");
+    expect(screen.queryByLabelText("Start date")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
@@ -150,7 +150,7 @@ describe("PatientMedicationFormModal", () => {
         quantity_lunchtime: 2,
         quantity_evening: 0,
         quantity_bedtime: 1,
-        start_date: "2026-06-22",
+        start_date: null,
       });
     });
     expect(onClose).toHaveBeenCalled();
@@ -161,6 +161,7 @@ describe("PatientMedicationFormModal", () => {
     renderModal({ line: makeLine() });
 
     await screen.findByLabelText("Selected medication");
+    expect(screen.queryByLabelText("Start date")).toBeNull();
     await user.clear(screen.getByLabelText("Dose instructions"));
     await user.type(screen.getByLabelText("Dose instructions"), "Updated directions");
     await user.clear(screen.getByLabelText("Bedtime"));

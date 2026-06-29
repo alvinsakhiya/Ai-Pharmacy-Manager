@@ -46,6 +46,8 @@ export type CycleStatusTransition =
 
 export interface DosetteCycle {
   id: number;
+  period: number | null;
+  week_number: number | null;
   reference: string;
   patient_reference: string;
   display_label: string;
@@ -75,6 +77,11 @@ export interface DosettePeriodCycle {
   end_date: string;
   status: string;
   stock_deducted: boolean;
+  deducted_at: string | null;
+  prepared_by_email: string | null;
+  prepared_at: string | null;
+  checked_by_email: string | null;
+  checked_at: string | null;
 }
 
 export interface DosettePeriod {
@@ -85,6 +92,7 @@ export interface DosettePeriod {
   status: string;
   submitted_at: string;
   collected_on: string | null;
+  collected_by_email: string | null;
   next_due_date: string | null;
   reminder_date: string | null;
   cycles: DosettePeriodCycle[];

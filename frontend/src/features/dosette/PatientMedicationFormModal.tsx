@@ -269,17 +269,6 @@ export function PatientMedicationFormModal({
           </div>
         </fieldset>
 
-        <label className={labelClass}>
-          Start date
-          <input
-            className={inputClass}
-            onChange={(event) => setStartDate(event.target.value)}
-            type="date"
-            value={startDate}
-          />
-          <FieldErrorList messages={errorMessages(errors, "start_date")} />
-        </label>
-
         <div className="flex justify-end gap-3 border-t border-line pt-5">
           <Button onClick={onClose} variant="secondary">
             Cancel

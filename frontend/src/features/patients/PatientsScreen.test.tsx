@@ -37,6 +37,7 @@ function makePatient(overrides: Partial<Patient> = {}): Patient {
     postcode: "SM1 1AA",
     phone: "020 0000 0001",
     notes: "Fictional patient note",
+    collection_method: "IN_STORE",
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
@@ -71,6 +72,7 @@ describe("PatientsScreen", () => {
         patient_reference: "CRO-P1",
         first_name: "Bob",
         last_name: "Croydon",
+        collection_method: "DELIVERY",
         is_active: false,
       }),
     ]);
@@ -83,6 +85,8 @@ describe("PatientsScreen", () => {
     expect(screen.getByText("Search and scope")).toBeInTheDocument();
     expect(screen.getByText("Visible records")).toBeInTheDocument();
     expect(screen.getByText("Active records")).toBeInTheDocument();
+    expect(screen.getAllByText("Delivery").length).toBeGreaterThan(0);
+    expect(screen.getByText("Patients marked for delivery")).toBeInTheDocument();
     expect(screen.getByText("Inactive records")).toBeInTheDocument();
     expect(screen.getByText("Patient list")).toBeInTheDocument();
     expect(screen.getByText("2 records shown")).toBeInTheDocument();
@@ -90,9 +94,11 @@ describe("PatientsScreen", () => {
       screen.getByRole("columnheader", { name: "Patient ID" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Alice Sutton")).toBeInTheDocument();
+    expect(screen.getByText("In-store collection")).toBeInTheDocument();
     expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
     expect(screen.getByText("CRO-P1")).toBeInTheDocument();
     expect(screen.getByText("Bob Croydon")).toBeInTheDocument();
+    expect(screen.getAllByText("Delivery").length).toBeGreaterThan(0);
     expect(screen.getAllByText("JMW Croydon").length).toBeGreaterThan(0);
     expect(screen.getByText("Inactive")).toBeInTheDocument();
   });
@@ -120,6 +126,9 @@ describe("PatientsScreen", () => {
 
     expect(getPatientMock).toHaveBeenCalledWith(20);
     expect(within(dialog).getByText("Alice Sutton")).toBeInTheDocument();
+    expect(
+      within(dialog).getAllByText("In-store collection").length,
+    ).toBeGreaterThan(0);
     expect(
       within(dialog).getByRole("button", { name: "Patient info" }),
     ).toBeInTheDocument();

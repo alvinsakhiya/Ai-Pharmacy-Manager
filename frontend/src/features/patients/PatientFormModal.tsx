@@ -23,7 +23,16 @@ import {
   normalizeErrors,
   type FieldErrors,
 } from "../../lib/apiErrors";
-import type { Patient, PatientUpdateBody, PatientWriteBody } from "./patientApi";
+import {
+  COLLECTION_METHOD_LABELS,
+  DEFAULT_COLLECTION_METHOD,
+  collectionMethodLabel,
+  normaliseCollectionMethod,
+  type Patient,
+  type PatientCollectionMethod,
+  type PatientUpdateBody,
+  type PatientWriteBody,
+} from "./patientApi";
 import { useCreatePatient, useUpdatePatient } from "./usePatients";
 import { usePharmacyNames } from "./usePharmacyNames";
 
@@ -86,6 +95,9 @@ export function PatientFormModal({
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+  const [collectionMethod, setCollectionMethod] = useState<PatientCollectionMethod>(
+    DEFAULT_COLLECTION_METHOD,
+  );
   const [errors, setErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
@@ -110,6 +122,7 @@ export function PatientFormModal({
     setPhone(patient?.phone ?? "");
     setEmail(patient?.email ?? "");
     setNotes(patient?.notes ?? "");
+    setCollectionMethod(normaliseCollectionMethod(patient?.collection_method));
     setErrors({});
   }, [isOpen, patient, pharmacies]);
 
@@ -147,6 +160,7 @@ export function PatientFormModal({
       phone: phone.trim(),
       email: email.trim(),
       notes: notes.trim(),
+      collection_method: collectionMethod,
     };
 
     try {
@@ -248,6 +262,41 @@ export function PatientFormModal({
                   />
                 </div>
               )}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className={labelClass}>
+                Collection method
+                <select
+                  className={selectClass}
+                  onChange={(event) =>
+                    setCollectionMethod(
+                      event.target.value === "DELIVERY" ? "DELIVERY" : "IN_STORE",
+                    )
+                  }
+                  value={collectionMethod}
+                >
+                  {Object.entries(COLLECTION_METHOD_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <FieldErrorList
+                  messages={errorMessages(errors, "collection_method")}
+                />
+              </label>
+
+              <div className="rounded-xl border border-line bg-surface px-3 py-2.5 shadow-elev-1">
+                <p className="text-[13px] font-semibold text-ink-soft">
+                  MDS status label
+                </p>
+                <p className={fieldHintClass}>
+                  Dosette status will show{" "}
+                  {collectionMethod === "DELIVERY" ? "Delivered" : "Collected"} for{" "}
+                  {collectionMethodLabel(collectionMethod)}.
+                </p>
+              </div>
             </div>
 
             {!hasPharmacyScope ? (

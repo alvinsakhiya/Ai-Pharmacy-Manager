@@ -12,6 +12,27 @@ export interface PatientGp {
 
 export type PatientGpWriteBody = Omit<PatientGp, "updated_at">;
 
+export type PatientCollectionMethod = "IN_STORE" | "DELIVERY";
+
+export const DEFAULT_COLLECTION_METHOD: PatientCollectionMethod = "IN_STORE";
+
+export const COLLECTION_METHOD_LABELS: Record<PatientCollectionMethod, string> = {
+  IN_STORE: "In-store collection",
+  DELIVERY: "Delivery",
+};
+
+export function normaliseCollectionMethod(
+  value: PatientCollectionMethod | null | undefined,
+): PatientCollectionMethod {
+  return value === "DELIVERY" ? "DELIVERY" : DEFAULT_COLLECTION_METHOD;
+}
+
+export function collectionMethodLabel(
+  value: PatientCollectionMethod | null | undefined,
+): string {
+  return COLLECTION_METHOD_LABELS[normaliseCollectionMethod(value)];
+}
+
 export interface Patient {
   id: number;
   pharmacy: number;
@@ -26,6 +47,7 @@ export interface Patient {
   phone: string;
   email?: string | null;
   notes: string;
+  collection_method?: PatientCollectionMethod | null;
   gp?: PatientGp | null;
   is_active: boolean;
   created_at: string;
@@ -61,6 +83,7 @@ export interface PatientWriteBody {
   phone: string;
   email: string;
   notes: string;
+  collection_method: PatientCollectionMethod;
 }
 
 export type PatientUpdateBody = Omit<PatientWriteBody, "pharmacy">;

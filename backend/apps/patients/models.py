@@ -24,6 +24,10 @@ SENSITIVE_PATIENT_FIELDS = (
 class Patient(TimeStampedModel, SoftDeleteModel):
     tenant_pharmacy_id_field = "pharmacy"
 
+    class CollectionMethod(models.TextChoices):
+        IN_STORE = "IN_STORE", "In-store collection"
+        DELIVERY = "DELIVERY", "Delivery"
+
     pharmacy = models.ForeignKey(
         "tenancy.Pharmacy",
         on_delete=models.PROTECT,
@@ -48,6 +52,11 @@ class Patient(TimeStampedModel, SoftDeleteModel):
     phone = EncryptedTextField(max_length=32, blank=True)
     email = EncryptedTextField(max_length=254, blank=True, null=True)
     notes = EncryptedTextField(blank=True)
+    collection_method = models.CharField(
+        max_length=16,
+        choices=CollectionMethod.choices,
+        default=CollectionMethod.IN_STORE,
+    )
 
     objects = models.Manager()
     scoped = TenantScopedManager()

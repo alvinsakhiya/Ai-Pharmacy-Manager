@@ -54,6 +54,7 @@ class PatientSerializer(serializers.ModelSerializer):
             "phone",
             "email",
             "notes",
+            "collection_method",
             "gp",
             "is_active",
             "created_at",

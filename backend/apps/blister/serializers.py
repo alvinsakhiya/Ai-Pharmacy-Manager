@@ -207,6 +207,8 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
         model = DosetteCycle
         fields = [
             "id",
+            "period",
+            "week_number",
             "reference",
             "patient_reference",
             "display_label",
@@ -229,6 +231,8 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "period",
+            "week_number",
             "patient_reference",
             "display_label",
             "supply_period_label",
@@ -335,6 +339,9 @@ class DosettePeriodCollectSerializer(serializers.Serializer):
 
 
 class DosettePeriodCycleSerializer(serializers.ModelSerializer):
+    prepared_by_email = serializers.SerializerMethodField()
+    checked_by_email = serializers.SerializerMethodField()
+
     class Meta:
         model = DosetteCycle
         fields = [
@@ -345,8 +352,19 @@ class DosettePeriodCycleSerializer(serializers.ModelSerializer):
             "end_date",
             "status",
             "stock_deducted",
+            "deducted_at",
+            "prepared_by_email",
+            "prepared_at",
+            "checked_by_email",
+            "checked_at",
         ]
         read_only_fields = fields
+
+    def get_prepared_by_email(self, obj: DosetteCycle) -> str | None:
+        return obj.prepared_by.email if obj.prepared_by_id else None
+
+    def get_checked_by_email(self, obj: DosetteCycle) -> str | None:
+        return obj.checked_by.email if obj.checked_by_id else None
 
 
 class DosettePeriodSerializer(serializers.ModelSerializer):
@@ -357,6 +375,7 @@ class DosettePeriodSerializer(serializers.ModelSerializer):
     cycles = serializers.SerializerMethodField()
     next_due_date = serializers.DateField(read_only=True)
     reminder_date = serializers.DateField(read_only=True)
+    collected_by_email = serializers.SerializerMethodField()
 
     class Meta:
         model = DosettePeriod
@@ -368,6 +387,7 @@ class DosettePeriodSerializer(serializers.ModelSerializer):
             "status",
             "submitted_at",
             "collected_on",
+            "collected_by_email",
             "next_due_date",
             "reminder_date",
             "cycles",
@@ -379,6 +399,9 @@ class DosettePeriodSerializer(serializers.ModelSerializer):
     def get_cycles(self, obj: DosettePeriod):
         cycles = obj.cycles.order_by("week_number", "id")
         return DosettePeriodCycleSerializer(cycles, many=True).data
+
+    def get_collected_by_email(self, obj: DosettePeriod) -> str | None:
+        return obj.collected_by.email if obj.collected_by_id else None
 
 
 class PickingListRowSerializer(serializers.Serializer):

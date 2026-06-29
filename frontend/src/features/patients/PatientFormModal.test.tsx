@@ -37,6 +37,7 @@ function makePatient(overrides: Partial<Patient> = {}): Patient {
     postcode: "SM1 1AA",
     phone: "020 0000 0001",
     notes: "Fictional patient note",
+    collection_method: "IN_STORE",
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
@@ -123,6 +124,7 @@ describe("PatientFormModal", () => {
         phone: "020 0000 0002",
         email: "",
         notes: "Create note",
+        collection_method: "IN_STORE",
       });
     });
     expect(createPatientMock.mock.calls[0][0]).not.toHaveProperty(
@@ -160,9 +162,30 @@ describe("PatientFormModal", () => {
         phone: "020 0000 0001",
         email: "",
         notes: "Fictional patient note",
+        collection_method: "IN_STORE",
       });
     });
     expect(updatePatientMock.mock.calls[0][1]).not.toHaveProperty("pharmacy");
+  });
+
+  it("submits the selected collection method", async () => {
+    const onClose = vi.fn();
+    renderWithProviders(
+      <PatientFormModal isOpen onClose={onClose} patient={null} />,
+      { auth: patientAuth() },
+    );
+
+    const user = await fillCreateForm();
+    await user.selectOptions(screen.getByLabelText("Collection method"), "DELIVERY");
+    await user.click(screen.getByRole("button", { name: "Save patient" }));
+
+    await waitFor(() => {
+      expect(createPatientMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collection_method: "DELIVERY",
+        }),
+      );
+    });
   });
 
   it("renders pharmacy read-only in edit mode", () => {

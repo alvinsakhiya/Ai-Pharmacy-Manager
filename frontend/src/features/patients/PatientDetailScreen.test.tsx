@@ -53,6 +53,7 @@ function makePatient(overrides: Partial<Patient> = {}): Patient {
     postcode: "SM1 1AA",
     phone: "020 0000 0001",
     notes: "Fictional patient note",
+    collection_method: "DELIVERY",
     is_active: true,
     created_at: "2026-06-19T09:00:00Z",
     updated_at: "2026-06-19T09:00:00Z",
@@ -87,6 +88,8 @@ function makeMedicationLine(
 function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
   return {
     id: 40,
+    period: null,
+    week_number: null,
     reference: "MDS-2026-W26",
     patient_reference: "SUT-P1",
     display_label: "SUT-P1 · 1-week supply · 22 Jun 2026 - 28 Jun 2026",
@@ -157,10 +160,12 @@ describe("PatientDetailScreen", () => {
     expect(screen.getByText("SUT-P1")).toBeInTheDocument();
     expect(screen.getByText("Patient ID")).toBeInTheDocument();
     expect(screen.getAllByText("JMW Sutton").length).toBeGreaterThan(0);
-    expect(screen.getByText("01 Jan 1980")).toBeInTheDocument();
+    expect(screen.getAllByText("Delivery").length).toBeGreaterThan(0);
+    expect(screen.getByText("Collection method")).toBeInTheDocument();
+    expect(screen.getAllByText("01 Jan 1980").length).toBeGreaterThan(0);
     expect(screen.getByText("1 Demo Street, Sutton")).toBeInTheDocument();
-    expect(screen.getByText("SM1 1AA")).toBeInTheDocument();
-    expect(screen.getByText("020 0000 0001")).toBeInTheDocument();
+    expect(screen.getAllByText("SM1 1AA").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("020 0000 0001").length).toBeGreaterThan(0);
     expect(screen.getByText("Fictional patient note")).toBeInTheDocument();
   });
 
@@ -226,6 +231,7 @@ describe("PatientDetailScreen", () => {
     const panel = await screen.findByRole("region", {
       name: "Patient medication history",
     });
+    expect(panel).toHaveClass("rounded-2xl");
 
     // Summary badges use existing data only.
     expect(within(panel).getByText("Active medications")).toBeInTheDocument();

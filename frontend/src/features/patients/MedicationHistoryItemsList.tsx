@@ -587,10 +587,13 @@ export function MedicationHistoryItemsList({
     medicationLines.find((line) => line.id === selectedId) ?? null;
 
   return (
-    <section aria-label="Patient medication history" className="space-y-4">
+    <section
+      aria-label="Patient medication history"
+      className="space-y-4 rounded-2xl border border-line bg-surface-subtle/60 p-3 sm:p-4"
+    >
       <div
         aria-label="Medication history summary"
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
       >
         <SummaryStat label="Active medications" value={String(activeCount)} />
         <SummaryStat

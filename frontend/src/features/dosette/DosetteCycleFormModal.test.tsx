@@ -23,6 +23,8 @@ const updateDosetteCycleMock = vi.mocked(dosetteApi.updateDosetteCycle);
 function makeCycle(overrides: Partial<DosetteCycle> = {}): DosetteCycle {
   return {
     id: 40,
+    period: null,
+    week_number: null,
     reference: "MDS-2026-W26",
     patient_reference: "SUT-P1",
     display_label: "SUT-P1 · 1-week supply · 22 Jun 2026 - 28 Jun 2026",
