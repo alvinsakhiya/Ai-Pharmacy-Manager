@@ -42,8 +42,8 @@ function NavItemLink({
             "group relative flex items-center gap-3.5 rounded-full px-4 py-3 text-[15px] font-semibold outline-none transition-all duration-200 ease-soft active:scale-[0.98]",
             "focus-visible:ring-2 focus-visible:ring-lilac focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
             isActive
-              ? "bg-gradient-lilac text-lilac-ink shadow-[0_8px_22px_-8px_rgba(201,182,246,0.7)] ring-1 ring-inset ring-lilac"
-              : "text-sidebar-text/80 hover:translate-x-1 hover:bg-sidebar-raised hover:text-white",
+              ? "bg-lilac text-lilac-ink shadow-elev-1 ring-1 ring-inset ring-lilac"
+              : "text-sidebar-text hover:translate-x-1 hover:bg-sidebar-raised hover:text-white",
           )
         }
         end={item.path === "/"}
@@ -78,7 +78,7 @@ function NavItemLink({
                   "tnum ml-auto inline-flex min-w-6 shrink-0 animate-scale-in items-center justify-center rounded-full px-2 py-0.5 text-xs font-extrabold transition-colors duration-200",
                   isActive
                     ? "bg-surface text-lilac-ink"
-                    : "bg-lilac text-lilac-ink shadow-[0_2px_12px_rgba(201,182,246,0.55)]",
+                    : "bg-lilac text-lilac-ink shadow-elev-1",
                 )}
               >
                 {badgeCount > 99 ? "99+" : badgeCount}
@@ -178,7 +178,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
               return (
                 <span
                   aria-disabled="true"
-                  className="flex cursor-not-allowed items-center gap-3.5 rounded-full px-4 py-2.5 text-[14px] font-semibold text-sidebar-muted/60"
+                  className="flex cursor-not-allowed items-center gap-3.5 rounded-full px-4 py-2.5 text-[14px] font-semibold text-sidebar-muted"
                   key={item.label}
                 >
                   <Icon aria-hidden="true" className="h-[20px] w-[20px]" />
@@ -196,7 +196,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           <div className="flex items-center gap-3 rounded-2xl bg-sidebar-raised p-3 ring-1 ring-inset ring-sidebar-line transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:bg-sidebar-line hover:shadow-elev-2">
             <span
               aria-hidden="true"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-lilac text-sm font-bold text-lilac-ink shadow-[0_4px_14px_-4px_rgba(201,182,246,0.7)] ring-2 ring-inset ring-lilac"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-lilac text-sm font-bold text-lilac-ink shadow-elev-1 ring-2 ring-inset ring-lilac"
             >
               {initials(displayName)}
             </span>
@@ -211,7 +211,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           </div>
           <button
             aria-label="Logout"
-            className="group flex w-full items-center gap-3.5 rounded-full px-4 py-3 text-[15px] font-semibold text-sidebar-text/80 outline-none transition-all duration-200 ease-soft hover:bg-sidebar-raised hover:text-white focus-visible:ring-2 focus-visible:ring-lilac focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar active:scale-[0.98]"
+            className="group flex w-full items-center gap-3.5 rounded-full px-4 py-3 text-[15px] font-semibold text-sidebar-text outline-none transition-all duration-200 ease-soft hover:bg-sidebar-raised hover:text-white focus-visible:ring-2 focus-visible:ring-lilac focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar active:scale-[0.98]"
             onClick={() => void handleLogout()}
             type="button"
           >

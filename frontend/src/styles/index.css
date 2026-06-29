@@ -212,7 +212,7 @@
     z-index: 30;
     display: block;
     width: 16.5rem;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid #3f3559;
     border-radius: 0 36px 0 0;
     overflow: hidden;
     box-shadow: 8px 0 24px rgba(42, 35, 64, 0.1);

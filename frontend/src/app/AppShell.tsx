@@ -21,7 +21,7 @@ export function AppShell() {
         <div className="app-shell__mobile-overlay fixed inset-0 z-40">
           <button
             aria-label="Close navigation"
-            className="absolute inset-0 animate-fade-in bg-ink/50 backdrop-blur-[2px]"
+            className="absolute inset-0 animate-fade-in bg-ink/50"
             onClick={() => setMobileNavOpen(false)}
             type="button"
           />

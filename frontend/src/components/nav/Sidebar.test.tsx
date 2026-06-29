@@ -50,14 +50,14 @@ function makeUser(overrides: Partial<MePayload> = {}): MePayload {
   };
 }
 
-function renderSidebar(user: MePayload) {
+function renderSidebar(user: MePayload, options: { route?: string } = {}) {
   const logout = vi.fn().mockResolvedValue(undefined);
   const auth = makeAuthContext({
     user,
     logout,
   });
 
-  renderWithProviders(<Sidebar />, { auth });
+  renderWithProviders(<Sidebar />, { auth, route: options.route ?? "/" });
 
   return { logout };
 }
@@ -103,10 +103,43 @@ describe("Sidebar", () => {
     expect(sidebar?.className).toContain("bg-[linear-gradient");
 
     const sidebarMarkup = sidebar?.outerHTML ?? "";
-    expect(sidebarMarkup).not.toContain("backdrop-blur");
-    expect(sidebarMarkup).not.toContain("bg-white/");
-    expect(sidebarMarkup).not.toContain("ring-white/");
-    expect(sidebarMarkup).not.toContain("radial-gradient");
+    const forbiddenGlassPatterns = [
+      /backdrop-blur/,
+      /bg-white\//,
+      /bg-black\//,
+      /bg-slate-\S*\/(?:60|70|80|85|90)/,
+      /ring-white\//,
+      /border-white\//,
+      /from-white\//,
+      /via-white\//,
+      /to-white\//,
+      /radial-gradient/,
+      /rgba\(/,
+      /shadow-\[/,
+      /\/(?:60|70|80|85|90)\b/,
+    ];
+
+    for (const pattern of forbiddenGlassPatterns) {
+      expect(sidebarMarkup).not.toMatch(pattern);
+    }
+  });
+
+  it("marks the active route with a solid selected nav item", () => {
+    renderSidebar(
+      makeUser({
+        permissions: {
+          "stock.view": true,
+        },
+      }),
+      { route: "/inventory" },
+    );
+
+    const inventoryLink = screen.getByRole("link", { name: "Inventory" });
+    expect(inventoryLink).toHaveAttribute("aria-current", "page");
+    expect(inventoryLink.className).toContain("bg-lilac");
+    expect(inventoryLink.className).not.toContain("bg-gradient");
+    expect(inventoryLink.className).not.toContain("shadow-[");
+    expect(inventoryLink.className).not.toContain("bg-white/");
   });
 
   it("pharmacist with user.manage sees Dashboard and Users only", () => {
