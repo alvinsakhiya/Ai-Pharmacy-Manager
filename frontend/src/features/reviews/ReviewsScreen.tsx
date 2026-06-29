@@ -292,9 +292,9 @@ export function ReviewsScreen() {
     items: reviews,
     query: searchQuery,
     getId: (review) => review.id,
-    getLabel: (review) => `Review for ${review.patient_reference}`,
+    getLabel: (review) => review.patient_reference,
     getDescription: (review) =>
-      `${review.priority} · ${review.status}${review.due_date ? ` · due ${review.due_date}` : ""}`,
+      `Review · ${review.status} · ${review.due_date ?? "No due date"}`,
     getFields: reviewSearchFields,
   });
 

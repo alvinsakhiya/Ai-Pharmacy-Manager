@@ -300,6 +300,35 @@ describe("ReviewsScreen", () => {
     });
   });
 
+  it("keeps the selected review visible after picking a search suggestion", async () => {
+    const user = userEvent.setup();
+    renderReviews();
+
+    await screen.findByText("Review for SUT-P1");
+
+    const searchInput = screen.getByLabelText("Search reviews");
+    await user.type(searchInput, "CRO");
+
+    const listbox = await screen.findByRole("listbox", {
+      name: "Review matches",
+    });
+    expect(within(listbox).getByText("CRO-P1")).toBeInTheDocument();
+    expect(within(listbox).getByText(/Review · COMPLETED/)).toBeInTheDocument();
+
+    await user.click(within(listbox).getByRole("button", { name: /CRO-P1/ }));
+
+    expect(searchInput).toHaveValue("CRO-P1");
+    expect(screen.getByText("Review for CRO-P1")).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Grouped review queue" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Completed" }))
+      .toBeInTheDocument();
+    expect(
+      screen.queryByText("No reviews match the current view."),
+    ).toBeNull();
+  });
+
   it("keeps view-only users read-only", async () => {
     renderReviews(false);
 
