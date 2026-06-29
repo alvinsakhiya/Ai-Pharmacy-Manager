@@ -1481,6 +1481,11 @@ describe("DosetteScreen", () => {
     });
     expect(within(workflow).getByText("Legacy cycles available")).toBeInTheDocument();
     expect(
+      within(workflow).getByText(
+        "Choose an existing cycle, then generate the stock-pick view.",
+      ),
+    ).toBeInTheDocument();
+    expect(
       within(workflow).getByRole("group", { name: "Legacy cycles" }),
     ).toBeInTheDocument();
     expect(

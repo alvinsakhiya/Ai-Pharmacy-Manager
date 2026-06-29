@@ -827,7 +827,7 @@ function CycleStatusOverview({
           </div>
           <div className="rounded-xl border border-line bg-surface-subtle p-3">
             <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-              Open schedule
+              Cycle length
             </p>
             <p className="mt-1 text-sm font-extrabold text-ink">
               {cycleSupplyPeriodLabel(cycle)}
@@ -921,10 +921,10 @@ function DosettePeriodStatusPanel({
       ? "Last four-week period collected"
       : "Ready for medication schedule review";
   const summary = hasOpenPeriod
-    ? "Review before preparation, then record Patient Collected after the four weekly cycles are checked and stock deducted."
+    ? "Review each weekly cycle before preparation. Record Patient Collected after checking and stock deduction."
     : activeLineCount > 0
-      ? "Submit medication schedule to create one four-week period and four weekly cycles for human review."
-      : "Add at least one active medication before submitting the medication schedule.";
+      ? "Submit the medication schedule to create one four-week period with four weekly cycles for human review."
+      : "Add an active medication before submitting the medication schedule.";
 
   return (
     <section
@@ -1898,7 +1898,7 @@ function TrayCell({
               ? medicines.length > 0
                 ? "Edit medicine"
                 : "Add medicine"
-              : "Open schedule"}
+              : "View schedule"}
           </button>
         ) : null}
       </span>
@@ -2270,7 +2270,7 @@ function MdsTrayBuilder({
 
         {!canInteract ? (
           <p className="mt-3 text-xs font-semibold text-muted">
-            Open schedule access is view-only for this role.
+            Schedule access is view-only for this role.
           </p>
         ) : null}
 
@@ -3147,13 +3147,18 @@ function PickingListGate({
   const options = isPeriodMode ? periodOptions : legacyPickingOptions(cycles);
   const selectedOption =
     options.find((option) => option.id === selectedCycleId) ?? null;
+  const selectedNoun = isPeriodMode ? "week" : "cycle";
 
   return (
     <Panel aria-label="Picking List workflow">
       <PanelHeader
         icon={<ClipboardList className="h-4 w-4" />}
         title="Picking List"
-        subtitle="Choose a week from the current four-week period, then generate the stock-pick view."
+        subtitle={
+          isPeriodMode
+            ? "Choose a week from the current four-week period, then generate the stock-pick view."
+            : "Choose an existing cycle, then generate the stock-pick view."
+        }
         actions={
           selectedOption ? (
             hasGenerated ? (
@@ -3224,7 +3229,9 @@ function PickingListGate({
 
             {selectedOption ? (
               <div
-                aria-label="Selected picking week"
+                aria-label={
+                  isPeriodMode ? "Selected picking week" : "Selected legacy cycle"
+                }
                 className="rounded-xl border border-line bg-surface-subtle p-4"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -3245,7 +3252,7 @@ function PickingListGate({
                 </div>
                 {hasGenerated ? (
                   <p className="mt-3 text-xs font-semibold text-success-ink">
-                    Stock-pick view shown for this selected week.
+                    Stock-pick view shown for this selected {selectedNoun}.
                   </p>
                 ) : null}
               </div>
