@@ -108,6 +108,25 @@ describe("TopBar", () => {
     expect(screen.getByText("Workspace")).toBeInTheDocument();
   });
 
+  it("uses a solid app shell surface without glass utilities", () => {
+    renderTopBar();
+
+    const header = document.querySelector("header");
+    expect(header).toBeInTheDocument();
+    expect(header?.className).toContain("bg-canvas");
+
+    for (const forbidden of [
+      /backdrop-blur/,
+      /bg-canvas\//,
+      /from-canvas\//,
+      /to-canvas\//,
+      /radial-gradient/,
+      /rgba\(/,
+    ]) {
+      expect(header?.className ?? "").not.toMatch(forbidden);
+    }
+  });
+
   it("uses the clearer Pharmacist Reviews section label", () => {
     renderTopBar({}, "/reviews");
 

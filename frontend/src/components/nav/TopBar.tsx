@@ -50,11 +50,10 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-20 border-b backdrop-blur-md transition-[background-color,border-color,box-shadow] duration-200 ease-soft",
-        "relative after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-4 after:h-4 after:bg-gradient-to-b after:from-canvas/75 after:to-canvas/0 after:transition-opacity after:duration-200 after:ease-soft",
+        "sticky top-0 z-20 border-b bg-canvas transition-[border-color,box-shadow] duration-200 ease-soft",
         isScrolled
-          ? "border-line/50 bg-canvas/95 shadow-[0_14px_30px_rgba(42,35,64,0.06)] after:opacity-100"
-          : "border-transparent bg-canvas/70 shadow-none after:opacity-0",
+          ? "border-line shadow-[0_14px_30px_rgba(42,35,64,0.06)]"
+          : "border-line shadow-none",
       )}
     >
       <div className="mx-auto flex min-h-[68px] max-w-[1480px] items-center gap-2.5 px-4 py-3.5 sm:px-6 sm:gap-3 lg:px-8">

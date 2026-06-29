@@ -103,7 +103,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-ink/30 px-4 py-6 backdrop-blur-[1px] sm:py-8"
+      className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-ink/40 px-4 py-6 sm:py-8"
       onMouseDown={handleBackdropClick}
     >
       <div
@@ -118,7 +118,7 @@ export function Modal({
         role="dialog"
         tabIndex={-1}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
             <h2
               className="text-lg font-bold tracking-[-0.01em] text-ink"
@@ -140,7 +140,7 @@ export function Modal({
             icon={<X className="h-5 w-5" />}
           />
         </div>
-        <div className="p-6">{children}</div>
+        <div className="px-4 py-5 sm:p-6">{children}</div>
       </div>
     </div>,
     document.body,

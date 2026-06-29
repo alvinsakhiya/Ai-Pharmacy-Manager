@@ -65,6 +65,36 @@ describe("LoginScreen", () => {
     expect(screen.getAllByText("AI").length).toBeGreaterThan(0);
   });
 
+  it("uses solid brand panel surfaces and safe operational copy", () => {
+    renderLoginScreen();
+
+    const brandPanel = document.querySelector("aside");
+    expect(brandPanel).toBeInTheDocument();
+    expect(brandPanel).toHaveTextContent(
+      "Role-based access · audit trail · scoped pharmacy views",
+    );
+    expect(brandPanel).toHaveTextContent(
+      "Stock rotated by expiry with clear stock review.",
+    );
+    expect(brandPanel).toHaveTextContent(
+      "MDS workload and prepare reminders in one workspace.",
+    );
+    expect(brandPanel).not.toHaveTextContent(/NHS|clinical recommendation|AI decided/i);
+
+    const brandMarkup = brandPanel?.outerHTML ?? "";
+    for (const forbidden of [
+      /backdrop-blur/,
+      /bg-white\//,
+      /ring-white\//,
+      /border-white\//,
+      /radial-gradient/,
+      /rgba\(/,
+      /blur-3xl/,
+    ]) {
+      expect(brandMarkup).not.toMatch(forbidden);
+    }
+  });
+
   it("successful submit calls login", async () => {
     const login = vi.fn().mockResolvedValue({ ok: true, user: makeUser() });
     const user = userEvent.setup();

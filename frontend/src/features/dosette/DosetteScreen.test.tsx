@@ -626,6 +626,8 @@ describe("DosetteScreen", () => {
     expect(details).toHaveClass("w-56");
     expect(details).toHaveClass("max-w-xs");
     expect(details).toHaveClass("fixed");
+    expect(details).toHaveClass("bg-surface");
+    expect(details.className).not.toMatch(/backdrop-blur|bg-white\//);
     expect(details).not.toHaveClass("absolute");
     expect(details).not.toHaveClass("w-full");
     expect(details).not.toHaveClass("left-2");

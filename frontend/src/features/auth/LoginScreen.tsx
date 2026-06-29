@@ -27,19 +27,19 @@ const fieldBase =
 const HIGHLIGHTS = [
   {
     icon: Boxes,
-    tint: "bg-lilac/20 text-lilac",
+    tint: "bg-lilac text-lilac-ink",
     title: "FEFO inventory",
-    body: "Stock rotated by expiry — less waste, fewer stockouts.",
+    body: "Stock rotated by expiry with clear stock review.",
   },
   {
     icon: CalendarClock,
-    tint: "bg-peach/20 text-peach",
+    tint: "bg-peach text-ink",
     title: "Dosette & MDS packs",
-    body: "Weekly and monthly compliance, prepared ahead of time.",
+    body: "MDS workload and prepare reminders in one workspace.",
   },
   {
     icon: ShieldCheck,
-    tint: "bg-gold/25 text-gold",
+    tint: "bg-gold text-ink",
     title: "Audit & access control",
     body: "Every action logged, scoped to each role and pharmacy.",
   },
@@ -75,24 +75,13 @@ export function LoginScreen() {
   return (
     <main className="grid min-h-screen bg-canvas text-ink lg:grid-cols-[1.05fr_minmax(440px,0.82fr)]">
       {/* ---------- Brand panel ---------- */}
-      <aside className="relative hidden overflow-hidden bg-sidebar p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
-        {/* Cohesive lilac aura from the top-left + one warm accent low — calm,
-            on-brand depth (matches the operational rail). Pointer-transparent. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_85%_at_18%_-12%,rgba(124,92,214,0.38),transparent_58%)]"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-32 -right-24 h-[26rem] w-[26rem] rounded-full bg-peach/15 blur-3xl"
-        />
-
-        <div className="relative animate-fade-in">
+      <aside className="relative hidden overflow-hidden bg-[linear-gradient(160deg,#211b34_0%,#2b2442_58%,#332640_100%)] p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
+        <div className="animate-fade-in">
           <AppLogo tone="onDark" tagline="Operational workspace" />
         </div>
 
-        <div className="relative max-w-md">
-          <span className="inline-flex animate-fade-in items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-lilac backdrop-blur-sm">
+        <div className="max-w-md">
+          <span className="inline-flex animate-fade-in items-center gap-2 rounded-full border border-sidebar-line bg-sidebar-raised px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-lilac">
             <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
             Pharmacy command centre
           </span>
@@ -109,7 +98,7 @@ export function LoginScreen() {
               const Icon = item.icon;
               return (
                 <li key={item.title}>
-                  <div className="group flex items-start gap-3.5 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 ring-1 ring-inset ring-white/[0.04] backdrop-blur-sm transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07] hover:shadow-elev-2">
+                  <div className="group flex items-start gap-3.5 rounded-2xl border border-sidebar-line bg-sidebar-raised p-3.5 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:bg-sidebar-line hover:shadow-elev-2">
                     <span
                       aria-hidden="true"
                       className={cn(
@@ -134,9 +123,9 @@ export function LoginScreen() {
           </ul>
         </div>
 
-        <p className="relative flex items-center gap-2 text-xs text-sidebar-muted">
+        <p className="flex items-center gap-2 text-xs text-sidebar-muted">
           <Lock aria-hidden="true" className="h-3.5 w-3.5" />
-          No NHS data · encrypted patient records · role-based access
+          Role-based access · audit trail · scoped pharmacy views
         </p>
       </aside>
 

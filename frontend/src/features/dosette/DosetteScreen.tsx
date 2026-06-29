@@ -1899,7 +1899,7 @@ function TrayMedicationParticle({
         >
           {medicineInitial(line)}
         </span>
-        <span className="mt-1 max-w-16 truncate rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-extrabold text-ink-soft shadow-sm">
+        <span className="mt-1 max-w-16 truncate rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-extrabold text-ink-soft shadow-sm">
           {doseQuantityLabel(line, quantity)}
         </span>
       </button>
@@ -1938,7 +1938,7 @@ function TrayMedicationDetailCard({
   return (
     <div
       aria-label={`${line.medication_name} details`}
-      className="pointer-events-none fixed z-[80] w-56 max-w-xs rounded-lg border border-line bg-white/95 p-2 text-left shadow-elev-2 backdrop-blur"
+      className="pointer-events-none fixed z-[80] w-56 max-w-xs rounded-lg border border-line bg-surface p-2.5 text-left shadow-elev-2"
       data-placement={position.placement}
       id={id}
       ref={cardRef}
@@ -2029,7 +2029,7 @@ function TrayCell({
           )}
         >
           <span>
-            <span className="mx-auto mb-2 grid h-8 w-8 place-items-center rounded-full border border-current/25 bg-white/70">
+            <span className="mx-auto mb-2 grid h-8 w-8 place-items-center rounded-full border border-current/25 bg-surface">
               <Plus aria-hidden="true" className="h-4 w-4" />
             </span>
             Add medicine
@@ -2038,7 +2038,7 @@ function TrayCell({
       ) : (
         <span
           aria-label={`${day} ${slot.label} medicines`}
-          className="mt-3 grid min-h-28 grid-cols-3 content-center justify-items-center gap-2 rounded-xl border border-white/70 bg-white/45 px-2 py-3 shadow-inner"
+          className="mt-3 grid min-h-28 grid-cols-3 content-center justify-items-center gap-2 rounded-xl border border-line bg-surface-subtle px-2 py-3 shadow-inner"
         >
           {visibleMedicines.map((line) => (
             <TrayMedicationParticle
@@ -2591,7 +2591,7 @@ function MdsTrayBuilder({
             ) : null}
           </form>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line bg-surface/95 px-6 py-4 shadow-[0_-10px_24px_rgba(42,35,64,0.08)] backdrop-blur">
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line bg-surface px-4 py-4 shadow-[0_-10px_24px_rgba(42,35,64,0.08)] sm:px-6">
             <Button onClick={closeEditor} variant="secondary">
               Cancel
             </Button>
