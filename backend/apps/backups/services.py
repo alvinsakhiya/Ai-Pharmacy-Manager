@@ -45,6 +45,7 @@ USER_REFERENCE_FIELDS = {
     "patients.patientnote": ("author",),
     "reviews.reviewrecord": ("assigned_to",),
 }
+RESTORE_SKIP_MODELS = frozenset({"catalogue.catalogueproduct"})
 
 
 class BackupError(Exception):
@@ -158,6 +159,8 @@ def restore_backup(*, run: BackupRun, actor=None, confirm: str) -> BackupRun:
     with transaction.atomic():
         _delete_group_scoped_data(run.group)
         for obj in serializers.deserialize("json", json.dumps(data["objects"])):
+            if obj.object._meta.label_lower in RESTORE_SKIP_MODELS:
+                continue
             obj.save()
         run.status = BackupRunStatus.RESTORED
         run.completed_at = timezone.now()

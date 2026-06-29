@@ -83,9 +83,10 @@ def backup_api_data():
     )
     other_medication = Medication.objects.create(
         group=group_two,
-        name="Ibuprofen",
+        catalogue_product=product,
+        name="Paracetamol",
         form=MedicationForm.TABLET,
-        strength="200 mg",
+        strength="500 mg",
     )
     stock_item = StockItem.objects.create(
         pharmacy=pharmacy_one,
@@ -258,6 +259,47 @@ def test_restore_reinstates_group_scoped_records(client, backup_api_data):
     assert BackupRun.objects.filter(
         group=backup_api_data["group_one"],
         trigger="PRE_RESTORE",
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_restore_does_not_overwrite_global_catalogue_product(
+    client,
+    backup_api_data,
+):
+    authenticate(client, backup_api_data["admin"])
+    product = CatalogueProduct.objects.get(dmd_code="BACKUP-PAR-500")
+    group_two_stock = StockItem.objects.get(
+        pharmacy__group=backup_api_data["group_two"],
+        medication__catalogue_product=product,
+    )
+    backup_response = client.post(
+        "/api/backups/runs/now/",
+        {"group": backup_api_data["group_one"].id},
+        format="json",
+    )
+    backup_api_data["patient"].first_name = "Changed"
+    backup_api_data["patient"].save(update_fields=["first_name", "last_name_index"])
+    product.display_name = "Corrected global Paracetamol 500mg caplets"
+    product.strength = "500mg corrected"
+    product.save()
+
+    response = client.post(
+        f"/api/backups/runs/{backup_response.json()['id']}/restore/",
+        {"confirm": "RESTORE"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    product.refresh_from_db()
+    assert product.display_name == "Corrected global Paracetamol 500mg caplets"
+    assert product.strength == "500mg corrected"
+    backup_api_data["patient"].refresh_from_db()
+    assert backup_api_data["patient"].first_name == "Fictional"
+    assert StockItem.objects.filter(pk=group_two_stock.pk).exists()
+    assert Medication.objects.filter(
+        group=backup_api_data["group_two"],
+        catalogue_product=product,
     ).exists()
 
 
