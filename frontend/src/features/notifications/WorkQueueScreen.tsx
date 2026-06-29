@@ -29,7 +29,6 @@ import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 import { scopeLabel } from "../../lib/scope";
 import type {
-  WorkQueueGroup,
   WorkQueueItem,
   WorkQueuePriority,
 } from "./notificationsApi";
@@ -46,48 +45,68 @@ import {
 type FilterValue = "all";
 
 interface GroupConfig {
-  key: WorkQueueGroup;
+  key:
+    | "mds_preparation"
+    | "stock_review"
+    | "expiry_review"
+    | "reviews"
+    | "action_needed";
   title: string;
   subtitle: string;
   icon: LucideIcon;
   accent: string;
+  matches: (item: WorkQueueItem) => boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
-const GROUPS: GroupConfig[] = [
+const OPERATIONAL_GROUPS: GroupConfig[] = [
   {
-    key: "urgent",
-    title: "Urgent",
-    subtitle: "Overdue or active items that need attention.",
-    icon: AlertTriangle,
-    accent: "border-danger-border bg-danger-soft text-danger-ink",
-  },
-  {
-    key: "due_soon",
-    title: "Due soon",
-    subtitle: "Items inside a suggested preparation window.",
-    icon: Clock3,
-    accent: "border-warning-border bg-warning-soft text-warning-ink",
-  },
-  {
-    key: "waiting_check",
-    title: "Waiting for check",
-    subtitle: "Prepared cycles awaiting a second human review.",
+    key: "mds_preparation",
+    title: "MDS preparation",
+    subtitle: "Prepare reminders, due supply, and trays waiting for check.",
     icon: ShieldCheck,
-    accent: "border-info-border bg-info-soft text-info-ink",
+    accent: "border-lilac-soft bg-lilac-soft text-brand",
+    matches: isMdsItem,
+    emptyTitle: "MDS reminders will appear here when available.",
+    emptyDescription:
+      "Work Queue is using existing data only. Prepare reminders can be surfaced here when backend reminder items are present.",
   },
   {
-    key: "stock_action",
-    title: "Stock/action required",
-    subtitle: "Stock items and checked cycles needing follow-up.",
+    key: "stock_review",
+    title: "Stock review",
+    subtitle: "Stock signals that need review before action.",
     icon: PackageCheck,
-    accent: "border-line-strong bg-surface-sunken text-ink-soft",
+    accent: "border-info-border bg-info-soft text-info-ink",
+    matches: (item) => isStockItem(item) && !isExpiryItem(item),
+  },
+  {
+    key: "expiry_review",
+    title: "Expiry review",
+    subtitle: "Expiry and near-expiry stock signals.",
+    icon: CalendarClock,
+    accent: "border-warning-border bg-warning-soft text-warning-ink",
+    matches: isExpiryItem,
   },
   {
     key: "reviews",
     title: "Reviews",
-    subtitle: "Pending pharmacist review records.",
+    subtitle: "Pending review records that need operational follow-up.",
     icon: ClipboardCheck,
-    accent: "border-lilac-soft bg-lilac-soft text-brand",
+    accent: "border-line-strong bg-surface-sunken text-ink-soft",
+    matches: isReviewItem,
+  },
+  {
+    key: "action_needed",
+    title: "Action needed",
+    subtitle: "Other queue items still needing review before action.",
+    icon: AlertTriangle,
+    accent: "border-danger-border bg-danger-soft text-danger-ink",
+    matches: (item) =>
+      !isMdsItem(item) &&
+      !isStockItem(item) &&
+      !isExpiryItem(item) &&
+      !isReviewItem(item),
   },
 ];
 
@@ -114,6 +133,13 @@ function isDueTodayOrOverdue(item: WorkQueueItem, today = new Date()): boolean {
   return parseDateOnly(item.due_date) <= startOfDay(today);
 }
 
+function isDueToday(item: WorkQueueItem, today = new Date()): boolean {
+  if (!item.due_date) {
+    return false;
+  }
+  return parseDateOnly(item.due_date).getTime() === startOfDay(today).getTime();
+}
+
 function dueTone(item: WorkQueueItem): BadgeVariant {
   if (item.status === "OVERDUE") {
     return "danger";
@@ -122,6 +148,61 @@ function dueTone(item: WorkQueueItem): BadgeVariant {
     return "warning";
   }
   return "neutral";
+}
+
+function isMdsItem(item: WorkQueueItem): boolean {
+  return item.type.startsWith("MDS_");
+}
+
+function isStockItem(item: WorkQueueItem): boolean {
+  return item.type.startsWith("STOCK_");
+}
+
+function isExpiryItem(item: WorkQueueItem): boolean {
+  return /expir/i.test([item.type, item.title, item.reason].join(" "));
+}
+
+function isReviewItem(item: WorkQueueItem): boolean {
+  return item.type.startsWith("REVIEW_");
+}
+
+function isOverdue(item: WorkQueueItem): boolean {
+  return item.status === "OVERDUE";
+}
+
+function isDueSoon(item: WorkQueueItem): boolean {
+  return item.group === "due_soon" || item.status === "DUE_SOON";
+}
+
+function dueStatusLabel(item: WorkQueueItem, today = new Date()): string {
+  if (isOverdue(item)) {
+    return "Overdue";
+  }
+  if (isDueTodayOrOverdue(item, today)) {
+    return "Due now";
+  }
+  if (isDueSoon(item)) {
+    return "Due soon";
+  }
+  return workQueueStatusLabel(item.status);
+}
+
+function operationalActionLabel(item: WorkQueueItem): string {
+  if (isMdsItem(item)) {
+    return item.status === "WAITING_CHECK" || item.type.includes("WAITING_CHECK")
+      ? "Check tray"
+      : "Prepare tray";
+  }
+  if (isExpiryItem(item)) {
+    return "Expiry review";
+  }
+  if (isStockItem(item)) {
+    return "Check stock";
+  }
+  if (isReviewItem(item)) {
+    return "Review before action";
+  }
+  return item.action_label || "Action needed";
 }
 
 function cycleRange(item: WorkQueueItem): string | null {
@@ -217,39 +298,37 @@ function WorkQueueCard({ item }: { item: WorkQueueItem }) {
     ? formatWorkQueueDate(item.due_date)
     : "No due date";
   const pharmacy = item.pharmacy_name || `Pharmacy ${item.pharmacy_id}`;
+  const prepareFrom = isMdsItem(item) ? formatWorkQueueDate(item.cycle_start_date) : null;
 
   return (
-    <article className="interactive-card overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
-      <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
+    <article className="interactive-card flex min-h-[280px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
+      <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
             <Badge variant={PRIORITY_BADGES[item.priority]} dot>
               {workQueuePriorityLabel(item.priority)}
             </Badge>
-            <Badge variant="neutral">{workQueueStatusLabel(item.status)}</Badge>
+            <Badge variant={dueTone(item)}>{dueStatusLabel(item)}</Badge>
             <Badge variant="info">{workQueueTypeLabel(item.type)}</Badge>
-            <Badge
-              variant={dueTone(item)}
-              icon={<CalendarClock className="h-3.5 w-3.5" />}
-            >
-              {dueLabel}
-            </Badge>
+            <Badge variant="neutral">{operationalActionLabel(item)}</Badge>
           </div>
-          <h2 className="mt-3 text-[17px] font-extrabold tracking-[-0.01em] text-ink">
+          <h3 className="mt-3 text-[17px] font-extrabold tracking-[-0.01em] text-ink">
             {item.title}
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-soft">
+          </h3>
+          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-soft">
             {item.reason}
           </p>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Detail label="Patient ID" value={item.patient_reference} />
-            <Detail label="Pharmacy" value={pharmacy} />
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Detail label="Patient ref" value={item.patient_reference} />
+            <Detail label="Action type" value={operationalActionLabel(item)} />
             <Detail label="Due date" value={dueLabel} />
-            <Detail label="Cycle range" value={range} />
+            <Detail label="Prepare from" value={prepareFrom} />
             <Detail label="Cycle ref" value={item.cycle_reference} />
+            <Detail label="Cycle range" value={range} />
+            <Detail label="Pharmacy" value={pharmacy} />
           </dl>
         </div>
-        <div className="flex shrink-0 flex-col items-start gap-2 lg:items-end">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <Badge variant="info">Review before action</Badge>
           <Link
             aria-label={`Open record: ${workQueueActionLabel(item)}`}
@@ -281,40 +360,54 @@ function GroupSection({
 }) {
   const Icon = group.icon;
 
-  if (items.length === 0) {
+  if (items.length === 0 && !group.emptyTitle) {
     return null;
   }
 
   return (
-    <section className="space-y-3" aria-labelledby={`work-queue-${group.key}`}>
-      <div className="flex items-center gap-3">
-        <span
-          aria-hidden="true"
-          className={cn(
-            "grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-elev-1",
-            group.accent,
-          )}
-        >
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2
-            id={`work-queue-${group.key}`}
-            className="text-lg font-extrabold text-ink"
+    <section
+      className="rounded-2xl border border-line bg-surface-subtle p-4 sm:p-5"
+      aria-labelledby={`work-queue-${group.key}`}
+    >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className={cn(
+              "grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-elev-1",
+              group.accent,
+            )}
           >
-            {group.title}
-          </h2>
-          <p className="mt-1 text-sm text-muted">{group.subtitle}</p>
+            <Icon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2
+              id={`work-queue-${group.key}`}
+              className="text-lg font-extrabold text-ink"
+            >
+              {group.title}
+            </h2>
+            <p className="mt-1 text-sm text-muted">{group.subtitle}</p>
+          </div>
         </div>
         <span className="tnum rounded-full border border-line bg-surface px-3 py-1 text-sm font-bold text-ink-soft shadow-elev-1">
           {items.length}
         </span>
       </div>
-      <div className="space-y-3">
-        {items.map((item) => (
-          <WorkQueueCard item={item} key={item.id} />
-        ))}
-      </div>
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-line-strong bg-surface px-4 py-5">
+          <h3 className="text-sm font-extrabold text-ink">{group.emptyTitle}</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+            {group.emptyDescription}
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+          {items.map((item) => (
+            <WorkQueueCard item={item} key={item.id} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -380,29 +473,25 @@ export function WorkQueueScreen() {
     [items, pharmacyFilter, priorityFilter, searchQuery, typeFilter],
   );
 
-  const groupedItems = useMemo(
+  const operationalGroups = useMemo(
     () =>
-      GROUPS.map((group) => ({
+      OPERATIONAL_GROUPS.map((group) => ({
         group,
-        items: filteredItems.filter((item) => item.group === group.key),
+        items: filteredItems.filter(group.matches),
       })),
     [filteredItems],
   );
 
   const visibleSummary = useMemo(
     () => ({
-      total: filteredItems.length,
-      highPriority: filteredItems.filter(
-        (item) => item.priority === "urgent" || item.priority === "high",
-      ).length,
+      dueToday: filteredItems.filter((item) => isDueToday(item, today)).length,
+      overdue: filteredItems.filter(isOverdue).length,
+      dueSoon: filteredItems.filter((item) => isDueSoon(item)).length,
+      mdsPrep: filteredItems.filter(isMdsItem).length,
+      stockReview: filteredItems.filter(isStockItem).length,
+      expiryReview: filteredItems.filter(isExpiryItem).length,
       dueNow: filteredItems.filter((item) => isDueTodayOrOverdue(item, today))
         .length,
-      dosette: filteredItems.filter((item) => item.type.startsWith("MDS_"))
-        .length,
-      stockReview: filteredItems.filter(
-        (item) =>
-          item.type.startsWith("STOCK_") || item.type.startsWith("REVIEW_"),
-      ).length,
     }),
     [filteredItems, today],
   );
@@ -482,37 +571,43 @@ export function WorkQueueScreen() {
         <>
           <section
             aria-label="Work queue summary"
-            className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
+            className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6"
           >
             <KpiCard
-              label="Visible tasks"
-              value={visibleSummary.total}
-              note={`${workQueueQuery.data.summary.total} open tasks in source view`}
-              icon={<ListChecks className="h-4 w-4" />}
+              label="Due today"
+              value={visibleSummary.dueToday}
+              note={`${visibleSummary.dueNow} due now or earlier`}
+              icon={<CalendarClock className="h-4 w-4" />}
             />
             <KpiCard
-              label="High priority"
-              value={visibleSummary.highPriority}
-              note="Urgent and high priority signals"
+              label="Overdue"
+              value={visibleSummary.overdue}
+              note="Needs review before action"
               icon={<AlertTriangle className="h-4 w-4" />}
             />
             <KpiCard
-              label="Due today / overdue"
-              value={visibleSummary.dueNow}
-              note="Existing due dates in view"
+              label="Due soon"
+              value={visibleSummary.dueSoon}
+              note="Suggested preparation window"
               icon={<Clock3 className="h-4 w-4" />}
             />
             <KpiCard
-              label="Dosette tasks"
-              value={visibleSummary.dosette}
-              note="Preparation and check records"
+              label="MDS prep"
+              value={visibleSummary.mdsPrep}
+              note="Prepare tray and check records"
               icon={<ShieldCheck className="h-4 w-4" />}
             />
             <KpiCard
-              label="Stock / review"
+              label="Stock review"
               value={visibleSummary.stockReview}
-              note="Inventory and review records"
+              note="Check stock before action"
               icon={<PackageCheck className="h-4 w-4" />}
+            />
+            <KpiCard
+              label="Expiry review"
+              value={visibleSummary.expiryReview}
+              note={`${workQueueQuery.data.summary.total} open tasks in source view`}
+              icon={<CalendarClock className="h-4 w-4" />}
             />
           </section>
 
@@ -622,7 +717,7 @@ export function WorkQueueScreen() {
             />
           ) : (
             <div className="space-y-8">
-              {groupedItems.map(({ group, items: groupItems }) => (
+              {operationalGroups.map(({ group, items: groupItems }) => (
                 <GroupSection
                   group={group}
                   items={groupItems}

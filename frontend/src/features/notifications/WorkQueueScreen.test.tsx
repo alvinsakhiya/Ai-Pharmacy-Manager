@@ -164,7 +164,7 @@ describe("WorkQueueScreen", () => {
     getWorkQueueMock.mockResolvedValue(makeResponse());
   });
 
-  it("renders the polished page header, context chips, summary cards, and groups", async () => {
+  it("renders the operational header, summary cards, and grid groups", async () => {
     renderWorkQueue();
 
     expect(
@@ -178,29 +178,33 @@ describe("WorkQueueScreen", () => {
     expect(await screen.findByText(/Generated/)).toBeInTheDocument();
 
     const summary = screen.getByRole("region", { name: "Work queue summary" });
-    expect(within(summary).getByText("Visible tasks")).toBeInTheDocument();
-    expect(within(summary).getByText("High priority")).toBeInTheDocument();
-    expect(within(summary).getByText("Due today / overdue")).toBeInTheDocument();
-    expect(within(summary).getByText("Dosette tasks")).toBeInTheDocument();
-    expect(within(summary).getByText("Stock / review")).toBeInTheDocument();
+    expect(within(summary).getByText("Due today")).toBeInTheDocument();
+    expect(within(summary).getByText("Overdue")).toBeInTheDocument();
+    expect(within(summary).getByText("Due soon")).toBeInTheDocument();
+    expect(within(summary).getByText("MDS prep")).toBeInTheDocument();
+    expect(within(summary).getByText("Stock review")).toBeInTheDocument();
+    expect(within(summary).getByText("Expiry review")).toBeInTheDocument();
     expect(within(summary).getByText("5 open tasks in source view"))
       .toBeInTheDocument();
 
-    expect(screen.getByRole("heading", { name: "Urgent" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Due soon" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Waiting for check" }),
+      screen.getByRole("heading", { name: "MDS preparation" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Stock/action required" }),
+      screen.getByRole("heading", { name: "Stock review" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reviews" })).toBeInTheDocument();
+    expect(screen.getAllByText("Prepare tray").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Check stock").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Review before action").length).toBeGreaterThan(0);
   });
 
   it("shows safe patient references and existing-record action links", async () => {
     renderWorkQueue();
 
     expect((await screen.findAllByText("P1-WQ-001")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Patient ref").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Action type").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Cycle ref").length).toBeGreaterThan(0);
     expect(screen.getByText("MDS-WQ-DUE-SOON")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Open Dosette/ })[0])
@@ -359,7 +363,10 @@ describe("WorkQueueScreen", () => {
 
     expect(await screen.findByText("Stockout: Paracetamol")).toBeInTheDocument();
     expect(screen.getByText("Pharmacy Two")).toBeInTheDocument();
-    expect(screen.queryByText("Patient ID")).toBeNull();
+    expect(screen.queryByText("Patient ref")).toBeNull();
     expect(screen.queryByText("P1-WQ-001")).toBeNull();
+    expect(
+      screen.getByText("MDS reminders will appear here when available."),
+    ).toBeInTheDocument();
   });
 });

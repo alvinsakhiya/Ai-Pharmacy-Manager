@@ -63,6 +63,38 @@ function makeDosetteAlert(overrides: Partial<Alert> = {}): Alert {
   };
 }
 
+function makeNearExpiryAlert(overrides: Partial<Alert> = {}): Alert {
+  return makeStockAlert({
+    id: "stock:near_expiry:21",
+    type: "near_expiry",
+    severity: "warning",
+    title: "Near expiry: Amoxicillin",
+    message: "Batch expires soon. Review before action.",
+    subject: {
+      stock_item_id: 21,
+      medication_id: 14,
+      medication_name: "Amoxicillin",
+    },
+    ...overrides,
+  });
+}
+
+function makeLowStockAlert(overrides: Partial<Alert> = {}): Alert {
+  return makeStockAlert({
+    id: "stock:low_stock:22",
+    type: "low_stock",
+    severity: "warning",
+    title: "Low stock: Cetirizine",
+    message: "Stock is below the configured review threshold.",
+    subject: {
+      stock_item_id: 22,
+      medication_id: 15,
+      medication_name: "Cetirizine",
+    },
+    ...overrides,
+  });
+}
+
 function makeAlertsResponse(
   overrides: Partial<AlertsResponse> = {},
 ): AlertsResponse {
@@ -155,6 +187,7 @@ describe("AlertsScreen", () => {
     expect(screen.getByText("Human review required")).toBeInTheDocument();
     expect(screen.getAllByText("All alerts").length).toBeGreaterThan(0);
     expect(await screen.findByText("Alert controls")).toBeInTheDocument();
+    expect(screen.getByText("Operational alert grid")).toBeInTheDocument();
     expect(screen.getByText("3 alerts shown")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Open Work Queue" })[0])
       .toHaveAttribute("href", "/work-queue");
@@ -199,11 +232,14 @@ describe("AlertsScreen", () => {
   it("renders summary counters", async () => {
     renderAlerts();
 
-    expect(await screen.findByText("Critical alerts")).toBeInTheDocument();
-    expect(screen.getByText("Warning alerts")).toBeInTheDocument();
-    expect(screen.getByText("Stock alerts")).toBeInTheDocument();
-    expect(screen.getByText("Expiry alerts")).toBeInTheDocument();
-    expect(screen.getByText("Dosette signals")).toBeInTheDocument();
+    const summary = await screen.findByRole("region", {
+      name: "Alerts summary",
+    });
+    expect(within(summary).getByText("Critical")).toBeInTheDocument();
+    expect(within(summary).getByText("Due soon")).toBeInTheDocument();
+    expect(within(summary).getByText("Stock")).toBeInTheDocument();
+    expect(within(summary).getByText("Expiry")).toBeInTheDocument();
+    expect(within(summary).getByText("Active alerts")).toBeInTheDocument();
     expect(screen.getAllByText("Active alerts").length).toBeGreaterThan(0);
     expect(screen.getAllByText("1").length).toBeGreaterThan(0);
     expect(screen.getByText("3")).toBeInTheDocument();
@@ -217,11 +253,13 @@ describe("AlertsScreen", () => {
     expect(screen.getAllByText("Info").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Stock").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Dosette").length).toBeGreaterThan(0);
-    expect(screen.getByText("Stockout")).toBeInTheDocument();
-    expect(screen.getByText("Prepared Not Deducted")).toBeInTheDocument();
+    expect(screen.getAllByText("Stockout").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Prepared Not Deducted").length).toBeGreaterThan(
+      0,
+    );
   });
 
-  it("renders alerts in backend order", async () => {
+  it("renders alerts in grouped operational grids", async () => {
     getAlertsMock.mockResolvedValueOnce(
       makeAlertsResponse({
         alerts: [
@@ -239,13 +277,82 @@ describe("AlertsScreen", () => {
     renderAlerts();
 
     expect(await screen.findByText("Dead stock: Ibuprofen")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Critical" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "MDS workflow" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Stock review" }))
+      .toBeInTheDocument();
+    expect(screen.getAllByText("Next step").length).toBeGreaterThan(0);
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText.indexOf("Dead stock: Ibuprofen")).toBeLessThan(
-      bodyText.indexOf("Stockout: Paracetamol"),
-    );
     expect(bodyText.indexOf("Stockout: Paracetamol")).toBeLessThan(
+      bodyText.indexOf("Dead stock: Ibuprofen"),
+    );
+    expect(bodyText.indexOf("Dead stock: Ibuprofen")).toBeLessThan(
       bodyText.indexOf("Prepared cycle awaiting stock deduction"),
     );
+  });
+
+  it("shows warning near-expiry alerts exactly once in Expiry review", async () => {
+    getAlertsMock.mockResolvedValueOnce(
+      makeAlertsResponse({
+        alerts: [makeNearExpiryAlert()],
+      }),
+    );
+
+    renderAlerts();
+
+    expect(await screen.findByText("Near expiry: Amoxicillin")).toBeInTheDocument();
+    expect(screen.getAllByText("Near expiry: Amoxicillin")).toHaveLength(1);
+    const expiryGroup = screen.getByRole("region", { name: "Expiry review" });
+    expect(within(expiryGroup).getByText("Near expiry: Amoxicillin"))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Due soon" })).toBeNull();
+  });
+
+  it("shows warning low-stock alerts exactly once in Stock review", async () => {
+    getAlertsMock.mockResolvedValueOnce(
+      makeAlertsResponse({
+        alerts: [makeLowStockAlert()],
+      }),
+    );
+
+    renderAlerts();
+
+    expect(await screen.findByText("Low stock: Cetirizine")).toBeInTheDocument();
+    expect(screen.getAllByText("Low stock: Cetirizine")).toHaveLength(1);
+    const stockGroup = screen.getByRole("region", { name: "Stock review" });
+    expect(within(stockGroup).getByText("Low stock: Cetirizine"))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Due soon" })).toBeNull();
+  });
+
+  it("keeps unmatched alerts visible once in the fallback group", async () => {
+    getAlertsMock.mockResolvedValueOnce(
+      makeAlertsResponse({
+        alerts: [
+          makeStockAlert({
+            id: "other:operational:23",
+            category: "other" as Alert["category"],
+            type: "unmapped_signal",
+            severity: "info",
+            title: "Unmapped operational signal",
+            message: "Review before action.",
+            subject: {},
+          }),
+        ],
+      }),
+    );
+
+    renderAlerts();
+
+    expect(
+      await screen.findByText("Unmapped operational signal"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Unmapped operational signal")).toHaveLength(1);
+    const fallbackGroup = screen.getByRole("region", { name: "Action needed" });
+    expect(within(fallbackGroup).getByText("Unmapped operational signal"))
+      .toBeInTheDocument();
   });
 
   it("renders stock alerts with only safe stock subject details", async () => {

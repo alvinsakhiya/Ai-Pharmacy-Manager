@@ -9,7 +9,6 @@ import {
   CalendarClock,
   Filter,
   ListChecks,
-  PackageCheck,
   Search,
   ShieldAlert,
 } from "lucide-react";
@@ -43,6 +42,52 @@ import {
   alertScopeLabel,
   alertTypeLabel,
 } from "./alertDisplay";
+
+interface AlertGroupConfig {
+  key: "critical" | "expiry" | "stock" | "dosette" | "due_soon" | "for_review";
+  title: string;
+  subtitle: string;
+  matches: (alert: Alert) => boolean;
+}
+
+const ALERT_GROUPS: AlertGroupConfig[] = [
+  {
+    key: "critical",
+    title: "Critical",
+    subtitle: "Signals needing prompt operational review.",
+    matches: (alert) => alert.severity === "critical",
+  },
+  {
+    key: "expiry",
+    title: "Expiry review",
+    subtitle: "Expiry and near-expiry stock signals.",
+    matches: isExpiryAlert,
+  },
+  {
+    key: "stock",
+    title: "Stock review",
+    subtitle: "Stock-level signals for review before action.",
+    matches: (alert) => alert.category === "stock",
+  },
+  {
+    key: "dosette",
+    title: "MDS workflow",
+    subtitle: "Dosette workflow signals managed through Work Queue.",
+    matches: (alert) => alert.category === "dosette",
+  },
+  {
+    key: "due_soon",
+    title: "Due soon",
+    subtitle: "Warning signals that may need attention soon.",
+    matches: (alert) => alert.severity === "warning",
+  },
+  {
+    key: "for_review",
+    title: "Action needed",
+    subtitle: "Other active alerts in this filtered view.",
+    matches: () => true,
+  },
+];
 
 function formatDateTime(value: string): string {
   const date = new Date(value);
@@ -78,6 +123,26 @@ function summaryFor(alerts: Alert[]): AlertSummary {
       dosette: alerts.filter((alert) => alert.category === "dosette").length,
     },
   };
+}
+
+function isExpiryAlert(alert: Alert): boolean {
+  return /expir/i.test([alert.type, alert.title, alert.message].join(" "));
+}
+
+function partitionAlerts(alerts: Alert[]) {
+  const buckets = ALERT_GROUPS.map((group) => ({
+    group,
+    items: [] as Alert[],
+  }));
+  const fallbackBucket = buckets[buckets.length - 1];
+
+  for (const alert of alerts) {
+    const bucket =
+      buckets.find(({ group }) => group.matches(alert)) ?? fallbackBucket;
+    bucket.items.push(alert);
+  }
+
+  return buckets;
 }
 
 function alertSearchText(alert: Alert): string {
@@ -156,6 +221,25 @@ function SeverityBadge({ alert }: { alert: Alert }) {
   );
 }
 
+function AlertDetail({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null;
+}) {
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold text-muted">{label}</dt>
+      <dd className="mt-1 truncate text-sm font-semibold text-ink">{value}</dd>
+    </div>
+  );
+}
+
 function AlertCard({
   alert,
   generatedAt,
@@ -171,10 +255,10 @@ function AlertCard({
   const isOperationalDosette = alert.category === "dosette";
 
   return (
-    <article className="interactive-card overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
+    <article className="interactive-card flex min-h-[300px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
       <div className="h-1 bg-warning" />
-      <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <SeverityBadge alert={alert} />
             <Badge variant="neutral">{ALERT_CATEGORY_LABELS[alert.category]}</Badge>
@@ -198,8 +282,14 @@ function AlertCard({
               Operational tasks are managed in Work Queue.
             </p>
           ) : null}
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+            <AlertDetail label="Source" value={ALERT_CATEGORY_LABELS[alert.category]} />
+            <AlertDetail label="Type" value={alertTypeLabel(alert.type)} />
+            <AlertDetail label="Date/time" value={formatDateTime(generatedAt)} />
+            <AlertDetail label="Next step" value={action.label} />
+          </dl>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
           <Link
             to={action.href}
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface px-3.5 text-[13px] font-semibold text-ink-soft shadow-elev-1 transition-all duration-200 ease-soft hover:-translate-y-px hover:bg-surface-subtle hover:text-ink focus-ring"
@@ -218,6 +308,57 @@ function AlertCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function AlertGroupSection({
+  generatedAt,
+  group,
+  items,
+  onDismiss,
+  pending,
+}: {
+  generatedAt: string;
+  group: AlertGroupConfig;
+  items: Alert[];
+  onDismiss: (alert: Alert) => void;
+  pending: boolean;
+}) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-labelledby={`alert-group-${group.key}`}
+      className="rounded-2xl border border-line bg-surface-subtle p-4 sm:p-5"
+    >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2
+            id={`alert-group-${group.key}`}
+            className="text-lg font-extrabold text-ink"
+          >
+            {group.title}
+          </h2>
+          <p className="mt-1 text-sm text-muted">{group.subtitle}</p>
+        </div>
+        <span className="tnum rounded-full border border-line bg-surface px-3 py-1 text-sm font-bold text-ink-soft shadow-elev-1">
+          {items.length}
+        </span>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+        {items.map((alert) => (
+          <AlertCard
+            alert={alert}
+            generatedAt={generatedAt}
+            key={alert.id}
+            onDismiss={onDismiss}
+            pending={pending}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -308,8 +449,11 @@ export function AlertsScreen() {
   }, [categoryFilter, searchQuery, severityFilter, visibleAlerts]);
   const summary = useMemo(() => summaryFor(filteredAlerts), [filteredAlerts]);
   const sourceSummary = useMemo(() => summaryFor(visibleAlerts), [visibleAlerts]);
-  const expiryCount = filteredAlerts.filter((alert) => alert.type === "near_expiry")
-    .length;
+  const expiryCount = filteredAlerts.filter(isExpiryAlert).length;
+  const groupedAlerts = useMemo(
+    () => partitionAlerts(filteredAlerts),
+    [filteredAlerts],
+  );
   const filterLabel = activeFilterLabel({
     category: categoryFilter,
     searchQuery,
@@ -402,36 +546,33 @@ export function AlertsScreen() {
 
       {alertsQuery.isSuccess ? (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          <section
+            aria-label="Alerts summary"
+            className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
+          >
             <KpiCard
               icon={<ShieldAlert className="h-4 w-4" />}
-              label="Critical alerts"
+              label="Critical"
               value={summary.critical}
-              note="Risk signals needing review before action."
+              note="Review before action."
             />
             <KpiCard
               icon={<AlertTriangle className="h-4 w-4" />}
-              label="Warning alerts"
+              label="Due soon"
               value={summary.warning}
-              note="Signals that may need attention."
+              note="Warning signals in view."
             />
             <KpiCard
               icon={<Boxes className="h-4 w-4" />}
-              label="Stock alerts"
+              label="Stock"
               value={summary.by_category.stock}
-              note="Stock-level system signals."
+              note="Stock review signals."
             />
             <KpiCard
               icon={<CalendarClock className="h-4 w-4" />}
-              label="Expiry alerts"
+              label="Expiry"
               value={expiryCount}
-              note="Expiry-related risk signals."
-            />
-            <KpiCard
-              icon={<PackageCheck className="h-4 w-4" />}
-              label="Dosette signals"
-              value={summary.by_category.dosette}
-              note="Workflow signals, with tasks managed in Work Queue."
+              note="Expiry review signals."
             />
             <KpiCard
               icon={<BellRing className="h-4 w-4" />}
@@ -511,33 +652,36 @@ export function AlertsScreen() {
               description="Adjust the filters or refresh the alert centre."
             />
           ) : (
-            <Panel>
-              <PanelHeader
-                title="Alert inbox"
-                subtitle="Alerts highlight operational signals. Review before action."
-                actions={
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={clearAlerts.isPending || filteredAlerts.length === 0}
-                    onClick={() => void handleDismissVisible()}
-                  >
-                    Dismiss visible alerts
-                  </Button>
-                }
-              />
-              <PanelBody className="space-y-3">
-                {filteredAlerts.map((alert) => (
-                  <AlertCard
-                    alert={alert}
-                    generatedAt={alertsQuery.data.generated_at}
-                    key={alert.id}
-                    onDismiss={(item) => void handleDismiss(item)}
-                    pending={dismissAlert.isPending}
-                  />
-                ))}
-              </PanelBody>
-            </Panel>
+            <section aria-label="Alert groups" className="space-y-4">
+              <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div>
+                  <h2 className="text-lg font-extrabold text-ink">
+                    Operational alert grid
+                  </h2>
+                  <p className="mt-1 text-sm text-muted">
+                    Alerts highlight operational signals. Review before action.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={clearAlerts.isPending || filteredAlerts.length === 0}
+                  onClick={() => void handleDismissVisible()}
+                >
+                  Dismiss visible alerts
+                </Button>
+              </div>
+              {groupedAlerts.map(({ group, items }) => (
+                <AlertGroupSection
+                  generatedAt={alertsQuery.data.generated_at}
+                  group={group}
+                  items={items}
+                  key={group.key}
+                  onDismiss={(item) => void handleDismiss(item)}
+                  pending={dismissAlert.isPending}
+                />
+              ))}
+            </section>
           )}
         </>
       ) : null}
