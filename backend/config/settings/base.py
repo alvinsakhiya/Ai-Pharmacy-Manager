@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "apps.reports",
     "apps.notifications",
     "apps.reviews",
+    "apps.backups",
 ]
 
 MIDDLEWARE = [
@@ -112,6 +113,8 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_ROOT = BASE_DIR / "media"
+BACKUP_ROOT = Path(os.getenv("BACKUP_ROOT", str(MEDIA_ROOT / "backups")))
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {

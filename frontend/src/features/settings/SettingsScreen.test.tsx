@@ -1,15 +1,100 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../../test/providers";
+import * as settingsApi from "./settingsApi";
 import { SettingsScreen } from "./SettingsScreen";
+
+vi.mock("./settingsApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./settingsApi")>();
+  return {
+    ...actual,
+    getBackupSchedule: vi.fn(),
+    updateBackupSchedule: vi.fn(),
+    listBackupRuns: vi.fn(),
+    runBackupNow: vi.fn(),
+    restoreBackup: vi.fn(),
+  };
+});
+
+const getBackupScheduleMock = vi.mocked(settingsApi.getBackupSchedule);
+const updateBackupScheduleMock = vi.mocked(settingsApi.updateBackupSchedule);
+const listBackupRunsMock = vi.mocked(settingsApi.listBackupRuns);
+const runBackupNowMock = vi.mocked(settingsApi.runBackupNow);
+const restoreBackupMock = vi.mocked(settingsApi.restoreBackup);
+
+const backupSchedule: settingsApi.BackupSchedule = {
+  id: 1,
+  group: 1,
+  group_name: "JMW Pharmacy Group",
+  enabled: true,
+  daily_time: "02:00:00",
+  retention_count: 3,
+  scheduler_note: "Scheduled backups run when the scheduler command is active.",
+  created_at: "2026-06-29T08:00:00Z",
+  updated_at: "2026-06-29T08:00:00Z",
+};
+
+const backupRuns: settingsApi.BackupRun[] = [
+  {
+    id: 11,
+    group: 1,
+    group_name: "JMW Pharmacy Group",
+    status: "SUCCESS",
+    trigger: "MANUAL",
+    file: "jmw/backup-11.zip",
+    file_size: 2048,
+    started_at: "2026-06-29T09:00:00Z",
+    completed_at: "2026-06-29T09:01:00Z",
+    error_message: "",
+    checksum: "abc",
+    created_at: "2026-06-29T09:00:00Z",
+    updated_at: "2026-06-29T09:01:00Z",
+  },
+  {
+    id: 10,
+    group: 1,
+    group_name: "JMW Pharmacy Group",
+    status: "SUCCESS",
+    trigger: "SCHEDULED",
+    file: "jmw/backup-10.zip",
+    file_size: 4096,
+    started_at: "2026-06-28T02:00:00Z",
+    completed_at: "2026-06-28T02:01:00Z",
+    error_message: "",
+    checksum: "def",
+    created_at: "2026-06-28T02:00:00Z",
+    updated_at: "2026-06-28T02:01:00Z",
+  },
+  {
+    id: 9,
+    group: 1,
+    group_name: "JMW Pharmacy Group",
+    status: "SUCCESS",
+    trigger: "SCHEDULED",
+    file: "jmw/backup-9.zip",
+    file_size: 8192,
+    started_at: "2026-06-27T02:00:00Z",
+    completed_at: "2026-06-27T02:01:00Z",
+    error_message: "",
+    checksum: "ghi",
+    created_at: "2026-06-27T02:00:00Z",
+    updated_at: "2026-06-27T02:01:00Z",
+  },
+];
 
 describe("SettingsScreen", () => {
   beforeEach(() => {
+    vi.resetAllMocks();
     window.localStorage.clear();
     document.documentElement.className = "";
     document.documentElement.style.fontSize = "";
+    getBackupScheduleMock.mockResolvedValue(backupSchedule);
+    updateBackupScheduleMock.mockResolvedValue(backupSchedule);
+    listBackupRunsMock.mockResolvedValue(backupRuns);
+    runBackupNowMock.mockResolvedValue(backupRuns[0]);
+    restoreBackupMock.mockResolvedValue({ ...backupRuns[0], status: "RESTORED" });
   });
 
   afterEach(() => {
@@ -48,6 +133,45 @@ describe("SettingsScreen", () => {
     expect(
       screen.getByRole("switch", { name: "Dyslexia-friendly spacing" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Backup & restore" }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("shows real backup controls and latest retained runs", async () => {
+    renderWithProviders(<SettingsScreen />);
+
+    expect(await screen.findByLabelText("Daily backup time")).toHaveValue(
+      "02:00",
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("switch", { name: "Enable daily backups" }))
+        .toHaveAttribute("aria-checked", "true");
+    });
+    expect(screen.getByText("Retention keeps the latest 3 files."))
+      .toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Run backup now" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Restore" })).toHaveLength(3);
+  });
+
+  it("requires typed confirmation before restoring a backup", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsScreen />);
+
+    await user.click((await screen.findAllByRole("button", { name: "Restore" }))[0]);
+    expect(screen.getByLabelText("Type RESTORE to confirm")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Restore selected backup" }),
+    ).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Type RESTORE to confirm"), "RESTORE");
+    await user.click(
+      screen.getByRole("button", { name: "Restore selected backup" }),
+    );
+
+    expect(restoreBackupMock.mock.calls[0]?.[0]).toBe(11);
   });
 
   it("enables high contrast and persists it", async () => {

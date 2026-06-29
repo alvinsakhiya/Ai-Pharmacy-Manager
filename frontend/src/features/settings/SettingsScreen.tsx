@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Accessibility,
   AlignLeft,
@@ -32,12 +34,21 @@ import {
   type PrintOrientation,
   type PrintScale,
 } from "../../app/PreferencesContext";
+import { useAuth } from "../../auth/AuthContext";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { cn } from "../../lib/cn";
+import {
+  getBackupSchedule,
+  listBackupRuns,
+  restoreBackup,
+  runBackupNow,
+  updateBackupSchedule,
+  type BackupRun,
+} from "./settingsApi";
 
 interface SegmentedOption<T extends string> {
   value: T;
@@ -224,6 +235,284 @@ function SettingsHubCard({
   );
 }
 
+function formatBackupTime(value: string | null): string {
+  if (!value) {
+    return "Not run yet";
+  }
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes <= 0) {
+    return "No file";
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function BackupRunRow({
+  canRestore,
+  onSelectRestore,
+  run,
+}: {
+  canRestore: boolean;
+  onSelectRestore: (run: BackupRun) => void;
+  run: BackupRun;
+}) {
+  const variant =
+    run.status === "SUCCESS" || run.status === "RESTORED"
+      ? "brand"
+      : run.status === "FAILED"
+        ? "danger"
+        : "neutral";
+
+  return (
+    <li className="rounded-xl border border-line bg-surface px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-extrabold text-ink">
+              {formatBackupTime(run.completed_at ?? run.started_at)}
+            </p>
+            <Badge variant={variant}>{run.status.toLowerCase()}</Badge>
+          </div>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            {run.trigger.toLowerCase().replace("_", " ")} ·{" "}
+            {formatFileSize(run.file_size)}
+          </p>
+        </div>
+        {canRestore ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => onSelectRestore(run)}
+          >
+            Restore
+          </Button>
+        ) : (
+          <Badge variant="neutral">Admin only</Badge>
+        )}
+      </div>
+      {run.error_message ? (
+        <p className="mt-2 text-xs font-medium text-danger">{run.error_message}</p>
+      ) : null}
+    </li>
+  );
+}
+
+function BackupRestorePanel({
+  canManage,
+  canRestore,
+}: {
+  canManage: boolean;
+  canRestore: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [dailyTime, setDailyTime] = useState("02:00");
+  const [restoreRun, setRestoreRun] = useState<BackupRun | null>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState("");
+
+  const scheduleQuery = useQuery({
+    queryKey: ["settings", "backups", "schedule"],
+    queryFn: getBackupSchedule,
+    enabled: canManage,
+  });
+  const runsQuery = useQuery({
+    queryKey: ["settings", "backups", "runs"],
+    queryFn: listBackupRuns,
+    enabled: canManage,
+  });
+  const scheduleMutation = useMutation({
+    mutationFn: updateBackupSchedule,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["settings", "backups"] });
+    },
+  });
+  const runNowMutation = useMutation({
+    mutationFn: runBackupNow,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["settings", "backups"] });
+    },
+  });
+  const restoreMutation = useMutation({
+    mutationFn: restoreBackup,
+    onSuccess: async () => {
+      setRestoreRun(null);
+      setRestoreConfirm("");
+      await queryClient.invalidateQueries({ queryKey: ["settings", "backups"] });
+    },
+  });
+
+  useEffect(() => {
+    if (scheduleQuery.data?.daily_time) {
+      setDailyTime(scheduleQuery.data.daily_time.slice(0, 5));
+    }
+  }, [scheduleQuery.data?.daily_time]);
+
+  if (!canManage) {
+    return (
+      <Panel>
+        <PanelHeader
+          title="Backup & restore"
+          subtitle="Operational backup settings."
+          icon={<Database className="h-4 w-4" />}
+          actions={<Badge variant="neutral">Restricted</Badge>}
+        />
+        <PanelBody>
+          <p className="text-sm leading-relaxed text-ink-soft">
+            Backup settings are available to admin and pharmacist accounts.
+          </p>
+        </PanelBody>
+      </Panel>
+    );
+  }
+
+  const schedule = scheduleQuery.data;
+  const runs = runsQuery.data ?? [];
+  const busy =
+    scheduleMutation.isPending ||
+    runNowMutation.isPending ||
+    restoreMutation.isPending;
+
+  return (
+    <Panel>
+      <PanelHeader
+        title="Backup & restore"
+        subtitle="Local group backup controls."
+        icon={<Database className="h-4 w-4" />}
+        actions={
+          <Badge variant={schedule?.enabled ? "brand" : "neutral"}>
+            {schedule?.enabled ? "Scheduled" : "Manual"}
+          </Badge>
+        }
+      />
+      <PanelBody>
+        {scheduleQuery.isError ? (
+          <p className="rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-medium text-warning-ink">
+            Backup settings are unavailable for this scope.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-line bg-surface-subtle p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <label className={cn(labelClass, "flex-1")} htmlFor="backup-time">
+                  Daily backup time
+                  <input
+                    id="backup-time"
+                    type="time"
+                    className={inputClass}
+                    value={dailyTime}
+                    disabled={!schedule || busy}
+                    onChange={(event) => setDailyTime(event.target.value)}
+                    onBlur={() => {
+                      if (dailyTime) {
+                        scheduleMutation.mutate({ daily_time: dailyTime });
+                      }
+                    }}
+                  />
+                </label>
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3 py-2">
+                  <span className="text-sm font-bold text-ink">Daily schedule</span>
+                  <Toggle
+                    ariaLabel="Enable daily backups"
+                    checked={schedule?.enabled ?? false}
+                    onChange={(enabled) => scheduleMutation.mutate({ enabled })}
+                  />
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-muted">
+                {schedule?.scheduler_note ??
+                  "Scheduled backups run when the scheduler command is active."}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-extrabold text-ink">Latest backups</p>
+                <p className="text-xs font-medium text-muted">
+                  Retention keeps the latest {schedule?.retention_count ?? 3} files.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={busy}
+                onClick={() => runNowMutation.mutate()}
+              >
+                Run backup now
+              </Button>
+            </div>
+
+            {runsQuery.isLoading ? (
+              <p className="text-sm font-medium text-muted">Loading backups…</p>
+            ) : runs.length ? (
+              <ul className="space-y-2">
+                {runs.map((run) => (
+                  <BackupRunRow
+                    key={run.id}
+                    run={run}
+                    canRestore={canRestore}
+                    onSelectRestore={(nextRun) => {
+                      setRestoreRun(nextRun);
+                      setRestoreConfirm("");
+                    }}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-xl border border-line bg-surface-subtle px-4 py-3 text-sm font-medium text-muted">
+                No backups have been created for this group yet.
+              </p>
+            )}
+
+            {restoreRun ? (
+              <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+                <p className="text-sm font-extrabold text-warning-ink">
+                  Restore backup from {formatBackupTime(restoreRun.completed_at)}
+                </p>
+                <label className={cn(labelClass, "mt-3")} htmlFor="restore-confirm">
+                  Type RESTORE to confirm
+                  <input
+                    id="restore-confirm"
+                    className={inputClass}
+                    value={restoreConfirm}
+                    onChange={(event) => setRestoreConfirm(event.target.value)}
+                  />
+                </label>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="danger"
+                    disabled={restoreConfirm !== "RESTORE" || busy}
+                    onClick={() => restoreMutation.mutate(restoreRun.id)}
+                  >
+                    Restore selected backup
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setRestoreRun(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </PanelBody>
+    </Panel>
+  );
+}
+
 const CONTRAST_OPTIONS: SegmentedOption<ContrastMode>[] = [
   { value: "normal", label: "Standard" },
   { value: "high", label: "High" },
@@ -277,6 +566,7 @@ const OUTPUT_OPTIONS: SelectOption<DefaultOutputType>[] = [
 ];
 
 export function SettingsScreen() {
+  const { user } = useAuth();
   const {
     preferences,
     setContrast,
@@ -302,6 +592,8 @@ export function SettingsScreen() {
     preferences.printer.copies === 1 &&
     preferences.printer.labelPrinterName === "" &&
     preferences.printer.defaultOutputType === "dosette_tray";
+  const canManageBackups = user?.role === "ADMIN" || user?.role === "PHARMACIST";
+  const canRestoreBackups = user?.role === "ADMIN";
 
   return (
     <div className="space-y-5">
@@ -325,6 +617,12 @@ export function SettingsScreen() {
         aria-label="Settings hub"
         className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
       >
+        <SettingsHubCard
+          icon={<Database className="h-5 w-5" />}
+          title="Backup & restore"
+          status="Available"
+          description="Daily local backups, latest runs, and guarded restore."
+        />
         <SettingsHubCard
           icon={<UserRound className="h-5 w-5" />}
           title="Profile & account"
@@ -374,12 +672,6 @@ export function SettingsScreen() {
           description="Role access and audit trail remain enforced by the system."
         />
         <SettingsHubCard
-          icon={<Database className="h-5 w-5" />}
-          title="Data & privacy"
-          status="Demo status"
-          description="Patient data stays scoped to existing permission boundaries."
-        />
-        <SettingsHubCard
           icon={<ClipboardList className="h-5 w-5" />}
           title="Demo / system status"
           status="Demo status"
@@ -389,6 +681,11 @@ export function SettingsScreen() {
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
         <div className="min-w-0 space-y-5">
+          <BackupRestorePanel
+            canManage={canManageBackups}
+            canRestore={canRestoreBackups}
+          />
+
           <Panel>
             <PanelHeader
               title="Appearance"
