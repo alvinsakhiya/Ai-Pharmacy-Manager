@@ -19,7 +19,6 @@ import {
   Pill,
   Plus,
   Printer,
-  RefreshCw,
   Sun,
   Sunrise,
   Sunset,
@@ -58,10 +57,6 @@ import type {
   DosettePeriodCycle,
   PatientMedicationLine,
   PatientMedicationWriteBody,
-  PickingList,
-  PickingListRow,
-  StockPreview,
-  StockPreviewRow,
 } from "./dosetteApi";
 import type { CycleStatusTransition } from "./dosetteApi";
 import {
@@ -73,10 +68,8 @@ import {
   useDosettePeriodsQuery,
   useMarkDosettePeriodCollected,
   usePatientMedicationsQuery,
-  usePickingListQuery,
   usePrepareDosetteCycle,
   useSubmitDosettePeriod,
-  useStockPreviewQuery,
   useUpdateCycleStatus,
   useUpdateMedicationAppearance,
   useUpdatePatientMedication,
@@ -273,7 +266,6 @@ function isCycleChecked(cycle: DosetteCycle): boolean {
 function cycleStageLabel(
   cycle: DosetteCycle,
   activeLineCount: number,
-  hasGeneratedPickingList: boolean,
 ): string {
   if (cycle.status === "CANCELLED") {
     return "Cancelled";
@@ -293,9 +285,6 @@ function cycleStageLabel(
   if (cycle.status === "PREPARED") {
     return "Prepared";
   }
-  if (hasGeneratedPickingList) {
-    return "Picking list ready";
-  }
   if (cycle.status === "DRAFT") {
     return activeLineCount > 0 ? "Medicines added" : "Draft";
   }
@@ -306,7 +295,6 @@ function cycleStageLabel(
 function cycleNextStep(
   cycle: DosetteCycle,
   activeLineCount: number,
-  hasGeneratedPickingList: boolean,
 ): string {
   if (cycle.status === "CANCELLED") {
     return "This cycle is cancelled.";
@@ -330,49 +318,35 @@ function cycleNextStep(
     return "Ready for pharmacist check.";
   }
   if (activeLineCount === 0) {
-    return "Add medicines, then generate a picking list.";
-  }
-  if (hasGeneratedPickingList) {
-    return "Prepare the tray, then mark as prepared.";
+    return "Add medicines before preparation.";
   }
 
-  return "Generate the picking list before preparing.";
+  return "Prepare the tray, then mark as prepared.";
 }
 
 function buildCycleChecklist(
   cycle: DosetteCycle,
   activeLineCount: number,
-  hasGeneratedPickingList: boolean,
 ): CycleChecklistStep[] {
-  const pickingListDone =
-    hasGeneratedPickingList ||
-    isCyclePrepared(cycle) ||
-    isCycleChecked(cycle) ||
-    cycle.stock_deducted;
   const completion = [
     activeLineCount > 0,
-    pickingListDone,
     isCyclePrepared(cycle),
     isCycleChecked(cycle),
     cycle.stock_deducted,
   ];
   const firstPending = completion.findIndex((done) => !done);
 
-  return [
-    "Medicines",
-    "Picking list",
-    "Prepared",
-    "Checked",
-    "Stock deducted",
-  ].map((label, index) => ({
-    key: label.toLowerCase().replaceAll(" ", "-"),
-    label,
-    state: completion[index]
-      ? "done"
-      : firstPending === index
-        ? "current"
-        : "pending",
-  }));
+  return ["Medicines", "Prepared", "Checked", "Stock deducted"].map(
+    (label, index) => ({
+      key: label.toLowerCase().replaceAll(" ", "-"),
+      label,
+      state: completion[index]
+        ? "done"
+        : firstPending === index
+          ? "current"
+          : "pending",
+    }),
+  );
 }
 
 function checklistStateLabel(state: ChecklistState): string {
@@ -744,23 +718,13 @@ function CycleDetailValue({
 function CycleStatusOverview({
   activeLineCount,
   cycle,
-  hasGeneratedPickingList,
 }: {
   activeLineCount: number;
   cycle: DosetteCycle;
-  hasGeneratedPickingList: boolean;
 }) {
-  const stageLabel = cycleStageLabel(
-    cycle,
-    activeLineCount,
-    hasGeneratedPickingList,
-  );
-  const nextStep = cycleNextStep(cycle, activeLineCount, hasGeneratedPickingList);
-  const checklist = buildCycleChecklist(
-    cycle,
-    activeLineCount,
-    hasGeneratedPickingList,
-  );
+  const stageLabel = cycleStageLabel(cycle, activeLineCount);
+  const nextStep = cycleNextStep(cycle, activeLineCount);
+  const checklist = buildCycleChecklist(cycle, activeLineCount);
   const completedSteps = checklist.filter((step) => step.state === "done").length;
   const isFlagged =
     cycle.status === "CANCELLED" || cycle.status === "NEEDS_CHANGES";
@@ -779,11 +743,6 @@ function CycleStatusOverview({
             <Badge dot variant={dueStatusTone(cycle.due_status)}>
               {dueStatusLabel(cycle.due_status)}
             </Badge>
-            {hasGeneratedPickingList ? (
-              <Badge icon={<ClipboardList className="h-3 w-3" />} variant="info">
-                Picking list generated
-              </Badge>
-            ) : null}
           </div>
           <h2 className="mt-3 text-xl font-extrabold text-ink">{stageLabel}</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
@@ -2507,64 +2466,6 @@ function MdsTrayBuilder({
   );
 }
 
-function PickDetail({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string | number;
-  hint?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-surface-subtle p-3">
-      <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
-        {label}
-      </dt>
-      <dd className="tnum mt-1 text-sm font-bold text-ink">{value}</dd>
-      {hint ? (
-        <p className="mt-1 text-[11px] font-semibold leading-relaxed text-muted">
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function PickingListItemCard({ row }: { row: PickingListRow }) {
-  return (
-    <article
-      aria-label={`Picking item ${row.medication_name}`}
-      className="rounded-2xl border border-line bg-surface p-4 shadow-soft"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h3 className="flex items-center gap-2 text-sm font-extrabold text-ink">
-            <Pill aria-hidden="true" className="h-4 w-4 shrink-0 text-brand" />
-            <span>{row.medication_name}</span>
-          </h3>
-          <p className="mt-1 text-xs font-semibold text-muted">
-            {strengthFormLabel(row)}
-          </p>
-        </div>
-        <Badge variant="neutral">Review before picking</Badge>
-      </div>
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <PickDetail
-          label="Required quantity"
-          value={`${row.total_daily} total daily`}
-          hint="From current picking data."
-        />
-        <PickDetail
-          label="Stock check"
-          value="See availability"
-          hint="Review batches and shortages below."
-        />
-      </dl>
-    </article>
-  );
-}
-
 function LoadingSection({ text }: { text: string }) {
   return (
     <Panel>
@@ -2601,80 +2502,6 @@ function ErrorSection({
       title={title}
       tone="danger"
     />
-  );
-}
-
-function PickingListSection({
-  cycle,
-  pickingList,
-}: {
-  cycle: DosetteCycle | null;
-  pickingList: PickingList;
-}) {
-  const internalReference = cycle?.reference ?? pickingList.cycle.reference;
-  const itemCount = pickingList.medications.length;
-  const totalCurrentQuantity = pickingList.totals.total_daily;
-
-  return (
-    <section
-      aria-label="Picking list"
-      className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft animate-fade-in-up"
-    >
-      <div className="flex flex-col gap-4 border-b border-line px-4 py-4 sm:px-5">
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
-          >
-            <ClipboardList className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-              {pickingList.patient_reference}
-            </p>
-            <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
-              Picking list: {cycle ? cycleFriendlyLabel(cycle) : internalReference}
-            </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
-              Use this list to gather stock for the selected Dosette cycle.
-              Review before preparation.
-            </p>
-          </div>
-        </div>
-        <dl className="grid gap-3 sm:grid-cols-3">
-          <PickDetail label="Items to pick" value={itemCount} />
-          <PickDetail
-            label="Quantity from current picking data"
-            value={totalCurrentQuantity}
-            hint="Existing picking-list total."
-          />
-          <PickDetail
-            label="Selected cycle"
-            value={cycle ? cycleSupplyPeriodLabel(cycle) : internalReference}
-            hint={
-              cycle
-                ? `${cycleDateRange(cycle)} · ${internalReference}`
-                : "Cycle reference"
-            }
-          />
-        </dl>
-      </div>
-      {pickingList.medications.length === 0 ? (
-        <div className="p-4 sm:p-5">
-          <EmptyState
-            icon={<ClipboardList className="h-5 w-5" />}
-            title="No items to pick for this cycle."
-            description="Add an active medication line to build a picking list."
-          />
-        </div>
-      ) : (
-        <div className="grid gap-3 p-4 sm:p-5">
-          {pickingList.medications.map((row) => (
-            <PickingListItemCard key={row.medication_id} row={row} />
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -2887,383 +2714,6 @@ function DosettePrintSheet({
   );
 }
 
-function StockAvailabilityBadge({ inStock }: { inStock: boolean }) {
-  return inStock ? (
-    <Badge dot variant="success">
-      Stock available
-    </Badge>
-  ) : (
-    <Badge dot variant="warning">
-      Short
-    </Badge>
-  );
-}
-
-function StockPreviewLineCard({ row }: { row: StockPreviewRow }) {
-  return (
-    <article
-      aria-label={`Stock availability ${row.medication_name}`}
-      className="rounded-2xl border border-line bg-surface p-4 shadow-soft"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h3 className="text-sm font-extrabold text-ink">{row.medication_name}</h3>
-          <p className="mt-1 text-xs font-semibold text-muted">
-            {strengthFormLabel(row)}
-          </p>
-        </div>
-        <StockAvailabilityBadge inStock={row.in_stock} />
-      </div>
-      <dl className="mt-4 grid gap-3 sm:grid-cols-4">
-        <PickDetail label="Required quantity" value={row.required_quantity} />
-        <PickDetail label="Available quantity" value={row.available_quantity} />
-        <PickDetail
-          label="Short / needs review"
-          value={row.shortage_quantity}
-          hint={
-            row.shortage_quantity > 0
-              ? "Review before picking."
-              : "No shortage shown."
-          }
-        />
-        <PickDetail
-          label="Earliest expiry"
-          value={row.earliest_expiry ? formatDate(row.earliest_expiry) : "Not shown"}
-        />
-      </dl>
-      <div
-        className={cn(
-          "mt-4 rounded-xl border p-3",
-          row.shortage_quantity > 0
-            ? "border-warning-border bg-warning-soft/60"
-            : "border-line bg-surface-subtle",
-        )}
-      >
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
-          Suggested batch/expiry
-        </p>
-        {row.suggested_batches.length === 0 ? (
-          <p className="mt-1 text-sm font-semibold text-ink-soft">
-            No batch suggestion available.
-          </p>
-        ) : (
-          <ul className="mt-2 space-y-2">
-            {row.suggested_batches.map((batch) => (
-              <li
-                key={batch.batch_id}
-                className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
-              >
-                <span className="font-semibold text-ink">
-                  {batch.batch_number}
-                </span>
-                <span className="tnum text-muted">
-                  {formatDate(batch.expiry_date)} - pick {batch.quantity_to_pick}
-                </span>
-                <span className="tnum text-muted">
-                  {batch.quantity_available} available
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </article>
-  );
-}
-
-function StockPreviewSection({ stockPreview }: { stockPreview: StockPreview }) {
-  const hasShortage = stockPreview.totals.shortage > 0;
-  const availableCount = stockPreview.medications.filter((row) => row.in_stock).length;
-  const shortageCount = stockPreview.medications.filter(
-    (row) => row.shortage_quantity > 0,
-  ).length;
-
-  return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft animate-fade-in-up">
-      <div className="flex flex-col gap-4 border-b border-line px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
-            >
-              <PackageCheck className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-                {stockPreview.patient_reference}
-              </p>
-              <h2 className="truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
-                Stock availability
-              </h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
-                Check available quantity, shortages, and suggested batch expiry
-                before gathering stock.
-              </p>
-            </div>
-          </div>
-          {stockPreview.medications.length > 0 ? (
-            hasShortage ? (
-              <Badge dot variant="warning">
-                <span className="tnum">{stockPreview.totals.shortage}</span> short
-              </Badge>
-            ) : (
-              <Badge dot variant="success">
-                Fully covered
-              </Badge>
-            )
-          ) : null}
-        </div>
-        <dl className="grid gap-3 sm:grid-cols-4">
-          <PickDetail label="Available" value={availableCount} />
-          <PickDetail label="Short / needs review" value={shortageCount} />
-          <PickDetail
-            label="Required quantity"
-            value={stockPreview.totals.required}
-          />
-          <PickDetail
-            label="Available quantity"
-            value={stockPreview.totals.available}
-          />
-        </dl>
-      </div>
-      {stockPreview.medications.length === 0 ? (
-        <div className="p-4 sm:p-5">
-          <EmptyState
-            icon={<PackageCheck className="h-5 w-5" />}
-            title="No active medication lines to preview."
-            description="Add an active medication line to preview stock."
-          />
-        </div>
-      ) : (
-        <div className="grid gap-3 p-4 sm:p-5">
-          {stockPreview.medications.map((row) => (
-            <StockPreviewLineCard key={row.medication_id} row={row} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-interface PickingCycleOption {
-  id: number;
-  label: string;
-  detail: string;
-  dateRange: string;
-  status: string;
-  stockDeducted: boolean;
-}
-
-function periodPickingOptions(period: DosettePeriod): PickingCycleOption[] {
-  return period.cycles.map((cycle, index) => ({
-    id: cycle.id,
-    label: periodWeekLabel(cycle, index),
-    detail: "Four-week period",
-    dateRange: periodDateRange(cycle),
-    status: cycle.status,
-    stockDeducted: cycle.stock_deducted,
-  }));
-}
-
-function legacyPickingOptions(cycles: DosetteCycle[]): PickingCycleOption[] {
-  return cycles.map((cycle, index) => ({
-    id: cycle.id,
-    label: `Legacy cycle ${index + 1}`,
-    detail: cycleSupplyPeriodLabel(cycle),
-    dateRange: cycleDateRange(cycle),
-    status: cycle.status,
-    stockDeducted: cycle.stock_deducted,
-  }));
-}
-
-function PickingWeekButton({
-  isSelected,
-  onSelect,
-  option,
-}: {
-  isSelected: boolean;
-  onSelect: () => void;
-  option: PickingCycleOption;
-}) {
-  return (
-    <button
-      aria-label={`Select ${option.label} for picking list`}
-      aria-pressed={isSelected}
-      className={cn(
-        "flex min-h-[112px] flex-col items-start justify-between rounded-xl border p-3 text-left transition-colors duration-150 focus-ring",
-        isSelected
-          ? "border-lilac bg-lilac-soft text-ink shadow-elev-1"
-          : "border-line bg-surface-subtle text-ink-soft hover:border-line-strong hover:bg-surface",
-      )}
-      onClick={onSelect}
-      type="button"
-    >
-      <span className="flex w-full items-start justify-between gap-2">
-        <span>
-          <span className="block text-sm font-extrabold text-ink">
-            {option.label}
-          </span>
-          <span className="mt-1 block tnum text-xs font-semibold text-muted">
-            {option.dateRange}
-          </span>
-        </span>
-        <Badge dot variant={cycleStatusTone(option.status)}>
-          {statusLabel(option.status)}
-        </Badge>
-      </span>
-      <span className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
-        <span>{option.detail}</span>
-        <span aria-hidden="true">·</span>
-        <span>
-          {option.stockDeducted ? "Stock deducted" : "Stock not deducted"}
-        </span>
-      </span>
-    </button>
-  );
-}
-
-function PickingListGate({
-  cycles,
-  hasGenerated,
-  isBusy,
-  onGenerate,
-  onRefresh,
-  onSelectCycleId,
-  period,
-  selectedCycleId,
-}: {
-  cycles: DosetteCycle[];
-  hasGenerated: boolean;
-  isBusy: boolean;
-  onGenerate: () => void;
-  onRefresh: () => void;
-  onSelectCycleId: (cycleId: number) => void;
-  period: DosettePeriod | null;
-  selectedCycleId: number | null;
-}) {
-  const periodOptions = period ? periodPickingOptions(period) : [];
-  const isPeriodMode = periodOptions.length > 0;
-  const options = isPeriodMode ? periodOptions : legacyPickingOptions(cycles);
-  const selectedOption =
-    options.find((option) => option.id === selectedCycleId) ?? null;
-  const selectedNoun = isPeriodMode ? "week" : "cycle";
-
-  return (
-    <Panel aria-label="Picking List workflow">
-      <PanelHeader
-        icon={<ClipboardList className="h-4 w-4" />}
-        title="Picking List"
-        subtitle={
-          isPeriodMode
-            ? "Choose a week from the current four-week period, then generate the stock-pick view."
-            : "Choose an existing cycle, then generate the stock-pick view."
-        }
-        actions={
-          selectedOption ? (
-            hasGenerated ? (
-              <Button
-                disabled={isBusy}
-                leadingIcon={<RefreshCw className="h-4 w-4" />}
-                onClick={onRefresh}
-                variant="secondary"
-              >
-                Refresh picking list
-              </Button>
-            ) : (
-              <Button
-                disabled={isBusy}
-                leadingIcon={<ClipboardList className="h-4 w-4" />}
-                onClick={onGenerate}
-                variant="primary"
-              >
-                Generate picking list
-              </Button>
-            )
-          ) : null
-        }
-      />
-      <PanelBody className="space-y-4">
-        <div className="rounded-xl border border-line bg-surface-subtle p-4">
-          <p className="text-sm font-semibold leading-6 text-ink-soft">
-            Creates a stock-pick view for the selected week. Stock is deducted
-            later after pharmacist checks.
-          </p>
-        </div>
-
-        {options.length === 0 ? (
-          <EmptyState
-            description="Submit the medication schedule to create four weekly cycles, then generate a picking list."
-            icon={<ClipboardList className="h-5 w-5" />}
-            title="No four-week period yet."
-          />
-        ) : (
-          <>
-            {!isPeriodMode ? (
-              <div className="rounded-xl border border-line bg-surface-subtle p-4">
-                <h3 className="text-sm font-extrabold text-ink">
-                  Legacy cycles available
-                </h3>
-                <p className="mt-1 text-sm leading-6 text-ink-soft">
-                  Choose an existing cycle to create the stock-pick view.
-                </p>
-              </div>
-            ) : null}
-
-            <div
-              aria-label={
-                isPeriodMode ? "Four-week period weeks" : "Legacy cycles"
-              }
-              className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
-              role="group"
-            >
-              {options.map((option) => (
-                <PickingWeekButton
-                  isSelected={selectedCycleId === option.id}
-                  key={option.id}
-                  onSelect={() => onSelectCycleId(option.id)}
-                  option={option}
-                />
-              ))}
-            </div>
-
-            {selectedOption ? (
-              <div
-                aria-label={
-                  isPeriodMode ? "Selected picking week" : "Selected legacy cycle"
-                }
-                className="rounded-xl border border-line bg-surface-subtle p-4"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
-                      {isPeriodMode ? "Selected week" : "Selected cycle"}
-                    </p>
-                    <h3 className="mt-1 text-sm font-extrabold text-ink">
-                      {selectedOption.label}
-                    </h3>
-                    <p className="mt-1 tnum text-sm font-semibold text-ink-soft">
-                      {selectedOption.dateRange}
-                    </p>
-                  </div>
-                  <Badge dot variant={cycleStatusTone(selectedOption.status)}>
-                    {statusLabel(selectedOption.status)}
-                  </Badge>
-                </div>
-                {hasGenerated ? (
-                  <p className="mt-3 text-xs font-semibold text-success-ink">
-                    Stock-pick view shown for this selected {selectedNoun}.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </>
-        )}
-      </PanelBody>
-    </Panel>
-  );
-}
-
 export function DosetteScreen() {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -3276,7 +2726,6 @@ export function DosetteScreen() {
   const parsedPatientId = Number(patientId);
   const isValidPatientId = Number.isFinite(parsedPatientId);
   const [selectedCycleId, setSelectedCycleId] = useState<number | null>(null);
-  const [generatedCycleId, setGeneratedCycleId] = useState<number | null>(null);
   const [editingLine, setEditingLine] = useState<PatientMedicationLine | null>(null);
   const [isMedicationModalOpen, setMedicationModalOpen] = useState(false);
   const [editingCycle, setEditingCycle] = useState<DosetteCycle | null>(null);
@@ -3298,8 +2747,6 @@ export function DosetteScreen() {
   const medicationsQuery = usePatientMedicationsQuery(parsedPatientId);
   const cyclesQuery = useDosetteCyclesQuery(parsedPatientId);
   const periodsQuery = useDosettePeriodsQuery(parsedPatientId);
-  const pickingListQuery = usePickingListQuery(parsedPatientId, generatedCycleId);
-  const stockPreviewQuery = useStockPreviewQuery(parsedPatientId, generatedCycleId);
   const discontinueMedication =
     useDiscontinuePatientMedication(parsedPatientId);
   const submitPeriod = useSubmitDosettePeriod(parsedPatientId);
@@ -3322,37 +2769,15 @@ export function DosetteScreen() {
 
     setSelectedCycleId((current) => {
       if (cyclesQuery.data.length === 0) {
-        return latestPeriod?.cycles[0]?.id ?? null;
+        return null;
       }
-      const periodCycleIds = latestPeriod?.cycles.map((cycle) => cycle.id) ?? [];
-      const currentExists = cyclesQuery.data.some((cycle) => cycle.id === current);
-      if (
-        current !== null &&
-        (currentExists || periodCycleIds.includes(current)) &&
-        (periodCycleIds.length === 0 || periodCycleIds.includes(current))
-      ) {
+      if (current !== null && cyclesQuery.data.some((cycle) => cycle.id === current)) {
         return current;
-      }
-
-      const firstPeriodCycle = periodCycleIds
-        .map((cycleId) => cyclesQuery.data.find((cycle) => cycle.id === cycleId))
-        .find(Boolean);
-      if (firstPeriodCycle) {
-        return firstPeriodCycle.id;
-      }
-      if (periodCycleIds.length > 0) {
-        return periodCycleIds[0];
       }
 
       return cyclesQuery.data[0].id;
     });
-  }, [cyclesQuery.data, cyclesQuery.isSuccess, latestPeriod]);
-
-  useEffect(() => {
-    if (generatedCycleId !== null && generatedCycleId !== selectedCycleId) {
-      setGeneratedCycleId(null);
-    }
-  }, [generatedCycleId, selectedCycleId]);
+  }, [cyclesQuery.data, cyclesQuery.isSuccess]);
 
   useEffect(() => {
     if (openPeriodId === null) {
@@ -3438,25 +2863,7 @@ export function DosetteScreen() {
   }
 
   function handleSelectCycle(cycle: DosetteCycle) {
-    handleSelectCycleId(cycle.id);
-  }
-
-  function handleSelectCycleId(cycleId: number) {
-    setSelectedCycleId(cycleId);
-    setGeneratedCycleId(null);
-  }
-
-  function handleGeneratePickingList() {
-    if (selectedCycleId === null) {
-      return;
-    }
-
-    setGeneratedCycleId(selectedCycleId);
-  }
-
-  function handleRefreshPickingList() {
-    void pickingListQuery.refetch();
-    void stockPreviewQuery.refetch();
+    setSelectedCycleId(cycle.id);
   }
 
   function openDeductStockModal(cycle: DosetteCycle) {
@@ -3497,12 +2904,9 @@ export function DosetteScreen() {
   const selectedCycle =
     cycles.find((cycle) => cycle.id === selectedCycleId) ?? null;
   const statusCycle = selectedCycle ?? cycles[0] ?? null;
-  const generatedCycle =
-    cycles.find((cycle) => cycle.id === generatedCycleId) ?? null;
   const printableCycle = selectedCycle ?? cycles[0] ?? null;
   const printableMedicationLines = medicationLines.filter((line) => line.is_active);
   const patientReference =
-    pickingListQuery.data?.patient_reference ??
     printableCycle?.patient_reference ??
     `Patient #${parsedPatientId}`;
   const pharmacyName =
@@ -3513,10 +2917,6 @@ export function DosetteScreen() {
         : "Assigned pharmacy";
   const activeLineCount =
     medicationLines.filter((line) => line.is_active).length ?? 0;
-  const hasGeneratedPickingList =
-    selectedCycleId !== null && generatedCycleId === selectedCycleId;
-  const isPickingListBusy =
-    pickingListQuery.isFetching || stockPreviewQuery.isFetching;
 
   function handlePrintSheet() {
     window.print();
@@ -3538,7 +2938,7 @@ export function DosetteScreen() {
           </span>
         }
         title="Dosette / MDS"
-        subtitle="Assemble the patient's compliance pack by day and time slot, then preview FEFO stock before deduction."
+        subtitle="Assemble the patient's compliance pack by day and time slot, then review the cycle before preparation."
         actions={
           medicationsQuery.isSuccess && cyclesQuery.isSuccess ? (
             <Button
@@ -3616,9 +3016,6 @@ export function DosetteScreen() {
               <CycleStatusOverview
                 activeLineCount={activeLineCount}
                 cycle={statusCycle}
-                hasGeneratedPickingList={
-                  hasGeneratedPickingList && statusCycle.id === selectedCycleId
-                }
               />
             ) : null}
           </PanelBody>
@@ -3721,46 +3118,6 @@ export function DosetteScreen() {
             </PanelBody>
           )}
         </Panel>
-      ) : null}
-
-      {cyclesQuery.isSuccess && periodsQuery.isSuccess ? (
-        <PickingListGate
-          cycles={cycles}
-          hasGenerated={hasGeneratedPickingList}
-          isBusy={isPickingListBusy}
-          onGenerate={handleGeneratePickingList}
-          onRefresh={handleRefreshPickingList}
-          onSelectCycleId={handleSelectCycleId}
-          period={latestPeriod}
-          selectedCycleId={selectedCycleId}
-        />
-      ) : null}
-      {hasGeneratedPickingList && pickingListQuery.isLoading ? (
-        <LoadingSection text="Loading picking list..." />
-      ) : null}
-      {hasGeneratedPickingList && pickingListQuery.isError ? (
-        <ErrorSection
-          onRetry={() => void pickingListQuery.refetch()}
-          title="Could not load picking list."
-        />
-      ) : null}
-      {hasGeneratedPickingList && pickingListQuery.isSuccess ? (
-        <PickingListSection
-          cycle={generatedCycle}
-          pickingList={pickingListQuery.data}
-        />
-      ) : null}
-      {hasGeneratedPickingList && stockPreviewQuery.isLoading ? (
-        <LoadingSection text="Loading stock availability..." />
-      ) : null}
-      {hasGeneratedPickingList && stockPreviewQuery.isError ? (
-        <ErrorSection
-          onRetry={() => void stockPreviewQuery.refetch()}
-          title="Could not load stock availability."
-        />
-      ) : null}
-      {hasGeneratedPickingList && stockPreviewQuery.isSuccess ? (
-        <StockPreviewSection stockPreview={stockPreviewQuery.data} />
       ) : null}
 
       <Modal
@@ -3935,7 +3292,7 @@ export function DosetteScreen() {
         <div className="space-y-5">
           <p className="text-sm leading-6 text-ink-soft">
             This medication line will be marked inactive and removed from active
-            picking lists.
+            dose schedules.
           </p>
           <div className="flex justify-end gap-3 border-t border-line pt-5">
             <Button onClick={() => setLineToDiscontinue(null)} variant="secondary">
