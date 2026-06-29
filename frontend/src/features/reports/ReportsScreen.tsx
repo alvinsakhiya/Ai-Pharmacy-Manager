@@ -11,7 +11,6 @@ import {
   FileText,
   Inbox,
   Layers,
-  PackageSearch,
   ShieldAlert,
   TrendingUp,
   type LucideIcon,
@@ -24,15 +23,6 @@ import { Button } from "../../components/ui/Button";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
-import {
-  Table,
-  TableScroll,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-} from "../../components/ui/Table";
 import { labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 import { scopeLabel } from "../../lib/scope";
@@ -65,7 +55,7 @@ const REPORTS: Array<{
     id: "stock_attention",
     title: "Stock attention",
     description: "Items flagged for stockout, low stock, expiry, or movement risk.",
-    category: "stock_safety",
+    category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: false,
@@ -75,7 +65,7 @@ const REPORTS: Array<{
     id: "stock_movements",
     title: "Stock movements",
     description: "Recent receipts, adjustments, transfers, and deductions.",
-    category: "stock_efficiency",
+    category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: false,
@@ -83,9 +73,9 @@ const REPORTS: Array<{
   },
   {
     id: "expiry",
-    title: "Expiry risk",
+    title: "Expiry review",
     description: "Batches expiring inside the selected operational window.",
-    category: "stock_safety",
+    category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: false,
@@ -95,7 +85,7 @@ const REPORTS: Array<{
     id: "dead_stock",
     title: "Dead/slow stock",
     description: "Stock movement signals for dead, slow, and active items.",
-    category: "stock_efficiency",
+    category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: true,
@@ -105,7 +95,7 @@ const REPORTS: Array<{
     id: "stock_valuation",
     title: "Stock valuation",
     description: "Stock value (quantity x unit price) by item, with totals.",
-    category: "stock_efficiency",
+    category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
     humanReview: false,
@@ -115,7 +105,7 @@ const REPORTS: Array<{
     id: "forecast_reorder",
     title: "Forecast & reorder",
     description: "Latest forecast suggestions from stock movement history.",
-    category: "forecasting",
+    category: "operational_performance",
     permission: "forecast.view",
     exportTypes: ["CSV"],
     humanReview: true,
@@ -125,7 +115,7 @@ const REPORTS: Array<{
     id: "transfer_suggestions",
     title: "Transfer suggestions",
     description: "Cross-branch suggestions for superintendent/admin review.",
-    category: "forecasting",
+    category: "operational_performance",
     permission: "transfer_suggestion.view",
     exportTypes: ["CSV"],
     humanReview: true,
@@ -144,78 +134,88 @@ const REPORTS: Array<{
 ];
 
 type ReportCategoryId =
-  | "stock_safety"
-  | "stock_efficiency"
-  | "forecasting"
-  | "dosette_workload";
+  | "stock_expiry"
+  | "dosette_workload"
+  | "patient_review_activity"
+  | "operational_performance";
 
 const REPORT_CATEGORIES: Array<{
   id: ReportCategoryId;
   title: string;
   description: string;
   icon: LucideIcon;
+  reportIds: ReportId[];
 }> = [
   {
-    id: "stock_safety",
-    title: "Stock safety",
-    description: "Expiry, stockout, and low-stock attention.",
+    id: "stock_expiry",
+    title: "Stock and expiry",
+    description: "Stock risk, expiry review, value, and movement signals.",
     icon: ShieldAlert,
-  },
-  {
-    id: "stock_efficiency",
-    title: "Stock efficiency",
-    description: "Movement, valuation, dead-stock, and utilisation signals.",
-    icon: PackageSearch,
-  },
-  {
-    id: "forecasting",
-    title: "Forecasting & planning",
-    description: "Forecast estimates and potential transfer opportunities.",
-    icon: TrendingUp,
+    reportIds: [
+      "stock_attention",
+      "expiry",
+      "dead_stock",
+      "stock_valuation",
+      "stock_movements",
+    ],
   },
   {
     id: "dosette_workload",
-    title: "Dosette workload",
-    description: "MDS cycle workload by pharmacy and status.",
+    title: "MDS / Dosette workload",
+    description: "MDS workload and prepare reminder activity summaries.",
     icon: Layers,
+    reportIds: ["mds_workload"],
+  },
+  {
+    id: "patient_review_activity",
+    title: "Patient review activity",
+    description: "Patient review reports will appear here when available.",
+    icon: FileText,
+    reportIds: [],
+  },
+  {
+    id: "operational_performance",
+    title: "Operational performance",
+    description: "Forecast estimates and potential transfer opportunities.",
+    icon: BarChart3,
+    reportIds: ["forecast_reorder", "transfer_suggestions"],
   },
 ];
 
 const SUMMARY_CARDS: Array<{
-  report: ReportId;
+  report?: ReportId;
   label: string;
   helper: string;
   icon: LucideIcon;
 }> = [
   {
+    report: "stock_attention",
+    label: "Stock risk",
+    helper: "Operational report rows needing stock review.",
+    icon: ShieldAlert,
+  },
+  {
     report: "expiry",
-    label: "Expiring soon",
-    helper: "Batches in the current expiry window.",
+    label: "Expiry review",
+    helper: "Batches in the selected expiry window.",
     icon: CalendarClock,
-  },
-  {
-    report: "dead_stock",
-    label: "Dead stock lines",
-    helper: "Lines for operational stock review.",
-    icon: ArchiveX,
-  },
-  {
-    report: "forecast_reorder",
-    label: "Reorder suggestions",
-    helper: "Suggested reorder review items.",
-    icon: TrendingUp,
-  },
-  {
-    report: "transfer_suggestions",
-    label: "Transfer suggestions",
-    helper: "Potential transfer opportunities.",
-    icon: ArrowRightLeft,
   },
   {
     report: "mds_workload",
     label: "MDS workload",
     helper: "Cycle status workload rows.",
     icon: Layers,
+  },
+  {
+    label: "Patient review activity",
+    helper: "No dedicated patient review report is available in this dashboard.",
+    icon: FileText,
+  },
+  {
+    report: "stock_movements",
+    label: "Operational actions",
+    helper: "Recent stock movement activity rows.",
+    icon: ClipboardList,
   },
 ];
 
@@ -291,6 +291,16 @@ function percentage(value: number, total: number): number {
 
 function reportTitle(reportId: ReportId): string {
   return REPORTS.find((report) => report.id === reportId)?.title ?? "Report";
+}
+
+function humanReviewNote(reportId: ReportId): string {
+  if (reportId === "forecast_reorder") {
+    return "Forecast estimates are operational report outputs. Review before ordering.";
+  }
+  if (reportId === "transfer_suggestions") {
+    return "Potential transfer opportunities are operational report outputs. Review before transfer.";
+  }
+  return "Operational report outputs need human review before stock action.";
 }
 
 function formatConfidence(value: string): string {
@@ -478,7 +488,7 @@ function ReportsSummaryCards({
 }) {
   const availableIds = new Set(availableReports.map((report) => report.id));
   const summaryCards = SUMMARY_CARDS.filter((card) =>
-    availableIds.has(card.report),
+    card.report ? availableIds.has(card.report) : true,
   );
 
   if (summaryCards.length === 0) {
@@ -492,10 +502,10 @@ function ReportsSummaryCards({
     >
       {summaryCards.map((card) => (
         <SummaryMetricCard
-          count={cardCounts.get(card.report)}
+          count={card.report ? cardCounts.get(card.report) : undefined}
           helper={card.helper}
           icon={card.icon}
-          key={card.report}
+          key={card.report ?? card.label}
           label={card.label}
           loading={loading}
         />
@@ -507,63 +517,140 @@ function ReportsSummaryCards({
 function ReportCategoryCards({
   activeReportId,
   availableReports,
+  cardCounts,
   onSelectReport,
 }: {
   activeReportId: ReportId;
   availableReports: typeof REPORTS;
+  cardCounts: Map<ReportId, number>;
   onSelectReport: (reportId: ReportId) => void;
 }) {
   const availableByCategory = new Map<ReportCategoryId, typeof REPORTS>();
   for (const category of REPORT_CATEGORIES) {
     availableByCategory.set(
       category.id,
-      availableReports.filter((report) => report.category === category.id),
+      category.reportIds
+        .map((reportId) =>
+          availableReports.find((report) => report.id === reportId),
+        )
+        .filter((report): report is (typeof REPORTS)[number] => Boolean(report)),
     );
   }
 
   return (
-    <section aria-label="Report categories" className="grid gap-3 lg:grid-cols-4">
+    <section aria-label="Report groups" className="space-y-4">
       {REPORT_CATEGORIES.map((category) => {
         const reports = availableByCategory.get(category.id) ?? [];
-        if (reports.length === 0) {
-          return null;
-        }
         const Icon = category.icon;
         const active = reports.some((report) => report.id === activeReportId);
         return (
-          <button
-            aria-pressed={active}
-            className={cn(
-              "rounded-2xl border p-4 text-left shadow-soft transition-all duration-200 ease-soft focus-ring",
-              active
-                ? "border-brand bg-brand-soft"
-                : "border-line bg-surface hover:-translate-y-0.5 hover:border-line-strong hover:shadow-elev-2",
-            )}
+          <section
+            aria-labelledby={`report-group-${category.id}`}
+            className="rounded-2xl border border-line bg-surface-subtle p-4 shadow-soft sm:p-5"
             key={category.id}
-            onClick={() => onSelectReport(reports[0].id)}
-            type="button"
           >
-            <div className="flex items-start gap-3">
-              <span
-                aria-hidden="true"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface-subtle text-brand"
-              >
-                <Icon className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <h2 className="text-sm font-bold text-ink">{category.title}</h2>
-                <p className="mt-1 text-xs leading-relaxed text-muted">
-                  {category.description}
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "grid h-10 w-10 shrink-0 place-items-center rounded-full border",
+                    active
+                      ? "border-brand bg-brand-soft text-brand"
+                      : "border-line bg-surface text-ink-soft",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h2
+                    id={`report-group-${category.id}`}
+                    className="text-lg font-extrabold text-ink"
+                  >
+                    {category.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted">{category.description}</p>
+                </div>
+              </div>
+              <Badge variant={active ? "brand" : "neutral"}>
+                {reports.length === 0
+                  ? "No report yet"
+                  : `${formatNumber(reports.length)} operational report${
+                      reports.length === 1 ? "" : "s"
+                    }`}
+              </Badge>
+            </div>
+            {reports.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface px-4 py-5">
+                <h3 className="text-sm font-extrabold text-ink">
+                  {category.id === "patient_review_activity"
+                    ? "No patient review activity report is available yet."
+                    : "No reports are available in this group."}
+                </h3>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+                  {category.id === "patient_review_activity"
+                    ? "Patient review activity can appear here when an existing report is added to the reporting API. No extra analytics are inferred."
+                    : "Reports appear here when your account has access to the existing reporting API for this group."}
                 </p>
               </div>
-            </div>
-            <p aria-hidden="true" className="mt-3 text-xs font-semibold text-ink-soft">
-              {reports.map((report) => report.title).join(" · ")}
-            </p>
-          </button>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {reports.map((report) => (
+                  <ReportCard
+                    active={report.id === activeReportId}
+                    count={cardCounts.get(report.id)}
+                    key={report.id}
+                    onSelect={() => onSelectReport(report.id)}
+                    report={report}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
         );
       })}
     </section>
+  );
+}
+
+function PreviewCardGrid({ children }: { children: ReactNode }) {
+  return <div className="grid gap-3 p-4 sm:p-5 lg:grid-cols-2">{children}</div>;
+}
+
+function PreviewRecordCard({
+  children,
+  title,
+  badges,
+}: {
+  children: ReactNode;
+  title: ReactNode;
+  badges?: ReactNode;
+}) {
+  return (
+    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h3 className="min-w-0 text-base font-extrabold text-ink">{title}</h3>
+        {badges ? <div className="flex flex-wrap gap-2">{badges}</div> : null}
+      </div>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2">{children}</dl>
+    </article>
+  );
+}
+
+function PreviewDetail({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </dt>
+      <dd className="mt-1 break-words text-sm font-semibold text-ink">{value}</dd>
+    </div>
   );
 }
 
@@ -572,35 +659,31 @@ function StockAttentionPreview({ report }: { report: ReportPreview }) {
     return null;
   }
   return (
-    <PreviewTableShell
-      headers={[
-        "Medication",
-        "Pharmacy",
-        "On hand",
-        "Reorder level",
-        "Expiry",
-        "Attention",
-        "Suggested reorder",
-      ]}
-    >
+    <PreviewCardGrid>
       {report.rows.map((row) => (
-        <TR key={row.stock_item_id}>
-          <TD className="whitespace-nowrap font-medium text-ink">
-            {row.medication_name}
-          </TD>
-          <TD className="whitespace-nowrap">{row.pharmacy_id}</TD>
-          <TD className="tnum whitespace-nowrap">{row.quantity_on_hand}</TD>
-          <TD className="tnum whitespace-nowrap">{row.reorder_level}</TD>
-          <TD className="whitespace-nowrap">{formatDate(row.earliest_expiry)}</TD>
-          <TD className="tnum whitespace-nowrap font-semibold text-ink">
-            {row.attention_score}
-          </TD>
-          <TD className="tnum whitespace-nowrap">
-            {row.suggested_reorder_quantity}
-          </TD>
-        </TR>
+        <PreviewRecordCard
+          badges={
+            <>
+              {row.flags.low_stock ? <Badge variant="warning">Low stock</Badge> : null}
+              {row.flags.near_expiry ? <Badge variant="warning">Expiry review</Badge> : null}
+              {row.flags.stockout ? <Badge variant="danger">Stockout</Badge> : null}
+            </>
+          }
+          key={row.stock_item_id}
+          title={row.medication_name}
+        >
+          <PreviewDetail label="Pharmacy" value={row.pharmacy_id} />
+          <PreviewDetail label="On hand" value={formatNumber(row.quantity_on_hand)} />
+          <PreviewDetail label="Reorder level" value={formatNumber(row.reorder_level)} />
+          <PreviewDetail label="Expiry" value={formatDate(row.earliest_expiry)} />
+          <PreviewDetail label="Attention" value={formatNumber(row.attention_score)} />
+          <PreviewDetail
+            label="Suggested reorder review"
+            value={formatNumber(row.suggested_reorder_quantity)}
+          />
+        </PreviewRecordCard>
       ))}
-    </PreviewTableShell>
+    </PreviewCardGrid>
   );
 }
 
@@ -881,280 +964,184 @@ function ReportInsightPanel({ report }: { report: ReportPreview }) {
 
 function StockMovementsPreview({ rows }: { rows: StockMovementRow[] }) {
   return (
-    <PreviewTableShell
-      headers={[
-        "Date",
-        "Medication",
-        "Pharmacy",
-        "Batch",
-        "Type",
-        "Quantity delta",
-        "Balance after",
-      ]}
-    >
+    <PreviewCardGrid>
       {rows.map((row) => (
-        <TR key={row.movement_id}>
-          <TD className="tnum whitespace-nowrap">
-            {formatDateTime(row.created_at)}
-          </TD>
-          <TD className="whitespace-nowrap font-medium text-ink">
-            {row.medication_name}
-          </TD>
-          <TD className="whitespace-nowrap">{row.pharmacy_id}</TD>
-          <TD className="whitespace-nowrap">{row.batch_number || "-"}</TD>
-          <TD className="whitespace-nowrap">{row.movement_type}</TD>
-          <TD className="tnum whitespace-nowrap font-semibold text-ink">
-            {row.quantity_delta}
-          </TD>
-          <TD className="tnum whitespace-nowrap">{row.balance_after}</TD>
-        </TR>
+        <PreviewRecordCard
+          badges={<Badge variant="neutral">{row.movement_type}</Badge>}
+          key={row.movement_id}
+          title={row.medication_name}
+        >
+          <PreviewDetail label="Date" value={formatDateTime(row.created_at)} />
+          <PreviewDetail label="Pharmacy" value={row.pharmacy_id} />
+          <PreviewDetail label="Batch" value={row.batch_number || "-"} />
+          <PreviewDetail label="Quantity delta" value={row.quantity_delta} />
+          <PreviewDetail label="Balance after" value={row.balance_after} />
+          <PreviewDetail label="Reference" value={row.reference || "-"} />
+        </PreviewRecordCard>
       ))}
-    </PreviewTableShell>
+    </PreviewCardGrid>
   );
 }
 
 function ExpiryPreview({ rows }: { rows: ExpiryReportRow[] }) {
   return (
-    <PreviewTableShell
-      headers={[
-        "Product",
-        "Pharmacy",
-        "Batch",
-        "Expiry",
-        "Quantity",
-        "Days",
-        "Severity",
-      ]}
-    >
+    <PreviewCardGrid>
       {rows.map((row) => (
-        <TR
-          className={cn(
-            row.days_until_expiry <= 7
-              ? "bg-warning-soft/35 hover:bg-warning-soft/50"
-              : undefined,
-          )}
+        <PreviewRecordCard
+          badges={<StatusBadge label={row.severity} />}
           key={`${row.pharmacy_id}-${row.batch_number}-${row.medication_label}`}
+          title={row.medication_label}
         >
-          <TD className="min-w-64 font-medium text-ink">{row.medication_label}</TD>
-          <TD className="whitespace-nowrap">{row.pharmacy_name}</TD>
-          <TD className="whitespace-nowrap">{row.batch_number}</TD>
-          <TD className="whitespace-nowrap">{formatDate(row.expiry_date)}</TD>
-          <TD className="tnum whitespace-nowrap">{formatNumber(row.quantity)}</TD>
-          <TD className="tnum whitespace-nowrap">
-            {row.days_until_expiry < 0
+          <PreviewDetail label="Pharmacy" value={row.pharmacy_name} />
+          <PreviewDetail label="Batch" value={row.batch_number} />
+          <PreviewDetail label="Expiry" value={formatDate(row.expiry_date)} />
+          <PreviewDetail label="Quantity" value={formatNumber(row.quantity)} />
+          <PreviewDetail
+            label="Days"
+            value={
+              row.days_until_expiry < 0
               ? `${Math.abs(row.days_until_expiry)} overdue`
-              : `${row.days_until_expiry} days`}
-          </TD>
-          <TD className="whitespace-nowrap">
-            <StatusBadge label={row.severity} />
-          </TD>
-        </TR>
+                : `${row.days_until_expiry} days`
+            }
+          />
+          <PreviewDetail label="Review" value="Review before action" />
+        </PreviewRecordCard>
       ))}
-    </PreviewTableShell>
+    </PreviewCardGrid>
   );
 }
 
 function DeadStockPreview({ rows }: { rows: DeadStockReportRow[] }) {
   return (
-    <PreviewTableShell
-      headers={[
-        "Product",
-        "Pharmacy",
-        "On hand",
-        "Days since outbound",
-        "Status",
-        "Suggested action",
-      ]}
-    >
+    <PreviewCardGrid>
       {rows.map((row) => (
-        <TR key={`${row.pharmacy_id}-${row.medication_label}`}>
-          <TD className="min-w-64 font-medium text-ink">{row.medication_label}</TD>
-          <TD className="whitespace-nowrap">{row.pharmacy_id}</TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatNumber(row.quantity_on_hand)}
-          </TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatMaybeNumber(row.days_since_last_outbound)}
-          </TD>
-          <TD className="whitespace-nowrap">
-            <StatusBadge label={row.status} />
-          </TD>
-          <TD className="min-w-72">{row.suggested_action}</TD>
-        </TR>
+        <PreviewRecordCard
+          badges={<StatusBadge label={row.status} />}
+          key={`${row.pharmacy_id}-${row.medication_label}`}
+          title={row.medication_label}
+        >
+          <PreviewDetail label="Pharmacy" value={row.pharmacy_id} />
+          <PreviewDetail label="On hand" value={formatNumber(row.quantity_on_hand)} />
+          <PreviewDetail
+            label="Days since outbound"
+            value={formatMaybeNumber(row.days_since_last_outbound)}
+          />
+          <PreviewDetail label="Suggested action" value={row.suggested_action} />
+        </PreviewRecordCard>
       ))}
-    </PreviewTableShell>
+    </PreviewCardGrid>
   );
 }
 
 function ForecastPreview({ rows }: { rows: ForecastReorderReportRow[] }) {
   return (
-    <PreviewTableShell
-      headers={[
-        "Product",
-        "Pharmacy",
-        "Forecast estimate",
-        "Current stock",
-        "Suggested reorder review",
-        "Confidence",
-        "Review",
-      ]}
-    >
+    <PreviewCardGrid>
       {rows.map((row) => (
-        <TR key={`${row.forecast_run_id}-${row.medication_label}`}>
-          <TD className="min-w-72 font-medium text-ink">{row.medication_label}</TD>
-          <TD className="whitespace-nowrap">{row.pharmacy_name}</TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatNumber(row.predicted_usage_units)} units
-          </TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatNumber(row.current_stock_units)} units
-          </TD>
-          <TD className="tnum whitespace-nowrap font-semibold text-ink">
-            {formatNumber(row.suggested_reorder_units)} units
-            {row.suggested_reorder_packs !== null ? (
-              <span className="block text-xs font-normal text-muted">
-                {formatNumber(row.suggested_reorder_packs)} packs
-              </span>
-            ) : null}
-          </TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatConfidence(row.confidence)}
-          </TD>
-          <TD className="min-w-80">Review before ordering.</TD>
-        </TR>
+        <PreviewRecordCard
+          badges={<Badge variant="warning">Review before action</Badge>}
+          key={`${row.forecast_run_id}-${row.medication_label}`}
+          title={row.medication_label}
+        >
+          <PreviewDetail label="Pharmacy" value={row.pharmacy_name} />
+          <PreviewDetail
+            label="Forecast estimate"
+            value={`${formatNumber(row.predicted_usage_units)} units`}
+          />
+          <PreviewDetail
+            label="Current stock"
+            value={`${formatNumber(row.current_stock_units)} units`}
+          />
+          <PreviewDetail
+            label="Suggested reorder review"
+            value={
+              <>
+                {formatNumber(row.suggested_reorder_units)} units
+                {row.suggested_reorder_packs !== null
+                  ? ` · ${formatNumber(row.suggested_reorder_packs)} packs`
+                  : ""}
+              </>
+            }
+          />
+          <PreviewDetail label="Confidence" value={formatConfidence(row.confidence)} />
+          <PreviewDetail label="Review" value="Review before ordering." />
+        </PreviewRecordCard>
       ))}
-    </PreviewTableShell>
+    </PreviewCardGrid>
   );
 }
 
 function TransferPreview({ rows }: { rows: TransferSuggestionsReportRow[] }) {
   return (
-    <PreviewTableShell
-      headers={[
-        "Product",
-        "Route",
-        "Potential transfer opportunity",
-        "Confidence",
-        "Status",
-        "Review note",
-      ]}
-    >
+    <PreviewCardGrid>
       {rows.map((row) => (
-        <TR key={`${row.created_at}-${row.source_pharmacy_id}-${row.medication_label}`}>
-          <TD className="min-w-72 font-medium text-ink">{row.medication_label}</TD>
-          <TD className="whitespace-nowrap">
-            {row.source_pharmacy_name} to {row.destination_pharmacy_name}
-          </TD>
-          <TD className="tnum whitespace-nowrap font-semibold text-ink">
-            {formatNumber(row.suggested_quantity_units)} units
-            {row.suggested_quantity_packs !== null ? (
-              <span className="block text-xs font-normal text-muted">
-                {formatNumber(row.suggested_quantity_packs)} packs
-              </span>
-            ) : null}
-          </TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatConfidence(row.confidence)}
-          </TD>
-          <TD className="whitespace-nowrap">
-            <StatusBadge label={row.status} />
-          </TD>
-          <TD className="min-w-96">
-            <span className="block">{row.reason}</span>
-            <span className="mt-1 block text-xs font-semibold text-muted">
-              Review before transfer.
-            </span>
-          </TD>
-        </TR>
+        <PreviewRecordCard
+          badges={<StatusBadge label={row.status} />}
+          key={`${row.created_at}-${row.source_pharmacy_id}-${row.medication_label}`}
+          title={row.medication_label}
+        >
+          <PreviewDetail
+            label="Route"
+            value={`${row.source_pharmacy_name} to ${row.destination_pharmacy_name}`}
+          />
+          <PreviewDetail
+            label="Potential transfer opportunity"
+            value={
+              <>
+                {formatNumber(row.suggested_quantity_units)} units
+                {row.suggested_quantity_packs !== null
+                  ? ` · ${formatNumber(row.suggested_quantity_packs)} packs`
+                  : ""}
+              </>
+            }
+          />
+          <PreviewDetail label="Confidence" value={formatConfidence(row.confidence)} />
+          <PreviewDetail label="Review note" value={row.reason} />
+          <PreviewDetail label="Review" value="Review before transfer." />
+        </PreviewRecordCard>
       ))}
-    </PreviewTableShell>
+    </PreviewCardGrid>
   );
 }
 
 function StockValuationPreview({ report }: { report: StockValuationReport }) {
   return (
-    <PreviewTableShell
-      headers={[
-        "Product",
-        "Pharmacy",
-        "On hand",
-        "Unit price",
-        "Box price",
-        "Stock value",
-      ]}
-    >
+    <PreviewCardGrid>
       {report.rows.map((row) => (
-        <TR key={row.stock_item_id}>
-          <TD className="min-w-64 font-medium text-ink">
-            {row.medication_label}
-          </TD>
-          <TD className="whitespace-nowrap">{row.pharmacy_name}</TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatNumber(row.quantity_on_hand)}
-          </TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatCurrency(row.unit_price)}
-          </TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatCurrency(row.pack_price)}
-          </TD>
-          <TD className="tnum whitespace-nowrap font-semibold text-ink">
-            {formatCurrency(row.stock_value)}
-          </TD>
-        </TR>
+        <PreviewRecordCard key={row.stock_item_id} title={row.medication_label}>
+          <PreviewDetail label="Pharmacy" value={row.pharmacy_name} />
+          <PreviewDetail label="On hand" value={formatNumber(row.quantity_on_hand)} />
+          <PreviewDetail label="Unit price" value={formatCurrency(row.unit_price)} />
+          <PreviewDetail label="Box price" value={formatCurrency(row.pack_price)} />
+          <PreviewDetail label="Stock value" value={formatCurrency(row.stock_value)} />
+        </PreviewRecordCard>
       ))}
-    </PreviewTableShell>
+    </PreviewCardGrid>
   );
 }
 
 function MdsPreview({ rows }: { rows: MdsWorkloadReportRow[] }) {
   return (
-    <PreviewTableShell
-      headers={["Pharmacy", "Cycle status", "Due", "Overdue", "Upcoming cycles"]}
-    >
+    <PreviewCardGrid>
       {rows.map((row) => (
-        <TR key={`${row.pharmacy_id}-${row.cycle_status}`}>
-          <TD className="whitespace-nowrap font-medium text-ink">
-            {row.pharmacy_name}
-          </TD>
-          <TD className="whitespace-nowrap">{row.cycle_status}</TD>
-          <TD className="tnum whitespace-nowrap">{formatNumber(row.due_count)}</TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatNumber(row.overdue_count)}
-          </TD>
-          <TD className="tnum whitespace-nowrap">
-            {formatNumber(row.upcoming_cycles)}
-          </TD>
-        </TR>
+        <PreviewRecordCard
+          badges={<Badge variant="info">MDS workload</Badge>}
+          key={`${row.pharmacy_id}-${row.cycle_status}`}
+          title={row.pharmacy_name}
+        >
+          <PreviewDetail label="Cycle status" value={row.cycle_status} />
+          <PreviewDetail label="Due" value={formatNumber(row.due_count)} />
+          <PreviewDetail label="Overdue" value={formatNumber(row.overdue_count)} />
+          <PreviewDetail
+            label="Upcoming cycles"
+            value={formatNumber(row.upcoming_cycles)}
+          />
+        </PreviewRecordCard>
       ))}
-    </PreviewTableShell>
+    </PreviewCardGrid>
   );
 }
 
-function PreviewTableShell({
-  children,
-  headers,
-}: {
-  children: ReactNode;
-  headers: string[];
-}) {
-  return (
-    <TableScroll className="rounded-none border-0 shadow-none">
-      <Table>
-        <THead>
-          <TR className="hover:bg-transparent">
-            {headers.map((header) => (
-              <TH key={header}>{header}</TH>
-            ))}
-          </TR>
-        </THead>
-        <TBody>{children}</TBody>
-      </Table>
-    </TableScroll>
-  );
-}
-
-function PreviewTable({ report }: { report: ReportPreview }) {
+function PreviewCards({ report }: { report: ReportPreview }) {
   if (report.report === "stock_attention") {
     return <StockAttentionPreview report={report} />;
   }
@@ -1319,23 +1306,9 @@ export function ReportsScreen() {
       <ReportCategoryCards
         activeReportId={activeReportId}
         availableReports={availableReports}
+        cardCounts={cardCounts}
         onSelectReport={setActiveReportId}
       />
-
-      <section
-        aria-label="Report catalogue"
-        className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3"
-      >
-        {availableReports.map((report) => (
-          <ReportCard
-            active={report.id === activeReportId}
-            count={cardCounts.get(report.id)}
-            key={report.id}
-            onSelect={() => setActiveReportId(report.id)}
-            report={report}
-          />
-        ))}
-      </section>
 
       <Panel>
         <PanelHeader
@@ -1458,10 +1431,7 @@ export function ReportsScreen() {
                     aria-hidden="true"
                     className="mt-0.5 h-3.5 w-3.5 shrink-0"
                   />
-                  <span>
-                    Forecast estimates and potential transfer opportunities are
-                    operational report outputs. Review before ordering or transfer.
-                  </span>
+                  <span>{humanReviewNote(activeReportId)}</span>
                 </p>
               ) : null}
             </div>
@@ -1511,7 +1481,7 @@ export function ReportsScreen() {
           ) : (
             <>
               <ReportInsightPanel report={previewQuery.data} />
-              <PreviewTable report={previewQuery.data} />
+              <PreviewCards report={previewQuery.data} />
             </>
           )
         ) : null}

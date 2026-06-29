@@ -79,6 +79,7 @@ describe("AuditScreen", () => {
             target_type: "User",
             target_id: "88",
             metadata: { reason: "temporary reset" },
+            created_at: new Date().toISOString(),
           }),
         ],
       }),
@@ -94,10 +95,15 @@ describe("AuditScreen", () => {
         "Review operational activity across pharmacy workflows. Human review required.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Events shown")).toBeInTheDocument();
-    expect(screen.getByText("Most recent event")).toBeInTheDocument();
-    expect(screen.getByText("Selected action filter")).toBeInTheDocument();
-    expect(screen.getByText("Current page")).toBeInTheDocument();
+    expect(screen.getAllByText("Today").length).toBeGreaterThan(0);
+    expect(screen.getByText("This week")).toBeInTheDocument();
+    expect(screen.getByText("High importance")).toBeInTheDocument();
+    expect(screen.getByText("User actions")).toBeInTheDocument();
+    expect(screen.getByText("System actions")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Audit trail" }))
+      .toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Today" }))
+      .toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Password reset" }))
       .toBeInTheDocument();
     expect(screen.getByText("PASSWORD_RESET")).toBeInTheDocument();
@@ -126,6 +132,8 @@ describe("AuditScreen", () => {
     expect(await screen.findByRole("heading", { name: "Login" }))
       .toBeInTheDocument();
     expect(screen.getByText("LOGOUT")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Earlier" }))
+      .toBeInTheDocument();
     expect(screen.getByText("Showing 2 of 2")).toBeInTheDocument();
   });
 
@@ -331,5 +339,28 @@ describe("AuditScreen", () => {
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+  });
+
+  it("keeps audit wording operational and non-clinical", async () => {
+    renderWithProviders(<AuditScreen />, { auth: auditAuth() });
+
+    expect(await screen.findByRole("heading", { name: "User created" }))
+      .toBeInTheDocument();
+    const bodyText = document.body.textContent ?? "";
+    for (const forbidden of [
+      "clinically recommended",
+      "diagnosis",
+      "NHS integration",
+      "AI decided",
+      "must order",
+      "must transfer",
+      "automatic dispensing",
+      "automatic ordering",
+      "automatic transfer",
+      "compliance proof",
+      "guaranteed forecast",
+    ]) {
+      expect(bodyText).not.toContain(forbidden);
+    }
   });
 });

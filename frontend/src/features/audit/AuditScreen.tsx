@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   Building2,
@@ -29,6 +29,7 @@ import { cn } from "../../lib/cn";
 const ACTION_LABELS = new Map<string, string>(
   AUDIT_ACTION_OPTIONS.map((option) => [option.value, option.label]),
 );
+const EMPTY_AUDIT_EVENTS: AuditEvent[] = [];
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -38,6 +39,15 @@ function formatDateTime(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function startOfDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function daysBetween(left: Date, right: Date): number {
+  const milliseconds = startOfDay(left).getTime() - startOfDay(right).getTime();
+  return Math.round(milliseconds / 86_400_000);
 }
 
 function humanizeValue(value: string): string {
@@ -57,6 +67,41 @@ function actionTone(action: string): BadgeVariant {
   if (action.includes("CREATED")) return "success";
   if (action.includes("UPDATED") || action.includes("RESET")) return "brand";
   return "neutral";
+}
+
+function isHighImportanceAction(action: string): boolean {
+  return actionTone(action) === "danger" || actionTone(action) === "warning";
+}
+
+function auditGroupLabel(event: AuditEvent, today = new Date()) {
+  const eventDate = new Date(event.created_at);
+  const age = daysBetween(today, eventDate);
+  if (age === 0) {
+    return "Today";
+  }
+  if (age === 1) {
+    return "Yesterday";
+  }
+  return "Earlier";
+}
+
+function auditGroupId(label: string) {
+  return `audit-group-${label.toLowerCase().replaceAll(" ", "-")}`;
+}
+
+function groupAuditEvents(events: AuditEvent[], today = new Date()) {
+  const groups = [
+    { label: "Today", events: [] as AuditEvent[] },
+    { label: "Yesterday", events: [] as AuditEvent[] },
+    { label: "Earlier", events: [] as AuditEvent[] },
+  ];
+
+  for (const event of events) {
+    const label = auditGroupLabel(event, today);
+    groups.find((group) => group.label === label)?.events.push(event);
+  }
+
+  return groups.filter((group) => group.events.length > 0);
 }
 
 function actionIcon(action: string): ReactNode {
@@ -137,94 +182,125 @@ function SummaryCard({
   );
 }
 
-function AuditEventCard({ event, isLast }: { event: AuditEvent; isLast: boolean }) {
+function AuditEventCard({ event }: { event: AuditEvent }) {
   const label = actionLabel(event.action);
   const tone = actionTone(event.action);
 
   return (
-    <li className="relative grid gap-3 pl-12">
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute left-5 top-10 bottom-[-1.25rem] w-px bg-line",
-          isLast && "hidden",
-        )}
-      />
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute left-0 top-2 grid h-10 w-10 place-items-center rounded-full border bg-surface shadow-elev-1",
-          tone === "danger"
-            ? "border-danger-border text-danger"
-            : tone === "warning"
-              ? "border-warning-border text-warning"
-              : tone === "success"
-                ? "border-success-border text-success"
-                : "border-line-strong text-ink-soft",
-        )}
-      >
-        {actionIcon(event.action)}
-      </span>
-
-      <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft transition-colors duration-200 ease-soft hover:border-line-strong">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-extrabold tracking-[-0.01em] text-ink">
-                {label}
-              </h2>
-              <Badge variant={tone}>{event.action}</Badge>
+    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft transition-colors duration-200 ease-soft hover:border-line-strong">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-surface shadow-elev-1",
+            tone === "danger"
+              ? "border-danger-border text-danger"
+              : tone === "warning"
+                ? "border-warning-border text-warning"
+                : tone === "success"
+                  ? "border-success-border text-success"
+                  : "border-line-strong text-ink-soft",
+          )}
+        >
+          {actionIcon(event.action)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-extrabold tracking-[-0.01em] text-ink">
+                  {label}
+                </h3>
+                <Badge variant={tone}>{event.action}</Badge>
+              </div>
+              <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-muted">
+                <Clock3 aria-hidden="true" className="h-3.5 w-3.5" />
+                <span className="tnum">{formatDateTime(event.created_at)}</span>
+              </p>
             </div>
-            <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-muted">
-              <Clock3 aria-hidden="true" className="h-3.5 w-3.5" />
-              <span className="tnum">{formatDateTime(event.created_at)}</span>
-            </p>
+            {event.actor_role ? (
+              <Badge variant="neutral">{event.actor_role}</Badge>
+            ) : null}
           </div>
-          {event.actor_role ? (
-            <Badge variant="neutral">{event.actor_role}</Badge>
-          ) : null}
         </div>
+      </div>
 
-        <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
-            <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-              Actor
-            </dt>
-            <dd className="mt-1 break-words text-sm font-semibold text-ink">
-              {event.actor_email || "System"}
-            </dd>
-          </div>
-          <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
-            <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-              Target
-            </dt>
-            <dd className="mt-1 break-words text-sm font-semibold text-ink">
-              {formatTarget(event)}
-            </dd>
-          </div>
-          <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
-            <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-              Scope
-            </dt>
-            <dd className="mt-1 break-words text-sm font-semibold text-ink">
-              {formatScope(event)}
-            </dd>
-          </div>
-          <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
-            <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-              Network
-            </dt>
-            <dd className="mt-1 break-words text-sm font-semibold text-ink">
-              {event.ip_address || "Not recorded"}
-            </dd>
-          </div>
-        </dl>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+          <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+            Actor
+          </dt>
+          <dd className="mt-1 break-words text-sm font-semibold text-ink">
+            {event.actor_email || "System"}
+          </dd>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+          <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+            Target
+          </dt>
+          <dd className="mt-1 break-words text-sm font-semibold text-ink">
+            {formatTarget(event)}
+          </dd>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+          <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+            Scope
+          </dt>
+          <dd className="mt-1 break-words text-sm font-semibold text-ink">
+            {formatScope(event)}
+          </dd>
+        </div>
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+          <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+            Network
+          </dt>
+          <dd className="mt-1 break-words text-sm font-semibold text-ink">
+            {event.ip_address || "Not recorded"}
+          </dd>
+        </div>
+      </dl>
 
-        <p className="mt-3 rounded-xl border border-line bg-surface-subtle px-3 py-2 text-[13px] font-medium text-ink-soft">
-          {metadataNote(event)}
-        </p>
-      </article>
-    </li>
+      <p className="mt-3 rounded-xl border border-line bg-surface-subtle px-3 py-2 text-[13px] font-medium text-ink-soft">
+        {metadataNote(event)}
+      </p>
+    </article>
+  );
+}
+
+function AuditGroupSection({
+  events,
+  label,
+}: {
+  events: AuditEvent[];
+  label: string;
+}) {
+  const groupId = auditGroupId(label);
+
+  return (
+    <section
+      aria-labelledby={groupId}
+      className="rounded-2xl border border-line bg-surface-subtle p-4 shadow-soft sm:p-5"
+    >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2
+            id={groupId}
+            className="text-lg font-extrabold text-ink"
+          >
+            {label}
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Audit trail events recorded in this period.
+          </p>
+        </div>
+        <Badge variant="neutral">{plural(events.length, "event")}</Badge>
+      </div>
+      <div className="grid gap-3 xl:grid-cols-2">
+        {events.map((event) => (
+          <AuditEventCard event={event} key={event.id} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -235,12 +311,36 @@ export function AuditScreen() {
   const auditQuery = useAuditEventsQuery({ page, action });
 
   const data = auditQuery.data;
-  const results = data?.results ?? [];
+  const results = data?.results ?? EMPTY_AUDIT_EVENTS;
   const totalCount = data?.count ?? 0;
   const previousPage = data?.previous ?? null;
   const nextPage = data?.next ?? null;
-  const mostRecent = results[0];
   const selectedActionLabel = action ? actionLabel(action) : "All actions";
+  const today = useMemo(() => new Date(), []);
+  const auditGroups = useMemo(() => groupAuditEvents(results, today), [results, today]);
+  const auditSummary = useMemo(() => {
+    return results.reduce(
+      (summary, event) => {
+        const eventAge = daysBetween(today, new Date(event.created_at));
+        return {
+          today: summary.today + (eventAge === 0 ? 1 : 0),
+          thisWeek:
+            summary.thisWeek + (eventAge >= 0 && eventAge < 7 ? 1 : 0),
+          highImportance:
+            summary.highImportance + (isHighImportanceAction(event.action) ? 1 : 0),
+          userActions: summary.userActions + (event.actor_email ? 1 : 0),
+          systemActions: summary.systemActions + (event.actor_email ? 0 : 1),
+        };
+      },
+      {
+        today: 0,
+        thisWeek: 0,
+        highImportance: 0,
+        userActions: 0,
+        systemActions: 0,
+      },
+    );
+  }, [results, today]);
   const isSuperintendentEmpty =
     auditQuery.isSuccess && results.length === 0 && role === "SUPERINTENDENT";
 
@@ -259,33 +359,55 @@ export function AuditScreen() {
 
       <section
         aria-label="Audit summary"
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
       >
         <SummaryCard
-          label="Events shown"
-          value={auditQuery.isLoading ? "—" : results.length.toLocaleString()}
+          label="Today"
+          value={auditQuery.isLoading ? "—" : auditSummary.today.toLocaleString()}
+          note={
+            auditQuery.isLoading
+              ? "Loading current page"
+              : "Events dated today on this page"
+          }
+          icon={<ScrollText className="h-4 w-4" />}
+        />
+        <SummaryCard
+          label="This week"
+          value={
+            auditQuery.isLoading ? "—" : auditSummary.thisWeek.toLocaleString()
+          }
           note={
             auditQuery.isLoading
               ? "Loading current page"
               : `${plural(totalCount, "event")} in current query`
           }
-          icon={<ScrollText className="h-4 w-4" />}
-        />
-        <SummaryCard
-          label="Most recent event"
-          value={mostRecent ? actionLabel(mostRecent.action) : "—"}
-          note={mostRecent ? formatDateTime(mostRecent.created_at) : "Not available"}
           icon={<Clock3 className="h-4 w-4" />}
         />
         <SummaryCard
-          label="Selected action filter"
-          value={selectedActionLabel}
-          note={action ? "Filtered view" : "All supported actions"}
+          label="High importance"
+          value={
+            auditQuery.isLoading
+              ? "—"
+              : auditSummary.highImportance.toLocaleString()
+          }
+          note="Failed, deleted, password, or role events"
+          icon={<ShieldCheck className="h-4 w-4" />}
+        />
+        <SummaryCard
+          label="User actions"
+          value={
+            auditQuery.isLoading ? "—" : auditSummary.userActions.toLocaleString()
+          }
+          note={action ? `Filtered to ${selectedActionLabel}` : "Recorded actor events"}
           icon={<Filter className="h-4 w-4" />}
         />
         <SummaryCard
-          label="Current page"
-          value={page}
+          label="System actions"
+          value={
+            auditQuery.isLoading
+              ? "—"
+              : auditSummary.systemActions.toLocaleString()
+          }
           note={nextPage ? "More events available" : "End of current results"}
           icon={<MapPin className="h-4 w-4" />}
         />
@@ -321,7 +443,7 @@ export function AuditScreen() {
       {auditQuery.isLoading ? (
         <Panel>
           <PanelHeader
-            title="Audit timeline"
+            title="Audit trail"
             subtitle="Loading operational activity."
             icon={<ShieldCheck className="h-4 w-4" />}
           />
@@ -361,21 +483,19 @@ export function AuditScreen() {
         <section className="space-y-4">
           <Panel>
             <PanelHeader
-              title="Audit timeline"
-              subtitle="Append-only activity shown from the existing audit API."
+              title="Audit trail"
+              subtitle="Grouped append-only activity shown from the existing audit API."
               icon={<ShieldCheck className="h-4 w-4" />}
               actions={<Badge variant="neutral">{plural(results.length, "event")}</Badge>}
             />
-            <PanelBody>
-              <ol className="space-y-5">
-                {results.map((event, index) => (
-                  <AuditEventCard
-                    event={event}
-                    isLast={index === results.length - 1}
-                    key={event.id}
-                  />
-                ))}
-              </ol>
+            <PanelBody className="space-y-4">
+              {auditGroups.map((group) => (
+                <AuditGroupSection
+                  events={group.events}
+                  key={group.label}
+                  label={group.label}
+                />
+              ))}
             </PanelBody>
           </Panel>
 

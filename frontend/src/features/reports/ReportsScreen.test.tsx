@@ -55,7 +55,7 @@ function makeDashboard(): ReportsDashboard {
       },
       {
         report: "expiry",
-        title: "Expiry risk",
+        title: "Expiry review",
         row_count: 1,
         available_exports: ["csv"],
         human_review_required: false,
@@ -372,39 +372,45 @@ describe("ReportsScreen", () => {
     expect(screen.getAllByText("Human review required").length).toBeGreaterThan(0);
     expect(screen.getByText("8 reports available")).toBeInTheDocument();
     expect(screen.getByText("3 review sections")).toBeInTheDocument();
-    expect(await screen.findByText("Expiring soon")).toBeInTheDocument();
-    expect(screen.getByText("Dead stock lines")).toBeInTheDocument();
-    expect(screen.getByText("Reorder suggestions")).toBeInTheDocument();
+    expect(await screen.findByText("Stock risk")).toBeInTheDocument();
+    expect(screen.getAllByText("Expiry review").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("MDS workload").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Patient review activity").length)
+      .toBeGreaterThan(0);
+    expect(screen.getByText("Operational actions")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Dead\/slow stock/ }))
+      .toBeInTheDocument();
+    expect(screen.getByText("Suggested reorder review")).toBeInTheDocument();
     expect(screen.getAllByText("Transfer suggestions").length)
       .toBeGreaterThan(0);
-    expect(screen.getAllByText("MDS workload").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /Stock safety/ }))
+    expect(screen.getByRole("heading", { name: "Stock and expiry" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Stock efficiency/ }))
+    expect(screen.getByRole("heading", { name: "MDS / Dosette workload" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Forecasting & planning/ }))
+    expect(screen.getByRole("heading", { name: "Patient review activity" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Dosette workload/ }))
+    expect(screen.getByRole("heading", { name: "Operational performance" }))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Stock attention/ }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Expiry risk/ }))
+    expect(screen.getByRole("button", { name: /Expiry review/ }))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Forecast & reorder/ }))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Transfer suggestions/ }))
       .toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
   });
 
-  it("selects a report and loads the preview table", async () => {
+  it("selects a report and loads the preview cards", async () => {
     const user = userEvent.setup();
     renderReports();
 
-    await user.click(await screen.findByRole("button", { name: /Expiry risk/ }));
+    await user.click(await screen.findByRole("button", { name: /Expiry review/ }));
 
     expect(await screen.findByText("CRO-PAR-001")).toBeInTheDocument();
     expect(
-      screen.getAllByRole("heading", { name: "Expiry risk" }).length,
+      screen.getAllByRole("heading", { name: "Expiry review" }).length,
     ).toBeGreaterThan(0);
     expect(screen.getByText("warning")).toBeInTheDocument();
     expect(screen.getByText("Expiry rows")).toBeInTheDocument();
@@ -419,7 +425,7 @@ describe("ReportsScreen", () => {
     const user = userEvent.setup();
     renderReports();
 
-    await user.click(await screen.findByRole("button", { name: /Expiry risk/ }));
+    await user.click(await screen.findByRole("button", { name: /Expiry review/ }));
     await screen.findByText("CRO-PAR-001");
     await user.click(screen.getByRole("button", { name: "Export CSV" }));
 
@@ -430,7 +436,7 @@ describe("ReportsScreen", () => {
       );
     });
     expect(
-      screen.getByText("Expiry risk export. Exports reflect the current filtered report."),
+      screen.getByText("Expiry review export. Exports reflect the current filtered report."),
     ).toBeInTheDocument();
   });
 
