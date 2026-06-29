@@ -58,6 +58,13 @@ describe("LoginScreen", () => {
     expect(screen.getByLabelText(/password/i, { selector: "input" })).toBeInTheDocument();
   });
 
+  it("displays the AI Pharmacy Manager brand logo", () => {
+    renderLoginScreen();
+
+    expect(document.body).toHaveTextContent("AI Pharmacy Manager");
+    expect(screen.getAllByText("AI").length).toBeGreaterThan(0);
+  });
+
   it("successful submit calls login", async () => {
     const login = vi.fn().mockResolvedValue({ ok: true, user: makeUser() });
     const user = userEvent.setup();

@@ -7,7 +7,7 @@ import { FUTURE_ITEMS, NAV_ITEMS, type NavItem } from "../../app/navConfig";
 import { scopeLabel } from "../../lib/scope";
 import { cn } from "../../lib/cn";
 import { useWorkQueueQuery } from "../../features/notifications/useNotifications";
-import { Logo } from "../ui/Logo";
+import { AppLogo } from "../brand/AppLogo";
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -119,18 +119,8 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   return (
     <aside className="relative isolate flex h-full w-full flex-col overflow-hidden bg-[linear-gradient(180deg,#2f2846_0%,#2a2340_45%,#211c34_100%)] text-sidebar-text">
-      <div className="group/brand flex animate-fade-in items-center gap-3 px-6 py-6">
-        <span className="transition-transform duration-300 ease-soft group-hover/brand:scale-105">
-          <Logo size={44} />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-[15px] font-bold leading-tight text-white">
-            AI Pharmacy Manager
-          </p>
-          <p className="mt-0.5 text-xs text-sidebar-muted">
-            Operational workspace
-          </p>
-        </div>
+      <div className="animate-fade-in px-6 py-6">
+        <AppLogo tone="onDark" tagline="Operational workspace" />
       </div>
 
       <nav

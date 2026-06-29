@@ -15,7 +15,7 @@ import {
 
 import { useAuth } from "../../auth/AuthContext";
 import { Button } from "../../components/ui/Button";
-import { Logo } from "../../components/ui/Logo";
+import { AppLogo } from "../../components/brand/AppLogo";
 import { labelClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 
@@ -87,16 +87,8 @@ export function LoginScreen() {
           className="pointer-events-none absolute -bottom-32 -right-24 h-[26rem] w-[26rem] rounded-full bg-peach/15 blur-3xl"
         />
 
-        <div className="relative flex animate-fade-in items-center gap-3">
-          <Logo size={44} />
-          <div>
-            <p className="text-[15px] font-bold leading-tight text-white">
-              AI Pharmacy Manager
-            </p>
-            <p className="mt-0.5 text-xs text-sidebar-muted">
-              Operational workspace
-            </p>
-          </div>
+        <div className="relative animate-fade-in">
+          <AppLogo tone="onDark" tagline="Operational workspace" />
         </div>
 
         <div className="relative max-w-md">
@@ -152,11 +144,8 @@ export function LoginScreen() {
       <div className="flex min-h-screen items-center justify-center px-6 py-12 lg:min-h-0">
         <div className="w-full max-w-sm animate-fade-in-up">
           {/* Brand mark — shown on small screens where the panel is hidden. */}
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <Logo size={40} className="shadow-elev-1" />
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
-              AI Pharmacy Manager
-            </p>
+          <div className="mb-8 lg:hidden">
+            <AppLogo variant="compact" tone="onLight" size={40} />
           </div>
 
           <div className="relative overflow-hidden rounded-3xl border border-line bg-surface p-7 shadow-soft sm:p-8">

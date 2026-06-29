@@ -88,6 +88,15 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: "Audit Log" })).toBeInTheDocument();
   });
 
+  it("shows the AI Pharmacy Manager brand wordmark", () => {
+    renderSidebar(makeUser({ permissions: { "stock.view": true } }));
+
+    const aside = document.querySelector("aside");
+    expect(aside).toHaveTextContent("AI Pharmacy Manager");
+    expect(aside).toHaveTextContent("Operational workspace");
+    expect(screen.getByText("AI")).toHaveClass("text-lilac");
+  });
+
   it("uses a solid sidebar surface without glass effect utilities", () => {
     renderSidebar(
       makeUser({

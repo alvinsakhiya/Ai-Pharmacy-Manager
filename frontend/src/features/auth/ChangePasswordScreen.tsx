@@ -55,7 +55,7 @@ export function ChangePasswordScreen() {
     <main className="flex min-h-screen items-center justify-center bg-canvas px-6 py-16 text-ink">
       <section className="w-full max-w-md animate-fade-in-up rounded-2xl border border-line bg-surface p-8 shadow-elev-2">
         <div className="flex items-center gap-3">
-          <Logo size={44} className="shadow-elev-1" />
+          <Logo decorative size={44} className="shadow-elev-1" />
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
             AI Pharmacy Manager
           </p>
