@@ -72,6 +72,150 @@ function activeFilterLabel({
     : `${active} active filter${active === 1 ? "" : "s"}`;
 }
 
+function startOfDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function daysUntilDue(review: Review, today: Date): number | null {
+  if (!review.due_date) {
+    return null;
+  }
+  const dueDate = new Date(review.due_date);
+  if (Number.isNaN(dueDate.getTime())) {
+    return null;
+  }
+  const milliseconds = startOfDay(dueDate).getTime() - startOfDay(today).getTime();
+  return Math.round(milliseconds / 86_400_000);
+}
+
+function isOpenReview(review: Review): boolean {
+  return review.status === "PENDING" || review.status === "IN_REVIEW";
+}
+
+function isOverdueReview(review: Review, today: Date): boolean {
+  const dueDays = daysUntilDue(review, today);
+  return review.is_overdue || (dueDays !== null && dueDays < 0);
+}
+
+function needsAttention(review: Review, today: Date): boolean {
+  return (
+    isOpenReview(review) &&
+    (isOverdueReview(review, today) ||
+      review.priority === "ATTENTION" ||
+      review.priority === "URGENT")
+  );
+}
+
+function isDueSoon(review: Review, today: Date): boolean {
+  const dueDays = daysUntilDue(review, today);
+  return (
+    isOpenReview(review) &&
+    !needsAttention(review, today) &&
+    dueDays !== null &&
+    dueDays >= 0 &&
+    dueDays <= 7
+  );
+}
+
+function reviewGroupLabel(review: Review, today: Date): string {
+  if (needsAttention(review, today)) {
+    return "Needs attention";
+  }
+  if (isDueSoon(review, today)) {
+    return "Due soon";
+  }
+  if (isOpenReview(review)) {
+    return "Open reviews";
+  }
+  if (review.status === "COMPLETED") {
+    return "Completed";
+  }
+  return "Earlier / archived";
+}
+
+function reviewGroupId(label: string): string {
+  return `review-group-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+function groupReviews(reviews: Review[], today: Date) {
+  const groups = [
+    {
+      label: "Needs attention",
+      description: "Overdue, attention, or urgent reviews to check first.",
+      reviews: [] as Review[],
+    },
+    {
+      label: "Due soon",
+      description: "Open reviews due within the next seven days.",
+      reviews: [] as Review[],
+    },
+    {
+      label: "Open reviews",
+      description: "Open operational reviews without an urgent date signal.",
+      reviews: [] as Review[],
+    },
+    {
+      label: "Completed",
+      description: "Reviews already completed in this view.",
+      reviews: [] as Review[],
+    },
+    {
+      label: "Earlier / archived",
+      description: "Cancelled or retained review records.",
+      reviews: [] as Review[],
+    },
+  ];
+
+  for (const review of reviews) {
+    const label = reviewGroupLabel(review, today);
+    groups.find((group) => group.label === label)?.reviews.push(review);
+  }
+
+  return groups.filter((group) => group.reviews.length > 0);
+}
+
+function ReviewGroupSection({
+  canManage,
+  group,
+  onCancel,
+  onComplete,
+}: {
+  canManage: boolean;
+  group: ReturnType<typeof groupReviews>[number];
+  onCancel: (review: Review) => void;
+  onComplete: (review: Review) => void;
+}) {
+  const groupId = reviewGroupId(group.label);
+
+  return (
+    <section aria-labelledby={groupId} className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 id={groupId} className="text-base font-extrabold text-ink">
+            {group.label}
+          </h2>
+          <p className="mt-1 text-sm text-muted">{group.description}</p>
+        </div>
+        <Badge variant="neutral">
+          {group.reviews.length.toLocaleString()} review
+          {group.reviews.length === 1 ? "" : "s"}
+        </Badge>
+      </div>
+      <div className="grid gap-3 xl:grid-cols-2">
+        {group.reviews.map((review) => (
+          <ReviewCard
+            canManage={canManage}
+            key={review.id}
+            onCancel={onCancel}
+            onComplete={onComplete}
+            review={review}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function ReviewsScreen() {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -114,27 +258,25 @@ export function ReviewsScreen() {
 
     return reviews.filter((review) => reviewSearchText(review).includes(query));
   }, [reviews, searchQuery]);
+  const groupedReviews = useMemo(
+    () => groupReviews(filteredReviews, today),
+    [filteredReviews, today],
+  );
 
   const summary = useMemo(
     () => ({
-      visible: filteredReviews.length,
-      pending: filteredReviews.filter(
-        (review) =>
-          review.status === "PENDING" || review.status === "IN_REVIEW",
-      ).length,
+      open: filteredReviews.filter(isOpenReview).length,
+      dueSoon: filteredReviews.filter((review) => isDueSoon(review, today)).length,
+      overdue: filteredReviews.filter((review) => isOverdueReview(review, today))
+        .length,
       completed: filteredReviews.filter(
         (review) => review.status === "COMPLETED",
       ).length,
-      cancelled: filteredReviews.filter(
-        (review) => review.status === "CANCELLED",
-      ).length,
       attention: filteredReviews.filter(
-        (review) =>
-          review.priority === "ATTENTION" || review.priority === "URGENT",
+        (review) => needsAttention(review, today),
       ).length,
-      overdue: filteredReviews.filter((review) => review.is_overdue).length,
     }),
-    [filteredReviews],
+    [filteredReviews, today],
   );
 
   const filterLabel = activeFilterLabel({
@@ -211,34 +353,34 @@ export function ReviewsScreen() {
           className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
         >
           <KpiCard
-            label="Visible reviews"
-            value={summary.visible}
+            label="Open reviews"
+            value={summary.open}
             note={`${reviews.length} reviews in source view`}
             icon={<ClipboardList className="h-4 w-4" />}
           />
           <KpiCard
-            label="Pending reviews"
-            value={summary.pending}
-            note="Pending or in review"
+            label="Due soon"
+            value={summary.dueSoon}
+            note="Open reviews due within 7 days"
             icon={<Clock3 className="h-4 w-4" />}
           />
           <KpiCard
-            label="Completed reviews"
+            label="Overdue"
+            value={summary.overdue}
+            note="Review before action"
+            icon={<XCircle className="h-4 w-4" />}
+          />
+          <KpiCard
+            label="Completed"
             value={summary.completed}
             note="Completed review records"
             icon={<ShieldCheck className="h-4 w-4" />}
           />
           <KpiCard
-            label="Attention priority"
+            label="Needs attention"
             value={summary.attention}
-            note="Attention or urgent priority"
+            note="Overdue, attention, or urgent"
             icon={<AlertTriangle className="h-4 w-4" />}
-          />
-          <KpiCard
-            label="Overdue"
-            value={summary.overdue}
-            note={`${summary.cancelled} cancelled records`}
-            icon={<XCircle className="h-4 w-4" />}
           />
         </section>
       ) : null}
@@ -356,14 +498,14 @@ export function ReviewsScreen() {
       ) : null}
 
       {reviewsQuery.isSuccess && filteredReviews.length > 0 ? (
-        <section className="stagger space-y-4">
-          {filteredReviews.map((review) => (
-            <ReviewCard
+        <section aria-label="Grouped review queue" className="stagger space-y-6">
+          {groupedReviews.map((group) => (
+            <ReviewGroupSection
               canManage={canManage}
-              key={review.id}
+              group={group}
+              key={group.label}
               onCancel={setCancelTarget}
               onComplete={setCompleteTarget}
-              review={review}
             />
           ))}
         </section>

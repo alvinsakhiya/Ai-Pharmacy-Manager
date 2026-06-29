@@ -12,14 +12,6 @@ import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
 import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
-import {
-  Table,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-} from "../../components/ui/Table";
 import { useToast } from "../../components/ui/Toast";
 import { cn } from "../../lib/cn";
 import { useDeactivateUser } from "./useUsers";
@@ -63,6 +55,25 @@ function formatJoined(value: string): string {
   }).format(new Date(value));
 }
 
+function userInitial(user: ManagedUser): string {
+  return (user.full_name || user.email).slice(0, 1).toUpperCase();
+}
+
+function userGroups(users: ManagedUser[]) {
+  return [
+    {
+      label: "Active users",
+      description: "Team members who can currently sign in.",
+      users: users.filter((user) => user.is_active),
+    },
+    {
+      label: "Inactive users",
+      description: "Accounts kept for access history and review.",
+      users: users.filter((user) => !user.is_active),
+    },
+  ].filter((group) => group.users.length > 0);
+}
+
 export function UsersTable({ users, totalUsers }: UsersTableProps) {
   const { user: currentUser } = useAuth();
   const { can } = usePermissions();
@@ -88,11 +99,11 @@ export function UsersTable({ users, totalUsers }: UsersTableProps) {
 
   return (
     <>
-      <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
-        <div className="flex flex-col gap-3 border-b border-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <section className="space-y-4" aria-label="Team access cards">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-base font-extrabold tracking-[-0.01em] text-ink">
-              Staff directory
+              Team access
             </h2>
             <p className="mt-1 text-sm text-muted">
               Role, membership, and account status from the current user list.
@@ -103,20 +114,31 @@ export function UsersTable({ users, totalUsers }: UsersTableProps) {
           </Badge>
         </div>
 
-        <div className="overflow-x-auto">
-          <Table>
-            <THead>
-              <TR className="hover:bg-transparent">
-                <TH>Staff member</TH>
-                <TH>Role</TH>
-                <TH>Membership</TH>
-                <TH>Status</TH>
-                <TH>Password</TH>
-                <TH className="text-right">Actions</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {users.map((managedUser) => {
+        {userGroups(users).map((group) => (
+          <section
+            aria-labelledby={`user-group-${group.label.toLowerCase().replaceAll(" ", "-")}`}
+            className="space-y-3"
+            key={group.label}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3
+                  id={`user-group-${group.label.toLowerCase().replaceAll(" ", "-")}`}
+                  className="text-sm font-extrabold text-ink"
+                >
+                  {group.label}
+                </h3>
+                <p className="mt-1 text-xs font-medium text-muted">
+                  {group.description}
+                </p>
+              </div>
+              <Badge variant="neutral">
+                {group.users.length.toLocaleString()} shown
+              </Badge>
+            </div>
+
+            <div className="grid gap-3 xl:grid-cols-2">
+              {group.users.map((managedUser) => {
                 const isCurrentUser = managedUser.id === currentUser?.id;
                 const showDeactivate =
                   canManageUsers && managedUser.is_active && !isCurrentUser;
@@ -124,27 +146,28 @@ export function UsersTable({ users, totalUsers }: UsersTableProps) {
                 const showReassign = canManageUsers && !isCurrentUser;
 
                 return (
-                  <TR key={managedUser.id} className="group">
-                    <TD className="min-w-[260px]">
-                      <div className="flex items-start gap-3">
+                  <article
+                    className="rounded-2xl border border-line bg-surface p-4 shadow-soft transition-colors duration-200 ease-soft hover:border-line-strong"
+                    key={managedUser.id}
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
                         <span
                           aria-hidden="true"
                           className={cn(
-                            "mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full border text-sm font-extrabold",
+                            "mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full border text-sm font-extrabold",
                             managedUser.is_active
                               ? "border-lilac-soft bg-lilac-soft text-brand"
                               : "border-line bg-surface-subtle text-muted",
                           )}
                         >
-                          {(managedUser.full_name || managedUser.email)
-                            .slice(0, 1)
-                            .toUpperCase()}
+                          {userInitial(managedUser)}
                         </span>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-bold text-ink">
+                            <h4 className="font-bold text-ink">
                               {managedUser.full_name || "Name not recorded"}
-                            </p>
+                            </h4>
                             {isCurrentUser ? (
                               <Badge variant="brand">You</Badge>
                             ) : null}
@@ -162,59 +185,86 @@ export function UsersTable({ users, totalUsers }: UsersTableProps) {
                           </p>
                         </div>
                       </div>
-                    </TD>
-                    <TD className="min-w-[150px] whitespace-nowrap">
-                      <Badge
-                        icon={<ShieldCheck className="h-3.5 w-3.5" />}
-                        variant={roleTone(managedUser.role)}
-                      >
-                        {formatRole(managedUser.role)}
-                      </Badge>
-                    </TD>
-                    <TD className="min-w-[190px]">
-                      <div className="flex items-start gap-2 text-sm font-semibold text-ink">
-                        {managedUser.pharmacy ? (
-                          <Building2
-                            aria-hidden="true"
-                            className="mt-0.5 h-4 w-4 shrink-0 text-muted"
-                          />
+
+                      <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                        <Badge
+                          dot
+                          variant={managedUser.is_active ? "success" : "neutral"}
+                        >
+                          {managedUser.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                        {managedUser.must_change_password ? (
+                          <Badge
+                            icon={<KeyRound className="h-3.5 w-3.5" />}
+                            variant="warning"
+                          >
+                            Must change
+                          </Badge>
                         ) : (
-                          <UserRound
-                            aria-hidden="true"
-                            className="mt-0.5 h-4 w-4 shrink-0 text-muted"
-                          />
+                          <Badge
+                            icon={<KeyRound className="h-3.5 w-3.5" />}
+                            variant="neutral"
+                          >
+                            Current
+                          </Badge>
                         )}
-                        <span className="break-words">
-                          {managedUser.pharmacy?.name ?? "Global or unassigned"}
-                        </span>
                       </div>
-                    </TD>
-                    <TD className="whitespace-nowrap">
-                      <Badge
-                        dot
-                        variant={managedUser.is_active ? "success" : "neutral"}
-                      >
-                        {managedUser.is_active ? "Active" : "Inactive"}
-                      </Badge>
-                    </TD>
-                    <TD className="whitespace-nowrap">
-                      {managedUser.must_change_password ? (
-                        <Badge
-                          icon={<KeyRound className="h-3.5 w-3.5" />}
-                          variant="warning"
-                        >
-                          Must change
-                        </Badge>
-                      ) : (
-                        <Badge
-                          icon={<KeyRound className="h-3.5 w-3.5" />}
-                          variant="neutral"
-                        >
-                          Current
-                        </Badge>
-                      )}
-                    </TD>
-                    <TD className="min-w-[300px] text-right">
+                    </div>
+
+                    <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+                        <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                          Role
+                        </dt>
+                        <dd className="mt-1">
+                          <Badge
+                            icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                            variant={roleTone(managedUser.role)}
+                          >
+                            {formatRole(managedUser.role)}
+                          </Badge>
+                        </dd>
+                      </div>
+                      <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+                        <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                          Membership
+                        </dt>
+                        <dd className="mt-1 flex items-start gap-2 text-sm font-semibold text-ink">
+                          {managedUser.pharmacy ? (
+                            <Building2
+                              aria-hidden="true"
+                              className="mt-0.5 h-4 w-4 shrink-0 text-muted"
+                            />
+                          ) : (
+                            <UserRound
+                              aria-hidden="true"
+                              className="mt-0.5 h-4 w-4 shrink-0 text-muted"
+                            />
+                          )}
+                          <span className="break-words">
+                            {managedUser.pharmacy?.name ?? "Global or unassigned"}
+                          </span>
+                        </dd>
+                      </div>
+                      <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+                        <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                          Status
+                        </dt>
+                        <dd className="mt-1">
+                          <Badge
+                            dot
+                            variant={managedUser.is_active ? "success" : "neutral"}
+                          >
+                            {managedUser.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                      <p className="text-xs font-medium text-muted">
+                        Team access and role changes follow existing permissions.
+                      </p>
                       <div className="flex flex-wrap justify-end gap-2">
                         {showDeactivate ? (
                           <Button
@@ -247,13 +297,13 @@ export function UsersTable({ users, totalUsers }: UsersTableProps) {
                           </Button>
                         ) : null}
                       </div>
-                    </TD>
-                  </TR>
+                    </div>
+                  </article>
                 );
               })}
-            </TBody>
-          </Table>
-        </div>
+            </div>
+          </section>
+        ))}
       </section>
 
       <ResetPasswordModal

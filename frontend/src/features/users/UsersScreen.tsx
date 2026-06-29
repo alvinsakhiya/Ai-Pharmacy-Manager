@@ -7,7 +7,6 @@ import {
   UserCheck,
   UserPlus,
   Users as UsersIcon,
-  UserX,
 } from "lucide-react";
 
 import { usePermissions } from "../../auth/usePermissions";
@@ -73,6 +72,10 @@ export function UsersScreen() {
     const inactive = users.length - active;
     const admins = users.filter((user) => user.role === "ADMIN").length;
     const pharmacists = users.filter((user) => user.role === "PHARMACIST").length;
+    const dispensers = users.filter((user) => user.role === "DISPENSER").length;
+    const stockUsers = users.filter(
+      (user) => user.role === "STOCK_EMPLOYEE",
+    ).length;
     const pharmacies = new Set(
       users
         .map((user) => user.pharmacy?.name)
@@ -87,6 +90,8 @@ export function UsersScreen() {
       inactive,
       admins,
       pharmacists,
+      dispensers,
+      stockUsers,
       pharmacies: pharmacies.size,
       passwordChanges,
     };
@@ -114,30 +119,36 @@ export function UsersScreen() {
       />
 
       {usersQuery.isSuccess ? (
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <KpiCard
+            label="Total users"
+            value={users.length.toLocaleString()}
+            note={`${plural(summary.inactive, "inactive account")} in scope`}
+            icon={<UsersIcon className="h-4 w-4" />}
+          />
           <KpiCard
             label="Active users"
             value={summary.active.toLocaleString()}
-            note={`${plural(summary.inactive, "inactive account")} in scope`}
+            note={`${plural(summary.pharmacies, "pharmacy", "pharmacies")} represented`}
             icon={<UserCheck className="h-4 w-4" />}
-          />
-          <KpiCard
-            label="Inactive users"
-            value={summary.inactive.toLocaleString()}
-            note={`${plural(users.length, "total account")} loaded`}
-            icon={<UserX className="h-4 w-4" />}
           />
           <KpiCard
             label="Admins"
             value={summary.admins.toLocaleString()}
-            note={`${plural(summary.pharmacists, "pharmacist")} in scope`}
+            note="Admin access accounts"
             icon={<ShieldCheck className="h-4 w-4" />}
           />
           <KpiCard
-            label="Pharmacies represented"
-            value={summary.pharmacies.toLocaleString()}
-            note={`${plural(summary.passwordChanges, "password reset")} pending`}
+            label="Pharmacists"
+            value={summary.pharmacists.toLocaleString()}
+            note="Pharmacist access accounts"
             icon={<Building2 className="h-4 w-4" />}
+          />
+          <KpiCard
+            label="Dispensers / Stock"
+            value={(summary.dispensers + summary.stockUsers).toLocaleString()}
+            note={`${summary.dispensers.toLocaleString()} dispensers · ${summary.stockUsers.toLocaleString()} stock users`}
+            icon={<UsersIcon className="h-4 w-4" />}
           />
         </section>
       ) : null}

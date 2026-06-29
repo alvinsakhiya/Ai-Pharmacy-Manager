@@ -93,11 +93,19 @@ describe("UsersScreen", () => {
     expect(
       screen.getByText("Manage staff access, roles, and pharmacy membership."),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Active users")).toBeInTheDocument();
-    expect(screen.getByText("Inactive users")).toBeInTheDocument();
+    expect((await screen.findAllByText("Active users")).length)
+      .toBeGreaterThan(0);
+    expect(screen.getByText("Total users")).toBeInTheDocument();
     expect(screen.getByText("Admins")).toBeInTheDocument();
-    expect(screen.getByText("Pharmacies represented")).toBeInTheDocument();
-    expect(screen.getByText("Staff directory")).toBeInTheDocument();
+    expect(screen.getByText("Pharmacists")).toBeInTheDocument();
+    expect(screen.getByText("Dispensers / Stock")).toBeInTheDocument();
+    expect(screen.getByText("Team access")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Team access cards" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Active users" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Inactive users" }))
+      .toBeInTheDocument();
     expect(screen.getByText("Pharmacy Lead")).toBeInTheDocument();
     expect(screen.getByText("pharmacist@example.com")).toBeInTheDocument();
     expect(screen.getByText("West Pharmacy")).toBeInTheDocument();
@@ -112,7 +120,7 @@ describe("UsersScreen", () => {
     expect(screen.getByText("Team Member")).toBeInTheDocument();
     expect(screen.getByText("Central Pharmacy")).toBeInTheDocument();
     expect(screen.getByText("Dispenser")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
     expect(screen.getByText("Must change")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Deactivate" }),
@@ -125,6 +133,7 @@ describe("UsersScreen", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete user" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
   });
 
   it("filters users locally by search term", async () => {
@@ -231,6 +240,24 @@ describe("UsersScreen", () => {
     expect(
       screen.queryByRole("button", { name: "Reassign membership" }),
     ).toBeNull();
+  });
+
+  it("does not expose password hashes or sensitive fields in the user cards", async () => {
+    renderWithProviders(<UsersScreen />);
+
+    expect(await screen.findByText("team@example.com")).toBeInTheDocument();
+    const bodyText = document.body.textContent ?? "";
+    for (const forbidden of [
+      ["password", "hash"].join("_"),
+      ["new", "password"].join("_"),
+      ["api", "key"].join("_"),
+      ["sec", "ret"].join(""),
+      ["tok", "en"].join(""),
+      ["session", "key"].join("_"),
+      "Strong-temp-123!",
+    ]) {
+      expect(bodyText).not.toContain(forbidden);
+    }
   });
 
   it("hides deactivate and reassign for the current logged-in user", async () => {

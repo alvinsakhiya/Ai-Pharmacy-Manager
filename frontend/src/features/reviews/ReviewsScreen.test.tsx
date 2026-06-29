@@ -79,6 +79,12 @@ function makePatient(overrides: Partial<Patient> = {}): Patient {
   };
 }
 
+function dateOnlyInDays(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function reviewsAuth(canManage = true) {
   return makeAuthContext({
     user: makeAuthUser({
@@ -141,14 +147,20 @@ describe("ReviewsScreen", () => {
     const summary = await screen.findByRole("region", {
       name: "Reviews summary",
     });
-    expect(within(summary).getByText("Visible reviews")).toBeInTheDocument();
-    expect(within(summary).getByText("Pending reviews")).toBeInTheDocument();
-    expect(within(summary).getByText("Completed reviews")).toBeInTheDocument();
-    expect(within(summary).getByText("Attention priority")).toBeInTheDocument();
+    expect(within(summary).getByText("Open reviews")).toBeInTheDocument();
+    expect(within(summary).getByText("Due soon")).toBeInTheDocument();
     expect(within(summary).getByText("Overdue")).toBeInTheDocument();
+    expect(within(summary).getByText("Completed")).toBeInTheDocument();
+    expect(within(summary).getByText("Needs attention")).toBeInTheDocument();
     expect(within(summary).getByText("2 reviews in source view"))
       .toBeInTheDocument();
 
+    expect(screen.getByRole("region", { name: "Grouped review queue" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Needs attention" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Completed" }))
+      .toBeInTheDocument();
     expect(screen.getByText("Review for SUT-P1")).toBeInTheDocument();
     expect(screen.getByText("Dosette review")).toBeInTheDocument();
     expect(screen.getByText("General review")).toBeInTheDocument();
@@ -158,6 +170,74 @@ describe("ReviewsScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("pharmacist@example.com")).toBeInTheDocument();
     expect(screen.getAllByText("Created").length).toBeGreaterThan(0);
+  });
+
+  it("groups reviews without hiding or duplicating cards", async () => {
+    getReviewsMock.mockResolvedValue([
+      makeReview({
+        id: 12,
+        patient_reference: "ATTN-P1",
+        status: "PENDING",
+        priority: "ATTENTION",
+        is_overdue: true,
+        due_date: dateOnlyInDays(-1),
+      }),
+      makeReview({
+        id: 13,
+        patient_reference: "DUE-P1",
+        status: "PENDING",
+        priority: "ROUTINE",
+        is_overdue: false,
+        due_date: dateOnlyInDays(3),
+      }),
+      makeReview({
+        id: 14,
+        patient_reference: "OPEN-P1",
+        status: "IN_REVIEW",
+        priority: "ROUTINE",
+        is_overdue: false,
+        due_date: dateOnlyInDays(21),
+      }),
+      makeReview({
+        id: 15,
+        patient_reference: "DONE-P1",
+        status: "COMPLETED",
+        priority: "ROUTINE",
+        is_overdue: false,
+        due_date: dateOnlyInDays(1),
+      }),
+      makeReview({
+        id: 16,
+        patient_reference: "CANCEL-P1",
+        status: "CANCELLED",
+        priority: "ROUTINE",
+        is_overdue: false,
+        due_date: null,
+      }),
+    ]);
+
+    renderReviews();
+
+    for (const group of [
+      "Needs attention",
+      "Due soon",
+      "Open reviews",
+      "Completed",
+      "Earlier / archived",
+    ]) {
+      expect(await screen.findByRole("heading", { name: group }))
+        .toBeInTheDocument();
+    }
+
+    for (const reference of [
+      "ATTN-P1",
+      "DUE-P1",
+      "OPEN-P1",
+      "DONE-P1",
+      "CANCEL-P1",
+    ]) {
+      expect(screen.getAllByText(`Review for ${reference}`)).toHaveLength(1);
+    }
   });
 
   it("renders status priority and overdue badges", async () => {
