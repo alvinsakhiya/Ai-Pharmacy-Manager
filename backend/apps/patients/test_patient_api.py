@@ -401,9 +401,13 @@ def test_patient_collection_method_can_be_created_and_updated(
     patient = Patient.objects.get(pk=patient_id)
 
     assert create_response.status_code == 201
-    assert create_response.json()["collection_method"] == Patient.CollectionMethod.DELIVERY
+    assert (
+        create_response.json()["collection_method"] == Patient.CollectionMethod.DELIVERY
+    )
     assert update_response.status_code == 200
-    assert update_response.json()["collection_method"] == Patient.CollectionMethod.IN_STORE
+    assert (
+        update_response.json()["collection_method"] == Patient.CollectionMethod.IN_STORE
+    )
     assert patient.collection_method == Patient.CollectionMethod.IN_STORE
 
 

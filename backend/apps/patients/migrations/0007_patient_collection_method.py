@@ -4,15 +4,21 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('patients', '0006_patient_email_patient_gender_patient_title_patientgp'),
+        ("patients", "0006_patient_email_patient_gender_patient_title_patientgp"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='patient',
-            name='collection_method',
-            field=models.CharField(choices=[('IN_STORE', 'In-store collection'), ('DELIVERY', 'Delivery')], default='IN_STORE', max_length=16),
+            model_name="patient",
+            name="collection_method",
+            field=models.CharField(
+                choices=[
+                    ("IN_STORE", "In-store collection"),
+                    ("DELIVERY", "Delivery"),
+                ],
+                default="IN_STORE",
+                max_length=16,
+            ),
         ),
     ]
