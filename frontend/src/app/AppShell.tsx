@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 
 import { Sidebar } from "../components/nav/Sidebar";
 import { TopBar } from "../components/nav/TopBar";
+import { MotionPage } from "../components/ui/Motion";
 
 export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -38,11 +40,11 @@ export function AppShell() {
           tabIndex={-1}
           className="mx-auto max-w-[1480px] px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8"
         >
-          {/* Re-key on route change so every page settles in with the same
-              calm entrance (respects reduced-motion via index.css). */}
-          <div className="page-enter" key={location.pathname}>
-            <Outlet />
-          </div>
+          <AnimatePresence mode="wait">
+            <MotionPage key={location.pathname}>
+              <Outlet />
+            </MotionPage>
+          </AnimatePresence>
         </main>
       </div>
     </div>

@@ -26,8 +26,9 @@ describe("SettingsScreen", () => {
       screen.getByRole("heading", { name: "Appearance" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Accessibility" }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("heading", { name: "Accessibility" }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Settings hub")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Motion" })).toBeInTheDocument();
     expect(
       screen.getByRole("radiogroup", { name: "Contrast" }),

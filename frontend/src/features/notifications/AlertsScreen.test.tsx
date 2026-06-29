@@ -204,7 +204,10 @@ describe("AlertsScreen", () => {
 
     await user.type(screen.getByLabelText("Search alerts"), "Ibuprofen");
 
-    expect(screen.getByText("Dead stock: Ibuprofen")).toBeInTheDocument();
+    expect(screen.getByText("Alert matches")).toBeInTheDocument();
+    expect(screen.getAllByText("Dead stock: Ibuprofen").length).toBeGreaterThan(
+      0,
+    );
     expect(screen.queryByText("Stockout: Paracetamol")).toBeNull();
     expect(
       screen.queryByText("Prepared cycle awaiting stock deduction"),

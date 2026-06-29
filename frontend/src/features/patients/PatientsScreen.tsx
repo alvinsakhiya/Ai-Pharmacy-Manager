@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -8,21 +8,27 @@ import {
   MapPin,
   Plus,
   Search,
-  UserRound,
   Users,
 } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
+import { Avatar } from "../../components/ui/Avatar";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { SearchSuggestions } from "../../components/ui/SearchSuggestions";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
+import {
+  dateSearchVariants,
+  matchesSearchTokens,
+  suggestionsFor,
+} from "../../lib/smartSearch";
 import {
   collectionMethodLabel,
   normaliseCollectionMethod,
@@ -129,12 +135,11 @@ function PatientDirectoryCard({
       )}
     >
       <div className="flex min-w-0 gap-3.5">
-        <span
-          aria-hidden="true"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lilac-soft text-brand"
-        >
-          <UserRound className="h-5 w-5" />
-        </span>
+        <Avatar
+          seed={`${patient.patient_reference} ${patient.first_name} ${patient.last_name}`}
+          label={`${patient.first_name} ${patient.last_name} patient avatar`}
+          size="lg"
+        />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="tnum text-xs font-bold text-brand">
@@ -186,6 +191,8 @@ export function PatientsScreen() {
   const canManage = can("patient.manage");
   const pharmacies = user?.pharmacies ?? [];
   const [search, setSearch] = useState("");
+  const [arePatientSuggestionsOpen, setPatientSuggestionsOpen] = useState(false);
+  const patientSearchRef = useRef<HTMLDivElement>(null);
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<
     number | undefined
   >(undefined);
@@ -195,10 +202,41 @@ export function PatientsScreen() {
   );
   const patientsQuery = usePatientsQuery({
     pharmacy: selectedPharmacyId,
-    search: search.trim(),
   });
   const { pharmacyName } = usePharmacyNames();
-  const patients = patientsQuery.data ?? [];
+  const allPatients = patientsQuery.data ?? [];
+  const patients = allPatients.filter((patient) =>
+    matchesSearchTokens(search, [
+      patient.patient_reference,
+      patient.first_name,
+      patient.last_name,
+      `${patient.first_name} ${patient.last_name}`,
+      `${patient.last_name} ${patient.first_name}`,
+      ...dateSearchVariants(patient.date_of_birth),
+      patient.postcode,
+      collectionMethodLabel(patient.collection_method),
+      pharmacyName(patient.pharmacy),
+    ]),
+  );
+  const patientSuggestions = suggestionsFor({
+    items: allPatients,
+    query: search,
+    getId: (patient) => patient.id,
+    getLabel: (patient) => `${patient.first_name} ${patient.last_name}`,
+    getDescription: (patient) =>
+      `${patient.patient_reference} · DOB ${formatDate(patient.date_of_birth)}`,
+    getFields: (patient) => [
+      patient.patient_reference,
+      patient.first_name,
+      patient.last_name,
+      `${patient.first_name} ${patient.last_name}`,
+      `${patient.last_name} ${patient.first_name}`,
+      ...dateSearchVariants(patient.date_of_birth),
+    ],
+  });
+  const hasPatientSearch = search.trim().length > 0;
+  const visiblePatientSuggestions =
+    arePatientSuggestionsOpen && hasPatientSearch ? patientSuggestions : [];
   const activePatients = patients.filter((patient) => patient.is_active).length;
   const inactivePatients = patients.length - activePatients;
   const deliveryPatients = patients.filter(
@@ -210,6 +248,42 @@ export function PatientsScreen() {
         ? "All assigned pharmacies"
         : pharmacies[0]?.name ?? "Assigned pharmacy"
       : pharmacyName(selectedPharmacyId);
+
+  useEffect(() => {
+    if (!hasPatientSearch) {
+      setPatientSuggestionsOpen(false);
+    }
+  }, [hasPatientSearch]);
+
+  useEffect(() => {
+    if (!arePatientSuggestionsOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        patientSearchRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setPatientSuggestionsOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [arePatientSuggestionsOpen]);
+
+  function handleSearchChange(nextValue: string) {
+    setSearch(nextValue);
+    setPatientSuggestionsOpen(nextValue.trim().length > 0);
+  }
+
+  function handlePatientSuggestionPick(label: string) {
+    setSearch(label);
+    setPatientSuggestionsOpen(false);
+  }
 
   return (
     <div className="space-y-5">
@@ -261,22 +335,54 @@ export function PatientsScreen() {
         />
         <PanelBody>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <label className={labelClass}>
-              Search
+            <div
+              className={labelClass}
+              onBlur={(event) => {
+                const nextTarget = event.relatedTarget;
+                if (
+                  !(nextTarget instanceof Node) ||
+                  !event.currentTarget.contains(nextTarget)
+                ) {
+                  setPatientSuggestionsOpen(false);
+                }
+              }}
+              ref={patientSearchRef}
+            >
+              <label htmlFor="patients-search">Search</label>
               <div className="relative">
                 <Search
                   aria-hidden="true"
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
                 />
                 <input
+                  id="patients-search"
                   className={`${inputClass} pl-9`}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by Patient ID or exact last name"
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                  onFocus={() => {
+                    if (hasPatientSearch) {
+                      setPatientSuggestionsOpen(true);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setPatientSuggestionsOpen(false);
+                    }
+                  }}
+                  placeholder="Search by patient ID, name, initials, or DOB"
                   type="search"
                   value={search}
                 />
               </div>
-            </label>
+              <SearchSuggestions
+                suggestions={visiblePatientSuggestions}
+                onPick={(suggestion) =>
+                  handlePatientSuggestionPick(suggestion.label)
+                }
+                label="Patient matches"
+                onClose={() => setPatientSuggestionsOpen(false)}
+              />
+            </div>
 
             {pharmacies.length > 1 ? (
               <label className={labelClass}>

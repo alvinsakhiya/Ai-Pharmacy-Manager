@@ -1,15 +1,23 @@
 import {
   Accessibility,
   AlignLeft,
+  Bell,
+  Boxes,
+  Building2,
+  ClipboardList,
   Contrast,
   Copy,
+  Database,
   Eye,
   FileText,
   Focus,
+  Lock,
   Palette,
+  Pill,
   Printer,
   RotateCcw,
   Type,
+  UserRound,
   Zap,
 } from "lucide-react";
 
@@ -177,6 +185,45 @@ function SettingRow({
   );
 }
 
+function SettingsHubCard({
+  description,
+  icon,
+  status,
+  title,
+}: {
+  description: string;
+  icon: React.ReactNode;
+  status: "Available" | "Local preference" | "Coming soon" | "Demo status";
+  title: string;
+}) {
+  const variant =
+    status === "Coming soon"
+      ? "neutral"
+      : status === "Demo status"
+        ? "info"
+        : "brand";
+
+  return (
+    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-lilac-soft bg-lilac-soft text-brand"
+        >
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-extrabold text-ink">{title}</h2>
+            <Badge variant={variant}>{status}</Badge>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-muted">{description}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 const CONTRAST_OPTIONS: SegmentedOption<ContrastMode>[] = [
   { value: "normal", label: "Standard" },
   { value: "high", label: "High" },
@@ -273,6 +320,72 @@ export function SettingsScreen() {
           </Button>
         }
       />
+
+      <section
+        aria-label="Settings hub"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+      >
+        <SettingsHubCard
+          icon={<UserRound className="h-5 w-5" />}
+          title="Profile & account"
+          status="Demo status"
+          description="Account identity and session controls stay managed by auth."
+        />
+        <SettingsHubCard
+          icon={<Building2 className="h-5 w-5" />}
+          title="Pharmacy workspace"
+          status="Demo status"
+          description="Scope and pharmacy access are inherited from team membership."
+        />
+        <SettingsHubCard
+          icon={<Accessibility className="h-5 w-5" />}
+          title="Accessibility"
+          status="Available"
+          description="Text, contrast, focus, colour, and motion preferences."
+        />
+        <SettingsHubCard
+          icon={<Printer className="h-5 w-5" />}
+          title="Printer & labels"
+          status="Local preference"
+          description="Device-level defaults for sheets, lists, and labels."
+        />
+        <SettingsHubCard
+          icon={<Bell className="h-5 w-5" />}
+          title="Notifications"
+          status="Coming soon"
+          description="Review alert preferences when backend settings are available."
+        />
+        <SettingsHubCard
+          icon={<Pill className="h-5 w-5" />}
+          title="MDS / Dosette preferences"
+          status="Coming soon"
+          description="Future defaults for tray views and print preparation."
+        />
+        <SettingsHubCard
+          icon={<Boxes className="h-5 w-5" />}
+          title="Inventory preferences"
+          status="Coming soon"
+          description="Future defaults for stock review and expiry display."
+        />
+        <SettingsHubCard
+          icon={<Lock className="h-5 w-5" />}
+          title="Security & audit"
+          status="Demo status"
+          description="Role access and audit trail remain enforced by the system."
+        />
+        <SettingsHubCard
+          icon={<Database className="h-5 w-5" />}
+          title="Data & privacy"
+          status="Demo status"
+          description="Patient data stays scoped to existing permission boundaries."
+        />
+        <SettingsHubCard
+          icon={<ClipboardList className="h-5 w-5" />}
+          title="Demo / system status"
+          status="Demo status"
+          description="Operational settings shown here do not change business logic."
+        />
+      </section>
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
         <div className="min-w-0 space-y-5">

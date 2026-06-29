@@ -14,11 +14,11 @@ import {
   Pill,
   Phone,
   Stethoscope,
-  UserRound,
   UserX,
 } from "lucide-react";
 
 import { usePermissions } from "../../auth/usePermissions";
+import { Avatar } from "../../components/ui/Avatar";
 import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -267,12 +267,11 @@ export function PatientRecordWorkspace({
         <div className="space-y-3 p-3 sm:p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex min-w-0 items-start gap-3">
-              <span
-                aria-hidden="true"
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-lilac-soft text-brand"
-              >
-                <UserRound className="h-5 w-5" />
-              </span>
+              <Avatar
+                seed={`${patient.patient_reference} ${displayName}`}
+                label={`${displayName} patient avatar`}
+                size="lg"
+              />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge variant="brand">{patient.patient_reference}</Badge>

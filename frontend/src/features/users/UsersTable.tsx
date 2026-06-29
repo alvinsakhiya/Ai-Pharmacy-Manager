@@ -10,6 +10,7 @@ import {
 
 import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
+import { Avatar } from "../../components/ui/Avatar";
 import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { useToast } from "../../components/ui/Toast";
@@ -53,10 +54,6 @@ function formatJoined(value: string): string {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
-}
-
-function userInitial(user: ManagedUser): string {
-  return (user.full_name || user.email).slice(0, 1).toUpperCase();
 }
 
 function userGroups(users: ManagedUser[]) {
@@ -152,17 +149,15 @@ export function UsersTable({ users, totalUsers }: UsersTableProps) {
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex min-w-0 items-start gap-3">
-                        <span
-                          aria-hidden="true"
+                        <Avatar
                           className={cn(
-                            "mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full border text-sm font-extrabold",
-                            managedUser.is_active
-                              ? "border-lilac-soft bg-lilac-soft text-brand"
-                              : "border-line bg-surface-subtle text-muted",
+                            "mt-0.5",
+                            !managedUser.is_active && "grayscale opacity-70",
                           )}
-                        >
-                          {userInitial(managedUser)}
-                        </span>
+                          seed={`${managedUser.full_name} ${managedUser.email} ${managedUser.role ?? ""}`}
+                          label={`${managedUser.full_name || managedUser.email} avatar`}
+                          size="lg"
+                        />
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h4 className="font-bold text-ink">

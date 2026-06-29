@@ -15,8 +15,10 @@ import { Panel, PanelBody } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { KpiCard } from "../../components/ui/KpiCard";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { SearchSuggestions } from "../../components/ui/SearchSuggestions";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { inputClass, labelClass } from "../../components/ui/forms";
+import { matchesSearchTokens, suggestionsFor } from "../../lib/smartSearch";
 import { CreateUserModal } from "./CreateUserModal";
 import { UsersTable } from "./UsersTable";
 import { useUsersQuery } from "./useUsers";
@@ -37,18 +39,18 @@ function plural(value: number, singular: string, pluralLabel = `${singular}s`) {
 }
 
 function userMatchesSearch(user: ManagedUser, searchTerm: string): boolean {
-  const searchable = [
+  return matchesSearchTokens(searchTerm, userSearchFields(user));
+}
+
+function userSearchFields(user: ManagedUser) {
+  return [
     user.full_name,
     user.email,
     formatRole(user.role),
     user.pharmacy?.name ?? "",
     user.is_active ? "active" : "inactive",
     user.must_change_password ? "must change password" : "password current",
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  return searchable.includes(searchTerm);
+  ];
 }
 
 export function UsersScreen() {
@@ -96,6 +98,15 @@ export function UsersScreen() {
       passwordChanges,
     };
   }, [users]);
+  const userSuggestions = suggestionsFor({
+    items: users,
+    query: searchTerm,
+    getId: (user) => user.id,
+    getLabel: (user) => user.full_name || user.email,
+    getDescription: (user) =>
+      `${formatRole(user.role)} · ${user.pharmacy?.name ?? "Global or unassigned"}`,
+    getFields: userSearchFields,
+  });
 
   return (
     <div className="space-y-5">
@@ -203,14 +214,15 @@ export function UsersScreen() {
         <Panel>
           <PanelBody>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <label className={`${labelClass} w-full lg:max-w-md`}>
-                Search users
+              <div className={`${labelClass} w-full lg:max-w-md`}>
+                <label htmlFor="users-search">Search users</label>
                 <div className="relative">
                   <Search
                     aria-hidden="true"
                     className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
                   />
                   <input
+                    id="users-search"
                     className={`${inputClass} pl-9`}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Name, email, role, pharmacy, or status"
@@ -218,7 +230,12 @@ export function UsersScreen() {
                     value={searchTerm}
                   />
                 </div>
-              </label>
+                <SearchSuggestions
+                  suggestions={userSuggestions}
+                  onPick={(suggestion) => setSearchTerm(suggestion.label)}
+                  label="Team matches"
+                />
+              </div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
                 <span className="font-semibold text-ink-soft">
                   Showing {filteredUsers.length.toLocaleString()} of{" "}

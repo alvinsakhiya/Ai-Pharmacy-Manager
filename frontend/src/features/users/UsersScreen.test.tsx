@@ -160,7 +160,8 @@ describe("UsersScreen", () => {
     await screen.findByText("Pharmacy Lead");
     await user.type(screen.getByLabelText("Search users"), "stock employee");
 
-    expect(screen.getByText("Stock User")).toBeInTheDocument();
+    expect(screen.getByText("Team matches")).toBeInTheDocument();
+    expect(screen.getAllByText("Stock User").length).toBeGreaterThan(0);
     expect(screen.queryByText("Pharmacy Lead")).toBeNull();
     expect(screen.getByText("1 of 2 shown")).toBeInTheDocument();
   });

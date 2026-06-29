@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from "react";
 import {
   ArrowRightLeft,
+  Boxes,
+  CalendarClock,
   ChevronDown,
   LineChart,
   PackageSearch,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
+  TrendingUp,
 } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
@@ -69,6 +73,21 @@ const FLAG_LABELS: Array<{ key: keyof StockAnalyticsFlags; label: string }> = [
   { key: "near_expiry", label: "Near expiry" },
   { key: "dead_stock", label: "Dead stock" },
   { key: "slow_moving", label: "Slow moving" },
+];
+
+const ROADMAP_IDEAS = [
+  "Expiry risk heatmap",
+  "FEFO adherence monitor",
+  "Stockout risk score",
+  "Slow-moving stock detector",
+  "MDS demand forecast",
+  "Suggested order review list",
+  "Transfer opportunity between branches",
+  "Overstock warning",
+  "Supplier lead-time sensitivity",
+  "Seasonal demand notes",
+  "Stock value at risk",
+  "What changed this week insight summary",
 ];
 
 function formatDate(value: string | null): string {
@@ -331,6 +350,58 @@ function AnalyticsRow({ item }: { item: StockAnalyticsItem }) {
   );
 }
 
+function OpportunityRoadmap() {
+  return (
+    <Panel>
+      <PanelHeader
+        title="Opportunity roadmap"
+        subtitle="Frontend-only AI enhancement ideas for demo discussion."
+        icon={<Sparkles className="h-4 w-4" />}
+        actions={<Badge variant="info">Suggested enhancement</Badge>}
+      />
+      <PanelBody>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {ROADMAP_IDEAS.map((idea, index) => {
+            const Icon =
+              index % 4 === 0
+                ? CalendarClock
+                : index % 4 === 1
+                  ? ShieldCheck
+                  : index % 4 === 2
+                    ? TrendingUp
+                    : Boxes;
+            return (
+              <article
+                className="rounded-xl border border-line bg-surface-subtle p-3"
+                key={idea}
+              >
+                <div className="flex items-start gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-lilac-soft text-brand"
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-ink">{idea}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-muted">
+                      Operational signal for review before action.
+                    </p>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <p className="mt-3 rounded-xl border border-info-border bg-info-soft px-3 py-2 text-xs font-semibold text-info-ink">
+          These roadmap cards are not automatic ordering, transfer, or dispensing
+          decisions. They describe future review signals only.
+        </p>
+      </PanelBody>
+    </Panel>
+  );
+}
+
 export function StockAnalyticsScreen() {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -404,6 +475,8 @@ export function StockAnalyticsScreen() {
         title="Stock Intelligence"
         subtitle="Explainable stock analytics based on inventory levels, expiry dates, and movement history."
       />
+
+      <OpportunityRoadmap />
 
       {canViewTransferSuggestions ? (
         <Panel>

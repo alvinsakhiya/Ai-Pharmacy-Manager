@@ -8,20 +8,10 @@ import { scopeLabel } from "../../lib/scope";
 import { cn } from "../../lib/cn";
 import { useWorkQueueQuery } from "../../features/notifications/useNotifications";
 import { AppLogo } from "../brand/AppLogo";
+import { Avatar } from "../ui/Avatar";
 
 interface SidebarProps {
   onNavigate?: () => void;
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "·";
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 function NavItemLink({
@@ -186,9 +176,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           <div className="flex items-center gap-3 rounded-2xl bg-sidebar-raised p-3 ring-1 ring-inset ring-sidebar-line transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:bg-sidebar-line hover:shadow-elev-2">
             <span
               aria-hidden="true"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-lilac text-sm font-bold text-lilac-ink shadow-elev-1 ring-2 ring-inset ring-lilac"
+              className="shrink-0"
             >
-              {initials(displayName)}
+              <Avatar seed={`${displayName} ${user.role ?? ""}`} size="md" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-bold text-white">

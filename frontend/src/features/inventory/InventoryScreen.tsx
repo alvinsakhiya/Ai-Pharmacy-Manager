@@ -17,6 +17,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { SearchSuggestions } from "../../components/ui/SearchSuggestions";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import {
   Table,
@@ -28,6 +29,7 @@ import {
   TR,
 } from "../../components/ui/Table";
 import { cn } from "../../lib/cn";
+import { suggestionsFor } from "../../lib/smartSearch";
 import { scopeLabel } from "../../lib/scope";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { formatNumber } from "./stockIntakeForm";
@@ -207,7 +209,7 @@ function InventoryMetric({
 
   return (
     <Panel className="shadow-elev-1">
-      <PanelBody className="flex min-h-[128px] items-start gap-3 p-4">
+      <PanelBody className="flex min-h-[112px] items-start gap-3 p-3.5">
         <span
           aria-hidden="true"
           className={cn(
@@ -326,6 +328,23 @@ export function InventoryScreen() {
   const soonestItem = earliestItem(stockItems);
   const stockValue = stockValueSummary(stockItems);
   const activeFilterLabel = filterLabel(searchTerm, selectedPharmacyId);
+  const stockSuggestions = suggestionsFor({
+    items: stockItems,
+    query: searchTerm,
+    getId: (item) => item.id,
+    getLabel: (item) => item.medication_name,
+    getDescription: (item) =>
+      `${pharmacyName(item.pharmacy)} · ${formatNumber(item.quantity_on_hand)} on hand`,
+    getFields: (item) => [
+      item.medication_name,
+      item.id,
+      item.medication,
+      item.quantity_on_hand,
+      item.reorder_level,
+      item.earliest_expiry,
+      pharmacyName(item.pharmacy),
+    ],
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -430,11 +449,8 @@ export function InventoryScreen() {
         />
         <PanelBody>
           <div className="flex flex-wrap items-end gap-3">
-            <label
-              className={cn(labelClass, "min-w-72 flex-1")}
-              htmlFor="inventory-search"
-            >
-              Search
+            <div className={cn(labelClass, "min-w-72 flex-1")}>
+              <label htmlFor="inventory-search">Search</label>
               <span className="relative mt-1.5 block">
                 <Search
                   aria-hidden="true"
@@ -449,7 +465,12 @@ export function InventoryScreen() {
                   value={searchTerm}
                 />
               </span>
-            </label>
+              <SearchSuggestions
+                suggestions={stockSuggestions}
+                onPick={(suggestion) => setSearchTerm(suggestion.label)}
+                label="Stock matches"
+              />
+            </div>
 
             {pharmacies.length > 1 ? (
               <label

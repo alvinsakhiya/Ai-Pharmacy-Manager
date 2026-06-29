@@ -63,6 +63,27 @@ function patientAuth(
   });
 }
 
+function mockPolishPatients() {
+  listPatientsMock.mockResolvedValue([
+    makePatient({
+      id: 30,
+      patient_reference: "POL-MAT",
+      first_name: "Polish",
+      last_name: "Matthew",
+      date_of_birth: "1980-01-01",
+      phone: "020 0000 0030",
+    }),
+    makePatient({
+      id: 31,
+      patient_reference: "CRO-P2",
+      first_name: "Alice",
+      last_name: "Sutton",
+      date_of_birth: "1976-02-04",
+      phone: "020 0000 0031",
+    }),
+  ]);
+}
+
 describe("PatientsScreen", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -76,6 +97,7 @@ describe("PatientsScreen", () => {
         patient_reference: "CRO-P1",
         first_name: "Bob",
         last_name: "Croydon",
+        date_of_birth: "1976-03-04",
         collection_method: "DELIVERY",
         is_active: false,
       }),
@@ -194,26 +216,147 @@ describe("PatientsScreen", () => {
     await waitFor(() => {
       expect(listPatientsMock).toHaveBeenLastCalledWith({
         pharmacy: 2,
-        search: "",
       });
     });
   });
 
-  it("passes trimmed search to the list query", async () => {
+  it("filters locally with smart patient suggestions", async () => {
     const user = userEvent.setup();
     renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
 
     await screen.findByText("SUT-P1");
     expect(
-      screen.getByPlaceholderText("Search by Patient ID or exact last name"),
+      screen.getByPlaceholderText("Search by patient ID, name, initials, or DOB"),
     ).toBeInTheDocument();
-    await user.type(screen.getByLabelText("Search"), " Sutton ");
+    await user.type(screen.getByLabelText("Search"), " Sut ");
+
+    expect(await screen.findByText("Patient matches")).toBeInTheDocument();
+    expect(screen.getAllByText("Alice Sutton").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Bob Croydon")).toBeNull();
+    expect(listPatientsMock).toHaveBeenLastCalledWith({
+      pharmacy: undefined,
+    });
+  });
+
+  it("closes suggestions after picking a patient without hiding the directory result", async () => {
+    mockPolishPatients();
+    const user = userEvent.setup();
+    renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
+
+    const searchInput = await screen.findByLabelText("Search");
+    await user.type(searchInput, "po ma");
+
+    const listbox = await screen.findByRole("listbox", {
+      name: "Patient matches",
+    });
+    await user.click(
+      within(listbox).getByRole("button", { name: /Polish Matthew/ }),
+    );
+
+    expect(searchInput).toHaveValue("Polish Matthew");
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("listbox", { name: "Patient matches" }),
+      ).toBeNull();
+    });
+    expect(screen.getAllByText("Polish Matthew").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Alice Sutton")).toBeNull();
+  });
+
+  it("closes suggestions with Escape while keeping filtered patients visible", async () => {
+    mockPolishPatients();
+    const user = userEvent.setup();
+    renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
+
+    await screen.findByText("POL-MAT");
+    await user.type(screen.getByLabelText("Search"), "po");
+
+    expect(
+      await screen.findByRole("listbox", { name: "Patient matches" }),
+    ).toBeInTheDocument();
+    await user.keyboard("{Escape}");
 
     await waitFor(() => {
-      expect(listPatientsMock).toHaveBeenLastCalledWith({
-        pharmacy: undefined,
-        search: "Sutton",
-      });
+      expect(
+        screen.queryByRole("listbox", { name: "Patient matches" }),
+      ).toBeNull();
+    });
+    expect(screen.getByText("Polish Matthew")).toBeInTheDocument();
+    expect(screen.queryByText("Alice Sutton")).toBeNull();
+  });
+
+  it("hides suggestions when the patient search is cleared", async () => {
+    mockPolishPatients();
+    const user = userEvent.setup();
+    renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
+
+    const searchInput = await screen.findByLabelText("Search");
+    await user.type(searchInput, "po");
+
+    expect(
+      await screen.findByRole("listbox", { name: "Patient matches" }),
+    ).toBeInTheDocument();
+    await user.clear(searchInput);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("listbox", { name: "Patient matches" }),
+      ).toBeNull();
+    });
+    expect(screen.getByText("Polish Matthew")).toBeInTheDocument();
+    expect(screen.getByText("Alice Sutton")).toBeInTheDocument();
+  });
+
+  it("closes suggestions when focus moves outside the patient search", async () => {
+    mockPolishPatients();
+    const user = userEvent.setup();
+    renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
+
+    await screen.findByText("POL-MAT");
+    await user.type(screen.getByLabelText("Search"), "po");
+
+    expect(
+      await screen.findByRole("listbox", { name: "Patient matches" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByText("Patient directory"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("listbox", { name: "Patient matches" }),
+      ).toBeNull();
+    });
+  });
+
+  it.each(["po", "ma", "po ma"])(
+    "matches patient partial token search %s",
+    async (query) => {
+      mockPolishPatients();
+      const user = userEvent.setup();
+      renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
+
+      await screen.findByText("POL-MAT");
+      await user.type(screen.getByLabelText("Search"), query);
+
+      expect(
+        await screen.findByRole("listbox", { name: "Patient matches" }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("Polish Matthew").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Alice Sutton")).toBeNull();
+    },
+  );
+
+  it("matches patient date of birth variants without changing the list query", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
+
+    await screen.findByText("SUT-P1");
+    await user.type(screen.getByLabelText("Search"), "01011980");
+
+    expect(await screen.findByText("Patient matches")).toBeInTheDocument();
+    expect(screen.getAllByText("Alice Sutton").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Bob Croydon")).toBeNull();
+    expect(listPatientsMock).toHaveBeenLastCalledWith({
+      pharmacy: undefined,
     });
   });
 

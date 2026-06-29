@@ -20,11 +20,13 @@ import { KpiCard } from "../../components/ui/KpiCard";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Modal } from "../../components/ui/Modal";
+import { SearchSuggestions } from "../../components/ui/SearchSuggestions";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { useToast } from "../../components/ui/Toast";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 import { scopeLabel } from "../../lib/scope";
+import { matchesSearchTokens, suggestionsFor } from "../../lib/smartSearch";
 import { usePatientsQuery } from "../patients/usePatients";
 import { ReviewCard } from "./ReviewCard";
 import { ReviewFormModal } from "./ReviewFormModal";
@@ -35,7 +37,7 @@ import {
   useReviewsQuery,
 } from "./useReviews";
 
-function reviewSearchText(review: Review): string {
+function reviewSearchFields(review: Review) {
   return [
     review.patient_reference,
     review.cycle_reference,
@@ -43,10 +45,9 @@ function reviewSearchText(review: Review): string {
     review.priority,
     review.assigned_to_email,
     review.notes,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    review.due_date,
+    review.created_at,
+  ];
 }
 
 function activeFilterLabel({
@@ -256,7 +257,9 @@ export function ReviewsScreen() {
       return reviews;
     }
 
-    return reviews.filter((review) => reviewSearchText(review).includes(query));
+    return reviews.filter((review) =>
+      matchesSearchTokens(query, reviewSearchFields(review)),
+    );
   }, [reviews, searchQuery]);
   const groupedReviews = useMemo(
     () => groupReviews(filteredReviews, today),
@@ -284,6 +287,15 @@ export function ReviewsScreen() {
     priority,
     searchQuery,
     status,
+  });
+  const reviewSuggestions = suggestionsFor({
+    items: reviews,
+    query: searchQuery,
+    getId: (review) => review.id,
+    getLabel: (review) => `Review for ${review.patient_reference}`,
+    getDescription: (review) =>
+      `${review.priority} · ${review.status}${review.due_date ? ` · due ${review.due_date}` : ""}`,
+    getFields: reviewSearchFields,
   });
 
   async function confirmComplete() {
@@ -397,14 +409,15 @@ export function ReviewsScreen() {
         />
         <PanelBody>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <label className={labelClass}>
-              Search reviews
+            <div className={labelClass}>
+              <label htmlFor="reviews-search">Search reviews</label>
               <div className="relative">
                 <Search
                   aria-hidden="true"
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
                 />
                 <input
+                  id="reviews-search"
                   className={cn(inputClass, "pl-9")}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Reference, notes, assignee..."
@@ -412,7 +425,12 @@ export function ReviewsScreen() {
                   value={searchQuery}
                 />
               </div>
-            </label>
+              <SearchSuggestions
+                suggestions={reviewSuggestions}
+                onPick={(suggestion) => setSearchQuery(suggestion.label)}
+                label="Review matches"
+              />
+            </div>
 
             <label className={labelClass}>
               Status

@@ -19,9 +19,11 @@ import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { KpiCard } from "../../components/ui/KpiCard";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { SearchSuggestions } from "../../components/ui/SearchSuggestions";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
+import { matchesSearchTokens, suggestionsFor } from "../../lib/smartSearch";
 import { scopeLabel } from "../../lib/scope";
 import type {
   Alert,
@@ -145,7 +147,7 @@ function partitionAlerts(alerts: Alert[]) {
   return buckets;
 }
 
-function alertSearchText(alert: Alert): string {
+function alertSearchFields(alert: Alert) {
   return [
     alert.title,
     alert.message,
@@ -156,10 +158,7 @@ function alertSearchText(alert: Alert): string {
     alert.subject.medication_name,
     alert.subject.cycle_reference,
     alert.subject.patient_reference,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  ];
 }
 
 function activeFilterLabel({
@@ -255,9 +254,9 @@ function AlertCard({
   const isOperationalDosette = alert.category === "dosette";
 
   return (
-    <article className="interactive-card flex min-h-[300px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
+    <article className="interactive-card flex min-h-[240px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
       <div className="h-1 bg-warning" />
-      <div className="flex flex-1 flex-col gap-4 p-5">
+      <div className="flex flex-1 flex-col gap-3.5 p-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <SeverityBadge alert={alert} />
@@ -265,7 +264,7 @@ function AlertCard({
             <Badge variant="info">{alertTypeLabel(alert.type)}</Badge>
             <Badge variant="brand">Active alert</Badge>
           </div>
-          <h2 className="mt-4 text-[17px] font-extrabold tracking-[-0.01em] text-ink">
+          <h2 className="mt-3 text-[16px] font-extrabold tracking-[-0.01em] text-ink">
             {alert.title}
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-ink-soft">
@@ -282,7 +281,7 @@ function AlertCard({
               Operational tasks are managed in Work Queue.
             </p>
           ) : null}
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <dl className="mt-3 grid gap-2 sm:grid-cols-2">
             <AlertDetail label="Source" value={ALERT_CATEGORY_LABELS[alert.category]} />
             <AlertDetail label="Type" value={alertTypeLabel(alert.type)} />
             <AlertDetail label="Date/time" value={formatDateTime(generatedAt)} />
@@ -441,7 +440,7 @@ export function AlertsScreen() {
       if (categoryFilter && alert.category !== categoryFilter) {
         return false;
       }
-      if (query && !alertSearchText(alert).includes(query)) {
+      if (query && !matchesSearchTokens(query, alertSearchFields(alert))) {
         return false;
       }
       return true;
@@ -458,6 +457,15 @@ export function AlertsScreen() {
     category: categoryFilter,
     searchQuery,
     severity: severityFilter,
+  });
+  const alertSuggestions = suggestionsFor({
+    items: visibleAlerts,
+    query: searchQuery,
+    getId: (alert) => alert.id,
+    getLabel: (alert) => alert.title,
+    getDescription: (alert) =>
+      `${ALERT_CATEGORY_LABELS[alert.category]} · ${alertTypeLabel(alert.type)}`,
+    getFields: alertSearchFields,
   });
 
   async function handleDismiss(alert: Alert) {
@@ -590,14 +598,15 @@ export function AlertsScreen() {
             />
             <PanelBody>
               <div className="grid gap-4 md:grid-cols-3">
-                <label className={labelClass}>
-                  Search alerts
+                <div className={labelClass}>
+                  <label htmlFor="alerts-search">Search alerts</label>
                   <div className="relative">
                     <Search
                       aria-hidden="true"
                       className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
                     />
                     <input
+                      id="alerts-search"
                       className={cn(inputClass, "pl-9")}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Title, message, reference..."
@@ -605,7 +614,12 @@ export function AlertsScreen() {
                       value={searchQuery}
                     />
                   </div>
-                </label>
+                  <SearchSuggestions
+                    suggestions={alertSuggestions}
+                    onPick={(suggestion) => setSearchQuery(suggestion.label)}
+                    label="Alert matches"
+                  />
+                </div>
 
                 <label className={labelClass}>
                   Severity

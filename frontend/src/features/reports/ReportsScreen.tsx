@@ -394,7 +394,7 @@ function ReportCard({
       onClick={onSelect}
       aria-pressed={active}
       className={cn(
-        "group flex flex-col rounded-2xl border p-4 text-left shadow-soft outline-none",
+        "group flex flex-col rounded-2xl border p-3.5 text-left shadow-soft outline-none",
         "transition-all duration-200 ease-soft active:scale-[0.99]",
         "focus-visible:ring-2 focus-visible:ring-brand-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
         active
@@ -406,25 +406,25 @@ function ReportCard({
         <span
           aria-hidden="true"
           className={cn(
-            "grid h-10 w-10 shrink-0 place-items-center rounded-full border transition-colors",
+            "grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors",
             active
               ? "border-brand bg-surface text-brand-ink"
               : "border-brand-soft bg-brand-soft text-brand-ink group-hover:border-brand group-hover:bg-brand group-hover:text-white",
           )}
         >
-          <Icon className="h-[18px] w-[18px]" />
+          <Icon className="h-4 w-4" />
         </span>
         <span className="tnum rounded-full border border-line bg-surface-subtle px-2.5 py-1 text-xs font-semibold text-muted">
           {count === undefined ? "CSV" : `${formatNumber(count)} rows`}
         </span>
       </div>
-      <h2 className="mt-3 text-[15px] font-bold tracking-[-0.01em] text-ink">
+      <h2 className="mt-2.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
         {report.title}
       </h2>
-      <p className="mt-1 min-h-10 text-[13px] leading-5 text-muted">
+      <p className="mt-1 text-[13px] leading-5 text-muted">
         {report.description}
       </p>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2.5 flex flex-wrap gap-2">
         {report.exportTypes.map((exportType) => (
           <Badge key={exportType} variant="neutral" icon={<FileText className="h-3 w-3" />}>
             {exportType}
@@ -454,20 +454,20 @@ function SummaryMetricCard({
   loading: boolean;
 }) {
   return (
-    <article className="interactive-card flex min-h-[150px] flex-col justify-between rounded-2xl border border-line bg-surface p-4 shadow-soft">
+    <article className="interactive-card flex min-h-[128px] flex-col justify-between rounded-2xl border border-line bg-surface p-3.5 shadow-soft">
       <div className="flex items-start justify-between gap-3">
         <span
           aria-hidden="true"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
         >
-          <Icon className="h-[18px] w-[18px]" />
+          <Icon className="h-4 w-4" />
         </span>
         <Badge variant={count === undefined && !loading ? "neutral" : "brand"}>
           Rows
         </Badge>
       </div>
       <div>
-        <p className="mt-4 text-sm font-semibold text-muted">{label}</p>
+        <p className="mt-3 text-[13px] font-semibold text-muted">{label}</p>
         <p className="tnum mt-1 text-2xl font-extrabold tracking-[-0.02em] text-ink">
           {loading ? "..." : count === undefined ? "No data" : formatNumber(count)}
         </p>
@@ -498,7 +498,7 @@ function ReportsSummaryCards({
   return (
     <section
       aria-label="Report summaries"
-      className="grid gap-4 md:grid-cols-2 xl:grid-cols-5"
+      className="grid gap-3 md:grid-cols-2 xl:grid-cols-5"
     >
       {summaryCards.map((card) => (
         <SummaryMetricCard
@@ -546,15 +546,15 @@ function ReportCategoryCards({
         return (
           <section
             aria-labelledby={`report-group-${category.id}`}
-            className="rounded-2xl border border-line bg-surface-subtle p-4 shadow-soft sm:p-5"
+            className="rounded-2xl border border-line bg-surface-subtle p-3.5 shadow-soft sm:p-4"
             key={category.id}
           >
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-start gap-3">
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "grid h-10 w-10 shrink-0 place-items-center rounded-full border",
+                    "grid h-9 w-9 shrink-0 place-items-center rounded-full border",
                     active
                       ? "border-brand bg-brand-soft text-brand"
                       : "border-line bg-surface text-ink-soft",
@@ -565,11 +565,13 @@ function ReportCategoryCards({
                 <div className="min-w-0">
                   <h2
                     id={`report-group-${category.id}`}
-                    className="text-lg font-extrabold text-ink"
+                    className="text-base font-extrabold text-ink"
                   >
                     {category.title}
                   </h2>
-                  <p className="mt-1 text-sm text-muted">{category.description}</p>
+                  <p className="mt-1 text-[13px] text-muted">
+                    {category.description}
+                  </p>
                 </div>
               </div>
               <Badge variant={active ? "brand" : "neutral"}>

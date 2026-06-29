@@ -269,7 +269,8 @@ describe("ReviewsScreen", () => {
     expect(await screen.findByText("Review for SUT-P1")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Search reviews"), "CRO");
-    expect(screen.getByText("Review for CRO-P1")).toBeInTheDocument();
+    expect(screen.getByText("Review matches")).toBeInTheDocument();
+    expect(screen.getAllByText("Review for CRO-P1").length).toBeGreaterThan(0);
     expect(screen.queryByText("Review for SUT-P1")).toBeNull();
     expect(screen.getAllByText("1 active filter").length).toBeGreaterThan(0);
     await user.clear(screen.getByLabelText("Search reviews"));

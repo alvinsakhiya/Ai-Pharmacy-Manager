@@ -187,12 +187,12 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
   const tone = actionTone(event.action);
 
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft transition-colors duration-200 ease-soft hover:border-line-strong">
+    <article className="rounded-2xl border border-line bg-surface p-3.5 shadow-soft transition-colors duration-200 ease-soft hover:border-line-strong">
       <div className="flex items-start gap-3">
         <span
           aria-hidden="true"
           className={cn(
-            "grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-surface shadow-elev-1",
+            "grid h-9 w-9 shrink-0 place-items-center rounded-full border bg-surface shadow-elev-1",
             tone === "danger"
               ? "border-danger-border text-danger"
               : tone === "warning"
@@ -205,15 +205,15 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
           {actionIcon(event.action)}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-extrabold tracking-[-0.01em] text-ink">
+                <h3 className="text-[15px] font-extrabold tracking-[-0.01em] text-ink">
                   {label}
                 </h3>
                 <Badge variant={tone}>{event.action}</Badge>
               </div>
-              <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-muted">
+              <p className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold text-muted">
                 <Clock3 aria-hidden="true" className="h-3.5 w-3.5" />
                 <span className="tnum">{formatDateTime(event.created_at)}</span>
               </p>
@@ -225,8 +225,8 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
         </div>
       </div>
 
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+      <dl className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
           <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
             Actor
           </dt>
@@ -234,7 +234,7 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
             {event.actor_email || "System"}
           </dd>
         </div>
-        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
           <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
             Target
           </dt>
@@ -242,7 +242,7 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
             {formatTarget(event)}
           </dd>
         </div>
-        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
           <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
             Scope
           </dt>
@@ -250,7 +250,7 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
             {formatScope(event)}
           </dd>
         </div>
-        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2.5">
+        <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
           <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
             Network
           </dt>
@@ -260,7 +260,7 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
         </div>
       </dl>
 
-      <p className="mt-3 rounded-xl border border-line bg-surface-subtle px-3 py-2 text-[13px] font-medium text-ink-soft">
+      <p className="mt-2.5 rounded-xl border border-line bg-surface-subtle px-3 py-2 text-[13px] font-medium text-ink-soft">
         {metadataNote(event)}
       </p>
     </article>
@@ -279,17 +279,17 @@ function AuditGroupSection({
   return (
     <section
       aria-labelledby={groupId}
-      className="rounded-2xl border border-line bg-surface-subtle p-4 shadow-soft sm:p-5"
+      className="rounded-2xl border border-line bg-surface-subtle p-3.5 shadow-soft sm:p-4"
     >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2
             id={groupId}
-            className="text-lg font-extrabold text-ink"
+            className="text-base font-extrabold text-ink"
           >
             {label}
           </h2>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-[13px] text-muted">
             Audit trail events recorded in this period.
           </p>
         </div>

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Building2, Menu, Search } from "lucide-react";
+import { Building2, CalendarDays, Command, Menu } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { NotificationCentre } from "../../features/notifications/NotificationCentre";
 import { NAV_ITEMS } from "../../app/navConfig";
 import { cn } from "../../lib/cn";
 import { scopeLabel } from "../../lib/scope";
+import { Avatar } from "../ui/Avatar";
 import { CommandPalette } from "./CommandPalette";
 
 interface TopBarProps {
@@ -42,10 +43,17 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   const section = useSectionTitle();
   const [commandOpen, setCommandOpen] = useState(false);
   const isScrolled = useTopBarScrolled();
+  const today = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  }).format(new Date());
 
   if (!user) {
     return null;
   }
+
+  const displayName = user.full_name || user.email;
 
   return (
     <header
@@ -75,28 +83,10 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setCommandOpen(true)}
-          aria-label="Open command menu"
-          aria-keyshortcuts="Meta+K Control+K"
-          className="hidden h-10 w-64 items-center gap-2.5 rounded-full border border-line bg-surface px-4 text-sm text-muted shadow-elev-1 transition-colors hover:border-line-strong hover:bg-surface-subtle focus-ring lg:flex xl:w-80"
-        >
-          <Search aria-hidden="true" className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left">Search modules…</span>
-          <kbd className="rounded-md border border-line px-1.5 py-0.5 text-[11px] font-bold text-muted">
-            ⌘K
-          </kbd>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setCommandOpen(true)}
-          aria-label="Open command menu"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-surface text-ink-soft shadow-elev-1 transition-colors hover:bg-surface-subtle focus-ring lg:hidden"
-        >
-          <Search aria-hidden="true" className="h-5 w-5" />
-        </button>
+        <div className="hidden h-10 items-center gap-2 rounded-full border border-line bg-surface pl-3 pr-4 shadow-elev-1 sm:flex">
+          <CalendarDays aria-hidden="true" className="h-4 w-4 text-brand" />
+          <span className="text-[13px] font-bold text-ink">{today}</span>
+        </div>
 
         <div className="hidden h-10 items-center gap-2 rounded-full border border-line bg-surface pl-3 pr-4 shadow-elev-1 md:flex">
           <span
@@ -115,7 +105,37 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           </span>
         </div>
 
+        <button
+          type="button"
+          onClick={() => setCommandOpen(true)}
+          aria-label="Open command menu"
+          aria-keyshortcuts="Meta+K Control+K"
+          className="hidden h-10 items-center gap-2 rounded-full border border-line bg-surface px-3 text-[13px] font-bold text-ink-soft shadow-elev-1 transition-colors hover:border-line-strong hover:bg-surface-subtle focus-ring lg:flex"
+        >
+          <Command aria-hidden="true" className="h-4 w-4 text-brand" />
+          <span>Command</span>
+          <kbd className="rounded-md border border-line px-1.5 py-0.5 text-[11px] font-bold text-muted">
+            ⌘K
+          </kbd>
+        </button>
+
         <NotificationCentre />
+
+        <div className="hidden h-10 min-w-0 items-center gap-2 rounded-full border border-line bg-surface py-1 pl-1 pr-3 shadow-elev-1 sm:flex">
+          <Avatar
+            seed={`${displayName} ${user.role ?? ""}`}
+            label={`${displayName} account`}
+            size="sm"
+          />
+          <span className="min-w-0">
+            <span className="block max-w-[9rem] truncate text-[13px] font-bold text-ink">
+              {displayName}
+            </span>
+            <span className="block text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+              {user.role ?? "No role"}
+            </span>
+          </span>
+        </div>
 
         <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
       </div>

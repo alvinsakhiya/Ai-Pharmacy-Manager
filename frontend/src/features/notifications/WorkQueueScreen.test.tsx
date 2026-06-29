@@ -236,7 +236,8 @@ describe("WorkQueueScreen", () => {
     expect(await screen.findByText("Stockout: Paracetamol")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Search tasks"), "pending");
-    expect(screen.getByText("Review pending")).toBeInTheDocument();
+    expect(screen.getByText("Task matches")).toBeInTheDocument();
+    expect(screen.getAllByText("Review pending").length).toBeGreaterThan(0);
     expect(screen.queryByText("Stockout: Paracetamol")).toBeNull();
     expect(screen.getAllByText("1 active filter").length).toBeGreaterThan(0);
     await user.clear(screen.getByLabelText("Search tasks"));

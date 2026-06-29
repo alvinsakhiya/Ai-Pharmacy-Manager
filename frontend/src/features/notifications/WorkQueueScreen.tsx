@@ -24,10 +24,12 @@ import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { KpiCard } from "../../components/ui/KpiCard";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
+import { SearchSuggestions } from "../../components/ui/SearchSuggestions";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 import { scopeLabel } from "../../lib/scope";
+import { matchesSearchTokens, suggestionsFor } from "../../lib/smartSearch";
 import type {
   WorkQueueItem,
   WorkQueuePriority,
@@ -233,7 +235,7 @@ function uniquePharmacies(items: WorkQueueItem[]) {
   );
 }
 
-function taskSearchText(item: WorkQueueItem): string {
+function taskSearchFields(item: WorkQueueItem) {
   return [
     item.title,
     item.reason,
@@ -244,10 +246,8 @@ function taskSearchText(item: WorkQueueItem): string {
     item.patient_reference,
     item.cycle_reference,
     item.action_label,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    item.due_date,
+  ];
 }
 
 function activeFilterLabel({
@@ -301,8 +301,8 @@ function WorkQueueCard({ item }: { item: WorkQueueItem }) {
   const prepareFrom = isMdsItem(item) ? formatWorkQueueDate(item.cycle_start_date) : null;
 
   return (
-    <article className="interactive-card flex min-h-[280px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
-      <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
+    <article className="interactive-card flex min-h-[230px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
+      <div className="flex flex-1 flex-col gap-3.5 p-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
             <Badge variant={PRIORITY_BADGES[item.priority]} dot>
@@ -318,7 +318,7 @@ function WorkQueueCard({ item }: { item: WorkQueueItem }) {
           <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-soft">
             {item.reason}
           </p>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <dl className="mt-3 grid gap-2 sm:grid-cols-2">
             <Detail label="Patient ref" value={item.patient_reference} />
             <Detail label="Action type" value={operationalActionLabel(item)} />
             <Detail label="Due date" value={dueLabel} />
@@ -464,7 +464,7 @@ export function WorkQueueScreen() {
         ) {
           return false;
         }
-        if (query && !taskSearchText(item).includes(query)) {
+        if (query && !matchesSearchTokens(query, taskSearchFields(item))) {
           return false;
         }
         return true;
@@ -501,6 +501,15 @@ export function WorkQueueScreen() {
     priorityFilter,
     searchQuery,
     typeFilter,
+  });
+  const taskSuggestions = suggestionsFor({
+    items,
+    query: searchQuery,
+    getId: (item) => item.id,
+    getLabel: (item) => item.title,
+    getDescription: (item) =>
+      `${workQueueTypeLabel(item.type)} · ${item.patient_reference || item.pharmacy_name}`,
+    getFields: taskSearchFields,
   });
 
   return (
@@ -620,14 +629,15 @@ export function WorkQueueScreen() {
               />
               <PanelBody>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <label>
-                    <span className={labelClass}>Search tasks</span>
+                  <div className={labelClass}>
+                    <label htmlFor="work-queue-search">Search tasks</label>
                     <div className="relative">
                       <Search
                         aria-hidden="true"
                         className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
                       />
                       <input
+                        id="work-queue-search"
                         className={cn(inputClass, "pl-9")}
                         type="search"
                         value={searchQuery}
@@ -635,7 +645,12 @@ export function WorkQueueScreen() {
                         placeholder="Title, reason, pharmacy..."
                       />
                     </div>
-                  </label>
+                    <SearchSuggestions
+                      suggestions={taskSuggestions}
+                      onPick={(suggestion) => setSearchQuery(suggestion.label)}
+                      label="Task matches"
+                    />
+                  </div>
                   <label>
                     <span className={labelClass}>Priority</span>
                     <select

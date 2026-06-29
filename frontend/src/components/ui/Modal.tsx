@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { X } from "lucide-react";
 
@@ -42,6 +43,7 @@ export function Modal({
   const titleId = useId();
   const descId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!isOpen) {
@@ -102,11 +104,14 @@ export function Modal({
   }
 
   return createPortal(
-    <div
+    <motion.div
       className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-ink/40 px-4 py-6 sm:py-8"
+      initial={reduceMotion ? false : { opacity: 0 }}
+      animate={reduceMotion ? undefined : { opacity: 1 }}
+      transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
       onMouseDown={handleBackdropClick}
     >
-      <div
+      <motion.div
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         aria-modal="true"
@@ -114,6 +119,9 @@ export function Modal({
           "max-h-full w-full animate-scale-in overflow-y-auto rounded-2xl border border-line bg-surface shadow-elev-2 outline-none",
           sizes[size],
         )}
+        initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+        animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
@@ -141,8 +149,8 @@ export function Modal({
           />
         </div>
         <div className="px-4 py-5 sm:p-6">{children}</div>
-      </div>
-    </div>,
+      </motion.div>
+    </motion.div>,
     document.body,
   );
 }
