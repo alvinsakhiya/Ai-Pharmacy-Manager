@@ -1691,6 +1691,96 @@ describe("DosetteScreen", () => {
     ).toBeNull();
   });
 
+  it("disables advanced Mark checked until the prepared cycle has deducted stock", async () => {
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({
+        "blister.deduct": true,
+        "blister.mark_prepared": true,
+      }),
+    );
+
+    expect((await screen.findAllByText("MDS-2026-FW07")).length)
+      .toBeGreaterThan(0);
+    const preparedCycle = getCycleArticle("MDS-2026-FW07");
+    const markChecked = within(preparedCycle).getByRole("button", {
+      name: "Mark checked",
+    });
+
+    expect(markChecked).toBeDisabled();
+    expect(
+      within(preparedCycle).getByText(
+        "Deduct stock before marking this weekly cycle checked.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(preparedCycle).getByRole("button", { name: "Deduct stock" }),
+    ).toBeInTheDocument();
+    expect(updateCycleStatusMock).not.toHaveBeenCalled();
+    expect(deductDosetteStockMock).not.toHaveBeenCalled();
+  });
+
+  it("enables advanced Mark checked once the prepared cycle has deducted stock", async () => {
+    listDosetteCyclesMock.mockResolvedValueOnce([
+      makeCycle({
+        id: 41,
+        reference: "MDS-2026-DEDUCTED",
+        status: "PREPARED",
+        stock_deducted: true,
+        deducted_at: "2026-06-20T09:30:00Z",
+      }),
+    ]);
+
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.mark_prepared": true }),
+    );
+
+    expect((await screen.findAllByText("MDS-2026-DEDUCTED")).length)
+      .toBeGreaterThan(0);
+    const deductedCycle = getCycleArticle("MDS-2026-DEDUCTED");
+    const markChecked = within(deductedCycle).getByRole("button", {
+      name: "Mark checked",
+    });
+
+    expect(markChecked).toBeEnabled();
+    expect(
+      within(deductedCycle).queryByText(
+        "Deduct stock before marking this weekly cycle checked.",
+      ),
+    ).toBeNull();
+  });
+
+  it("advanced Mark checked after stock deduction calls the existing status action", async () => {
+    const user = userEvent.setup();
+    listDosetteCyclesMock.mockResolvedValueOnce([
+      makeCycle({
+        id: 41,
+        reference: "MDS-2026-DEDUCTED",
+        status: "PREPARED",
+        stock_deducted: true,
+        deducted_at: "2026-06-20T09:30:00Z",
+      }),
+    ]);
+
+    renderDosette(
+      "/patients/20/dosette",
+      dosetteAuth({ "blister.mark_prepared": true }),
+    );
+
+    expect((await screen.findAllByText("MDS-2026-DEDUCTED")).length)
+      .toBeGreaterThan(0);
+    const deductedCycle = getCycleArticle("MDS-2026-DEDUCTED");
+    await user.click(
+      within(deductedCycle).getByRole("button", { name: "Mark checked" }),
+    );
+
+    await waitFor(() => {
+      expect(updateCycleStatusMock).toHaveBeenCalledWith(20, 41, "CHECKED");
+    });
+    expect(deductDosetteStockMock).not.toHaveBeenCalled();
+  });
+
   it("shows deduct stock only with permission for prepared non-deducted cycles", async () => {
     listDosetteCyclesMock.mockResolvedValueOnce([
       makeCycle({ id: 40, reference: "MDS-2026-DRAFT", status: "DRAFT" }),

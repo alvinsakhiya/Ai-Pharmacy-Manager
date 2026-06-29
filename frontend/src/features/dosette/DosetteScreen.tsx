@@ -612,6 +612,8 @@ function collectionEventLabel(method: PatientCollectionMethod): "collection" | "
 
 const CHECKED_STOCK_REQUIRED_MESSAGE =
   "Deduct stock for all four weekly cycles before recording Checked.";
+const ADVANCED_CHECKED_STOCK_REQUIRED_MESSAGE =
+  "Deduct stock before marking this weekly cycle checked.";
 
 function collectionStockRequiredMessage(
   finalLabel: "Collected" | "Delivered",
@@ -1311,6 +1313,9 @@ function CycleCard({
     label: string,
   ) => void;
 }) {
+  const checkedBlockedByStock =
+    cycle.status === "PREPARED" && !cycle.stock_deducted;
+
   return (
     <article
       aria-label={`Cycle ${cycle.reference}`}
@@ -1367,14 +1372,21 @@ function CycleCard({
             </Button>
           ) : null}
           {canMarkPrepared && cycle.status === "PREPARED" ? (
-            <Button
-              disabled={isStatusPending}
-              onClick={() => onStatusChange(cycle, "CHECKED", "Checked")}
-              size="sm"
-              variant="secondary"
-            >
-              Mark checked
-            </Button>
+            <div className="flex max-w-56 flex-col gap-1">
+              <Button
+                disabled={isStatusPending || checkedBlockedByStock}
+                onClick={() => onStatusChange(cycle, "CHECKED", "Checked")}
+                size="sm"
+                variant="secondary"
+              >
+                Mark checked
+              </Button>
+              {checkedBlockedByStock ? (
+                <p className="text-xs font-medium leading-snug text-muted">
+                  {ADVANCED_CHECKED_STOCK_REQUIRED_MESSAGE}
+                </p>
+              ) : null}
+            </div>
           ) : null}
           {canDeduct && cycle.status === "PREPARED" && !cycle.stock_deducted ? (
             <Button onClick={() => onDeduct(cycle)} size="sm" variant="secondary">
