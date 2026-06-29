@@ -42,7 +42,7 @@ function NavItemLink({
             "group relative flex items-center gap-3.5 rounded-full px-4 py-3 text-[15px] font-semibold outline-none transition-all duration-200 ease-soft active:scale-[0.98]",
             "focus-visible:ring-2 focus-visible:ring-lilac focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
             isActive
-              ? "bg-gradient-lilac text-lilac-ink shadow-[0_8px_22px_-8px_rgba(201,182,246,0.7)] ring-1 ring-inset ring-white/40"
+              ? "bg-gradient-lilac text-lilac-ink shadow-[0_8px_22px_-8px_rgba(201,182,246,0.7)] ring-1 ring-inset ring-lilac"
               : "text-sidebar-text/80 hover:translate-x-1 hover:bg-sidebar-raised hover:text-white",
           )
         }
@@ -77,7 +77,7 @@ function NavItemLink({
                 className={cn(
                   "tnum ml-auto inline-flex min-w-6 shrink-0 animate-scale-in items-center justify-center rounded-full px-2 py-0.5 text-xs font-extrabold transition-colors duration-200",
                   isActive
-                    ? "bg-white/85 text-lilac-ink"
+                    ? "bg-surface text-lilac-ink"
                     : "bg-lilac text-lilac-ink shadow-[0_2px_12px_rgba(201,182,246,0.55)]",
                 )}
               >
@@ -118,14 +118,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const displayName = user ? user.full_name || user.email : "";
 
   return (
-    <aside className="relative isolate flex h-full w-full flex-col overflow-hidden bg-sidebar text-sidebar-text">
-      {/* Soft lilac aura at the top of the rail for depth — calm, on-brand,
-          pointer-transparent so it never interferes with the nav. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-48 bg-[radial-gradient(130%_80%_at_28%_-12%,rgba(124,92,214,0.24),transparent_72%)]"
-      />
-
+    <aside className="relative isolate flex h-full w-full flex-col overflow-hidden bg-[linear-gradient(180deg,#2f2846_0%,#2a2340_45%,#211c34_100%)] text-sidebar-text">
       <div className="group/brand flex animate-fade-in items-center gap-3 px-6 py-6">
         <span className="transition-transform duration-300 ease-soft group-hover/brand:scale-105">
           <Logo size={44} />
@@ -200,10 +193,10 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       {/* Profile + logout in the rail. */}
       {user ? (
         <div className="animate-slide-up space-y-2 border-t border-sidebar-line px-4 py-4">
-          <div className="flex items-center gap-3 rounded-2xl bg-sidebar-raised p-3 ring-1 ring-inset ring-white/5 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:bg-sidebar-line/70 hover:shadow-elev-2">
+          <div className="flex items-center gap-3 rounded-2xl bg-sidebar-raised p-3 ring-1 ring-inset ring-sidebar-line transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:bg-sidebar-line hover:shadow-elev-2">
             <span
               aria-hidden="true"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-lilac text-sm font-bold text-lilac-ink shadow-[0_4px_14px_-4px_rgba(201,182,246,0.7)] ring-2 ring-inset ring-white/30"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-lilac text-sm font-bold text-lilac-ink shadow-[0_4px_14px_-4px_rgba(201,182,246,0.7)] ring-2 ring-inset ring-lilac"
             >
               {initials(displayName)}
             </span>

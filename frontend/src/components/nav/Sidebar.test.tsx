@@ -88,6 +88,27 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: "Audit Log" })).toBeInTheDocument();
   });
 
+  it("uses a solid sidebar surface without glass effect utilities", () => {
+    renderSidebar(
+      makeUser({
+        permissions: {
+          "stock.view": true,
+          "user.manage": true,
+        },
+      }),
+    );
+
+    const sidebar = document.querySelector("aside");
+    expect(sidebar).toBeInTheDocument();
+    expect(sidebar?.className).toContain("bg-[linear-gradient");
+
+    const sidebarMarkup = sidebar?.outerHTML ?? "";
+    expect(sidebarMarkup).not.toContain("backdrop-blur");
+    expect(sidebarMarkup).not.toContain("bg-white/");
+    expect(sidebarMarkup).not.toContain("ring-white/");
+    expect(sidebarMarkup).not.toContain("radial-gradient");
+  });
+
   it("pharmacist with user.manage sees Dashboard and Users only", () => {
     renderSidebar(
       makeUser({
