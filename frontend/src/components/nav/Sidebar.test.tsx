@@ -95,6 +95,17 @@ describe("Sidebar", () => {
     expect(aside).toHaveTextContent("AI Pharmacy Manager");
     expect(aside).toHaveTextContent("Operational workspace");
     expect(screen.getByText("AI")).toHaveClass("text-lilac");
+    expect(aside?.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("does not render the full horizontal logo image as a sidebar slab", () => {
+    renderSidebar(makeUser({ permissions: { "stock.view": true } }));
+
+    const aside = document.querySelector("aside");
+    const sidebarMarkup = aside?.outerHTML ?? "";
+    expect(sidebarMarkup).not.toContain("ai-pharmacy-manager-logo-header");
+    expect(sidebarMarkup).not.toContain("white-bg");
+    expect(aside?.querySelector("img")).toBeNull();
   });
 
   it("uses a solid sidebar surface without glass effect utilities", () => {

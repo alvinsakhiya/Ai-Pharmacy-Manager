@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d8c7fb" />
+      <stop offset="1" stop-color="#b497f1" />
+    </linearGradient>
+    <clipPath id="cap">
+      <rect x="19.25" y="7.5" width="9.5" height="33" rx="4.75" />
+    </clipPath>
+  </defs>
+  <rect width="48" height="48" rx="13" fill="url(#tile)" />
+  <g fill="#2e2348">
+    <rect x="19.25" y="7.5" width="9.5" height="33" rx="4.75" />
+    <rect x="7.5" y="19.25" width="33" height="9.5" rx="4.75" />
+  </g>
+  <rect x="19.25" y="7.5" width="9.5" height="11.75" fill="#f8f3e8" clip-path="url(#cap)" />
+  <rect x="19.25" y="17.6" width="9.5" height="1.3" fill="#c9b6f6" clip-path="url(#cap)" />
+  <g stroke="#f8f3e8" stroke-width="1.1" stroke-linecap="round">
+    <line x1="24" y1="30.4" x2="21" y2="35.6" />
+    <line x1="24" y1="30.4" x2="27" y2="35.6" />
+  </g>
+  <g fill="#f8f3e8">
+    <circle cx="24" cy="30.1" r="1.7" />
+    <circle cx="21" cy="35.8" r="1.4" />
+    <circle cx="27" cy="35.8" r="1.4" />
+  </g>
+</svg>

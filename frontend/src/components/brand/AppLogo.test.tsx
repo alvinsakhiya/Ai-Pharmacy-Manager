@@ -5,14 +5,17 @@ import { AppLogo } from "./AppLogo";
 
 describe("AppLogo", () => {
   it("renders the icon variant as an accessible image", () => {
-    render(<AppLogo variant="icon" label="AI Pharmacy Manager" />);
+    const { container } = render(
+      <AppLogo variant="icon" label="AI Pharmacy Manager" />,
+    );
 
     expect(
       screen.getByRole("img", { name: "AI Pharmacy Manager" }),
     ).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("renders a decorative icon (aria-hidden, no image role) when asked", () => {
+  it("renders a decorative icon when asked", () => {
     const { container } = render(<AppLogo variant="icon" decorative />);
 
     expect(screen.queryByRole("img")).toBeNull();
@@ -22,18 +25,15 @@ describe("AppLogo", () => {
     );
   });
 
-  it("renders the full wordmark with a decorative mark and a lilac AI accent", () => {
+  it("renders a readable full brand lockup with real text", () => {
     const { container } = render(
       <AppLogo variant="full" tagline="Operational workspace" />,
     );
 
+    expect(screen.getByText("AI")).toHaveClass("text-lilac");
     expect(document.body).toHaveTextContent("AI Pharmacy Manager");
     expect(screen.getByText("Operational workspace")).toBeInTheDocument();
-
-    const accent = screen.getByText("AI");
-    expect(accent).toHaveClass("text-lilac");
-
-    // Mark is decorative when the wordmark carries the name.
+    expect(screen.queryByRole("img", { name: "AI Pharmacy Manager" })).toBeNull();
     expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
@@ -42,6 +42,16 @@ describe("AppLogo", () => {
 
     expect(document.body).toHaveTextContent("AI Pharmacy Manager");
     expect(screen.getByText("AI")).toHaveClass("text-brand");
+  });
+
+  it("does not use full horizontal uploaded logo images in the app lockup", () => {
+    const { container } = render(<AppLogo variant="full" />);
+    const markup = container.innerHTML;
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(markup).not.toContain("ai-pharmacy-manager-logo-header");
+    expect(markup).not.toContain("white-bg");
   });
 
   it("draws a solid mark with no glass/translucent utilities", () => {

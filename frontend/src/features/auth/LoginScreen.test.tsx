@@ -63,6 +63,9 @@ describe("LoginScreen", () => {
 
     expect(document.body).toHaveTextContent("AI Pharmacy Manager");
     expect(screen.getAllByText("AI").length).toBeGreaterThan(0);
+    expect(
+      document.querySelector('img[src*="ai-pharmacy-manager-logo-header"]'),
+    ).toBeNull();
   });
 
   it("uses solid brand panel surfaces and safe operational copy", () => {

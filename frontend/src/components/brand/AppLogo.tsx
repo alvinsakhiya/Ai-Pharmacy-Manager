@@ -8,7 +8,7 @@ type LogoTone = "onDark" | "onLight";
 interface AppLogoProps {
   /** icon = mark only · full = mark + stacked wordmark · compact = mark + inline wordmark */
   variant?: LogoVariant;
-  /** Surface the logo sits on, drives wordmark + accent contrast. */
+  /** Surface the logo sits on, drives text contrast. */
   tone?: LogoTone;
   /** Mark size in px (square). */
   size?: number;
@@ -16,20 +16,11 @@ interface AppLogoProps {
   tagline?: string;
   /** Accessible name when the mark stands alone; otherwise the mark is decorative. */
   label?: string;
-  /** Force the icon variant to be decorative (aria-hidden) when a wordmark is already shown nearby. */
+  /** Hide the icon from assistive tech when visible text already names the brand. */
   decorative?: boolean;
   className?: string;
 }
 
-/**
- * AI Pharmacy Manager brand mark.
- *
- * A lilac squircle holding a deep-plum medical cross whose top arm is a
- * cream pharmacy-capsule cap (the seam reads as a split pill), with a small
- * cream node graph on the lower arm hinting at intelligent software. Built
- * from solid hex fills only (no translucent/glass utilities) so it stays
- * crisp from 32px up and reads cleanly on both the dark rail and light cards.
- */
 function LogoMark({
   size = 44,
   decorative = true,
@@ -46,7 +37,7 @@ function LogoMark({
 
   return (
     <svg
-      className={cn("shrink-0", className)}
+      className={cn("block shrink-0 drop-shadow-sm", className)}
       width={size}
       height={size}
       viewBox="0 0 48 48"
@@ -73,22 +64,19 @@ function LogoMark({
         </clipPath>
       </defs>
 
-      {/* Squircle tile — solid lilac gradient (no translucency). */}
       <rect x="0" y="0" width="48" height="48" rx="13" fill={`url(#${tileId})`} />
 
-      {/* Medical cross — vertical arm doubles as the capsule body. */}
       <g fill="#2e2348">
         <rect x="19.25" y="7.5" width="9.5" height="33" rx="4.75" />
         <rect x="7.5" y="19.25" width="33" height="9.5" rx="4.75" />
       </g>
 
-      {/* Cream capsule cap on the top arm + lilac seam = the pharmacy pill. */}
       <rect
         x="19.25"
         y="7.5"
         width="9.5"
         height="11.75"
-        fill="#f6f2ff"
+        fill="#f8f3e8"
         clipPath={`url(#${capClipId})`}
       />
       <rect
@@ -100,12 +88,11 @@ function LogoMark({
         clipPath={`url(#${capClipId})`}
       />
 
-      {/* Node graph on the lower arm = intelligent software. */}
-      <g stroke="#f6f2ff" strokeWidth="1.1" strokeLinecap="round">
+      <g stroke="#f8f3e8" strokeWidth="1.1" strokeLinecap="round">
         <line x1="24" y1="30.4" x2="21" y2="35.6" />
         <line x1="24" y1="30.4" x2="27" y2="35.6" />
       </g>
-      <g fill="#f6f2ff">
+      <g fill="#f8f3e8">
         <circle cx="24" cy="30.1" r="1.7" />
         <circle cx="21" cy="35.8" r="1.4" />
         <circle cx="27" cy="35.8" r="1.4" />
@@ -125,13 +112,14 @@ function Wordmark({
 }) {
   const nameTone = tone === "onDark" ? "text-white" : "text-ink";
   const accentTone = tone === "onDark" ? "text-lilac" : "text-brand";
+  const metaTone = tone === "onDark" ? "text-sidebar-muted" : "text-muted";
 
   if (inline) {
     return (
       <span
         className={cn(
-          "text-[11px] font-bold uppercase tracking-[0.12em]",
-          tone === "onDark" ? "text-sidebar-text" : "text-muted",
+          "min-w-0 text-[13px] font-extrabold tracking-[-0.01em]",
+          nameTone,
         )}
       >
         <span className={accentTone}>AI</span> Pharmacy Manager
@@ -143,19 +131,14 @@ function Wordmark({
     <span className="min-w-0 leading-tight">
       <span
         className={cn(
-          "block truncate text-[15px] font-bold tracking-tight",
+          "block truncate text-[15px] font-extrabold tracking-[-0.015em]",
           nameTone,
         )}
       >
         <span className={accentTone}>AI</span> Pharmacy Manager
       </span>
       {tagline ? (
-        <span
-          className={cn(
-            "mt-0.5 block text-xs",
-            tone === "onDark" ? "text-sidebar-muted" : "text-muted",
-          )}
-        >
+        <span className={cn("mt-1 block truncate text-xs font-medium", metaTone)}>
           {tagline}
         </span>
       ) : null}
@@ -185,7 +168,7 @@ export function AppLogo({
 
   if (variant === "compact") {
     return (
-      <span className={cn("inline-flex items-center gap-2.5", className)}>
+      <span className={cn("inline-flex min-w-0 items-center gap-2.5", className)}>
         <LogoMark size={size ?? 36} />
         <Wordmark tone={tone} inline />
       </span>
@@ -193,7 +176,7 @@ export function AppLogo({
   }
 
   return (
-    <span className={cn("inline-flex items-center gap-3", className)}>
+    <span className={cn("inline-flex min-w-0 items-center gap-3", className)}>
       <LogoMark size={size ?? 44} />
       <Wordmark tone={tone} tagline={tagline} />
     </span>
