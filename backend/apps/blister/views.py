@@ -33,6 +33,7 @@ from .services import (
     InsufficientDosetteStock,
     InvalidDosetteCycleDates,
     deduct_dosette_stock,
+    plan_dosette_stock,
     record_dosette_period_collection,
     submit_dosette_period,
 )
@@ -313,9 +314,9 @@ class DosetteCyclePrepareView(APIView):
         patient = self._get_patient()
         cycle = self._get_cycle(request, patient)
 
-        if cycle.status != CycleStatus.DRAFT:
+        if cycle.status not in {CycleStatus.DRAFT, CycleStatus.NEEDS_CHANGES}:
             return Response(
-                {"detail": ["Only draft cycles can be prepared."]},
+                {"detail": ["Only draft or needs changes cycles can be prepared."]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -482,6 +483,17 @@ class DosetteCycleStatusView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if target == "NEEDS_CHANGES" and cycle.stock_deducted:
+            return Response(
+                {
+                    "detail": [
+                        "Stock has already been deducted for this cycle, so it "
+                        "cannot be marked as needs changes."
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         update_fields = ["status", "updated_at"]
         with transaction.atomic():
             cycle.status = target
@@ -489,6 +501,17 @@ class DosetteCycleStatusView(APIView):
                 cycle.checked_by = request.user
                 cycle.checked_at = timezone.now()
                 update_fields += ["checked_by", "checked_at"]
+            if target == "NEEDS_CHANGES":
+                cycle.prepared_by = None
+                cycle.prepared_at = None
+                cycle.checked_by = None
+                cycle.checked_at = None
+                update_fields += [
+                    "prepared_by",
+                    "prepared_at",
+                    "checked_by",
+                    "checked_at",
+                ]
             cycle.save(update_fields=update_fields)
             metadata = _cycle_audit_metadata(cycle)
             metadata["new_status"] = target
@@ -652,89 +675,55 @@ class StockPreviewView(APIView):
     def get(self, request, patient_pk, cycle_pk):
         patient = self._get_patient(request, patient_pk)
         cycle = self._get_cycle(request, patient, cycle_pk)
-        today = timezone.now().date()
-        totals = {
-            "required": 0,
-            "available": 0,
-            "shortage": 0,
-        }
         rows = []
 
         lines = (
             PatientMedication.scoped.for_user(request.user)
             .filter(patient=patient, is_active=True)
-            .select_related("medication")
+            .select_related(
+                "medication",
+                "medication__group",
+                "medication__catalogue_product",
+            )
             .order_by("medication__name", "id")
         )
-        for line in lines:
-            required_quantity = (
-                line.quantity_morning
-                + line.quantity_lunchtime
-                + line.quantity_evening
-                + line.quantity_bedtime
-            )
-            stock_item = (
-                StockItem.scoped.for_user(request.user)
-                .filter(
-                    pharmacy=patient.pharmacy,
-                    medication=line.medication,
-                )
-                .first()
-            )
-            batches = StockBatch.objects.none()
-            if stock_item is not None:
-                batches = (
-                    StockBatch.scoped.for_user(request.user)
-                    .filter(
-                        stock_item=stock_item,
-                        is_active=True,
-                        quantity__gt=0,
-                        expiry_date__gte=today,
-                    )
-                    .order_by("expiry_date", "id")
-                )
-
-            usable_batches = list(batches)
-            available_quantity = sum(batch.quantity for batch in usable_batches)
-            shortage_quantity = max(0, required_quantity - available_quantity)
-            remaining_required = required_quantity
-            suggested_batches = []
-
-            for batch in usable_batches:
-                quantity_to_pick = min(remaining_required, batch.quantity)
-                if quantity_to_pick > 0:
-                    suggested_batches.append(
-                        {
-                            "batch_id": batch.id,
-                            "batch_number": batch.batch_number,
-                            "expiry_date": batch.expiry_date,
-                            "quantity_available": batch.quantity,
-                            "quantity_to_pick": quantity_to_pick,
-                        }
-                    )
-                    remaining_required -= quantity_to_pick
-                if remaining_required <= 0:
-                    break
-
+        allocation_plan, _shortages, totals = plan_dosette_stock(
+            lines=lines,
+            pharmacy=patient.pharmacy,
+            stock_items=StockItem.scoped.for_user(request.user),
+            stock_batches=StockBatch.scoped.for_user(request.user),
+            quantity_multiplier=1,
+        )
+        for planned_line in allocation_plan:
+            line = planned_line.line
+            suggested_batches = [
+                {
+                    "batch_id": allocation.batch.id,
+                    "batch_number": allocation.batch.batch_number,
+                    "expiry_date": allocation.batch.expiry_date,
+                    "quantity_available": allocation.available_quantity,
+                    "quantity_to_pick": allocation.quantity,
+                }
+                for allocation in planned_line.allocations
+            ]
             rows.append(
                 {
                     "medication_id": line.medication_id,
                     "medication_name": line.medication.name,
                     "strength": line.medication.strength,
                     "form": line.medication.form,
-                    "required_quantity": required_quantity,
-                    "available_quantity": available_quantity,
-                    "shortage_quantity": shortage_quantity,
-                    "in_stock": shortage_quantity == 0,
+                    "required_quantity": planned_line.required_quantity,
+                    "available_quantity": planned_line.available_quantity,
+                    "shortage_quantity": planned_line.shortage_quantity,
+                    "in_stock": planned_line.shortage_quantity == 0,
                     "earliest_expiry": (
-                        usable_batches[0].expiry_date if usable_batches else None
+                        planned_line.allocations[0].batch.expiry_date
+                        if planned_line.allocations
+                        else None
                     ),
                     "suggested_batches": suggested_batches,
                 }
             )
-            totals["required"] += required_quantity
-            totals["available"] += available_quantity
-            totals["shortage"] += shortage_quantity
 
         data = {
             "cycle": {

@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.catalogue.models import Medication, MedicationForm
+from apps.catalogue.models import CatalogueProduct, Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem, StockMovement
 from apps.patients.models import Patient
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
@@ -75,6 +75,19 @@ def make_medication(
         name=name,
         form=MedicationForm.TABLET,
         strength=strength,
+    )
+
+
+def make_catalogue_product(
+    display_name: str = "Paracetamol 500mg tablets",
+) -> CatalogueProduct:
+    return CatalogueProduct.objects.create(
+        display_name=display_name,
+        ingredient="Paracetamol",
+        strength="500mg",
+        dose_form="tablet",
+        pack_size=100,
+        pack_unit="tablets",
     )
 
 
@@ -413,3 +426,186 @@ def test_stock_preview_fefo_suggested_batches_and_expiry(client, stock_preview_d
     ]
     assert "AML-EXPIRED" not in {batch["batch_number"] for batch in suggested_batches}
     assert available["available_quantity"] == 7
+
+
+@pytest.mark.django_db
+def test_stock_preview_matches_catalogue_line_to_legacy_inventory_stock(client):
+    group = Group.objects.create(name="Preview Match Group", slug="preview-match")
+    pharmacy = Pharmacy.objects.create(
+        group=group,
+        name="Preview Match Pharmacy",
+        code="PVM",
+    )
+    patient = make_patient(pharmacy, "PVM-P1")
+    cycle = make_cycle(patient, "PVM-CYCLE")
+    product = make_catalogue_product()
+    tray_medication = Medication.objects.create(
+        group=group,
+        catalogue_product=product,
+        name="Paracetamol 500mg tablets",
+        form=MedicationForm.TABLET,
+        strength="500mg",
+    )
+    legacy_stock_medication = make_medication(group, "Paracetamol", "500 mg")
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=tray_medication,
+        quantity_morning=1,
+    )
+    stock_item = make_stock_item(pharmacy, legacy_stock_medication)
+    batch = make_batch(
+        stock_item,
+        "PARA-PREVIEW",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=12,
+    )
+    pharmacist = make_user("preview-match-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.get(stock_preview_url(patient, cycle))
+
+    assert response.status_code == 200
+    paracetamol = rows_by_name(response)["Paracetamol 500mg tablets"]
+    assert paracetamol["required_quantity"] == 1
+    assert paracetamol["available_quantity"] == 12
+    assert paracetamol["shortage_quantity"] == 0
+    assert paracetamol["in_stock"] is True
+    assert paracetamol["suggested_batches"] == [
+        {
+            "batch_id": batch.id,
+            "batch_number": "PARA-PREVIEW",
+            "expiry_date": str(batch.expiry_date),
+            "quantity_available": 12,
+            "quantity_to_pick": 1,
+        }
+    ]
+
+
+@pytest.mark.django_db
+def test_stock_preview_reserves_shared_legacy_stock_across_lines(client):
+    group = Group.objects.create(
+        name="Preview Shared Stock Group",
+        slug="preview-shared-stock",
+    )
+    pharmacy = Pharmacy.objects.create(
+        group=group,
+        name="Preview Shared Stock Pharmacy",
+        code="PVS",
+    )
+    patient = make_patient(pharmacy, "PVS-P1")
+    cycle = make_cycle(patient, "PVS-CYCLE")
+    product = make_catalogue_product()
+    legacy_medication = make_medication(group, "Paracetamol", "500 mg")
+    catalogue_medication = Medication.objects.create(
+        group=group,
+        catalogue_product=product,
+        name="Paracetamol 500mg tablets",
+        form=MedicationForm.TABLET,
+        strength="500mg",
+    )
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=legacy_medication,
+        quantity_morning=1,
+    )
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=catalogue_medication,
+        quantity_morning=1,
+    )
+    stock_item = make_stock_item(pharmacy, legacy_medication)
+    batch = make_batch(
+        stock_item,
+        "PARA-PREVIEW-SHARED",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=1,
+    )
+    pharmacist = make_user("preview-shared-stock-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.get(stock_preview_url(patient, cycle))
+
+    assert response.status_code == 200
+    rows = rows_by_name(response)
+    assert rows["Paracetamol"]["available_quantity"] == 1
+    assert rows["Paracetamol"]["shortage_quantity"] == 0
+    assert rows["Paracetamol"]["suggested_batches"] == [
+        {
+            "batch_id": batch.id,
+            "batch_number": "PARA-PREVIEW-SHARED",
+            "expiry_date": str(batch.expiry_date),
+            "quantity_available": 1,
+            "quantity_to_pick": 1,
+        }
+    ]
+    assert rows["Paracetamol 500mg tablets"]["available_quantity"] == 0
+    assert rows["Paracetamol 500mg tablets"]["shortage_quantity"] == 1
+    assert rows["Paracetamol 500mg tablets"]["suggested_batches"] == []
+    assert response.json()["totals"]["shortage"] == 1
+
+
+@pytest.mark.django_db
+def test_ambiguous_legacy_stock_match_is_not_used_for_preview(client):
+    group = Group.objects.create(
+        name="Preview Ambiguous Group",
+        slug="preview-ambiguous",
+    )
+    pharmacy = Pharmacy.objects.create(
+        group=group,
+        name="Preview Ambiguous Pharmacy",
+        code="PVA",
+    )
+    patient = make_patient(pharmacy, "PVA-P1")
+    cycle = make_cycle(patient, "PVA-CYCLE")
+    product = CatalogueProduct.objects.create(
+        display_name="Paracetamol 500mg tablets",
+        amp_name="Paracetamol caplets",
+        ingredient="Paracetamol",
+        strength="500mg",
+        dose_form="tablet",
+    )
+    catalogue_medication = Medication.objects.create(
+        group=group,
+        catalogue_product=product,
+        name="Paracetamol 500mg tablets",
+        form=MedicationForm.TABLET,
+        strength="500mg",
+    )
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=catalogue_medication,
+        quantity_morning=1,
+    )
+    first_stock = make_stock_item(
+        pharmacy,
+        make_medication(group, "Paracetamol", "500 mg"),
+    )
+    second_stock = make_stock_item(
+        pharmacy,
+        make_medication(group, "Paracetamol caplets", "500 mg"),
+    )
+    make_batch(
+        first_stock,
+        "PARA-PREVIEW-AMB-1",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=20,
+    )
+    make_batch(
+        second_stock,
+        "PARA-PREVIEW-AMB-2",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=20,
+    )
+    pharmacist = make_user("preview-ambiguous-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.get(stock_preview_url(patient, cycle))
+
+    assert response.status_code == 200
+    paracetamol = rows_by_name(response)["Paracetamol 500mg tablets"]
+    assert paracetamol["available_quantity"] == 0
+    assert paracetamol["shortage_quantity"] == 1
+    assert paracetamol["suggested_batches"] == []

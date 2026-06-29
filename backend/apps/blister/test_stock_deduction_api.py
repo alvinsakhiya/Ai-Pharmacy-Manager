@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.audit.models import AuditAction, AuditEvent
-from apps.catalogue.models import Medication, MedicationForm
+from apps.catalogue.models import CatalogueProduct, Medication, MedicationForm
 from apps.inventory.models import MovementType, StockBatch, StockItem, StockMovement
 from apps.patients.models import Patient
 from apps.tenancy.models import Group, Membership, Pharmacy, Role
@@ -78,6 +78,19 @@ def make_medication(group: Group, name: str, strength: str = "5 mg") -> Medicati
         name=name,
         form=MedicationForm.TABLET,
         strength=strength,
+    )
+
+
+def make_catalogue_product(
+    display_name: str = "Paracetamol 500mg tablets",
+) -> CatalogueProduct:
+    return CatalogueProduct.objects.create(
+        display_name=display_name,
+        ingredient="Paracetamol",
+        strength="500mg",
+        dose_form="tablet",
+        pack_size=100,
+        pack_unit="tablets",
     )
 
 
@@ -386,6 +399,334 @@ def test_dosette_deduction_uses_fefo_even_when_earlier_expiry_received_later(
     later_expiry_batch.refresh_from_db()
     assert earlier_expiry_batch.quantity == 13
     assert later_expiry_batch.quantity == 20
+
+
+@pytest.mark.django_db
+def test_dosette_deduction_matches_catalogue_line_to_legacy_inventory_stock(
+    client,
+):
+    group = Group.objects.create(name="Catalogue Match Group", slug="cat-match")
+    pharmacy = Pharmacy.objects.create(
+        group=group,
+        name="Catalogue Match Pharmacy",
+        code="CAT",
+    )
+    patient = make_patient(pharmacy, "CAT-P1")
+    cycle = make_cycle(patient, "CAT-CYCLE")
+    product = make_catalogue_product()
+    tray_medication = Medication.objects.create(
+        group=group,
+        catalogue_product=product,
+        name="Paracetamol 500mg tablets",
+        form=MedicationForm.TABLET,
+        strength="500mg",
+    )
+    legacy_stock_medication = make_medication(group, "Paracetamol", "500 mg")
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=tray_medication,
+        quantity_morning=1,
+    )
+    stock_item = StockItem.objects.create(
+        pharmacy=pharmacy,
+        medication=legacy_stock_medication,
+    )
+    batch = make_batch(
+        stock_item,
+        "PARA-LEGACY",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=12,
+    )
+    pharmacist = make_user("catalogue-match-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.post(deduct_url(patient, cycle), {}, format="json")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["deductions"] == [
+        {
+            "medication_id": tray_medication.id,
+            "medication_name": "Paracetamol 500mg tablets",
+            "required_quantity": 7,
+            "movements": [
+                {
+                    "movement_id": data["deductions"][0]["movements"][0]["movement_id"],
+                    "batch_id": batch.id,
+                    "batch_number": "PARA-LEGACY",
+                    "expiry_date": str(batch.expiry_date),
+                    "quantity_deducted": 7,
+                    "balance_after": 5,
+                }
+            ],
+        }
+    ]
+    assert data["totals"] == {"required": 7, "deducted": 7}
+    batch.refresh_from_db()
+    assert batch.quantity == 5
+
+
+@pytest.mark.django_db
+def test_catalogue_line_to_legacy_inventory_match_still_reports_true_shortage(
+    client,
+):
+    group = Group.objects.create(name="Catalogue Short Group", slug="cat-short")
+    pharmacy = Pharmacy.objects.create(
+        group=group,
+        name="Catalogue Short Pharmacy",
+        code="CAS",
+    )
+    patient = make_patient(pharmacy, "CAS-P1")
+    cycle = make_cycle(patient, "CAS-CYCLE")
+    product = make_catalogue_product()
+    tray_medication = Medication.objects.create(
+        group=group,
+        catalogue_product=product,
+        name="Paracetamol 500mg tablets",
+        form=MedicationForm.TABLET,
+        strength="500mg",
+    )
+    legacy_stock_medication = make_medication(group, "Paracetamol", "500 mg")
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=tray_medication,
+        quantity_morning=1,
+    )
+    stock_item = StockItem.objects.create(
+        pharmacy=pharmacy,
+        medication=legacy_stock_medication,
+    )
+    short_batch = make_batch(
+        stock_item,
+        "PARA-SHORT",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=3,
+    )
+    expired_batch = make_batch(
+        stock_item,
+        "PARA-EXPIRED",
+        expiry_date=timezone.now().date() - timedelta(days=1),
+        quantity=20,
+    )
+    pharmacist = make_user("catalogue-short-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.post(deduct_url(patient, cycle), {}, format="json")
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Insufficient stock to deduct for this cycle.",
+        "shortages": [
+            {
+                "medication_id": tray_medication.id,
+                "medication_name": "Paracetamol 500mg tablets",
+                "required_quantity": 7,
+                "available_quantity": 3,
+                "shortage_quantity": 4,
+            }
+        ],
+    }
+    short_batch.refresh_from_db()
+    expired_batch.refresh_from_db()
+    assert short_batch.quantity == 3
+    assert expired_batch.quantity == 20
+    assert (
+        StockMovement.objects.filter(reference=movement_reference(cycle)).count() == 0
+    )
+
+
+@pytest.mark.django_db
+def test_dosette_deduction_reserves_shared_legacy_stock_before_mutating(client):
+    group = Group.objects.create(name="Shared Stock Group", slug="shared-stock")
+    pharmacy = Pharmacy.objects.create(
+        group=group,
+        name="Shared Stock Pharmacy",
+        code="SHR",
+    )
+    patient = make_patient(pharmacy, "SHR-P1")
+    cycle = make_cycle(patient, "SHR-CYCLE")
+    product = make_catalogue_product()
+    legacy_medication = make_medication(group, "Paracetamol", "500 mg")
+    catalogue_medication = Medication.objects.create(
+        group=group,
+        catalogue_product=product,
+        name="Paracetamol 500mg tablets",
+        form=MedicationForm.TABLET,
+        strength="500mg",
+    )
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=legacy_medication,
+        quantity_morning=1,
+    )
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=catalogue_medication,
+        quantity_morning=1,
+    )
+    stock_item = StockItem.objects.create(
+        pharmacy=pharmacy,
+        medication=legacy_medication,
+    )
+    batch = make_batch(
+        stock_item,
+        "PARA-SHARED",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=7,
+    )
+    pharmacist = make_user("shared-stock-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.post(deduct_url(patient, cycle), {}, format="json")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Insufficient stock to deduct for this cycle."
+    shortages = response.json()["shortages"]
+    assert sum(row["required_quantity"] for row in shortages) == 7
+    assert sum(row["available_quantity"] for row in shortages) == 0
+    assert sum(row["shortage_quantity"] for row in shortages) == 7
+    batch.refresh_from_db()
+    cycle.refresh_from_db()
+    assert batch.quantity == 7
+    assert cycle.stock_deducted is False
+    assert (
+        StockMovement.objects.filter(reference=movement_reference(cycle)).count() == 0
+    )
+
+
+@pytest.mark.django_db
+def test_dosette_deduction_allocates_shared_legacy_stock_once_when_enough(client):
+    group = Group.objects.create(
+        name="Shared Stock Enough Group",
+        slug="shared-stock-enough",
+    )
+    pharmacy = Pharmacy.objects.create(
+        group=group,
+        name="Shared Stock Enough Pharmacy",
+        code="SHE",
+    )
+    patient = make_patient(pharmacy, "SHE-P1")
+    cycle = make_cycle(patient, "SHE-CYCLE")
+    product = make_catalogue_product()
+    legacy_medication = make_medication(group, "Paracetamol", "500 mg")
+    catalogue_medication = Medication.objects.create(
+        group=group,
+        catalogue_product=product,
+        name="Paracetamol 500mg tablets",
+        form=MedicationForm.TABLET,
+        strength="500mg",
+    )
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=legacy_medication,
+        quantity_morning=1,
+    )
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=catalogue_medication,
+        quantity_morning=1,
+    )
+    stock_item = StockItem.objects.create(
+        pharmacy=pharmacy,
+        medication=legacy_medication,
+    )
+    batch = make_batch(
+        stock_item,
+        "PARA-SHARED-ENOUGH",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=14,
+    )
+    pharmacist = make_user("shared-stock-enough-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.post(deduct_url(patient, cycle), {}, format="json")
+
+    assert response.status_code == 200
+    assert response.json()["totals"] == {"required": 14, "deducted": 14}
+    batch.refresh_from_db()
+    cycle.refresh_from_db()
+    assert batch.quantity == 0
+    assert cycle.stock_deducted is True
+    movements = list(
+        StockMovement.objects.filter(reference=movement_reference(cycle)).order_by("id")
+    )
+    assert [movement.batch_id for movement in movements] == [batch.id, batch.id]
+    assert [movement.quantity_delta for movement in movements] == [-7, -7]
+    assert [movement.balance_after for movement in movements] == [7, 0]
+
+
+@pytest.mark.django_db
+def test_ambiguous_legacy_stock_match_is_not_used_for_deduction(client):
+    group = Group.objects.create(name="Ambiguous Stock Group", slug="ambiguous-stock")
+    pharmacy = Pharmacy.objects.create(
+        group=group,
+        name="Ambiguous Stock Pharmacy",
+        code="AMB",
+    )
+    patient = make_patient(pharmacy, "AMB-P1")
+    cycle = make_cycle(patient, "AMB-CYCLE")
+    product = CatalogueProduct.objects.create(
+        display_name="Paracetamol 500mg tablets",
+        amp_name="Paracetamol caplets",
+        ingredient="Paracetamol",
+        strength="500mg",
+        dose_form="tablet",
+    )
+    catalogue_medication = Medication.objects.create(
+        group=group,
+        catalogue_product=product,
+        name="Paracetamol 500mg tablets",
+        form=MedicationForm.TABLET,
+        strength="500mg",
+    )
+    PatientMedication.objects.create(
+        patient=patient,
+        medication=catalogue_medication,
+        quantity_morning=1,
+    )
+    first_stock = StockItem.objects.create(
+        pharmacy=pharmacy,
+        medication=make_medication(group, "Paracetamol", "500 mg"),
+    )
+    second_stock = StockItem.objects.create(
+        pharmacy=pharmacy,
+        medication=make_medication(group, "Paracetamol caplets", "500 mg"),
+    )
+    make_batch(
+        first_stock,
+        "PARA-AMB-1",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=20,
+    )
+    make_batch(
+        second_stock,
+        "PARA-AMB-2",
+        expiry_date=timezone.now().date() + timedelta(days=60),
+        quantity=20,
+    )
+    pharmacist = make_user("ambiguous-stock-pharmacist@example.com")
+    add_membership(pharmacist, Role.PHARMACIST, pharmacy=pharmacy)
+    authenticate(client, pharmacist)
+
+    response = client.post(deduct_url(patient, cycle), {}, format="json")
+
+    assert response.status_code == 400
+    assert response.json()["shortages"] == [
+        {
+            "medication_id": catalogue_medication.id,
+            "medication_name": "Paracetamol 500mg tablets",
+            "required_quantity": 7,
+            "available_quantity": 0,
+            "shortage_quantity": 7,
+        }
+    ]
+    assert (
+        StockMovement.objects.filter(reference=movement_reference(cycle)).count() == 0
+    )
 
 
 @pytest.mark.django_db

@@ -1,4 +1,5 @@
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.catalogue.models import Medication, MedicationForm
@@ -95,6 +96,104 @@ def test_checked_is_pharmacist_only_and_records_checker(client, workflow_data):
     assert body["status"] == CycleStatus.CHECKED
     assert body["checked_by_email"] == "bw-pharmacist@example.com"
     assert body["checked_at"] is not None
+
+
+@pytest.mark.django_db
+def test_needs_changes_clears_pack_accountability_and_can_be_prepared_again(
+    client,
+    workflow_data,
+):
+    patient = workflow_data["patient"]
+    cycle = make_cycle(patient, "NEEDS-1", status=CycleStatus.PREPARED)
+    authenticate(client, workflow_data["pharmacist"])
+
+    checked = client.post(
+        status_url(patient, cycle),
+        {"status": "CHECKED"},
+        format="json",
+    )
+    assert checked.status_code == 200
+    assert checked.json()["checked_by_email"] == "bw-pharmacist@example.com"
+
+    authenticate(client, workflow_data["dispenser"])
+    needs_changes = client.post(
+        status_url(patient, cycle),
+        {"status": "NEEDS_CHANGES"},
+        format="json",
+    )
+
+    assert needs_changes.status_code == 200
+    body = needs_changes.json()
+    assert body["status"] == CycleStatus.NEEDS_CHANGES
+    assert body["prepared_by_email"] is None
+    assert body["prepared_at"] is None
+    assert body["checked_by_email"] is None
+    assert body["checked_at"] is None
+
+    authenticate(client, workflow_data["pharmacist"])
+    prepared_again = client.post(prepare_url(patient, cycle))
+
+    assert prepared_again.status_code == 200
+    body = prepared_again.json()
+    assert body["status"] == CycleStatus.PREPARED
+    assert body["prepared_by_email"] == "bw-pharmacist@example.com"
+    assert body["prepared_at"] is not None
+
+
+@pytest.mark.django_db
+def test_prepared_cycle_without_stock_deduction_can_move_to_needs_changes(
+    client,
+    workflow_data,
+):
+    patient = workflow_data["patient"]
+    cycle = make_cycle(patient, "NEEDS-PREPARED", status=CycleStatus.PREPARED)
+    authenticate(client, workflow_data["dispenser"])
+
+    response = client.post(
+        status_url(patient, cycle),
+        {"status": "NEEDS_CHANGES"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == CycleStatus.NEEDS_CHANGES
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("cycle_status", [CycleStatus.PREPARED, CycleStatus.CHECKED])
+def test_stock_deducted_cycle_cannot_move_to_needs_changes(
+    client,
+    workflow_data,
+    cycle_status,
+):
+    patient = workflow_data["patient"]
+    cycle = make_cycle(
+        patient,
+        f"NEEDS-BLOCKED-{cycle_status}",
+        status=cycle_status,
+    )
+    cycle.stock_deducted = True
+    cycle.deducted_at = timezone.now()
+    cycle.save(update_fields=["stock_deducted", "deducted_at", "updated_at"])
+    authenticate(client, workflow_data["dispenser"])
+
+    response = client.post(
+        status_url(patient, cycle),
+        {"status": "NEEDS_CHANGES"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": [
+            "Stock has already been deducted for this cycle, so it cannot be "
+            "marked as needs changes."
+        ]
+    }
+    cycle.refresh_from_db()
+    assert cycle.status == cycle_status
+    assert cycle.stock_deducted is True
+    assert cycle.deducted_at is not None
 
 
 @pytest.mark.django_db

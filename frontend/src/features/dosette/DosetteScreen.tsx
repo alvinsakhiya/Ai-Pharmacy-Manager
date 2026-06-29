@@ -614,6 +614,10 @@ const CHECKED_STOCK_REQUIRED_MESSAGE =
   "Deduct stock for all four weekly cycles before recording Checked.";
 const ADVANCED_CHECKED_STOCK_REQUIRED_MESSAGE =
   "Deduct stock before marking this weekly cycle checked.";
+const NEEDS_CHANGES_HELPER_MESSAGE =
+  "Amend tray before checking. Prepare this weekly cycle again when changes are complete.";
+const NEEDS_CHANGES_STOCK_DEDUCTED_MESSAGE =
+  "Stock already deducted. Needs changes is unavailable for this cycle.";
 
 function collectionStockRequiredMessage(
   finalLabel: "Collected" | "Delivered",
@@ -1315,6 +1319,10 @@ function CycleCard({
 }) {
   const checkedBlockedByStock =
     cycle.status === "PREPARED" && !cycle.stock_deducted;
+  const needsChanges = cycle.status === "NEEDS_CHANGES";
+  const canShowNeedsChanges =
+    canMarkStatus && ["DRAFT", "PREPARED", "CHECKED"].includes(cycle.status);
+  const needsChangesBlockedByStock = canShowNeedsChanges && cycle.stock_deducted;
 
   return (
     <article
@@ -1351,6 +1359,11 @@ function CycleCard({
               Suggested preparation window: within 3 days. Human review required.
             </p>
           ) : null}
+          {needsChanges ? (
+            <p className="mt-2 text-xs font-semibold text-warning-ink">
+              {NEEDS_CHANGES_HELPER_MESSAGE}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2 xl:justify-end">
           <Button
@@ -1366,7 +1379,7 @@ function CycleCard({
               Edit
             </Button>
           ) : null}
-          {canMarkPrepared && cycle.status === "DRAFT" ? (
+          {canMarkPrepared && ["DRAFT", "NEEDS_CHANGES"].includes(cycle.status) ? (
             <Button onClick={() => onPrepare(cycle)} size="sm" variant="secondary">
               Prepare
             </Button>
@@ -1393,18 +1406,24 @@ function CycleCard({
               Deduct stock
             </Button>
           ) : null}
-          {canMarkStatus &&
-          ["DRAFT", "PREPARED", "CHECKED", "NEEDS_CHANGES"].includes(
-            cycle.status,
-          ) ? (
-            <Button
-              disabled={isStatusPending}
-              onClick={() => onStatusChange(cycle, "NEEDS_CHANGES", "Needs changes")}
-              size="sm"
-              variant="ghost"
-            >
-              Needs changes
-            </Button>
+          {canShowNeedsChanges ? (
+            <div className="flex max-w-56 flex-col gap-1">
+              <Button
+                disabled={isStatusPending || needsChangesBlockedByStock}
+                onClick={() =>
+                  onStatusChange(cycle, "NEEDS_CHANGES", "Needs changes")
+                }
+                size="sm"
+                variant="ghost"
+              >
+                Needs changes
+              </Button>
+              {needsChangesBlockedByStock ? (
+                <p className="text-xs font-medium leading-snug text-muted">
+                  {NEEDS_CHANGES_STOCK_DEDUCTED_MESSAGE}
+                </p>
+              ) : null}
+            </div>
           ) : null}
           {canManage && canCancelCycle(cycle) ? (
             <Button onClick={() => onCancel(cycle)} size="sm" variant="danger">

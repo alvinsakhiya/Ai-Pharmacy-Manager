@@ -552,7 +552,9 @@ def test_status_transition_guards(client, cycle_api_data):
     assert client.post(prepare_url(patient, draft_for_prepare)).status_code == 200
     prepare_blocked = client.post(prepare_url(patient, prepared_for_prepare))
     assert prepare_blocked.status_code == 400
-    assert prepare_blocked.json() == {"detail": ["Only draft cycles can be prepared."]}
+    assert prepare_blocked.json() == {
+        "detail": ["Only draft or needs changes cycles can be prepared."]
+    }
     assert client.post(cancel_url(patient, draft_for_cancel)).status_code == 200
     assert client.post(cancel_url(patient, prepared_for_cancel)).status_code == 200
     cancelled_blocked = client.post(cancel_url(patient, cancelled_for_cancel))

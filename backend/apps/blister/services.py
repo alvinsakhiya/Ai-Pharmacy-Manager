@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -7,6 +8,7 @@ from django.utils import timezone
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record
+from apps.catalogue.models import MedicationForm
 from apps.inventory.models import MovementType, StockBatch, StockItem, StockMovement
 
 from .models import (
@@ -23,12 +25,15 @@ from .models import (
 class BatchAllocation:
     batch: StockBatch
     quantity: int
+    available_quantity: int
 
 
 @dataclass(frozen=True)
 class LineAllocation:
     line: PatientMedication
     required_quantity: int
+    available_quantity: int
+    shortage_quantity: int
     allocations: list[BatchAllocation]
 
 
@@ -92,6 +97,202 @@ def _line_daily_required(line: PatientMedication) -> int:
         + line.quantity_evening
         + line.quantity_bedtime
     )
+
+
+def _normalise_stock_match_text(value: str | None) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").casefold())
+
+
+_PRODUCT_FORM_KEYWORDS = {
+    MedicationForm.TABLET: ("tablet", "caplet", "dispersible"),
+    MedicationForm.CAPSULE: ("capsule",),
+    MedicationForm.LIQUID: ("liquid", "solution", "suspension", "oral suspension"),
+    MedicationForm.CREAM: ("cream", "ointment", "gel"),
+    MedicationForm.INHALER: ("inhaler",),
+    MedicationForm.INJECTION: ("injection", "injectable"),
+}
+
+
+def _medication_matches_catalogue_product(medication, product) -> bool:
+    if product is None:
+        return False
+
+    medication_name = _normalise_stock_match_text(medication.name)
+    product_names = {
+        _normalise_stock_match_text(product.display_name),
+        _normalise_stock_match_text(product.vmp_name),
+        _normalise_stock_match_text(product.amp_name),
+        _normalise_stock_match_text(product.ingredient),
+    }
+    product_names.discard("")
+    if medication_name not in product_names:
+        return False
+
+    if _normalise_stock_match_text(medication.strength) != _normalise_stock_match_text(
+        product.strength
+    ):
+        return False
+
+    dose_form = (product.dose_form or "").casefold()
+    if not dose_form:
+        return False
+
+    keywords = _PRODUCT_FORM_KEYWORDS.get(medication.form, ())
+    return any(keyword in dose_form for keyword in keywords)
+
+
+def _unique_stock_item(items: list[StockItem]) -> StockItem | None:
+    if len(items) != 1:
+        return None
+    return items[0]
+
+
+def stock_item_for_medication_line(*, stock_items, pharmacy, line) -> StockItem | None:
+    exact_match = (
+        stock_items.filter(pharmacy=pharmacy, medication=line.medication)
+        .select_related("medication", "medication__catalogue_product")
+        .first()
+    )
+    if exact_match is not None:
+        return exact_match
+
+    catalogue_product_id = line.medication.catalogue_product_id
+    if catalogue_product_id is not None:
+        same_product = list(
+            stock_items.filter(
+                pharmacy=pharmacy,
+                medication__group=line.medication.group,
+                medication__catalogue_product_id=catalogue_product_id,
+            )
+            .select_related("medication", "medication__catalogue_product")
+            .order_by("id")[:2]
+        )
+        product_match = _unique_stock_item(same_product)
+        if product_match is not None:
+            return product_match
+
+        product = line.medication.catalogue_product
+        legacy_candidates = [
+            stock_item
+            for stock_item in stock_items.filter(
+                pharmacy=pharmacy,
+                medication__group=line.medication.group,
+                medication__catalogue_product__isnull=True,
+            )
+            .select_related("medication")
+            .order_by("id")
+            if _medication_matches_catalogue_product(stock_item.medication, product)
+        ]
+        return _unique_stock_item(legacy_candidates)
+
+    reverse_product_candidates = [
+        stock_item
+        for stock_item in stock_items.filter(
+            pharmacy=pharmacy,
+            medication__group=line.medication.group,
+            medication__catalogue_product__isnull=False,
+        )
+        .select_related("medication", "medication__catalogue_product")
+        .order_by("id")
+        if _medication_matches_catalogue_product(
+            line.medication,
+            stock_item.medication.catalogue_product,
+        )
+    ]
+    return _unique_stock_item(reverse_product_candidates)
+
+
+def plan_dosette_stock(
+    *,
+    lines,
+    pharmacy,
+    stock_items,
+    stock_batches,
+    quantity_multiplier: int,
+    today: date | None = None,
+) -> tuple[list[LineAllocation], list[dict[str, object]], dict[str, int]]:
+    plan_date = today or timezone.now().date()
+    reservations_by_batch_id: dict[int, int] = {}
+    allocation_plan: list[LineAllocation] = []
+    shortages = []
+    totals = {"required": 0, "available": 0, "shortage": 0}
+
+    for line in lines:
+        required_quantity = _line_daily_required(line) * quantity_multiplier
+        if required_quantity <= 0:
+            continue
+
+        totals["required"] += required_quantity
+        stock_item = stock_item_for_medication_line(
+            stock_items=stock_items,
+            pharmacy=pharmacy,
+            line=line,
+        )
+        batches = []
+        if stock_item is not None:
+            batches = list(
+                stock_batches.filter(
+                    stock_item=stock_item,
+                    is_active=True,
+                    quantity__gt=0,
+                    expiry_date__gte=plan_date,
+                ).order_by("expiry_date", "id")
+            )
+
+        available_quantity = sum(
+            max(0, batch.quantity - reservations_by_batch_id.get(batch.id, 0))
+            for batch in batches
+        )
+        totals["available"] += available_quantity
+
+        remaining_required = required_quantity
+        allocations: list[BatchAllocation] = []
+        for batch in batches:
+            available_in_batch = max(
+                0,
+                batch.quantity - reservations_by_batch_id.get(batch.id, 0),
+            )
+            allocated_quantity = min(remaining_required, available_in_batch)
+            if allocated_quantity <= 0:
+                continue
+            allocations.append(
+                BatchAllocation(
+                    batch=batch,
+                    quantity=allocated_quantity,
+                    available_quantity=available_in_batch,
+                )
+            )
+            reservations_by_batch_id[batch.id] = (
+                reservations_by_batch_id.get(batch.id, 0) + allocated_quantity
+            )
+            remaining_required -= allocated_quantity
+            if remaining_required <= 0:
+                break
+
+        shortage_quantity = max(0, required_quantity - available_quantity)
+        totals["shortage"] += shortage_quantity
+        if shortage_quantity > 0:
+            shortages.append(
+                {
+                    "medication_id": line.medication_id,
+                    "medication_name": line.medication.name,
+                    "required_quantity": required_quantity,
+                    "available_quantity": available_quantity,
+                    "shortage_quantity": shortage_quantity,
+                }
+            )
+
+        allocation_plan.append(
+            LineAllocation(
+                line=line,
+                required_quantity=required_quantity,
+                available_quantity=available_quantity,
+                shortage_quantity=shortage_quantity,
+                allocations=allocations,
+            )
+        )
+
+    return allocation_plan, shortages, totals
 
 
 def _period_audit_metadata(period: DosettePeriod) -> dict[str, object]:
@@ -277,70 +478,21 @@ def deduct_dosette_stock(*, actor, cycle, request=None) -> dict[str, Any]:
 
         lines = (
             PatientMedication.objects.filter(patient=cycle.patient, is_active=True)
-            .select_related("medication")
+            .select_related(
+                "medication",
+                "medication__group",
+                "medication__catalogue_product",
+            )
             .order_by("medication__name", "id")
         )
-        today = timezone.now().date()
-        shortages = []
-        allocation_plan: list[LineAllocation] = []
-        totals = {"required": 0, "deducted": 0}
-
-        for line in lines:
-            required_quantity = _line_daily_required(line) * cycle_days
-            if required_quantity <= 0:
-                continue
-
-            totals["required"] += required_quantity
-            stock_item = StockItem.objects.filter(
-                pharmacy=cycle.patient.pharmacy,
-                medication=line.medication,
-            ).first()
-            batches = []
-            if stock_item is not None:
-                batches = list(
-                    StockBatch.objects.select_for_update()
-                    .filter(
-                        stock_item=stock_item,
-                        is_active=True,
-                        quantity__gt=0,
-                        expiry_date__gte=today,
-                    )
-                    .order_by("expiry_date", "id")
-                )
-
-            available_quantity = sum(batch.quantity for batch in batches)
-            if available_quantity < required_quantity:
-                shortages.append(
-                    {
-                        "medication_id": line.medication_id,
-                        "medication_name": line.medication.name,
-                        "required_quantity": required_quantity,
-                        "available_quantity": available_quantity,
-                        "shortage_quantity": required_quantity - available_quantity,
-                    }
-                )
-                continue
-
-            remaining_required = required_quantity
-            allocations: list[BatchAllocation] = []
-            for batch in batches:
-                allocated_quantity = min(remaining_required, batch.quantity)
-                if allocated_quantity <= 0:
-                    continue
-                allocations.append(
-                    BatchAllocation(batch=batch, quantity=allocated_quantity)
-                )
-                remaining_required -= allocated_quantity
-                if remaining_required <= 0:
-                    break
-
-            allocation_plan.append(
-                LineAllocation(
-                    line=line,
-                    required_quantity=required_quantity,
-                    allocations=allocations,
-                )
-            )
+        allocation_plan, shortages, plan_totals = plan_dosette_stock(
+            lines=lines,
+            pharmacy=cycle.patient.pharmacy,
+            stock_items=StockItem.objects.all(),
+            stock_batches=StockBatch.objects.select_for_update(),
+            quantity_multiplier=cycle_days,
+        )
+        totals = {"required": plan_totals["required"], "deducted": 0}
 
         if shortages:
             raise InsufficientDosetteStock(shortages=shortages)
@@ -348,6 +500,7 @@ def deduct_dosette_stock(*, actor, cycle, request=None) -> dict[str, Any]:
         deductions = []
         audit_lines = []
         reference = f"dosette-cycle:{cycle.id}"
+        balances_by_batch_id: dict[int, int] = {}
 
         for planned_line in allocation_plan:
             movements = []
@@ -356,8 +509,10 @@ def deduct_dosette_stock(*, actor, cycle, request=None) -> dict[str, Any]:
             for allocation in planned_line.allocations:
                 batch = allocation.batch
                 allocated_quantity = allocation.quantity
-                batch.quantity -= allocated_quantity
+                current_balance = balances_by_batch_id.get(batch.id, batch.quantity)
+                batch.quantity = current_balance - allocated_quantity
                 batch.save(update_fields=["quantity", "updated_at"])
+                balances_by_batch_id[batch.id] = batch.quantity
 
                 movement = StockMovement.objects.create(
                     stock_item=batch.stock_item,
