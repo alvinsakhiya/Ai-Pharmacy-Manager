@@ -140,4 +140,14 @@ describe("TopBar", () => {
       await screen.findByRole("button", { name: "Open notification centre" }),
     ).toBeInTheDocument();
   });
+
+  it("does not render command search or the account chip", () => {
+    renderTopBar();
+
+    expect(
+      screen.queryByRole("button", { name: "Open command menu" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Admin User")).not.toBeInTheDocument();
+    expect(screen.queryByText("⌘K")).not.toBeInTheDocument();
+  });
 });

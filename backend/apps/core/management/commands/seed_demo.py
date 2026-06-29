@@ -5,7 +5,7 @@ This command is for development/demo use only. It creates fictional
 tests, and does not create real patient, NHS, customer, or movement data.
 """
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import NamedTuple, cast
 
@@ -18,6 +18,8 @@ from apps.blister.models import (
     CycleFrequency,
     CycleStatus,
     DosetteCycle,
+    DosettePeriod,
+    DosettePeriodStatus,
     PatientMedication,
 )
 from apps.catalogue.models import Medication, MedicationForm
@@ -36,14 +38,30 @@ PHARMACIES = [
     {"name": "JMW Wimbledon", "code": "WIM"},
 ]
 
-MEDICATIONS = [
-    {"name": "Paracetamol", "form": MedicationForm.TABLET, "strength": "500 mg"},
-    {"name": "Ibuprofen", "form": MedicationForm.TABLET, "strength": "200 mg"},
-    {"name": "Amlodipine", "form": MedicationForm.TABLET, "strength": "5 mg"},
-    {"name": "Metformin", "form": MedicationForm.TABLET, "strength": "500 mg"},
+MEDICATIONS: list[dict[str, str]] = [
+    {
+        "name": "Paracetamol",
+        "form": cast(str, MedicationForm.TABLET),
+        "strength": "500 mg",
+    },
+    {
+        "name": "Ibuprofen",
+        "form": cast(str, MedicationForm.TABLET),
+        "strength": "200 mg",
+    },
+    {
+        "name": "Amlodipine",
+        "form": cast(str, MedicationForm.TABLET),
+        "strength": "5 mg",
+    },
+    {
+        "name": "Metformin",
+        "form": cast(str, MedicationForm.TABLET),
+        "strength": "500 mg",
+    },
     {
         "name": "Salbutamol",
-        "form": MedicationForm.INHALER,
+        "form": cast(str, MedicationForm.INHALER),
         "strength": "100 micrograms/dose",
     },
 ]
@@ -53,6 +71,8 @@ CYCLE_DRAFT_START = date(2026, 6, 22)
 CYCLE_DRAFT_END = date(2026, 6, 28)
 CYCLE_PREPARED_START = date(2026, 6, 1)
 CYCLE_PREPARED_END = date(2026, 6, 28)
+PERIOD_START = date(2026, 6, 1)
+PERIOD_END = date(2026, 6, 28)
 MEDICATION_DISCONTINUED_AT = date(2026, 6, 15)
 
 
@@ -87,75 +107,143 @@ class DemoDosetteCycle(NamedTuple):
     start_date: date
     end_date: date
     status: str
+    week_number: int | None = None
+    stock_deducted: bool = False
 
+
+MEDICATION_PRICE = {
+    "Paracetamol": Decimal("0.03"),
+    "Ibuprofen": Decimal("0.04"),
+    "Amlodipine": Decimal("0.06"),
+    "Metformin": Decimal("0.08"),
+    "Salbutamol": Decimal("1.85"),
+}
+
+MEDICATION_BATCH_CODE = {
+    "Paracetamol": "PAR",
+    "Ibuprofen": "IBU",
+    "Amlodipine": "AML",
+    "Metformin": "MET",
+    "Salbutamol": "SAL",
+}
 
 STOCK_ITEMS = [
     DemoStockItem(
-        "SUT",
-        "Paracetamol",
-        Decimal("0.03"),
+        pharmacy_code,
+        medication["name"],
+        MEDICATION_PRICE[medication["name"]],
         (
-            DemoStockBatch("SUT-PAR-001", date(2027, 1, 31), 120, 150),
-            DemoStockBatch("SUT-PAR-002", date(2027, 6, 30), 80, 100),
+            DemoStockBatch(
+                f"{pharmacy_code}-{MEDICATION_BATCH_CODE[medication['name']]}-001",
+                date(2027 + index % 2, (index % 12) + 1, 28),
+                80 + index * 5,
+                100 + index * 5,
+            ),
         ),
-    ),
-    DemoStockItem(
-        "SUT",
-        "Ibuprofen",
-        Decimal("0.04"),
-        (DemoStockBatch("SUT-IBU-001", date(2027, 3, 31), 90, 100),),
-    ),
-    DemoStockItem(
-        "SUT",
-        "Amlodipine",
-        Decimal("0.06"),
-        (DemoStockBatch("SUT-AML-001", date(2028, 2, 29), 60, 60),),
-    ),
-    DemoStockItem(
-        "CRO",
-        "Paracetamol",
-        Decimal("0.03"),
-        (DemoStockBatch("CRO-PAR-001", date(2027, 2, 28), 110, 120),),
-    ),
-    DemoStockItem(
-        "CRO",
-        "Ibuprofen",
-        Decimal("0.04"),
-        (DemoStockBatch("CRO-IBU-001", date(2027, 4, 30), 75, 80),),
-    ),
-    DemoStockItem(
-        "CRO",
-        "Amlodipine",
-        Decimal("0.06"),
-        (DemoStockBatch("CRO-AML-001", date(2028, 1, 31), 55, 60),),
-    ),
+    )
+    for pharmacy_code in ("SUT", "CRO", "WIM")
+    for index, medication in enumerate(MEDICATIONS, start=1)
 ]
 
 PATIENT_MEDICATION_LINES = [
     DemoPatientMedication("SUT-P1", "Paracetamol", 1, 0, 0, 1),
     DemoPatientMedication("SUT-P1", "Metformin", 1, 0, 1, 0),
+    DemoPatientMedication("SUT-P2", "Amlodipine", 1, 0, 0, 0),
     DemoPatientMedication("SUT-P2", "Salbutamol", 0, 0, 0, 0),
+    DemoPatientMedication("SUT-P3", "Metformin", 1, 0, 1, 0),
+    DemoPatientMedication("SUT-P3", "Ibuprofen", 0, 1, 0, 1),
+    DemoPatientMedication("SUT-P4", "Paracetamol", 1, 1, 0, 1),
+    DemoPatientMedication("SUT-P4", "Amlodipine", 1, 0, 0, 0),
     DemoPatientMedication("CRO-P1", "Ibuprofen", 0, 1, 1, 0),
     DemoPatientMedication("CRO-P1", "Amlodipine", 1, 0, 0, 0, is_active=False),
+    DemoPatientMedication("CRO-P2", "Paracetamol", 1, 0, 1, 0),
+    DemoPatientMedication("CRO-P2", "Metformin", 1, 0, 1, 0),
+    DemoPatientMedication("CRO-P3", "Amlodipine", 1, 0, 0, 0),
+    DemoPatientMedication("CRO-P3", "Salbutamol", 0, 0, 0, 0),
+    DemoPatientMedication("WIM-P1", "Paracetamol", 1, 0, 0, 1),
+    DemoPatientMedication("WIM-P1", "Ibuprofen", 0, 1, 0, 1),
+    DemoPatientMedication("WIM-P2", "Metformin", 1, 0, 1, 0),
+    DemoPatientMedication("WIM-P2", "Amlodipine", 1, 0, 0, 0),
+    DemoPatientMedication("WIM-P3", "Paracetamol", 1, 1, 1, 0),
+    DemoPatientMedication("WIM-P3", "Salbutamol", 0, 0, 0, 0),
 ]
+
+DOSETTE_PATIENT_STATUSES = {
+    "SUT-P1": (
+        CycleStatus.CHECKED,
+        CycleStatus.CHECKED,
+        CycleStatus.PREPARED,
+        CycleStatus.PREPARED,
+    ),
+    "SUT-P2": (
+        CycleStatus.PREPARED,
+        CycleStatus.NEEDS_CHANGES,
+        CycleStatus.DRAFT,
+        CycleStatus.DRAFT,
+    ),
+    "SUT-P3": (
+        CycleStatus.CHECKED,
+        CycleStatus.PREPARED,
+        CycleStatus.PREPARED,
+        CycleStatus.DRAFT,
+    ),
+    "SUT-P4": (
+        CycleStatus.PREPARED,
+        CycleStatus.PREPARED,
+        CycleStatus.DRAFT,
+        CycleStatus.DRAFT,
+    ),
+    "CRO-P1": (
+        CycleStatus.CHECKED,
+        CycleStatus.CHECKED,
+        CycleStatus.CHECKED,
+        CycleStatus.PREPARED,
+    ),
+    "CRO-P2": (
+        CycleStatus.PREPARED,
+        CycleStatus.NEEDS_CHANGES,
+        CycleStatus.DRAFT,
+        CycleStatus.DRAFT,
+    ),
+    "CRO-P3": (
+        CycleStatus.PREPARED,
+        CycleStatus.PREPARED,
+        CycleStatus.PREPARED,
+        CycleStatus.DRAFT,
+    ),
+    "WIM-P1": (
+        CycleStatus.CHECKED,
+        CycleStatus.PREPARED,
+        CycleStatus.PREPARED,
+        CycleStatus.DRAFT,
+    ),
+    "WIM-P2": (
+        CycleStatus.PREPARED,
+        CycleStatus.PREPARED,
+        CycleStatus.NEEDS_CHANGES,
+        CycleStatus.DRAFT,
+    ),
+    "WIM-P3": (
+        CycleStatus.CHECKED,
+        CycleStatus.CHECKED,
+        CycleStatus.PREPARED,
+        CycleStatus.DRAFT,
+    ),
+}
 
 DOSETTE_CYCLES = [
     DemoDosetteCycle(
-        "SUT-P1",
-        "MDS-2026-W26",
+        patient_reference,
+        f"{patient_reference}-MDS-2026-W{week_number:02d}",
         cast(str, CycleFrequency.WEEKLY),
-        CYCLE_DRAFT_START,
-        CYCLE_DRAFT_END,
-        cast(str, CycleStatus.DRAFT),
-    ),
-    DemoDosetteCycle(
-        "CRO-P1",
-        "MDS-2026-FW07",
-        cast(str, CycleFrequency.FOUR_WEEKLY),
-        CYCLE_PREPARED_START,
-        CYCLE_PREPARED_END,
-        cast(str, CycleStatus.PREPARED),
-    ),
+        PERIOD_START + timedelta(days=(week_number - 1) * 7),
+        PERIOD_START + timedelta(days=week_number * 7 - 1),
+        cast(str, status),
+        week_number,
+        status == CycleStatus.CHECKED,
+    )
+    for patient_reference, statuses in DOSETTE_PATIENT_STATUSES.items()
+    for week_number, status in enumerate(statuses, start=1)
 ]
 
 
@@ -169,6 +257,7 @@ class DemoPatient(NamedTuple):
     postcode: str
     phone: str
     notes: str
+    collection_method: str
 
 
 DEMO_PATIENTS = [
@@ -182,6 +271,7 @@ DEMO_PATIENTS = [
         "SM1 1AA",
         "020 0000 0001",
         "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.IN_STORE),
     ),
     DemoPatient(
         "SUT",
@@ -193,28 +283,103 @@ DEMO_PATIENTS = [
         "SM1 1AB",
         "020 0000 0002",
         "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.DELIVERY),
+    ),
+    DemoPatient(
+        "SUT",
+        "SUT-P3",
+        "Demo",
+        "PatientThree",
+        date(1949, 11, 4),
+        "3 Demo Street, Sutton",
+        "SM1 1AC",
+        "020 0000 0003",
+        "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.IN_STORE),
+    ),
+    DemoPatient(
+        "SUT",
+        "SUT-P4",
+        "Demo",
+        "PatientFour",
+        date(1961, 7, 18),
+        "4 Demo Street, Sutton",
+        "SM1 1AD",
+        "020 0000 0004",
+        "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.DELIVERY),
     ),
     DemoPatient(
         "CRO",
         "CRO-P1",
         "Demo",
-        "PatientThree",
+        "PatientFive",
         date(1990, 9, 23),
         "3 Demo Road, Croydon",
         "CR0 1AA",
-        "020 0000 0003",
+        "020 0000 0005",
         "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.IN_STORE),
     ),
     DemoPatient(
         "CRO",
         "CRO-P2",
         "Demo",
-        "PatientFour",
+        "PatientSix",
         date(1968, 3, 14),
         "4 Demo Road, Croydon",
         "CR0 1AB",
-        "020 0000 0004",
+        "020 0000 0006",
         "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.DELIVERY),
+    ),
+    DemoPatient(
+        "CRO",
+        "CRO-P3",
+        "Demo",
+        "PatientSeven",
+        date(1955, 12, 2),
+        "5 Demo Road, Croydon",
+        "CR0 1AC",
+        "020 0000 0007",
+        "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.IN_STORE),
+    ),
+    DemoPatient(
+        "WIM",
+        "WIM-P1",
+        "Demo",
+        "PatientEight",
+        date(1972, 6, 30),
+        "1 Demo Avenue, Wimbledon",
+        "SW19 1AA",
+        "020 0000 0008",
+        "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.DELIVERY),
+    ),
+    DemoPatient(
+        "WIM",
+        "WIM-P2",
+        "Demo",
+        "PatientNine",
+        date(1986, 10, 9),
+        "2 Demo Avenue, Wimbledon",
+        "SW19 1AB",
+        "020 0000 0009",
+        "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.IN_STORE),
+    ),
+    DemoPatient(
+        "WIM",
+        "WIM-P3",
+        "Demo",
+        "PatientTen",
+        date(1945, 4, 21),
+        "3 Demo Avenue, Wimbledon",
+        "SW19 1AC",
+        "020 0000 0010",
+        "Fictional local demo patient.",
+        cast(str, Patient.CollectionMethod.DELIVERY),
     ),
 ]
 
@@ -238,6 +403,7 @@ DEMO_USERS = [
     DemoUser("dispenser@demo.local", "Demo Dispenser", "DISPENSER", "CRO"),
     DemoUser("stock@demo.local", "Demo Stock Employee", "STOCK_EMPLOYEE", None),
 ]
+DEMO_EMAILS = [user.email for user in DEMO_USERS]
 
 
 class Command(BaseCommand):
@@ -390,6 +556,7 @@ class Command(BaseCommand):
                         "postcode": patient_data.postcode,
                         "phone": patient_data.phone,
                         "notes": patient_data.notes,
+                        "collection_method": patient_data.collection_method,
                         "is_active": True,
                     },
                 )
@@ -400,6 +567,7 @@ class Command(BaseCommand):
                 patient.postcode = patient_data.postcode
                 patient.phone = patient_data.phone
                 patient.notes = patient_data.notes
+                patient.collection_method = patient_data.collection_method
                 patient.is_active = True
                 patient.save(
                     update_fields=[
@@ -410,6 +578,7 @@ class Command(BaseCommand):
                         "postcode",
                         "phone",
                         "notes",
+                        "collection_method",
                         "is_active",
                         "updated_at",
                     ]
@@ -443,16 +612,43 @@ class Command(BaseCommand):
                 )
                 patient_medication_statuses.append((line, created))
 
+            dosette_period_statuses = []
+            periods_by_patient_reference = {}
+            for patient_reference, patient in patients_by_reference.items():
+                period, created = DosettePeriod.objects.update_or_create(
+                    patient=patient,
+                    start_date=PERIOD_START,
+                    defaults={
+                        "end_date": PERIOD_END,
+                        "status": DosettePeriodStatus.SUBMITTED,
+                        "submitted_at": datetime.combine(
+                            PERIOD_START,
+                            time(hour=9),
+                            tzinfo=UTC,
+                        ),
+                        "submitted_by": None,
+                        "collected_on": None,
+                        "collected_by": None,
+                    },
+                )
+                periods_by_patient_reference[patient_reference] = period
+                dosette_period_statuses.append((period, created))
+
             dosette_cycle_statuses = []
             for cycle_data in DOSETTE_CYCLES:
                 cycle, created = DosetteCycle.objects.update_or_create(
                     patient=patients_by_reference[cycle_data.patient_reference],
                     reference=cycle_data.reference,
                     defaults={
+                        "period": periods_by_patient_reference[
+                            cycle_data.patient_reference
+                        ],
+                        "week_number": cycle_data.week_number,
                         "frequency": cycle_data.frequency,
                         "start_date": cycle_data.start_date,
                         "end_date": cycle_data.end_date,
                         "status": cycle_data.status,
+                        "stock_deducted": cycle_data.stock_deducted,
                     },
                 )
                 dosette_cycle_statuses.append((cycle, created))
@@ -486,7 +682,8 @@ class Command(BaseCommand):
         self.stdout.write("Dosette/MDS:")
         self.stdout.write(
             f"- {len(patient_medication_statuses)} patient medication lines, "
-            f"{len(dosette_cycle_statuses)} cycles"
+            f"{len(dosette_period_statuses)} periods, "
+            f"{len(dosette_cycle_statuses)} weekly cycles"
         )
         self.stdout.write(
             f"Shared password ({self.style.WARNING('local demo credentials only')}): "

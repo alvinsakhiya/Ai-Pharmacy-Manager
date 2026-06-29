@@ -394,8 +394,8 @@ function OpportunityRoadmap() {
           })}
         </div>
         <p className="mt-3 rounded-xl border border-info-border bg-info-soft px-3 py-2 text-xs font-semibold text-info-ink">
-          These roadmap cards are not automatic ordering, transfer, or dispensing
-          decisions. They describe future review signals only.
+          These roadmap cards describe future operational signals for human
+          review before action.
         </p>
       </PanelBody>
     </Panel>

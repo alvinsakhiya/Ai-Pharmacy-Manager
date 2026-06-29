@@ -7,7 +7,7 @@ from django.test import override_settings
 
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
-from apps.blister.models import DosetteCycle, PatientMedication
+from apps.blister.models import DosetteCycle, DosettePeriod, PatientMedication
 from apps.catalogue.models import Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem
 from apps.patients.models import Patient
@@ -26,6 +26,12 @@ DEMO_EMAILS = [
 def run_seed_demo(**options) -> str:
     stdout = io.StringIO()
     call_command("seed_demo", stdout=stdout, **options)
+    return stdout.getvalue()
+
+
+def run_reset_demo(**options) -> str:
+    stdout = io.StringIO()
+    call_command("reset_demo_data", stdout=stdout, **options)
     return stdout.getvalue()
 
 
@@ -74,20 +80,30 @@ def test_seed_demo_creates_expected_demo_data():
     sutton = Pharmacy.objects.get(group=group, code="SUT")
     croydon = Pharmacy.objects.get(group=group, code="CRO")
     wimbledon = Pharmacy.objects.get(group=group, code="WIM")
-    assert StockItem.objects.filter(pharmacy=sutton).count() == 3
-    assert StockItem.objects.filter(pharmacy=croydon).count() == 3
-    assert StockItem.objects.filter(pharmacy=wimbledon).count() == 0
-    assert StockBatch.objects.filter(stock_item__pharmacy=sutton).count() == 4
-    assert StockBatch.objects.filter(stock_item__pharmacy=croydon).count() == 3
-    assert StockBatch.objects.filter(stock_item__pharmacy=wimbledon).count() == 0
-    assert Patient.objects.filter(pharmacy=sutton).count() == 2
-    assert Patient.objects.filter(pharmacy=croydon).count() == 2
-    assert Patient.objects.filter(pharmacy=wimbledon).count() == 0
+    assert StockItem.objects.filter(pharmacy=sutton).count() == 5
+    assert StockItem.objects.filter(pharmacy=croydon).count() == 5
+    assert StockItem.objects.filter(pharmacy=wimbledon).count() == 5
+    assert StockBatch.objects.filter(stock_item__pharmacy=sutton).count() == 5
+    assert StockBatch.objects.filter(stock_item__pharmacy=croydon).count() == 5
+    assert StockBatch.objects.filter(stock_item__pharmacy=wimbledon).count() == 5
+    assert Patient.objects.filter(pharmacy=sutton).count() == 4
+    assert Patient.objects.filter(pharmacy=croydon).count() == 3
+    assert Patient.objects.filter(pharmacy=wimbledon).count() == 3
     assert set(Patient.objects.values_list("patient_reference", flat=True)) == {
         "SUT-P1",
         "SUT-P2",
+        "SUT-P3",
+        "SUT-P4",
         "CRO-P1",
         "CRO-P2",
+        "CRO-P3",
+        "WIM-P1",
+        "WIM-P2",
+        "WIM-P3",
+    }
+    assert set(Patient.objects.values_list("collection_method", flat=True)) == {
+        Patient.CollectionMethod.IN_STORE,
+        Patient.CollectionMethod.DELIVERY,
     }
 
     assert "local demo credentials only" in output
@@ -182,6 +198,9 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
         "dosette_cycles": DosetteCycle.objects.filter(
             patient__pharmacy__group=get_demo_group(),
         ).count(),
+        "dosette_periods": DosettePeriod.objects.filter(
+            patient__pharmacy__group=get_demo_group(),
+        ).count(),
         "users": User.objects.filter(email__in=DEMO_EMAILS).count(),
         "memberships": Membership.objects.filter(
             user__email__in=DEMO_EMAILS,
@@ -227,6 +246,10 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
         DosetteCycle.objects.filter(patient__pharmacy__group=get_demo_group()).count()
         == first_counts["dosette_cycles"]
     )
+    assert (
+        DosettePeriod.objects.filter(patient__pharmacy__group=get_demo_group()).count()
+        == first_counts["dosette_periods"]
+    )
     assert User.objects.filter(email__in=DEMO_EMAILS).count() == first_counts["users"]
     assert (
         Membership.objects.filter(user__email__in=DEMO_EMAILS, is_active=True).count()
@@ -245,7 +268,15 @@ def test_seed_demo_creates_fictional_dosette_data():
     run_seed_demo()
 
     assert PatientMedication.objects.count() > 0
+    assert Patient.objects.count() == 10
+    assert DosettePeriod.objects.count() == 10
     assert DosetteCycle.objects.count() > 0
+    assert DosetteCycle.objects.count() == 40
+    assert all(
+        patient.dosette_periods.count() == 1 and patient.dosette_cycles.count() == 4
+        for patient in Patient.objects.all()
+    )
+    assert StockItem.objects.count() == 15
     assert PatientMedication.objects.filter(
         is_active=True,
         quantity_morning=0,
@@ -274,11 +305,13 @@ def test_seed_demo_creates_fictional_dosette_data():
 def test_seed_demo_dosette_data_is_idempotent():
     run_seed_demo()
     patient_medication_count = PatientMedication.objects.count()
+    dosette_period_count = DosettePeriod.objects.count()
     dosette_cycle_count = DosetteCycle.objects.count()
 
     run_seed_demo()
 
     assert PatientMedication.objects.count() == patient_medication_count
+    assert DosettePeriod.objects.count() == dosette_period_count
     assert DosetteCycle.objects.count() == dosette_cycle_count
     assert AuditEvent.objects.count() == 0
 
@@ -292,3 +325,58 @@ def test_seed_demo_is_dev_gated_unless_forced():
         run_seed_demo(force=True)
 
     assert Group.objects.filter(slug="jmw-pharmacy-group").exists()
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_reset_demo_data_requires_confirmation():
+    with pytest.raises(CommandError):
+        run_reset_demo()
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_reset_demo_data_replaces_demo_records_with_clean_seed():
+    run_seed_demo()
+    group = get_demo_group()
+    sutton = Pharmacy.objects.get(group=group, code="SUT")
+    Patient.objects.create(
+        pharmacy=sutton,
+        patient_reference="SUT-OLD",
+        first_name="Old",
+        last_name="Demo",
+        date_of_birth="1980-01-01",
+        address="Old demo address",
+        postcode="SM1 1ZZ",
+        phone="020 0000 0099",
+        notes="Old fictional demo patient.",
+    )
+
+    output = run_reset_demo(confirm="RESET_DEMO_DATA")
+
+    assert "Reset and reseeded local demo data." in output
+    group = get_demo_group()
+    assert Patient.objects.filter(pharmacy__group=group).count() == 10
+    assert not Patient.objects.filter(patient_reference="SUT-OLD").exists()
+    assert DosettePeriod.objects.filter(patient__pharmacy__group=group).count() == 10
+    assert DosetteCycle.objects.filter(patient__pharmacy__group=group).count() == 40
+    assert StockItem.objects.filter(pharmacy__group=group).count() == 15
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_reset_demo_data_is_repeatable_for_demo_use():
+    run_reset_demo(confirm="RESET_DEMO_DATA")
+    first_counts = {
+        "patients": Patient.objects.count(),
+        "periods": DosettePeriod.objects.count(),
+        "cycles": DosetteCycle.objects.count(),
+        "stock_items": StockItem.objects.count(),
+    }
+
+    run_reset_demo(confirm="RESET_DEMO_DATA")
+
+    assert Patient.objects.count() == first_counts["patients"] == 10
+    assert DosettePeriod.objects.count() == first_counts["periods"] == 10
+    assert DosetteCycle.objects.count() == first_counts["cycles"] == 40
+    assert StockItem.objects.count() == first_counts["stock_items"] == 15
