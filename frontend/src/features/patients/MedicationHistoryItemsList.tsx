@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock3, Pill, Search } from "lucide-react";
+import { ChevronRight, Clock3, Pill, Search } from "lucide-react";
 
 import { Badge, type BadgeVariant } from "../../components/ui/Badge";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -90,10 +90,6 @@ function medicationDescriptor(line: PatientMedicationLine): string {
   return parts.length > 0 ? parts.join(" - ") : "Strength/form not recorded";
 }
 
-function totalDailyDose(line: PatientMedicationLine): number {
-  return TIME_SLOTS.reduce((total, slot) => total + line[slot.key], 0);
-}
-
 function dosageInstructions(line: PatientMedicationLine): string {
   return line.dose_instructions.trim() || "Dosage instructions not recorded.";
 }
@@ -101,6 +97,22 @@ function dosageInstructions(line: PatientMedicationLine): string {
 function appearanceLabel(line: PatientMedicationLine): string {
   const parts = [line.colour?.trim(), line.shape?.trim()].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : NOT_RECORDED;
+}
+
+function cycleBadgeVariant(status: string): BadgeVariant {
+  if (["CHECKED", "COLLECTED", "DELIVERED", "COMPLETED"].includes(status)) {
+    return "success";
+  }
+  if (status === "PREPARED") {
+    return "info";
+  }
+  if (status === "NEEDS_CHANGES") {
+    return "warning";
+  }
+  if (status === "CANCELLED") {
+    return "danger";
+  }
+  return "neutral";
 }
 
 // --- Dosette event helpers (real event timestamps only; never planned/draft) ---
@@ -141,29 +153,6 @@ function latestByDate(
   );
 }
 
-function latestRecordedEventDate(
-  cycles: DosetteCycle[],
-  medicationLines: PatientMedicationLine[],
-): string | null {
-  const timestamps = [
-    ...cycles.flatMap((cycle) => [
-      cycle.deducted_at,
-      cycle.checked_at,
-      cycle.prepared_at,
-      cycle.created_at,
-    ]),
-    ...medicationLines.map((line) => line.created_at),
-  ];
-
-  return (
-    timestamps
-      .filter((value): value is string => Boolean(value))
-      .map((value) => ({ value, timestamp: sortTimestamp(value) }))
-      .filter((item) => item.timestamp > Number.NEGATIVE_INFINITY)
-      .sort((left, right) => right.timestamp - left.timestamp)[0]?.value ?? null
-  );
-}
-
 /** Most recent cycle that has actually been prepared/checked/deducted. */
 function latestDispensedCycle(cycles: DosetteCycle[]): DosetteCycle | null {
   return latestByDate(cycles, cycleEventDate);
@@ -200,13 +189,39 @@ function DoseSlots({ line }: { line: PatientMedicationLine }) {
   );
 }
 
+function DailyDoseGrid({ line }: { line: PatientMedicationLine }) {
+  return (
+    <div aria-label="Daily dose" className="grid gap-2 sm:grid-cols-2">
+      {TIME_SLOTS.map((slot) => {
+        const value = line[slot.key];
+        return (
+          <div
+            className={cn(
+              "min-w-0 rounded-xl border px-3 py-2.5",
+              value > 0
+                ? "border-lilac bg-lilac-soft"
+                : "border-line bg-surface-subtle",
+            )}
+            key={slot.key}
+          >
+            <p className="text-xs font-semibold text-muted">{slot.label}</p>
+            <p className="tnum mt-1 text-lg font-extrabold leading-none text-ink">
+              {value}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-surface-subtle px-3.5 py-3">
+    <div className="min-w-0 rounded-xl bg-surface-subtle px-3.5 py-3">
       <p className="text-xs font-semibold text-muted">
         {label}
       </p>
-      <p className="tnum mt-1 text-lg font-extrabold leading-tight text-ink">
+      <p className="tnum mt-1 break-words text-lg font-extrabold leading-tight text-ink">
         {value}
       </p>
     </div>
@@ -219,14 +234,16 @@ function MetaItem({ label, value }: { label: string; value: string }) {
       <span className="text-xs font-semibold text-muted">
         {label}
       </span>
-      <span className="tnum truncate text-xs font-bold text-ink-soft">{value}</span>
+      <span className="tnum min-w-0 break-words text-xs font-bold text-ink-soft">
+        {value}
+      </span>
     </div>
   );
 }
 
 function EventRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 border-b border-line py-2.5 last:border-b-0 sm:grid-cols-[130px_1fr] sm:items-baseline">
+    <div className="grid gap-1 border-b border-line py-2.5 last:border-b-0 sm:grid-cols-[140px_1fr] sm:items-baseline">
       <dt className="text-xs font-semibold text-muted">{label}</dt>
       <dd className="tnum min-w-0 break-words text-sm font-semibold leading-relaxed text-ink-soft">
         {value}
@@ -264,10 +281,10 @@ function TimingSummary({
       {items.map((item) => (
         <span
           key={item.label}
-          className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-semibold text-ink-soft"
+          className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-semibold text-ink-soft"
         >
           <span className="text-muted">{item.label}</span>
-          <span className="tnum truncate">{item.value}</span>
+          <span className="tnum min-w-0 break-words">{item.value}</span>
         </span>
       ))}
     </div>
@@ -314,7 +331,7 @@ function MedicationCard({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-base font-extrabold tracking-[-0.01em] text-ink">
+            <span className="min-w-0 break-words text-base font-extrabold tracking-[-0.01em] text-ink">
               {line.medication_name}
             </span>
             <Badge dot variant={statusVariant}>
@@ -324,11 +341,29 @@ function MedicationCard({
               {hasDeductedStock ? "Stock deducted" : "Stock not deducted"}
             </Badge>
           </div>
-          <p className="mt-1 text-sm font-semibold text-muted">
+          <p className="mt-1 break-words text-sm font-semibold text-muted">
             {medicationDescriptor(line)}
           </p>
         </div>
-        <Badge variant={eventDate ? "info" : "neutral"}>{eventType}</Badge>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Badge variant={eventDate ? "info" : "neutral"}>{eventType}</Badge>
+          {latest ? (
+            <Badge variant={cycleBadgeVariant(latest.status)}>
+              {formatLabel(latest.status)}
+            </Badge>
+          ) : null}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "grid h-8 w-8 place-items-center rounded-lg border transition-colors duration-150 ease-soft",
+              isSelected
+                ? "border-lilac bg-surface text-brand"
+                : "border-line bg-surface-subtle text-muted",
+            )}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -380,12 +415,7 @@ function SelectedMedicationPanel({
   checkedCycle: DosetteCycle | null;
   deductedCycle: DosetteCycle | null;
 }) {
-  const total = totalDailyDose(line);
   const rows: Array<{ label: string; value: string }> = [
-    {
-      label: "Daily dose",
-      value: total > 0 ? `${total} per day` : NOT_RECORDED,
-    },
     {
       label: "Latest event",
       value: eventDate
@@ -457,19 +487,20 @@ function SelectedMedicationPanel({
         Selected medication
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2.5">
-        <h4 className="text-lg font-extrabold tracking-[-0.01em] text-ink">
+        <h4 className="min-w-0 break-words text-lg font-extrabold tracking-[-0.01em] text-ink">
           {line.medication_name}
         </h4>
         <Badge dot variant={line.is_active ? "success" : "neutral"}>
           {line.is_active ? "Active" : "Discontinued"}
         </Badge>
       </div>
-      <p className="mt-1 text-xs font-semibold text-muted">
+      <p className="mt-1 break-words text-xs font-semibold text-muted">
         {medicationDescriptor(line)}
       </p>
 
-      <div className="mt-3">
-        <DoseSlots line={line} />
+      <div className="mt-4">
+        <p className="mb-2 text-sm font-bold text-ink">Daily dose</p>
+        <DailyDoseGrid line={line} />
       </div>
       <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">
         {dosageInstructions(line)}
@@ -478,13 +509,13 @@ function SelectedMedicationPanel({
       <dl className="mt-5 divide-y divide-line rounded-xl bg-surface-subtle px-3">
         {rows.map((row) => (
           <div
-            className="grid gap-1 py-2.5 sm:grid-cols-[120px_1fr] sm:items-baseline"
+            className="grid gap-1 py-2.5 sm:grid-cols-[140px_1fr] sm:items-baseline"
             key={row.label}
           >
             <dt className="text-xs font-semibold text-muted">
               {row.label}
             </dt>
-            <dd className="tnum min-w-0 break-words text-sm font-bold leading-relaxed text-ink-soft sm:text-right">
+            <dd className="tnum min-w-0 break-words text-sm font-bold leading-relaxed text-ink-soft">
               {row.value}
             </dd>
           </div>
@@ -509,13 +540,13 @@ function SelectedMedicationPanel({
         </dt>
         {cycleRows.map((row) => (
           <div
-            className="grid gap-1 py-2.5 sm:grid-cols-[120px_1fr] sm:items-baseline"
+            className="grid gap-1 py-2.5 sm:grid-cols-[140px_1fr] sm:items-baseline"
             key={row.label}
           >
             <dt className="text-xs font-semibold text-muted">
               {row.label}
             </dt>
-            <dd className="tnum min-w-0 break-words text-sm font-semibold leading-relaxed text-ink-soft sm:text-right">
+            <dd className="tnum min-w-0 break-words text-sm font-semibold leading-relaxed text-ink-soft">
               {row.value}
             </dd>
           </div>
@@ -554,10 +585,6 @@ export function MedicationHistoryItemsList({
     () => latestByDate(cycles, (cycle) => cycle.deducted_at),
     [cycles],
   );
-  const recordedEventDate = useMemo(
-    () => latestRecordedEventDate(cycles, medicationLines),
-    [cycles, medicationLines],
-  );
   const eventDate = dispensed ? cycleEventDate(dispensed) : null;
   const eventType = dispensed ? cycleEventType(dispensed) : NOT_RECORDED;
 
@@ -565,7 +592,6 @@ export function MedicationHistoryItemsList({
     () => medicationLines.filter((line) => line.is_active).length,
     [medicationLines],
   );
-  const discontinuedCount = medicationLines.length - activeCount;
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -613,16 +639,20 @@ export function MedicationHistoryItemsList({
     >
       <div
         aria-label="Medication history summary"
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
       >
         <SummaryStat label="Active medications" value={String(activeCount)} />
         <SummaryStat
-          label="Discontinued medications"
-          value={String(discontinuedCount)}
+          label="Latest prepared"
+          value={formatDateTime(latestPrepared?.prepared_at)}
         />
         <SummaryStat
-          label="Latest event"
-          value={formatDateTime(recordedEventDate)}
+          label="Latest checked"
+          value={formatDateTime(latestChecked?.checked_at)}
+        />
+        <SummaryStat
+          label="Latest stock deducted"
+          value={formatDateTime(latestDeducted?.deducted_at)}
         />
         <SummaryStat label="Dosette cycles" value={String(cycles.length)} />
       </div>
@@ -670,7 +700,7 @@ export function MedicationHistoryItemsList({
             </div>
           </div>
 
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)]">
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
             <div
               aria-label="Medication items"
               className="space-y-3"

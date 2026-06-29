@@ -45,11 +45,15 @@ function makePatient(overrides: Partial<Patient> = {}): Patient {
   };
 }
 
-function patientAuth(pharmacyCount = 2) {
+function patientAuth(
+  pharmacyCount = 2,
+  permissions: Record<string, boolean> = {},
+) {
   return makeAuthContext({
     user: makeAuthUser({
       permissions: {
         "patient.view": true,
+        ...permissions,
       },
       pharmacies: [
         { id: 1, name: "JMW Sutton" },
@@ -115,9 +119,14 @@ describe("PatientsScreen", () => {
     expect(await screen.findByText("No patients yet.")).toBeInTheDocument();
   });
 
-  it("opens patient detail in a workspace modal with a full-record link", async () => {
+  it("opens patient detail in a workspace modal without a full-record link", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<PatientsScreen />, { auth: patientAuth() });
+    renderWithProviders(<PatientsScreen />, {
+      auth: patientAuth(2, {
+        "blister.view": true,
+        "patient.manage": true,
+      }),
+    });
 
     const viewButtons = await screen.findAllByRole("button", {
       name: "View record",
@@ -137,8 +146,18 @@ describe("PatientsScreen", () => {
       within(dialog).getByRole("button", { name: "Patient info" }),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByRole("link", { name: "Open full record" }),
-    ).toHaveAttribute("href", "/patients/20");
+      within(dialog).queryByRole("link", { name: "Open full record" }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("link", { name: "Dosette / MDS" }),
+    ).toHaveAttribute("href", "/patients/20/dosette");
+    expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Deactivate" }),
+    ).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Notes" }));
+    expect(within(dialog).getByText("Note history")).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole("button", { name: "Close modal" }));
 

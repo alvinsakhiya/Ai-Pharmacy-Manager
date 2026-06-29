@@ -104,7 +104,7 @@ function DirectoryMeta({
       </span>
       <span className="min-w-0">
         <span className="font-semibold text-ink-soft">{label}</span>{" "}
-        <span className="tnum text-muted">{value}</span>
+        <span className="tnum break-words text-muted">{value}</span>
       </span>
     </div>
   );
@@ -143,10 +143,10 @@ function PatientDirectoryCard({
             <StatusBadge active={patient.is_active} />
             <CollectionMethodBadge patient={patient} />
           </div>
-          <h3 className="mt-1 truncate text-base font-extrabold tracking-[-0.01em] text-ink">
+          <h3 className="mt-1 break-words text-base font-extrabold tracking-[-0.01em] text-ink">
             {patient.first_name} {patient.last_name}
           </h3>
-          <p className="mt-1 truncate text-sm text-muted">
+          <p className="mt-1 break-words text-sm text-muted">
             {patient.phone || patient.postcode || "Contact details not recorded"}
           </p>
         </div>
@@ -390,10 +390,7 @@ export function PatientsScreen() {
         size="xl"
       >
         {workspacePatientId !== null ? (
-          <PatientRecordWorkspace
-            patientId={workspacePatientId}
-            fullRecordHref={`/patients/${workspacePatientId}`}
-          />
+          <PatientRecordWorkspace patientId={workspacePatientId} />
         ) : null}
       </Modal>
     </div>

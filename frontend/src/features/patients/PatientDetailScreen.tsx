@@ -1,16 +1,18 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
+  CalendarDays,
   ClipboardList,
-  ExternalLink,
   Info,
   Lock,
+  MapPin,
   MessageSquarePlus,
   Pencil,
   Pill,
+  Phone,
   Stethoscope,
   UserRound,
   UserX,
@@ -123,6 +125,33 @@ function DetailValue({
   );
 }
 
+function SummaryStripItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 shadow-soft">
+      <span
+        aria-hidden="true"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-lilac-soft text-brand"
+      >
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <dt className="text-xs font-semibold text-muted">{label}</dt>
+        <dd className="mt-1 break-words text-sm font-bold leading-relaxed text-ink">
+          {value}
+        </dd>
+      </div>
+    </div>
+  );
+}
+
 function PharmacistOnlyHint() {
   return (
     <p className="flex items-start gap-2 rounded-xl border border-info-border bg-info-soft p-3 text-[13px] text-info-ink">
@@ -142,13 +171,11 @@ export function PatientDetailScreen() {
 interface PatientRecordWorkspaceProps {
   patientId: number;
   showBackLink?: boolean;
-  fullRecordHref?: string;
 }
 
 export function PatientRecordWorkspace({
   patientId,
   showBackLink,
-  fullRecordHref,
 }: PatientRecordWorkspaceProps) {
   const { can } = usePermissions();
   const canManage = can("patient.manage");
@@ -220,7 +247,7 @@ export function PatientRecordWorkspace({
   const displayName = [patient.title, patient.first_name, patient.last_name]
     .filter((part) => part && String(part).trim())
     .join(" ");
-  const hasHeaderActions = Boolean(fullRecordHref || canViewDosette || canManage);
+  const hasHeaderActions = Boolean(canViewDosette || canManage);
 
   return (
     <div className="space-y-5">
@@ -234,14 +261,13 @@ export function PatientRecordWorkspace({
         </Link>
       ) : null}
 
-      {/* Header — always visible, actions gated by permission. */}
       <Panel>
         <PanelBody className="space-y-5">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="flex min-w-0 items-start gap-3.5">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
               <span
                 aria-hidden="true"
-                className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-2xl bg-lilac-soft text-brand"
+                className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-lilac-soft text-brand"
               >
                 <UserRound className="h-6 w-6" />
               </span>
@@ -251,27 +277,16 @@ export function PatientRecordWorkspace({
                   <StatusBadge active={patient.is_active} />
                   <CollectionMethodBadge patient={patient} />
                 </div>
-                <h1 className="mt-2 text-2xl font-extrabold tracking-[-0.02em] text-ink">
+                <h1 className="mt-2 break-words text-2xl font-extrabold tracking-[-0.02em] text-ink">
                   {displayName}
                 </h1>
-                <p className="mt-1 text-sm font-medium text-muted">
+                <p className="mt-1 break-words text-sm font-medium text-muted">
                   {pharmacyName(patient.pharmacy)}
                 </p>
               </div>
             </div>
             {hasHeaderActions ? (
-              <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl bg-surface-subtle p-2">
-                {fullRecordHref ? (
-                  <Link to={fullRecordHref}>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      leadingIcon={<ExternalLink className="h-4 w-4" />}
-                    >
-                      Open full record
-                    </Button>
-                  </Link>
-                ) : null}
+              <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-subtle p-2">
                 {canViewDosette ? (
                   <Link to={`/patients/${patient.id}/dosette`}>
                     <Button
@@ -308,10 +323,23 @@ export function PatientRecordWorkspace({
           </div>
 
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <DetailValue label="Date of birth" value={formatDate(patient.date_of_birth)} />
-            <DetailValue label="Phone" value={fallback(patient.phone)} />
-            <DetailValue label="Postcode" value={fallback(patient.postcode)} />
-            <DetailValue
+            <SummaryStripItem
+              icon={<CalendarDays className="h-4 w-4" />}
+              label="Date of birth"
+              value={formatDate(patient.date_of_birth)}
+            />
+            <SummaryStripItem
+              icon={<Phone className="h-4 w-4" />}
+              label="Phone"
+              value={fallback(patient.phone)}
+            />
+            <SummaryStripItem
+              icon={<MapPin className="h-4 w-4" />}
+              label="Postcode"
+              value={fallback(patient.postcode)}
+            />
+            <SummaryStripItem
+              icon={<Pill className="h-4 w-4" />}
               label="MDS handover"
               value={collectionMethodLabel(patient.collection_method)}
             />
@@ -319,8 +347,7 @@ export function PatientRecordWorkspace({
         </PanelBody>
       </Panel>
 
-      {/* Record: side-panel of pages + a constant-size content area. */}
-      <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+      <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
         <nav
           aria-label="Patient record sections"
           className="flex gap-2 overflow-x-auto rounded-2xl border border-line bg-surface p-2 shadow-soft lg:flex-col lg:overflow-visible"

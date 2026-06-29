@@ -233,13 +233,13 @@ describe("PatientDetailScreen", () => {
     });
     expect(panel).toHaveClass("space-y-5");
 
-    // Summary badges use existing data only.
-    expect(within(panel).getByText("Active medications")).toBeInTheDocument();
-    expect(
-      within(panel).getByText("Discontinued medications"),
-    ).toBeInTheDocument();
-    expect(within(panel).getByText("Dosette cycles")).toBeInTheDocument();
-    expect(within(panel).getAllByText("Latest event").length).toBeGreaterThan(0);
+    // Summary row uses existing operational history only.
+    const summary = within(panel).getByLabelText("Medication history summary");
+    expect(within(summary).getByText("Active medications")).toBeInTheDocument();
+    expect(within(summary).getByText("Latest prepared")).toBeInTheDocument();
+    expect(within(summary).getByText("Latest checked")).toBeInTheDocument();
+    expect(within(summary).getByText("Latest stock deducted")).toBeInTheDocument();
+    expect(within(summary).getByText("Dosette cycles")).toBeInTheDocument();
     expect(
       within(panel).getAllByText("25 Jun 2026, 09:30").length,
     ).toBeGreaterThan(0);
@@ -276,7 +276,7 @@ describe("PatientDetailScreen", () => {
     expect(
       within(amlodipine).getByLabelText("Compact timing summary"),
     ).toBeInTheDocument();
-    expect(within(amlodipine).getByText("Prepared")).toBeInTheDocument();
+    expect(within(amlodipine).getAllByText("Prepared").length).toBeGreaterThan(0);
     expect(within(amlodipine).getByText("Checked")).toBeInTheDocument();
     expect(within(amlodipine).getByText("Deducted")).toBeInTheDocument();
     expect(within(amlodipine).getAllByText("Stock deducted").length).toBeGreaterThan(
@@ -296,6 +296,7 @@ describe("PatientDetailScreen", () => {
     expect(
       within(panel).getByRole("heading", { level: 4, name: "Amlodipine" }),
     ).toBeInTheDocument();
+    expect(within(panel).getByLabelText("Daily dose")).toBeInTheDocument();
     expect(
       within(panel).getByRole("heading", {
         level: 5,
