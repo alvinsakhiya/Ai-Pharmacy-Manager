@@ -231,7 +231,7 @@ describe("PatientDetailScreen", () => {
     const panel = await screen.findByRole("region", {
       name: "Patient medication history",
     });
-    expect(panel).toHaveClass("space-y-5");
+    expect(panel).toHaveClass("space-y-3");
 
     // Summary row uses existing operational history only.
     const summary = within(panel).getByLabelText("Medication history summary");

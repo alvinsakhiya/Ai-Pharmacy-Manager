@@ -114,11 +114,11 @@ function DetailValue({
   value: string;
 }) {
   return (
-    <div className="min-w-0 rounded-xl bg-surface-subtle px-3.5 py-3">
-      <dt className="text-xs font-semibold text-muted">
+    <div className="min-w-0 rounded-xl bg-surface-subtle px-3 py-2.5">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.02em] text-muted">
         {label}
       </dt>
-      <dd className="mt-1 break-words text-sm font-bold leading-relaxed text-ink">
+      <dd className="mt-1 break-words text-[13px] font-bold leading-snug text-ink">
         {value}
       </dd>
     </div>
@@ -135,16 +135,18 @@ function SummaryStripItem({
   value: string;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 shadow-soft">
+    <div className="flex min-w-0 items-start gap-2.5 rounded-xl border border-line bg-surface px-3 py-2 shadow-soft">
       <span
         aria-hidden="true"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-lilac-soft text-brand"
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-lilac-soft text-brand"
       >
         {icon}
       </span>
       <div className="min-w-0">
-        <dt className="text-xs font-semibold text-muted">{label}</dt>
-        <dd className="mt-1 break-words text-sm font-bold leading-relaxed text-ink">
+        <dt className="text-[11px] font-semibold uppercase tracking-[0.02em] text-muted">
+          {label}
+        </dt>
+        <dd className="mt-0.5 break-words text-[13px] font-bold leading-snug text-ink">
           {value}
         </dd>
       </div>
@@ -250,7 +252,7 @@ export function PatientRecordWorkspace({
   const hasHeaderActions = Boolean(canViewDosette || canManage);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {showBackLink ? (
         <Link
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand transition-colors duration-150 ease-soft hover:text-brand-hover"
@@ -262,31 +264,31 @@ export function PatientRecordWorkspace({
       ) : null}
 
       <Panel>
-        <PanelBody className="space-y-5">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="flex min-w-0 items-start gap-4">
+        <div className="space-y-3 p-3 sm:p-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
               <span
                 aria-hidden="true"
-                className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-lilac-soft text-brand"
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-lilac-soft text-brand"
               >
-                <UserRound className="h-6 w-6" />
+                <UserRound className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Badge variant="brand">{patient.patient_reference}</Badge>
                   <StatusBadge active={patient.is_active} />
                   <CollectionMethodBadge patient={patient} />
                 </div>
-                <h1 className="mt-2 break-words text-2xl font-extrabold tracking-[-0.02em] text-ink">
+                <h1 className="mt-1.5 break-words text-xl font-extrabold tracking-[-0.02em] text-ink">
                   {displayName}
                 </h1>
-                <p className="mt-1 break-words text-sm font-medium text-muted">
+                <p className="mt-0.5 break-words text-xs font-medium text-muted">
                   {pharmacyName(patient.pharmacy)}
                 </p>
               </div>
             </div>
             {hasHeaderActions ? (
-              <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-subtle p-2">
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5 rounded-xl border border-line bg-surface-subtle p-1.5">
                 {canViewDosette ? (
                   <Link to={`/patients/${patient.id}/dosette`}>
                     <Button
@@ -322,7 +324,7 @@ export function PatientRecordWorkspace({
             ) : null}
           </div>
 
-          <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <dl className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryStripItem
               icon={<CalendarDays className="h-4 w-4" />}
               label="Date of birth"
@@ -344,13 +346,13 @@ export function PatientRecordWorkspace({
               value={collectionMethodLabel(patient.collection_method)}
             />
           </dl>
-        </PanelBody>
+        </div>
       </Panel>
 
-      <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
+      <div className="grid gap-3 lg:grid-cols-[205px_minmax(0,1fr)]">
         <nav
           aria-label="Patient record sections"
-          className="flex gap-2 overflow-x-auto rounded-2xl border border-line bg-surface p-2 shadow-soft lg:flex-col lg:overflow-visible"
+          className="flex gap-1.5 overflow-x-auto rounded-2xl border border-line bg-surface p-1.5 shadow-soft lg:flex-col lg:overflow-visible"
         >
           {PAGES.map((page) => {
             const Icon = page.icon;
@@ -362,7 +364,7 @@ export function PatientRecordWorkspace({
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => setActivePage(page.id)}
                 className={cn(
-                  "flex shrink-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[13px] font-semibold transition-all duration-150 ease-soft active:scale-[0.97] focus-ring lg:w-full",
+                  "flex shrink-0 items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-xs font-semibold transition-all duration-150 ease-soft active:scale-[0.97] focus-ring lg:w-full",
                   isActive
                     ? "border-lilac bg-lilac-soft text-brand-ink shadow-elev-1"
                     : "border-transparent text-ink-soft hover:bg-surface-subtle",
@@ -371,7 +373,7 @@ export function PatientRecordWorkspace({
                 <Icon
                   aria-hidden="true"
                   className={cn(
-                    "h-[18px] w-[18px] shrink-0",
+                    "h-4 w-4 shrink-0",
                     isActive ? "text-brand" : "text-muted",
                   )}
                 />
@@ -381,7 +383,7 @@ export function PatientRecordWorkspace({
           })}
         </nav>
 
-        <Panel className="lg:min-h-[420px]">
+        <Panel className="lg:min-h-[360px]">
           {activePage === "info" ? (
             <InfoPage patient={patient} pharmacyName={pharmacyName} />
           ) : null}
@@ -469,9 +471,13 @@ function InfoPage({
 }) {
   return (
     <>
-      <PanelHeader title="Patient info" icon={<Info className="h-4 w-4" />} />
-      <PanelBody>
-        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <PanelHeader
+        title="Patient info"
+        icon={<Info className="h-4 w-4" />}
+        className="!min-h-0 !px-3 !py-2.5 sm:!px-4"
+      />
+      <PanelBody className="!p-3 sm:!p-4">
+        <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <DetailValue label="Title" value={fallback(patient.title)} />
           <DetailValue label="Patient ID" value={patient.patient_reference} />
           <DetailValue label="Pharmacy" value={pharmacyName(patient.pharmacy)} />
@@ -489,11 +495,11 @@ function InfoPage({
           <DetailValue label="Postcode" value={fallback(patient.postcode)} />
           <DetailValue label="Address" value={fallback(patient.address)} />
         </dl>
-        <div className="mt-5 rounded-xl bg-surface-subtle px-3.5 py-3">
-          <dt className="text-xs font-semibold text-muted">
+        <div className="mt-3 rounded-xl bg-surface-subtle px-3 py-2.5">
+          <dt className="text-[11px] font-semibold uppercase tracking-[0.02em] text-muted">
             Summary note
           </dt>
-          <dd className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
+          <dd className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
             {fallback(patient.notes)}
           </dd>
         </div>
@@ -521,6 +527,7 @@ function GpPage({
       <PanelHeader
         title="Doctor & GP"
         icon={<Stethoscope className="h-4 w-4" />}
+        className="!min-h-0 !px-3 !py-2.5 sm:!px-4"
         actions={
           canManage ? (
             <Button
@@ -534,10 +541,10 @@ function GpPage({
           ) : undefined
         }
       />
-      <PanelBody className="space-y-5">
+      <PanelBody className="space-y-3 !p-3 sm:!p-4">
         {!canManage ? <PharmacistOnlyHint /> : null}
         {hasGp ? (
-          <dl className="grid gap-3 sm:grid-cols-2">
+          <dl className="grid gap-2 sm:grid-cols-2">
             <DetailValue label="Doctor" value={fallback(gp?.doctor_name)} />
             <DetailValue label="Practice" value={fallback(gp?.practice_name)} />
             <DetailValue
@@ -600,13 +607,34 @@ function cycleStatusVariant(status: string): BadgeVariant {
   return "neutral";
 }
 
+function CompactCycleValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg bg-surface-subtle px-2.5 py-2">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.02em] text-muted">
+        {label}
+      </dt>
+      <dd className="tnum mt-0.5 break-words text-xs font-bold leading-snug text-ink-soft">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 function CycleHistoryCard({ cycle }: { cycle: DosetteCycle }) {
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4 shadow-elev-1">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <article className="rounded-xl border border-line bg-surface p-3 shadow-elev-1">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h4 className="text-sm font-bold text-ink">{cycle.reference}</h4>
-          <p className="mt-1 text-xs font-medium text-muted tnum">
+          <h4 className="break-words text-[13px] font-bold text-ink">
+            {cycle.reference}
+          </h4>
+          <p className="tnum mt-0.5 text-[11px] font-medium text-muted">
             {formatDate(cycle.start_date)} - {formatDate(cycle.end_date)} -{" "}
             {formatLabel(cycle.frequency)}
           </p>
@@ -616,16 +644,31 @@ function CycleHistoryCard({ cycle }: { cycle: DosetteCycle }) {
         </Badge>
       </div>
 
-      <dl className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        <DetailValue label="Prepared by" value={fallback(cycle.prepared_by_email)} />
-        <DetailValue label="Prepared at" value={optionalDateTime(cycle.prepared_at)} />
-        <DetailValue label="Checked by" value={fallback(cycle.checked_by_email)} />
-        <DetailValue label="Checked at" value={optionalDateTime(cycle.checked_at)} />
-        <DetailValue
+      <dl className="mt-2.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <CompactCycleValue
+          label="Prepared by"
+          value={fallback(cycle.prepared_by_email)}
+        />
+        <CompactCycleValue
+          label="Prepared at"
+          value={optionalDateTime(cycle.prepared_at)}
+        />
+        <CompactCycleValue
+          label="Checked by"
+          value={fallback(cycle.checked_by_email)}
+        />
+        <CompactCycleValue
+          label="Checked at"
+          value={optionalDateTime(cycle.checked_at)}
+        />
+        <CompactCycleValue
           label="Stock deducted"
           value={cycle.stock_deducted ? "Yes" : "No"}
         />
-        <DetailValue label="Deducted at" value={optionalDateTime(cycle.deducted_at)} />
+        <CompactCycleValue
+          label="Deducted at"
+          value={optionalDateTime(cycle.deducted_at)}
+        />
       </dl>
     </article>
   );
@@ -657,8 +700,9 @@ function MedicationHistoryPage({
         title="Medication history"
         subtitle="Review patient-scoped medication records, Dosette activity, and dispensing events. Human review required."
         icon={<Pill className="h-4 w-4" />}
+        className="!min-h-0 !px-3 !py-2.5 sm:!px-4"
       />
-      <PanelBody className="space-y-6">
+      <PanelBody className="space-y-4 !p-3 sm:!p-4">
         {!canViewDosette ? (
           <EmptyState
             icon={<Lock className="h-6 w-6" />}
@@ -678,7 +722,7 @@ function MedicationHistoryPage({
           />
         ) : (
           <>
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-subtle px-3 py-2 text-xs font-semibold text-muted">
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-subtle px-2.5 py-1.5 text-xs font-semibold text-muted">
               <Info aria-hidden="true" className="h-4 w-4 shrink-0" />
               Read-only history. Patient-scoped records; human review required.
             </div>
@@ -688,7 +732,7 @@ function MedicationHistoryPage({
               medicationLines={medicationLines}
             />
 
-            <section className="space-y-3">
+            <section className="space-y-2">
               <h3 className="text-[13px] font-bold text-ink">
                 MDS / Dosette cycle history
               </h3>
@@ -698,7 +742,7 @@ function MedicationHistoryPage({
                   title="No pack cycles recorded."
                 />
               ) : (
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   {cycles.map((cycle) => (
                     <CycleHistoryCard cycle={cycle} key={cycle.id} />
                   ))}
@@ -726,6 +770,7 @@ function NotesPage({
       <PanelHeader
         title="Note history"
         icon={<ClipboardList className="h-4 w-4" />}
+        className="!min-h-0 !px-3 !py-2.5 sm:!px-4"
         actions={
           canManage ? (
             <Button
@@ -739,7 +784,7 @@ function NotesPage({
           ) : undefined
         }
       />
-      <PanelBody className="space-y-4">
+      <PanelBody className="space-y-3 !p-3 sm:!p-4">
         {!canManage ? <PharmacistOnlyHint /> : null}
 
         {notesQuery.isLoading ? (

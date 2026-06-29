@@ -168,13 +168,13 @@ function latestCycle(cycles: DosetteCycle[]): DosetteCycle | null {
 
 function DoseSlots({ line }: { line: PatientMedicationLine }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1">
       {TIME_SLOTS.map((slot) => {
         const dosed = line[slot.key] > 0;
         return (
           <span
             className={cn(
-              "tnum inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold",
+              "tnum inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold",
               dosed
                 ? "border-line-strong bg-surface text-ink"
                 : "border-line bg-surface-subtle text-muted",
@@ -191,21 +191,23 @@ function DoseSlots({ line }: { line: PatientMedicationLine }) {
 
 function DailyDoseGrid({ line }: { line: PatientMedicationLine }) {
   return (
-    <div aria-label="Daily dose" className="grid gap-2 sm:grid-cols-2">
+    <div aria-label="Daily dose" className="grid gap-1.5 sm:grid-cols-4">
       {TIME_SLOTS.map((slot) => {
         const value = line[slot.key];
         return (
           <div
             className={cn(
-              "min-w-0 rounded-xl border px-3 py-2.5",
+              "min-w-0 rounded-lg border px-2 py-1.5",
               value > 0
                 ? "border-lilac bg-lilac-soft"
                 : "border-line bg-surface-subtle",
             )}
             key={slot.key}
           >
-            <p className="text-xs font-semibold text-muted">{slot.label}</p>
-            <p className="tnum mt-1 text-lg font-extrabold leading-none text-ink">
+            <p className="break-words text-[10px] font-semibold text-muted">
+              {slot.label}
+            </p>
+            <p className="tnum mt-0.5 text-base font-extrabold leading-none text-ink">
               {value}
             </p>
           </div>
@@ -217,13 +219,26 @@ function DailyDoseGrid({ line }: { line: PatientMedicationLine }) {
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl bg-surface-subtle px-3.5 py-3">
-      <p className="text-xs font-semibold text-muted">
+    <div className="min-w-0 rounded-xl bg-surface-subtle px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.02em] text-muted">
         {label}
       </p>
-      <p className="tnum mt-1 break-words text-lg font-extrabold leading-tight text-ink">
+      <p className="tnum mt-0.5 break-words text-base font-extrabold leading-tight text-ink">
         {value}
       </p>
+    </div>
+  );
+}
+
+function CompactInfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-surface-subtle px-2.5 py-2">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.02em] text-muted">
+        {label}
+      </dt>
+      <dd className="tnum mt-0.5 min-w-0 break-words text-xs font-bold leading-snug text-ink-soft">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -231,23 +246,12 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 function MetaItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-      <span className="text-xs font-semibold text-muted">
+      <span className="text-[11px] font-semibold text-muted">
         {label}
       </span>
-      <span className="tnum min-w-0 break-words text-xs font-bold text-ink-soft">
+      <span className="tnum min-w-0 break-words text-[11px] font-bold text-ink-soft">
         {value}
       </span>
-    </div>
-  );
-}
-
-function EventRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid gap-1 border-b border-line py-2.5 last:border-b-0 sm:grid-cols-[140px_1fr] sm:items-baseline">
-      <dt className="text-xs font-semibold text-muted">{label}</dt>
-      <dd className="tnum min-w-0 break-words text-sm font-semibold leading-relaxed text-ink-soft">
-        {value}
-      </dd>
     </div>
   );
 }
@@ -277,11 +281,11 @@ function TimingSummary({
   ];
 
   return (
-    <div className="flex flex-wrap gap-2" aria-label="Compact timing summary">
+    <div className="flex flex-wrap gap-1.5" aria-label="Compact timing summary">
       {items.map((item) => (
         <span
           key={item.label}
-          className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-semibold text-ink-soft"
+          className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-[11px] font-semibold text-ink-soft"
         >
           <span className="text-muted">{item.label}</span>
           <span className="tnum min-w-0 break-words">{item.value}</span>
@@ -319,7 +323,7 @@ function MedicationCard({
     <button
       aria-selected={isSelected}
       className={cn(
-        "block w-full rounded-2xl border p-4 text-left shadow-elev-1 transition-all duration-150 ease-soft focus-ring",
+        "block w-full rounded-xl border p-3 text-left shadow-elev-1 transition-all duration-150 ease-soft focus-ring",
         isSelected
           ? "border-lilac bg-lilac-soft shadow-elev-2"
           : "border-line bg-surface hover:-translate-y-px hover:border-line-strong hover:shadow-elev-2",
@@ -328,10 +332,10 @@ function MedicationCard({
       role="option"
       type="button"
     >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="min-w-0 break-words text-base font-extrabold tracking-[-0.01em] text-ink">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="min-w-0 break-words text-sm font-extrabold tracking-[-0.01em] text-ink">
               {line.medication_name}
             </span>
             <Badge dot variant={statusVariant}>
@@ -341,11 +345,11 @@ function MedicationCard({
               {hasDeductedStock ? "Stock deducted" : "Stock not deducted"}
             </Badge>
           </div>
-          <p className="mt-1 break-words text-sm font-semibold text-muted">
+          <p className="mt-0.5 break-words text-xs font-semibold text-muted">
             {medicationDescriptor(line)}
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <Badge variant={eventDate ? "info" : "neutral"}>{eventType}</Badge>
           {latest ? (
             <Badge variant={cycleBadgeVariant(latest.status)}>
@@ -355,7 +359,7 @@ function MedicationCard({
           <span
             aria-hidden="true"
             className={cn(
-              "grid h-8 w-8 place-items-center rounded-lg border transition-colors duration-150 ease-soft",
+              "grid h-7 w-7 place-items-center rounded-lg border transition-colors duration-150 ease-soft",
               isSelected
                 ? "border-lilac bg-surface text-brand"
                 : "border-line bg-surface-subtle text-muted",
@@ -366,14 +370,14 @@ function MedicationCard({
         </div>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-2.5 space-y-2">
         <DoseSlots line={line} />
-        <p className="text-[13px] leading-relaxed text-ink-soft">
+        <p className="text-xs leading-relaxed text-ink-soft">
           {dosageInstructions(line)}
         </p>
       </div>
 
-      <div className="mt-4 grid gap-2.5 border-t border-line pt-3 md:grid-cols-2">
+      <div className="mt-3 grid gap-x-3 gap-y-1.5 border-t border-line pt-2 md:grid-cols-2">
         <MetaItem label="Latest event" value={formatDateTime(eventDate)} />
         <MetaItem
           label="Latest cycle"
@@ -387,7 +391,7 @@ function MedicationCard({
         <MetaItem label="Start date" value={formatDate(line.start_date)} />
       </div>
 
-      <div className="mt-3">
+      <div className="mt-2">
         <TimingSummary
           checkedCycle={checkedCycle}
           deductedCycle={deductedCycle}
@@ -481,75 +485,55 @@ function SelectedMedicationPanel({
   return (
     <aside
       aria-label="Selected medication"
-      className="h-fit rounded-2xl border border-line bg-surface p-5 shadow-soft xl:sticky xl:top-4"
+      className="h-fit rounded-xl border border-line bg-surface p-3 shadow-soft xl:sticky xl:top-3"
     >
-      <p className="text-xs font-semibold text-muted">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.02em] text-muted">
         Selected medication
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2.5">
-        <h4 className="min-w-0 break-words text-lg font-extrabold tracking-[-0.01em] text-ink">
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <h4 className="min-w-0 break-words text-base font-extrabold tracking-[-0.01em] text-ink">
           {line.medication_name}
         </h4>
         <Badge dot variant={line.is_active ? "success" : "neutral"}>
           {line.is_active ? "Active" : "Discontinued"}
         </Badge>
       </div>
-      <p className="mt-1 break-words text-xs font-semibold text-muted">
+      <p className="mt-0.5 break-words text-xs font-semibold text-muted">
         {medicationDescriptor(line)}
       </p>
 
-      <div className="mt-4">
-        <p className="mb-2 text-sm font-bold text-ink">Daily dose</p>
+      <div className="mt-3">
+        <p className="mb-1.5 text-xs font-bold text-ink">Daily dose</p>
         <DailyDoseGrid line={line} />
       </div>
-      <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">
+      <p className="mt-2 text-xs leading-relaxed text-ink-soft">
         {dosageInstructions(line)}
       </p>
 
-      <dl className="mt-5 divide-y divide-line rounded-xl bg-surface-subtle px-3">
+      <dl className="mt-3 grid gap-2 sm:grid-cols-2">
         {rows.map((row) => (
-          <div
-            className="grid gap-1 py-2.5 sm:grid-cols-[140px_1fr] sm:items-baseline"
-            key={row.label}
-          >
-            <dt className="text-xs font-semibold text-muted">
-              {row.label}
-            </dt>
-            <dd className="tnum min-w-0 break-words text-sm font-bold leading-relaxed text-ink-soft">
-              {row.value}
-            </dd>
-          </div>
+          <CompactInfoItem key={row.label} label={row.label} value={row.value} />
         ))}
       </dl>
 
-      <div className="mt-5">
-        <h5 className="flex items-center gap-2 text-sm font-bold text-ink">
+      <div className="mt-3">
+        <h5 className="flex items-center gap-1.5 text-xs font-bold text-ink">
           <Clock3 aria-hidden="true" className="h-4 w-4 text-brand" />
           Latest event timing
         </h5>
-        <dl className="mt-2 divide-y divide-line rounded-xl bg-surface-subtle px-3">
+        <dl className="mt-2 grid gap-2 sm:grid-cols-2">
           {eventRows.map((row) => (
-            <EventRow key={row.label} label={row.label} value={row.value} />
+            <CompactInfoItem key={row.label} label={row.label} value={row.value} />
           ))}
         </dl>
       </div>
 
-      <dl className="mt-5 divide-y divide-line rounded-xl bg-surface-subtle px-3">
-        <dt className="py-2.5 text-sm font-bold text-ink">
+      <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+        <dt className="sm:col-span-2 text-xs font-bold text-ink">
           Cycle context
         </dt>
         {cycleRows.map((row) => (
-          <div
-            className="grid gap-1 py-2.5 sm:grid-cols-[140px_1fr] sm:items-baseline"
-            key={row.label}
-          >
-            <dt className="text-xs font-semibold text-muted">
-              {row.label}
-            </dt>
-            <dd className="tnum min-w-0 break-words text-sm font-semibold leading-relaxed text-ink-soft">
-              {row.value}
-            </dd>
-          </div>
+          <CompactInfoItem key={row.label} label={row.label} value={row.value} />
         ))}
       </dl>
     </aside>
@@ -635,11 +619,11 @@ export function MedicationHistoryItemsList({
   return (
     <section
       aria-label="Patient medication history"
-      className="space-y-5"
+      className="space-y-3"
     >
       <div
         aria-label="Medication history summary"
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+        className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5"
       >
         <SummaryStat label="Active medications" value={String(activeCount)} />
         <SummaryStat
@@ -665,7 +649,7 @@ export function MedicationHistoryItemsList({
         />
       ) : (
         <>
-          <div className="rounded-2xl border border-line bg-surface p-3 shadow-elev-1">
+          <div className="rounded-xl border border-line bg-surface p-2 shadow-elev-1">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <label className="relative flex-1">
                 <span className="sr-only">Search medications</span>
@@ -681,7 +665,7 @@ export function MedicationHistoryItemsList({
                   value={search}
                 />
               </label>
-              <label className="sm:w-56">
+              <label className="sm:w-52">
                 <span className="sr-only">Filter by status</span>
                 <select
                   className={selectClass}
@@ -700,10 +684,10 @@ export function MedicationHistoryItemsList({
             </div>
           </div>
 
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
+          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.02fr)_minmax(460px,0.98fr)]">
             <div
               aria-label="Medication items"
-              className="space-y-3"
+              className="space-y-2.5"
               role="listbox"
             >
               {filtered.length === 0 ? (
