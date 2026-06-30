@@ -1,4 +1,13 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? "";
+const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, "");
+
+function buildApiUrl(path: string): string {
+  if (!API_BASE_URL) {
+    return path;
+  }
+
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 function readCookie(name: string): string | undefined {
   const prefix = `${encodeURIComponent(name)}=`;
@@ -24,7 +33,7 @@ export async function apiFetch(
     }
   }
 
-  return fetch(`${API_BASE_URL}${path}`, {
+  return fetch(buildApiUrl(path), {
     ...options,
     credentials: "include",
     headers,

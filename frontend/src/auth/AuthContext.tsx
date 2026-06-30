@@ -30,6 +30,19 @@ export interface AuthContextValue {
   refreshMe: () => Promise<void>;
 }
 
+function authErrorMessage(data: unknown): string {
+  if (
+    data &&
+    typeof data === "object" &&
+    "detail" in data &&
+    typeof data.detail === "string"
+  ) {
+    return data.detail;
+  }
+
+  return "Unable to sign in with those credentials.";
+}
+
 export const AuthContext = createContext<AuthContextValue | undefined>(
   undefined,
 );
@@ -78,11 +91,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!response.ok) {
           return {
             ok: false,
-            error: "Unable to sign in with those credentials.",
+            error: authErrorMessage(response.data),
           };
         }
 
-        const nextUser = response.data as MePayload;
+        const nextUser = await authApi.getMe();
+        if (nextUser === null) {
+          return {
+            ok: false,
+            error: "Unable to confirm your session. Please try again.",
+          };
+        }
+
         setUser(nextUser);
         return { ok: true, user: nextUser };
       } catch {

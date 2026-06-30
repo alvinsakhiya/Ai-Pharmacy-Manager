@@ -98,18 +98,31 @@ describe("LoginScreen", () => {
     }
   });
 
-  it("successful submit calls login", async () => {
+  it("successful submit calls login with trimmed email and preserved password", async () => {
     const login = vi.fn().mockResolvedValue({ ok: true, user: makeUser() });
     const user = userEvent.setup();
     renderLoginScreen({ login });
 
-    await user.type(screen.getByLabelText(/email/i), "admin@example.com");
-    await user.type(screen.getByLabelText(/password/i, { selector: "input" }), "correct-password");
+    await user.type(screen.getByLabelText(/email/i), "  admin@example.com  ");
+    await user.type(
+      screen.getByLabelText(/password/i, { selector: "input" }),
+      " DemoPass!2026 ",
+    );
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(login).toHaveBeenCalledWith("admin@example.com", "correct-password");
+      expect(login).toHaveBeenCalledWith("admin@example.com", " DemoPass!2026 ");
     });
+  });
+
+  it("does not submit empty credentials", async () => {
+    const login = vi.fn();
+    const user = userEvent.setup();
+    renderLoginScreen({ login });
+
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(login).not.toHaveBeenCalled();
   });
 
   it("failed login shows generic error", async () => {

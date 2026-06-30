@@ -59,7 +59,14 @@ export function LoginScreen() {
     setSubmitting(true);
     setError(null);
 
-    const result = await login(email, password);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setSubmitting(false);
+      setError("Enter your email and password.");
+      return;
+    }
+
+    const result = await login(trimmedEmail, password);
     setSubmitting(false);
 
     if (!result.ok) {
