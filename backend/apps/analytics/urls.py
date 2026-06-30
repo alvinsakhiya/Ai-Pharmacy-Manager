@@ -1,10 +1,13 @@
 from django.urls import path
 
 from .views import (
+    ExpiryRiskView,
     ForecastDetailView,
     ForecastGenerateView,
     ForecastLatestView,
+    MdsDemandSignalView,
     StockOverviewView,
+    StockReviewQueueView,
     TransferSuggestionDismissView,
     TransferSuggestionListCreateView,
 )
@@ -33,5 +36,12 @@ urlpatterns = [
     ),
     path(
         "stock/overview/", StockOverviewView.as_view(), name="analytics-stock-overview"
+    ),
+    path("mds-demand/", MdsDemandSignalView.as_view(), name="analytics-mds-demand"),
+    path("expiry-risk/", ExpiryRiskView.as_view(), name="analytics-expiry-risk"),
+    path(
+        "stock-review-queue/",
+        StockReviewQueueView.as_view(),
+        name="analytics-stock-review-queue",
     ),
 ]

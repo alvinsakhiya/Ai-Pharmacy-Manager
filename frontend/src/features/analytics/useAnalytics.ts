@@ -4,8 +4,11 @@ import {
   dismissTransferSuggestion,
   generateForecast,
   generateTransferSuggestions,
+  getExpiryRisk,
   getLatestForecast,
+  getMdsDemandSignal,
   getStockAnalyticsOverview,
+  getStockReviewQueue,
   listTransferSuggestions,
 } from "./analyticsApi";
 
@@ -13,6 +16,27 @@ export function useStockAnalyticsOverviewQuery(pharmacyId?: number) {
   return useQuery({
     queryKey: ["analytics", "stock-overview", pharmacyId ?? null],
     queryFn: () => getStockAnalyticsOverview(pharmacyId),
+  });
+}
+
+export function useMdsDemandSignalQuery(pharmacyId?: number, horizonDays = 28) {
+  return useQuery({
+    queryKey: ["analytics", "mds-demand", pharmacyId ?? null, horizonDays],
+    queryFn: () => getMdsDemandSignal(pharmacyId, horizonDays),
+  });
+}
+
+export function useExpiryRiskQuery(pharmacyId?: number) {
+  return useQuery({
+    queryKey: ["analytics", "expiry-risk", pharmacyId ?? null],
+    queryFn: () => getExpiryRisk(pharmacyId),
+  });
+}
+
+export function useStockReviewQueueQuery(pharmacyId?: number, horizonDays = 28) {
+  return useQuery({
+    queryKey: ["analytics", "stock-review-queue", pharmacyId ?? null, horizonDays],
+    queryFn: () => getStockReviewQueue(pharmacyId, horizonDays),
   });
 }
 

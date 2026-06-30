@@ -15,17 +15,23 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../auth/usePermissions";
 import type {
+  ExpiryRisk,
   ForecastItem,
+  MdsDemandSignal,
   StockAnalyticsFlags,
   StockAnalyticsItem,
+  StockReviewQueue,
   TransferSuggestion,
 } from "./analyticsApi";
 import {
   useDismissTransferSuggestion,
+  useExpiryRiskQuery,
   useGenerateForecast,
   useGenerateTransferSuggestions,
   useLatestForecastQuery,
+  useMdsDemandSignalQuery,
   useStockAnalyticsOverviewQuery,
+  useStockReviewQueueQuery,
   useTransferSuggestionsQuery,
 } from "./useAnalytics";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -111,6 +117,19 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-GB").format(value);
 }
 
+function formatCurrencyValue(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+  return new Intl.NumberFormat("en-GB", {
+    currency: "GBP",
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    style: "currency",
+  }).format(parsed);
+}
+
 function formatPackValue(value: string | number | null): string | null {
   if (value === null) {
     return null;
@@ -159,10 +178,20 @@ function ForecastConfidence({ confidence }: { confidence: string }) {
   const percentage = Math.round(Number(confidence) * 100);
   const variant =
     percentage >= 75 ? "success" : percentage >= 50 ? "info" : "warning";
+  const label =
+    percentage >= 75
+      ? "High confidence"
+      : percentage >= 50
+        ? "Medium confidence"
+        : percentage >= 35
+          ? "Low confidence"
+          : "Limited history";
 
   return (
     <Badge variant={variant} dot>
-      <span className="tnum">{percentage}% confidence</span>
+      <span>
+        {label} · <span className="tnum">{percentage}%</span>
+      </span>
     </Badge>
   );
 }
@@ -350,6 +379,337 @@ function AnalyticsRow({ item }: { item: StockAnalyticsItem }) {
   );
 }
 
+function RiskLevelBadge({ level }: { level: "high" | "medium" | "low" }) {
+  const variant = level === "high" ? "danger" : level === "medium" ? "warning" : "info";
+  const label = level === "high" ? "High risk" : level === "medium" ? "Medium risk" : "Low risk";
+  return <Badge variant={variant}>{label}</Badge>;
+}
+
+function StockReviewQueuePanel({ data, isError, isLoading }: {
+  data?: StockReviewQueue;
+  isError: boolean;
+  isLoading: boolean;
+}) {
+  const topItems = data?.items.slice(0, 10) ?? [];
+
+  return (
+    <Panel>
+      <PanelHeader
+        title="Stock review queue"
+        subtitle="Prioritised operational signals for review before action."
+        icon={<PackageSearch className="h-4 w-4" />}
+        actions={
+          data ? (
+            <Badge variant="info">{formatNumber(data.summary.total_items)} items</Badge>
+          ) : null
+        }
+      />
+      <PanelBody className="space-y-4">
+        {isLoading ? <SkeletonRows rows={4} /> : null}
+        {isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<PackageSearch className="h-5 w-5" />}
+            title="Could not load stock review queue."
+          />
+        ) : null}
+        {data && data.items.length === 0 ? (
+          <EmptyState
+            icon={<PackageSearch className="h-5 w-5" />}
+            title="No stock items need suggested review."
+            description="Operational signals will appear here when current stock, demand, expiry, or forecast confidence needs review."
+          />
+        ) : null}
+        {topItems.length > 0 ? (
+          <TableScroll>
+            <Table>
+              <THead>
+                <TR className="hover:bg-transparent">
+                  <TH>Product</TH>
+                  <TH>Risk</TH>
+                  <TH>Signals</TH>
+                  <TH>Demand</TH>
+                  <TH>Confidence</TH>
+                  <TH>Review</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {topItems.map((item) => (
+                  <TR key={`${item.stock_item_id ?? item.medication_id}-${item.pharmacy_id}`}>
+                    <TD className="min-w-64 font-semibold text-ink">
+                      {item.medication_name}
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <RiskLevelBadge level={item.risk_level} />
+                        <span className="tnum text-xs font-semibold text-muted">
+                          {item.score}
+                        </span>
+                      </div>
+                    </TD>
+                    <TD className="min-w-64">
+                      <div className="flex flex-wrap gap-1.5">
+                        {item.reason_chips.map((reason) => (
+                          <Badge key={reason} variant="warning">
+                            {reason}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TD>
+                    <TD className="tnum whitespace-nowrap">
+                      {item.shortfall_units > 0
+                        ? `${formatNumber(item.shortfall_units)} shortfall`
+                        : `${formatNumber(item.available_units)} available`}
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      {item.forecast_confidence_label ?? "Not generated"}
+                    </TD>
+                    <TD className="min-w-52 text-sm text-ink-soft">
+                      {item.review_message}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </TableScroll>
+        ) : null}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function MdsDemandPanel({ data, isError, isLoading }: {
+  data?: MdsDemandSignal;
+  isError: boolean;
+  isLoading: boolean;
+}) {
+  return (
+    <Panel>
+      <PanelHeader
+        title="MDS demand signal"
+        subtitle="Upcoming cycle demand compared with available stock. Patient counts only."
+        icon={<CalendarClock className="h-4 w-4" />}
+        actions={
+          data ? (
+            <Badge variant="info">{data.horizon_days} day horizon</Badge>
+          ) : null
+        }
+      />
+      <PanelBody className="space-y-4">
+        {data ? (
+          <section
+            aria-label="MDS demand summary"
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            <KpiCard
+              label="Required units"
+              value={formatNumber(data.summary.total_required_units)}
+            />
+            <KpiCard
+              label="Shortfall units"
+              value={formatNumber(data.summary.total_shortfall_units)}
+            />
+            <KpiCard
+              label="Cycles affected"
+              value={formatNumber(data.summary.cycles_affected)}
+            />
+            <KpiCard
+              label="Patients affected"
+              value={formatNumber(data.summary.patients_affected)}
+            />
+          </section>
+        ) : null}
+        {isLoading ? <SkeletonRows rows={4} /> : null}
+        {isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<CalendarClock className="h-5 w-5" />}
+            title="Could not load MDS demand signal."
+          />
+        ) : null}
+        {data && data.items.length === 0 ? (
+          <EmptyState
+            icon={<CalendarClock className="h-5 w-5" />}
+            title="No upcoming MDS demand signal."
+            description="Prepared and upcoming cycles without stock deduction will appear here."
+          />
+        ) : null}
+        {data && data.items.length > 0 ? (
+          <TableScroll>
+            <Table>
+              <THead>
+                <TR className="hover:bg-transparent">
+                  <TH>Product</TH>
+                  <TH>Required</TH>
+                  <TH>Available</TH>
+                  <TH>Shortfall</TH>
+                  <TH>Cycles</TH>
+                  <TH>Patients</TH>
+                  <TH>Status</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {data.items.map((item) => (
+                  <TR key={`${item.stock_item_id ?? item.medication_id}-${item.pharmacy_id}`}>
+                    <TD className="min-w-64 font-semibold text-ink">
+                      {item.medication_name}
+                    </TD>
+                    <TD className="tnum whitespace-nowrap">
+                      {formatNumber(item.required_units)}
+                    </TD>
+                    <TD className="tnum whitespace-nowrap">
+                      {formatNumber(item.available_units)}
+                    </TD>
+                    <TD className="tnum whitespace-nowrap font-semibold text-ink">
+                      {formatNumber(item.shortfall_units)}
+                    </TD>
+                    <TD className="tnum whitespace-nowrap">
+                      {formatNumber(item.cycles_affected)}
+                    </TD>
+                    <TD className="tnum whitespace-nowrap">
+                      {formatNumber(item.patients_affected)}
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      <Badge
+                        variant={
+                          item.mapping_status === "mapping_needed"
+                            ? "warning"
+                            : "info"
+                        }
+                      >
+                        {item.mapping_status === "mapping_needed"
+                          ? "Mapping needed"
+                          : "Mapped"}
+                      </Badge>
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </TableScroll>
+        ) : null}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function ExpiryRiskPanel({ data, isError, isLoading }: {
+  data?: ExpiryRisk;
+  isError: boolean;
+  isLoading: boolean;
+}) {
+  const riskItems = data?.items.filter((item) => item.days_to_expiry <= 90).slice(0, 8) ?? [];
+
+  return (
+    <Panel>
+      <PanelHeader
+        title="Expiry risk and value at risk"
+        subtitle="Active positive batches grouped by expiry window."
+        icon={<ShieldCheck className="h-4 w-4" />}
+        actions={<Badge variant="info">Expiry risk</Badge>}
+      />
+      <PanelBody className="space-y-4">
+        {data ? (
+          <section
+            aria-label="Expiry risk summary"
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            <KpiCard
+              label="Units within 30 days"
+              value={formatNumber(data.summary.expiring_within_30_days_units)}
+            />
+            <KpiCard
+              label="Stock value at risk"
+              value={formatCurrencyValue(data.summary.value_at_risk)}
+            />
+            <KpiCard
+              label="Unpriced risk units"
+              value={formatNumber(data.summary.unpriced_risk_units)}
+            />
+            <KpiCard
+              label="Products affected"
+              value={formatNumber(data.summary.products_affected)}
+            />
+          </section>
+        ) : null}
+        {isLoading ? <SkeletonRows rows={4} /> : null}
+        {isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="Could not load expiry risk."
+          />
+        ) : null}
+        {data && data.items.length === 0 ? (
+          <EmptyState
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="No active batch expiry risk to show."
+          />
+        ) : null}
+        {data ? (
+          <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            {data.buckets.map((bucket) => (
+              <article
+                className="rounded-xl border border-line bg-surface-subtle p-3"
+                key={bucket.key}
+              >
+                <p className="text-xs font-bold text-muted">{bucket.label}</p>
+                <p className="tnum mt-1 text-lg font-extrabold text-ink">
+                  {formatNumber(bucket.units)}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {formatCurrencyValue(bucket.estimated_value)} value
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+        {riskItems.length > 0 ? (
+          <TableScroll>
+            <Table>
+              <THead>
+                <TR className="hover:bg-transparent">
+                  <TH>Product</TH>
+                  <TH>Batch</TH>
+                  <TH>Expiry</TH>
+                  <TH>Units</TH>
+                  <TH>Value</TH>
+                  <TH>Review</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {riskItems.map((item) => (
+                  <TR key={`${item.stock_item_id}-${item.batch_number}`}>
+                    <TD className="min-w-64 font-semibold text-ink">
+                      {item.medication_name}
+                    </TD>
+                    <TD className="whitespace-nowrap">{item.batch_number}</TD>
+                    <TD className="whitespace-nowrap">
+                      {formatDate(item.expiry_date)}
+                      <span className="tnum block text-xs font-semibold text-muted">
+                        {item.days_to_expiry} days
+                      </span>
+                    </TD>
+                    <TD className="tnum whitespace-nowrap">
+                      {formatNumber(item.quantity)}
+                    </TD>
+                    <TD className="tnum whitespace-nowrap">
+                      {formatCurrencyValue(item.estimated_value)}
+                    </TD>
+                    <TD className="min-w-52 text-sm text-ink-soft">
+                      {item.review_message}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </TableScroll>
+        ) : null}
+      </PanelBody>
+    </Panel>
+  );
+}
+
 function OpportunityRoadmap() {
   return (
     <Panel>
@@ -413,9 +773,19 @@ export function StockAnalyticsScreen() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>(
     undefined,
   );
+  const [signalHorizonDays, setSignalHorizonDays] = useState(28);
   const [horizonDays, setHorizonDays] = useState(30);
   const [deadDays, setDeadDays] = useState(30);
   const stockOverviewQuery = useStockAnalyticsOverviewQuery(selectedPharmacyId);
+  const stockReviewQueueQuery = useStockReviewQueueQuery(
+    selectedPharmacyId,
+    signalHorizonDays,
+  );
+  const mdsDemandQuery = useMdsDemandSignalQuery(
+    selectedPharmacyId,
+    signalHorizonDays,
+  );
+  const expiryRiskQuery = useExpiryRiskQuery(selectedPharmacyId);
   const latestForecastQuery = useLatestForecastQuery(selectedPharmacyId);
   const generateForecast = useGenerateForecast();
   const canViewTransferSuggestions = can("transfer_suggestion.view");
@@ -476,7 +846,77 @@ export function StockAnalyticsScreen() {
         subtitle="Explainable stock analytics based on inventory levels, expiry dates, and movement history."
       />
 
-      <OpportunityRoadmap />
+      <Panel>
+        <PanelHeader>
+          <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-bold tracking-[-0.01em] text-ink">
+                Operational signal filters
+              </h2>
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
+                Stock risk, MDS demand signal, and expiry risk are read-only
+                signals. Human review required before action.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              {pharmacies.length > 0 ? (
+                <label className="min-w-56">
+                  <span className={labelClass}>Pharmacy</span>
+                  <FieldSelect
+                    onChange={(event) =>
+                      setSelectedPharmacyId(
+                        event.target.value
+                          ? Number(event.target.value)
+                          : undefined,
+                      )
+                    }
+                    value={selectedPharmacyId ?? ""}
+                  >
+                    {pharmacies.map((pharmacy) => (
+                      <option key={pharmacy.id} value={pharmacy.id}>
+                        {pharmacy.name}
+                      </option>
+                    ))}
+                  </FieldSelect>
+                </label>
+              ) : null}
+              <label className="min-w-40">
+                <span className={labelClass}>Signal horizon</span>
+                <FieldSelect
+                  onChange={(event) =>
+                    setSignalHorizonDays(Number(event.target.value))
+                  }
+                  value={signalHorizonDays}
+                >
+                  <option value={7}>7 days</option>
+                  <option value={14}>14 days</option>
+                  <option value={28}>28 days</option>
+                  <option value={60}>60 days</option>
+                  <option value={90}>90 days</option>
+                </FieldSelect>
+              </label>
+            </div>
+          </div>
+        </PanelHeader>
+      </Panel>
+
+      <StockReviewQueuePanel
+        data={stockReviewQueueQuery.data}
+        isError={stockReviewQueueQuery.isError}
+        isLoading={stockReviewQueueQuery.isLoading}
+      />
+
+      <MdsDemandPanel
+        data={mdsDemandQuery.data}
+        isError={mdsDemandQuery.isError}
+        isLoading={mdsDemandQuery.isLoading}
+      />
+
+      <ExpiryRiskPanel
+        data={expiryRiskQuery.data}
+        isError={expiryRiskQuery.isError}
+        isLoading={expiryRiskQuery.isLoading}
+      />
 
       {canViewTransferSuggestions ? (
         <Panel>
@@ -661,8 +1101,9 @@ export function StockAnalyticsScreen() {
                   Reorder forecasting
                 </h2>
                 <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
-                  Estimated demand based on stock movement history. Human review
-                  required before ordering.
+                  Estimated demand based on stock movement history. Forecast
+                  confidence reflects available movement history. Review before
+                  action.
                 </p>
               </div>
             </div>
@@ -884,6 +1325,8 @@ export function StockAnalyticsScreen() {
           )}
         </>
       ) : null}
+
+      <OpportunityRoadmap />
     </div>
   );
 }

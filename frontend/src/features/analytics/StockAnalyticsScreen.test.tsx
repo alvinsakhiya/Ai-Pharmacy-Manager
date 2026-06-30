@@ -9,8 +9,11 @@ import {
   renderWithProviders,
 } from "../../test/providers";
 import type {
+  ExpiryRisk,
   ForecastRun,
+  MdsDemandSignal,
   StockOverview,
+  StockReviewQueue,
   TransferSuggestion,
 } from "./analyticsApi";
 import * as analyticsApi from "./analyticsApi";
@@ -23,8 +26,11 @@ vi.mock("./analyticsApi", async (importOriginal) => {
     dismissTransferSuggestion: vi.fn(),
     generateForecast: vi.fn(),
     generateTransferSuggestions: vi.fn(),
+    getExpiryRisk: vi.fn(),
     getLatestForecast: vi.fn(),
+    getMdsDemandSignal: vi.fn(),
     getStockAnalyticsOverview: vi.fn(),
+    getStockReviewQueue: vi.fn(),
     listTransferSuggestions: vi.fn(),
   };
 });
@@ -36,10 +42,13 @@ const generateForecastMock = vi.mocked(analyticsApi.generateForecast);
 const generateTransferSuggestionsMock = vi.mocked(
   analyticsApi.generateTransferSuggestions,
 );
+const getExpiryRiskMock = vi.mocked(analyticsApi.getExpiryRisk);
 const getLatestForecastMock = vi.mocked(analyticsApi.getLatestForecast);
+const getMdsDemandSignalMock = vi.mocked(analyticsApi.getMdsDemandSignal);
 const getStockAnalyticsOverviewMock = vi.mocked(
   analyticsApi.getStockAnalyticsOverview,
 );
+const getStockReviewQueueMock = vi.mocked(analyticsApi.getStockReviewQueue);
 const listTransferSuggestionsMock = vi.mocked(
   analyticsApi.listTransferSuggestions,
 );
@@ -117,6 +126,172 @@ function makeOverview(overrides: Partial<StockOverview> = {}): StockOverview {
   };
 }
 
+function makeMdsDemand(
+  overrides: Partial<MdsDemandSignal> = {},
+): MdsDemandSignal {
+  return {
+    generated_at: "2026-06-20T10:00:00Z",
+    horizon_days: 28,
+    summary: {
+      total_required_units: 112,
+      total_available_units: 72,
+      total_shortfall_units: 40,
+      items_with_shortfall: 1,
+      mapping_needed: 0,
+      cycles_affected: 4,
+      patients_affected: 3,
+    },
+    items: [
+      {
+        stock_item_id: 1,
+        medication_id: 10,
+        medication_name: "Amlodipine",
+        pharmacy_id: 7,
+        pharmacy_name: "JMW Sutton",
+        required_units: 112,
+        available_units: 72,
+        shortfall_units: 40,
+        cycles_affected: 4,
+        patients_affected: 3,
+        mapping_status: "mapped",
+        review_message: "Review before action.",
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function makeExpiryRisk(overrides: Partial<ExpiryRisk> = {}): ExpiryRisk {
+  return {
+    generated_at: "2026-06-20T10:00:00Z",
+    summary: {
+      expiring_within_30_days_units: 14,
+      value_at_risk: "28.00",
+      unpriced_risk_units: 5,
+      products_affected: 2,
+    },
+    buckets: [
+      {
+        key: "expired",
+        label: "Expired",
+        units: 2,
+        estimated_value: "4.00",
+        unpriced_units: 0,
+        batch_count: 1,
+        product_count: 1,
+      },
+      {
+        key: "d0_7",
+        label: "0-7 days",
+        units: 8,
+        estimated_value: "14.00",
+        unpriced_units: 5,
+        batch_count: 2,
+        product_count: 2,
+      },
+      {
+        key: "d8_30",
+        label: "8-30 days",
+        units: 4,
+        estimated_value: "10.00",
+        unpriced_units: 0,
+        batch_count: 1,
+        product_count: 1,
+      },
+      {
+        key: "d31_60",
+        label: "31-60 days",
+        units: 6,
+        estimated_value: "12.00",
+        unpriced_units: 0,
+        batch_count: 1,
+        product_count: 1,
+      },
+      {
+        key: "d61_90",
+        label: "61-90 days",
+        units: 0,
+        estimated_value: "0.00",
+        unpriced_units: 0,
+        batch_count: 0,
+        product_count: 0,
+      },
+      {
+        key: "d90_plus",
+        label: "90+ days",
+        units: 30,
+        estimated_value: "60.00",
+        unpriced_units: 0,
+        batch_count: 1,
+        product_count: 1,
+      },
+    ],
+    items: [
+      {
+        stock_item_id: 2,
+        medication_id: 11,
+        medication_name: "Bisoprolol",
+        pharmacy_id: 8,
+        pharmacy_name: "JMW Sutton",
+        batch_number: "BIS-001",
+        expiry_date: "2026-07-01",
+        days_to_expiry: 11,
+        quantity: 4,
+        bucket: "d8_30",
+        bucket_label: "8-30 days",
+        estimated_value: "10.00",
+        unpriced_units: 0,
+        review_message: "Expiry risk. Review before action.",
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function makeReviewQueue(
+  overrides: Partial<StockReviewQueue> = {},
+): StockReviewQueue {
+  return {
+    generated_at: "2026-06-20T10:00:00Z",
+    horizon_days: 28,
+    summary: {
+      total_items: 1,
+      high_risk: 1,
+      medium_risk: 0,
+      low_risk: 0,
+      mds_shortfall: 1,
+      expiry_risk: 1,
+      low_confidence: 1,
+    },
+    items: [
+      {
+        stock_item_id: 1,
+        medication_id: 10,
+        medication_name: "Amlodipine",
+        pharmacy_id: 7,
+        pharmacy_name: "JMW Sutton",
+        score: 100,
+        risk_level: "high",
+        reason_chips: [
+          "MDS shortfall",
+          "Low stock",
+          "Expiry risk",
+          "Low confidence",
+          "Order review",
+        ],
+        signals: ["MDS demand signal", "Stock risk", "Expiry risk"],
+        required_units: 112,
+        available_units: 72,
+        shortfall_units: 40,
+        forecast_confidence: "0.35",
+        forecast_confidence_label: "Low confidence",
+        review_message: "Review before action. Human review required.",
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function makeForecast(overrides: Partial<ForecastRun> = {}): ForecastRun {
   return {
     id: 30,
@@ -144,7 +319,7 @@ function makeForecast(overrides: Partial<ForecastRun> = {}): ForecastRun {
         suggested_reorder_packs: 2,
         confidence: "0.60",
         explanation:
-          "Based on 6 outbound stock movements over the last 90 days, average usage is 6.7 units/day. Forecast suggestion only; human review required before ordering.",
+          "Based on 6 outbound stock movements over the last 90 days, average usage is 6.7 units/day. Forecast suggestion only. Review before action. Human review required.",
         history_points_count: 6,
         window_days: 90,
         created_at: "2026-06-20T10:00:00Z",
@@ -239,8 +414,11 @@ describe("StockAnalyticsScreen", () => {
     );
     generateForecastMock.mockResolvedValue(makeForecast());
     generateTransferSuggestionsMock.mockResolvedValue([makeTransferSuggestion()]);
+    getExpiryRiskMock.mockResolvedValue(makeExpiryRisk());
     getLatestForecastMock.mockResolvedValue(makeForecast());
+    getMdsDemandSignalMock.mockResolvedValue(makeMdsDemand());
     getStockAnalyticsOverviewMock.mockResolvedValue(makeOverview());
+    getStockReviewQueueMock.mockResolvedValue(makeReviewQueue());
     listTransferSuggestionsMock.mockResolvedValue([]);
   });
 
@@ -261,10 +439,46 @@ describe("StockAnalyticsScreen", () => {
     expect(screen.getAllByText("1").length).toBeGreaterThan(0);
   });
 
+  it("renders stock review queue mds demand and expiry risk panels", async () => {
+    renderAnalytics();
+
+    expect(await screen.findByText("Stock review queue")).toBeInTheDocument();
+    expect(await screen.findByText("MDS shortfall")).toBeInTheDocument();
+    expect(screen.getByText("High risk")).toBeInTheDocument();
+    expect(screen.getByText("Order review")).toBeInTheDocument();
+    expect(screen.getByText("40 shortfall")).toBeInTheDocument();
+    expect(screen.getAllByText("Review before action. Human review required.").length).toBeGreaterThan(0);
+
+    expect(screen.getByText("MDS demand signal")).toBeInTheDocument();
+    expect(screen.getByText("Required units")).toBeInTheDocument();
+    expect(screen.getByText("Patients affected")).toBeInTheDocument();
+    expect(screen.getAllByText("112").length).toBeGreaterThan(0);
+    expect(screen.getByText("Mapped")).toBeInTheDocument();
+
+    expect(screen.getByText("Expiry risk and value at risk")).toBeInTheDocument();
+    expect(screen.getAllByText("Stock value at risk").length).toBeGreaterThan(0);
+    expect(screen.getByText("£28.00")).toBeInTheDocument();
+    expect(screen.getAllByText("Bisoprolol").length).toBeGreaterThan(0);
+    expect(screen.getByText("Expiry risk. Review before action.")).toBeInTheDocument();
+  });
+
+  it("refetches read-only intelligence signals when signal horizon changes", async () => {
+    const user = userEvent.setup();
+    renderAnalytics();
+
+    await screen.findByText("Stock review queue");
+    await user.selectOptions(screen.getByLabelText("Signal horizon"), "60");
+
+    await waitFor(() => {
+      expect(getMdsDemandSignalMock).toHaveBeenCalledWith(1, 60);
+      expect(getStockReviewQueueMock).toHaveBeenCalledWith(1, 60);
+    });
+  });
+
   it("renders attention rows in returned order", async () => {
     renderAnalytics();
 
-    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
+    expect((await screen.findAllByText("Amlodipine")).length).toBeGreaterThan(0);
     const attentionSection = screen
       .getByRole("heading", { name: "Attention table" })
       .closest("section");
@@ -278,7 +492,14 @@ describe("StockAnalyticsScreen", () => {
   it("renders flags reasons attention and reorder values", async () => {
     renderAnalytics();
 
-    const bisoprololRow = (await screen.findByText("Bisoprolol")).closest("tr");
+    expect((await screen.findAllByText("Bisoprolol")).length).toBeGreaterThan(0);
+    const attentionSection = screen
+      .getByRole("heading", { name: "Attention table" })
+      .closest("section");
+    expect(attentionSection).not.toBeNull();
+    const bisoprololRow = within(attentionSection as HTMLElement)
+      .getByText("Bisoprolol")
+      .closest("tr");
     expect(bisoprololRow).not.toBeNull();
     expect(within(bisoprololRow as HTMLElement).getByText("Low stock")).toBeInTheDocument();
     expect(within(bisoprololRow as HTMLElement).getByText("Near expiry")).toBeInTheDocument();
@@ -339,13 +560,15 @@ describe("StockAnalyticsScreen", () => {
 
     expect(await screen.findByText("Reorder forecasting")).toBeInTheDocument();
     expect(screen.getByText("Forecast suggestion")).toBeInTheDocument();
-    expect(screen.getByText(/Human review required before ordering/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Forecast confidence reflects available movement history/),
+    ).toBeInTheDocument();
     expect(
       await screen.findByText("Paracetamol 500mg tablets — pack of 100 tablets"),
     ).toBeInTheDocument();
     expect(screen.getAllByText("2 packs / 200 units").length).toBeGreaterThan(0);
     expect(screen.getByText("0.50 packs / 50 units")).toBeInTheDocument();
-    expect(screen.getByText("60% confidence")).toBeInTheDocument();
+    expect(screen.getAllByText(/Medium confidence/).length).toBeGreaterThan(0);
     await userEvent.click(screen.getByText("Explanation"));
     expect(screen.getByText(/average usage is 6.7 units\/day/)).toBeInTheDocument();
   });
@@ -404,7 +627,7 @@ describe("StockAnalyticsScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText(/JMW Sutton.*JMW Wimbledon/).length).toBeGreaterThan(0);
     expect(screen.getByText("4 packs / 160 units")).toBeInTheDocument();
-    expect(screen.getByText("65% confidence")).toBeInTheDocument();
+    expect(screen.getAllByText(/Medium confidence/).length).toBeGreaterThan(0);
   });
 
   it("hides transfer suggestions panel without group-level permission", async () => {
@@ -488,7 +711,7 @@ describe("StockAnalyticsScreen", () => {
   it("does not render patient data fields or values", async () => {
     renderAnalytics();
 
-    expect(await screen.findByText("Amlodipine")).toBeInTheDocument();
+    expect((await screen.findAllByText("Amlodipine")).length).toBeGreaterThan(0);
     for (const forbidden of [
       "patient_reference",
       "first_name",
@@ -499,6 +722,10 @@ describe("StockAnalyticsScreen", () => {
       "dose_instructions",
       "note",
       "PRIVATE-PATIENT",
+      "guaranteed forecast",
+      "AI decided",
+      "must order",
+      "must transfer",
     ]) {
       expect(screen.queryByText(forbidden)).toBeNull();
     }

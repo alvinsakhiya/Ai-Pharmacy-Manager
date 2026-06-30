@@ -47,6 +47,114 @@ export interface StockOverview {
   items: StockAnalyticsItem[];
 }
 
+export interface MdsDemandSummary {
+  total_required_units: number;
+  total_available_units: number;
+  total_shortfall_units: number;
+  items_with_shortfall: number;
+  mapping_needed: number;
+  cycles_affected: number;
+  patients_affected: number;
+}
+
+export interface MdsDemandItem {
+  stock_item_id: number | null;
+  medication_id: number;
+  medication_name: string;
+  pharmacy_id: number;
+  pharmacy_name: string;
+  required_units: number;
+  available_units: number;
+  shortfall_units: number;
+  cycles_affected: number;
+  patients_affected: number;
+  mapping_status: "mapped" | "mapping_needed";
+  review_message: string;
+}
+
+export interface MdsDemandSignal {
+  generated_at: string;
+  horizon_days: number;
+  summary: MdsDemandSummary;
+  items: MdsDemandItem[];
+}
+
+export interface ExpiryRiskSummary {
+  expiring_within_30_days_units: number;
+  value_at_risk: string;
+  unpriced_risk_units: number;
+  products_affected: number;
+}
+
+export interface ExpiryRiskBucket {
+  key: string;
+  label: string;
+  units: number;
+  estimated_value: string;
+  unpriced_units: number;
+  batch_count: number;
+  product_count: number;
+}
+
+export interface ExpiryRiskItem {
+  stock_item_id: number;
+  medication_id: number;
+  medication_name: string;
+  pharmacy_id: number;
+  pharmacy_name: string;
+  batch_number: string;
+  expiry_date: string;
+  days_to_expiry: number;
+  quantity: number;
+  bucket: string;
+  bucket_label: string;
+  estimated_value: string;
+  unpriced_units: number;
+  review_message: string;
+}
+
+export interface ExpiryRisk {
+  generated_at: string;
+  summary: ExpiryRiskSummary;
+  buckets: ExpiryRiskBucket[];
+  items: ExpiryRiskItem[];
+}
+
+export interface StockReviewQueueSummary {
+  total_items: number;
+  high_risk: number;
+  medium_risk: number;
+  low_risk: number;
+  mds_shortfall: number;
+  expiry_risk: number;
+  low_confidence: number;
+}
+
+export interface StockReviewQueueItem {
+  stock_item_id: number | null;
+  medication_id: number;
+  medication_name: string;
+  pharmacy_id: number;
+  pharmacy_name: string;
+  score: number;
+  risk_level: "high" | "medium" | "low";
+  reason_chips: string[];
+  signals: string[];
+  required_units: number;
+  available_units: number;
+  shortfall_units: number;
+  forecast_confidence: string | null;
+  forecast_confidence_label: string | null;
+  review_message: string;
+}
+
+export interface StockReviewQueue {
+  generated_at: string;
+  horizon_days: number;
+  summary: StockReviewQueueSummary;
+  items: StockReviewQueueItem[];
+}
+
 export interface ForecastItem {
   id: number;
   stock_item: number;
@@ -110,6 +218,42 @@ export function getStockAnalyticsOverview(
 ): Promise<StockOverview> {
   const query = pharmacyId ? `?pharmacy=${pharmacyId}` : "";
   return requestJson<StockOverview>(`/api/analytics/stock/overview/${query}`);
+}
+
+function signalQuery(pharmacyId?: number, horizonDays?: number): string {
+  const params = new URLSearchParams();
+  if (pharmacyId !== undefined) {
+    params.set("pharmacy", String(pharmacyId));
+  }
+  if (horizonDays !== undefined) {
+    params.set("horizon_days", String(horizonDays));
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export function getMdsDemandSignal(
+  pharmacyId?: number,
+  horizonDays = 28,
+): Promise<MdsDemandSignal> {
+  return requestJson<MdsDemandSignal>(
+    `/api/analytics/mds-demand/${signalQuery(pharmacyId, horizonDays)}`,
+  );
+}
+
+export function getExpiryRisk(pharmacyId?: number): Promise<ExpiryRisk> {
+  return requestJson<ExpiryRisk>(
+    `/api/analytics/expiry-risk/${signalQuery(pharmacyId)}`,
+  );
+}
+
+export function getStockReviewQueue(
+  pharmacyId?: number,
+  horizonDays = 28,
+): Promise<StockReviewQueue> {
+  return requestJson<StockReviewQueue>(
+    `/api/analytics/stock-review-queue/${signalQuery(pharmacyId, horizonDays)}`,
+  );
 }
 
 export async function getLatestForecast(

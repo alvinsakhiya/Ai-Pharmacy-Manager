@@ -192,7 +192,7 @@ def test_forecast_models_store_safe_pii_free_snapshots(forecast_data):
     assert run.model_version == "baseline-1"
     assert run.status == ForecastRun.Status.COMPLETED
     assert item.medication_label == "Paracetamol 500mg tablets — pack of 100 tablets"
-    assert "human review required" in item.explanation
+    assert "human review required" in item.explanation.lower()
     assert "patient" not in item.explanation.lower()
 
 

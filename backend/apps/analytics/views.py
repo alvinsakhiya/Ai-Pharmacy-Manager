@@ -14,38 +14,108 @@ from apps.tenancy.permissions import Action, can, require
 
 from .models import ForecastRun, TransferSuggestion
 from .serializers import (
+    ExpiryRiskSerializer,
     ForecastGenerateSerializer,
     ForecastRunSerializer,
+    MdsDemandSerializer,
     StockOverviewSerializer,
+    StockReviewQueueSerializer,
     TransferSuggestionGenerateSerializer,
     TransferSuggestionSerializer,
 )
 from .services import (
     dismiss_transfer_suggestion,
+    expiry_risk_for,
     generate_stock_forecast,
     generate_transfer_suggestions,
     latest_stock_forecast_for,
     list_transfer_suggestions,
+    mds_demand_signal_for,
     stock_overview_for,
+    stock_review_queue_for,
 )
+
+DEFAULT_SIGNAL_HORIZON_DAYS = 28
+MIN_SIGNAL_HORIZON_DAYS = 7
+MAX_SIGNAL_HORIZON_DAYS = 90
+
+
+def _pharmacy_id_from_query(request):
+    pharmacy_id = request.query_params.get("pharmacy")
+    if pharmacy_id is None:
+        return None
+    try:
+        return int(pharmacy_id)
+    except ValueError:
+        raise serializers.ValidationError(
+            {"pharmacy": ["Pharmacy filter must be an integer."]}
+        ) from None
+
+
+def _horizon_days_from_query(request):
+    horizon_days = request.query_params.get("horizon_days")
+    if horizon_days is None:
+        return DEFAULT_SIGNAL_HORIZON_DAYS
+    try:
+        horizon_days = int(horizon_days)
+    except ValueError:
+        raise serializers.ValidationError(
+            {"horizon_days": ["Horizon must be an integer."]}
+        ) from None
+    if not MIN_SIGNAL_HORIZON_DAYS <= horizon_days <= MAX_SIGNAL_HORIZON_DAYS:
+        raise serializers.ValidationError(
+            {"horizon_days": ["Horizon must be between 7 and 90 days."]}
+        )
+    return horizon_days
 
 
 class StockOverviewView(APIView):
     permission_classes = [require(Action.STOCK_VIEW)]
 
     def get(self, request):
-        pharmacy_id = request.query_params.get("pharmacy")
-        if pharmacy_id is not None:
-            try:
-                pharmacy_id = int(pharmacy_id)
-            except ValueError:
-                raise serializers.ValidationError(
-                    {"pharmacy": ["Pharmacy filter must be an integer."]}
-                ) from None
+        pharmacy_id = _pharmacy_id_from_query(request)
 
         overview = stock_overview_for(request.user, pharmacy_id=pharmacy_id)
         return Response(
             StockOverviewSerializer(overview).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class MdsDemandSignalView(APIView):
+    permission_classes = [require(Action.STOCK_VIEW)]
+
+    def get(self, request):
+        signal = mds_demand_signal_for(
+            request.user,
+            pharmacy_id=_pharmacy_id_from_query(request),
+            horizon_days=_horizon_days_from_query(request),
+        )
+        return Response(MdsDemandSerializer(signal).data, status=status.HTTP_200_OK)
+
+
+class ExpiryRiskView(APIView):
+    permission_classes = [require(Action.STOCK_VIEW)]
+
+    def get(self, request):
+        risk = expiry_risk_for(
+            request.user,
+            pharmacy_id=_pharmacy_id_from_query(request),
+        )
+        return Response(ExpiryRiskSerializer(risk).data, status=status.HTTP_200_OK)
+
+
+class StockReviewQueueView(APIView):
+    permission_classes = [require(Action.STOCK_VIEW)]
+
+    def get(self, request):
+        queue = stock_review_queue_for(
+            request.user,
+            pharmacy_id=_pharmacy_id_from_query(request),
+            horizon_days=_horizon_days_from_query(request),
+        )
+        return Response(
+            StockReviewQueueSerializer(queue).data,
             status=status.HTTP_200_OK,
         )
 

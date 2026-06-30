@@ -181,3 +181,117 @@ class StockOverviewSerializer(serializers.Serializer):
     thresholds = StockAnalyticsThresholdsSerializer(read_only=True)
     summary = StockAnalyticsSummarySerializer(read_only=True)
     items = StockAnalyticsItemSerializer(many=True, read_only=True)
+
+
+class MdsDemandSummarySerializer(serializers.Serializer):
+    total_required_units = serializers.IntegerField(read_only=True)
+    total_available_units = serializers.IntegerField(read_only=True)
+    total_shortfall_units = serializers.IntegerField(read_only=True)
+    items_with_shortfall = serializers.IntegerField(read_only=True)
+    mapping_needed = serializers.IntegerField(read_only=True)
+    cycles_affected = serializers.IntegerField(read_only=True)
+    patients_affected = serializers.IntegerField(read_only=True)
+
+
+class MdsDemandItemSerializer(serializers.Serializer):
+    stock_item_id = serializers.IntegerField(allow_null=True, read_only=True)
+    medication_id = serializers.IntegerField(read_only=True)
+    medication_name = serializers.CharField(read_only=True)
+    pharmacy_id = serializers.IntegerField(read_only=True)
+    pharmacy_name = serializers.CharField(read_only=True)
+    required_units = serializers.IntegerField(read_only=True)
+    available_units = serializers.IntegerField(read_only=True)
+    shortfall_units = serializers.IntegerField(read_only=True)
+    cycles_affected = serializers.IntegerField(read_only=True)
+    patients_affected = serializers.IntegerField(read_only=True)
+    mapping_status = serializers.CharField(read_only=True)
+    review_message = serializers.CharField(read_only=True)
+
+
+class MdsDemandSerializer(serializers.Serializer):
+    generated_at = serializers.DateTimeField(read_only=True)
+    horizon_days = serializers.IntegerField(read_only=True)
+    summary = MdsDemandSummarySerializer(read_only=True)
+    items = MdsDemandItemSerializer(many=True, read_only=True)
+
+
+class ExpiryRiskSummarySerializer(serializers.Serializer):
+    expiring_within_30_days_units = serializers.IntegerField(read_only=True)
+    value_at_risk = serializers.CharField(read_only=True)
+    unpriced_risk_units = serializers.IntegerField(read_only=True)
+    products_affected = serializers.IntegerField(read_only=True)
+
+
+class ExpiryRiskBucketSerializer(serializers.Serializer):
+    key = serializers.CharField(read_only=True)
+    label = serializers.CharField(read_only=True)
+    units = serializers.IntegerField(read_only=True)
+    estimated_value = serializers.CharField(read_only=True)
+    unpriced_units = serializers.IntegerField(read_only=True)
+    batch_count = serializers.IntegerField(read_only=True)
+    product_count = serializers.IntegerField(read_only=True)
+
+
+class ExpiryRiskItemSerializer(serializers.Serializer):
+    stock_item_id = serializers.IntegerField(read_only=True)
+    medication_id = serializers.IntegerField(read_only=True)
+    medication_name = serializers.CharField(read_only=True)
+    pharmacy_id = serializers.IntegerField(read_only=True)
+    pharmacy_name = serializers.CharField(read_only=True)
+    batch_number = serializers.CharField(read_only=True)
+    expiry_date = serializers.DateField(read_only=True)
+    days_to_expiry = serializers.IntegerField(read_only=True)
+    quantity = serializers.IntegerField(read_only=True)
+    bucket = serializers.CharField(read_only=True)
+    bucket_label = serializers.CharField(read_only=True)
+    estimated_value = serializers.CharField(read_only=True)
+    unpriced_units = serializers.IntegerField(read_only=True)
+    review_message = serializers.CharField(read_only=True)
+
+
+class ExpiryRiskSerializer(serializers.Serializer):
+    generated_at = serializers.DateTimeField(read_only=True)
+    summary = ExpiryRiskSummarySerializer(read_only=True)
+    buckets = ExpiryRiskBucketSerializer(many=True, read_only=True)
+    items = ExpiryRiskItemSerializer(many=True, read_only=True)
+
+
+class StockReviewQueueSummarySerializer(serializers.Serializer):
+    total_items = serializers.IntegerField(read_only=True)
+    high_risk = serializers.IntegerField(read_only=True)
+    medium_risk = serializers.IntegerField(read_only=True)
+    low_risk = serializers.IntegerField(read_only=True)
+    mds_shortfall = serializers.IntegerField(read_only=True)
+    expiry_risk = serializers.IntegerField(read_only=True)
+    low_confidence = serializers.IntegerField(read_only=True)
+
+
+class StockReviewQueueItemSerializer(serializers.Serializer):
+    stock_item_id = serializers.IntegerField(allow_null=True, read_only=True)
+    medication_id = serializers.IntegerField(read_only=True)
+    medication_name = serializers.CharField(read_only=True)
+    pharmacy_id = serializers.IntegerField(read_only=True)
+    pharmacy_name = serializers.CharField(allow_blank=True, read_only=True)
+    score = serializers.IntegerField(read_only=True)
+    risk_level = serializers.CharField(read_only=True)
+    reason_chips = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+    )
+    signals = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+    )
+    required_units = serializers.IntegerField(read_only=True)
+    available_units = serializers.IntegerField(read_only=True)
+    shortfall_units = serializers.IntegerField(read_only=True)
+    forecast_confidence = serializers.CharField(allow_null=True, read_only=True)
+    forecast_confidence_label = serializers.CharField(allow_null=True, read_only=True)
+    review_message = serializers.CharField(read_only=True)
+
+
+class StockReviewQueueSerializer(serializers.Serializer):
+    generated_at = serializers.DateTimeField(read_only=True)
+    horizon_days = serializers.IntegerField(read_only=True)
+    summary = StockReviewQueueSummarySerializer(read_only=True)
+    items = StockReviewQueueItemSerializer(many=True, read_only=True)
