@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -55,47 +55,58 @@ describe("LoginScreen", () => {
     renderLoginScreen();
 
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i, { selector: "input" })).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/password/i, { selector: "input" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /log in/i })).toBeInTheDocument();
   });
 
-  it("displays the AI Pharmacy Manager brand logo", () => {
+  it("renders the modern AI Pharmacy Manager brand title", () => {
     renderLoginScreen();
 
-    expect(document.body).toHaveTextContent("AI Pharmacy Manager");
+    expect(
+      screen.getByRole("heading", {
+        name: "Welcome to AI Pharmacy Manager",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("AI").length).toBeGreaterThan(0);
+    expect(screen.getByText("Operational workspace")).toBeInTheDocument();
     expect(
       document.querySelector('img[src*="ai-pharmacy-manager-logo-header"]'),
     ).toBeNull();
   });
 
-  it("uses solid brand panel surfaces and safe operational copy", () => {
+  it("uses safe SaaS login copy without unsafe wording", () => {
     renderLoginScreen();
 
-    const brandPanel = document.querySelector("aside");
-    expect(brandPanel).toBeInTheDocument();
-    expect(brandPanel).toHaveTextContent(
-      "Role-based access · audit trail · scoped pharmacy views",
+    expect(document.body).toHaveTextContent("Human review required");
+    expect(document.body).toHaveTextContent("Role-based access");
+    expect(document.body).toHaveTextContent("Audit trail");
+    expect(document.body).not.toHaveTextContent(
+      /Acme|NHS|NCRS|clinical recommendation|AI decided|automatic ordering|automatic transfer|automatic dispensing|guaranteed forecast/i,
     );
-    expect(brandPanel).toHaveTextContent(
-      "Stock rotated by expiry with clear stock review.",
-    );
-    expect(brandPanel).toHaveTextContent(
-      "MDS workload and prepare reminders in one workspace.",
-    );
-    expect(brandPanel).not.toHaveTextContent(/NHS|clinical recommendation|AI decided/i);
 
-    const brandMarkup = brandPanel?.outerHTML ?? "";
+    const loginSection = screen.getByLabelText("AI Pharmacy Manager login");
+    const loginMarkup = loginSection.outerHTML;
     for (const forbidden of [
       /backdrop-blur/,
-      /bg-white\//,
-      /ring-white\//,
-      /border-white\//,
-      /radial-gradient/,
-      /rgba\(/,
       /blur-3xl/,
     ]) {
-      expect(brandMarkup).not.toMatch(forbidden);
+      expect(loginMarkup).not.toMatch(forbidden);
     }
+  });
+
+  it("renders decorative badges outside the form accessibility flow", () => {
+    renderLoginScreen();
+
+    const badges = screen.getByTestId("login-decorative-badges");
+    expect(badges).toHaveAttribute("aria-hidden", "true");
+    expect(badges).toHaveTextContent("MDS");
+    expect(badges).toHaveTextContent("Stock");
+    expect(badges).toHaveTextContent("Review");
+    expect(badges).toHaveTextContent("FEFO");
+    expect(screen.queryByRole("button", { name: /mds|stock|review|fefo/i }))
+      .not.toBeInTheDocument();
   });
 
   it("successful submit calls login with trimmed email and preserved password", async () => {
@@ -108,11 +119,45 @@ describe("LoginScreen", () => {
       screen.getByLabelText(/password/i, { selector: "input" }),
       " DemoPass!2026 ",
     );
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    await user.click(screen.getByRole("button", { name: /log in/i }));
 
     await waitFor(() => {
       expect(login).toHaveBeenCalledWith("admin@example.com", " DemoPass!2026 ");
     });
+  });
+
+  it("successful login redirects into the app", async () => {
+    const login = vi.fn().mockResolvedValue({ ok: true, user: makeUser() });
+    const user = userEvent.setup();
+
+    render(
+      <AuthContext.Provider
+        value={{
+          user: null,
+          loading: false,
+          login,
+          logout: vi.fn(),
+          changePassword: vi.fn(),
+          refreshMe: vi.fn(),
+        }}
+      >
+        <MemoryRouter initialEntries={["/login"]}>
+          <Routes>
+            <Route path="/login" element={<LoginScreen />} />
+            <Route path="/" element={<p>Dashboard route</p>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    await user.type(screen.getByLabelText(/email/i), "admin@example.com");
+    await user.type(
+      screen.getByLabelText(/password/i, { selector: "input" }),
+      "DemoPass!2026",
+    );
+    await user.click(screen.getByRole("button", { name: /log in/i }));
+
+    expect(await screen.findByText("Dashboard route")).toBeInTheDocument();
   });
 
   it("does not submit empty credentials", async () => {
@@ -120,7 +165,7 @@ describe("LoginScreen", () => {
     const user = userEvent.setup();
     renderLoginScreen({ login });
 
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    await user.click(screen.getByRole("button", { name: /log in/i }));
 
     expect(login).not.toHaveBeenCalled();
   });
@@ -134,8 +179,11 @@ describe("LoginScreen", () => {
     renderLoginScreen({ login });
 
     await user.type(screen.getByLabelText(/email/i), "admin@example.com");
-    await user.type(screen.getByLabelText(/password/i, { selector: "input" }), "wrong-password");
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    await user.type(
+      screen.getByLabelText(/password/i, { selector: "input" }),
+      "wrong-password",
+    );
+    await user.click(screen.getByRole("button", { name: /log in/i }));
 
     expect(
       await screen.findByText(/unable to sign in with those credentials/i),

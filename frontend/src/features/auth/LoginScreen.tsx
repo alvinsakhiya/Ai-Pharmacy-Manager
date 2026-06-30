@@ -3,45 +3,40 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   ArrowRight,
-  Boxes,
-  CalendarClock,
   Eye,
   EyeOff,
   Lock,
   Mail,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
-import { Button } from "../../components/ui/Button";
 import { AppLogo } from "../../components/brand/AppLogo";
 import { labelClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 
 const fieldBase =
-  "block w-full rounded-xl border border-line-strong bg-surface py-2.5 pl-10 text-sm text-ink " +
-  "shadow-elev-1 transition-[border-color,box-shadow] duration-150 ease-soft placeholder:text-muted-soft " +
-  "outline-none focus:border-brand focus:ring-2 focus:ring-brand-ring/60";
+  "block w-full rounded-2xl border border-[#ded6ee] bg-white py-3 pl-11 text-sm font-medium text-ink " +
+  "shadow-[0_1px_0_rgba(255,255,255,0.95)] transition-[border-color,box-shadow,background-color] " +
+  "duration-150 ease-soft placeholder:text-muted-soft outline-none focus:border-brand focus:bg-white " +
+  "focus:ring-4 focus:ring-brand-ring/35";
 
-const HIGHLIGHTS = [
+const DECORATIVE_BADGES = [
   {
-    icon: Boxes,
-    tint: "bg-lilac text-lilac-ink",
-    title: "FEFO inventory",
-    body: "Stock rotated by expiry with clear stock review.",
+    className: "left-[calc(50%-25rem)] top-[22%] rotate-[-8deg]",
+    label: "MDS",
   },
   {
-    icon: CalendarClock,
-    tint: "bg-peach text-ink",
-    title: "Dosette & MDS packs",
-    body: "MDS workload and prepare reminders in one workspace.",
+    className: "right-[calc(50%-25rem)] top-[25%] rotate-[7deg]",
+    label: "Stock",
   },
   {
-    icon: ShieldCheck,
-    tint: "bg-gold text-ink",
-    title: "Audit & access control",
-    body: "Every action logged, scoped to each role and pharmacy.",
+    className: "left-[calc(50%-23rem)] bottom-[24%] rotate-[6deg]",
+    label: "FEFO",
+  },
+  {
+    className: "right-[calc(50%-23rem)] bottom-[21%] rotate-[-7deg]",
+    label: "Review",
   },
 ];
 
@@ -80,179 +75,164 @@ export function LoginScreen() {
   }
 
   return (
-    <main className="grid min-h-screen bg-canvas text-ink lg:grid-cols-[1.05fr_minmax(440px,0.82fr)]">
-      {/* ---------- Brand panel ---------- */}
-      <aside className="relative hidden overflow-hidden bg-[linear-gradient(160deg,#211b34_0%,#2b2442_58%,#332640_100%)] p-12 text-white lg:flex lg:flex-col lg:justify-between xl:p-16">
-        <div className="animate-fade-in">
-          <AppLogo tone="onDark" tagline="Operational workspace" />
-        </div>
+    <main className="relative flex min-h-screen overflow-hidden bg-[#f8f5ff] px-5 py-8 text-ink sm:px-6">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,#dbeafe_0,#dbeafe_17%,transparent_34%),radial-gradient(circle_at_82%_14%,#eadcff_0,#eadcff_18%,transparent_35%),radial-gradient(circle_at_50%_86%,#fff1d6_0,#fff1d6_18%,transparent_38%),linear-gradient(135deg,#f7faff_0%,#f6edff_46%,#fff8ec_100%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute left-10 top-12 h-28 w-28 rounded-full border border-[#c9b6f6] bg-[#efeafc]"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute bottom-14 right-10 h-36 w-36 rounded-full border border-[#bfdbfe] bg-[#e0f2fe]"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute right-[16%] top-[16%] h-3 w-3 rounded-full bg-brand"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute bottom-[23%] left-[18%] h-2.5 w-2.5 rounded-full bg-peach"
+      />
 
-        <div className="max-w-md">
-          <span className="inline-flex animate-fade-in items-center gap-2 rounded-full border border-sidebar-line bg-sidebar-raised px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-lilac">
-            <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
-            Pharmacy command centre
+      <div
+        aria-hidden="true"
+        data-testid="login-decorative-badges"
+        className="pointer-events-none absolute inset-0 hidden md:block"
+      >
+        {DECORATIVE_BADGES.map((badge) => (
+          <span
+            key={badge.label}
+            className={cn(
+              "absolute rounded-full border border-[#d8cfe8] bg-white px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-brand shadow-elev-1",
+              badge.className,
+            )}
+          >
+            {badge.label}
           </span>
-          <h2 className="mt-5 animate-slide-up text-[36px] font-extrabold leading-[1.1] tracking-[-0.03em] text-white">
-            A calm command centre for pharmacy operations.
-          </h2>
-          <p className="mt-4 animate-slide-up text-[15px] leading-relaxed text-sidebar-text/75">
-            Stock intelligence, dosette compliance packs, and a full audit
-            trail — one fast, considered workspace your whole team can live in.
-          </p>
+        ))}
+      </div>
 
-          <ul className="stagger mt-9 space-y-3">
-            {HIGHLIGHTS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <li key={item.title}>
-                  <div className="group flex items-start gap-3.5 rounded-2xl border border-sidebar-line bg-sidebar-raised p-3.5 transition-all duration-200 ease-soft hover:-translate-y-0.5 hover:bg-sidebar-line hover:shadow-elev-2">
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-transform duration-200 ease-soft group-hover:scale-110 group-hover:-rotate-6",
-                        item.tint,
-                      )}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-bold text-white">
-                        {item.title}
-                      </p>
-                      <p className="mt-0.5 text-[13px] leading-snug text-sidebar-text/65">
-                        {item.body}
-                      </p>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <p className="flex items-center gap-2 text-xs text-sidebar-muted">
-          <Lock aria-hidden="true" className="h-3.5 w-3.5" />
-          Role-based access · audit trail · scoped pharmacy views
-        </p>
-      </aside>
-
-      {/* ---------- Form panel ---------- */}
-      <div className="flex min-h-screen items-center justify-center px-6 py-12 lg:min-h-0">
-        <div className="w-full max-w-sm animate-fade-in-up">
-          {/* Brand mark — shown on small screens where the panel is hidden. */}
-          <div className="mb-8 lg:hidden">
-            <AppLogo variant="compact" tone="onLight" size={40} />
-          </div>
-
-          <div className="relative overflow-hidden rounded-3xl border border-line bg-surface p-7 shadow-soft sm:p-8">
-            {/* Signature accent strip across the top of the card. */}
-            <div
-              aria-hidden="true"
-              className="absolute inset-x-0 top-0 h-1 bg-gradient-lilac"
-            />
-
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-brand">
-              Sign in
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-lg flex-col items-center justify-center">
+        <section
+          aria-label="AI Pharmacy Manager login"
+          className="w-full animate-fade-in-up rounded-[2rem] border border-white bg-white p-6 shadow-[0_24px_70px_rgba(80,63,126,0.18)] sm:p-8"
+        >
+          <div className="flex flex-col items-center text-center">
+            <AppLogo variant="compact" tone="onLight" size={44} />
+            <p className="mt-6 rounded-full border border-[#ded6ee] bg-[#f8f5ff] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-brand">
+              Operational workspace
             </p>
-            <h1 className="mt-1.5 text-[26px] font-extrabold tracking-[-0.025em] text-ink">
-              Welcome back
+            <h1 className="mt-4 text-[28px] font-extrabold leading-tight tracking-[-0.02em] text-ink sm:text-[32px]">
+              Welcome to AI Pharmacy Manager
             </h1>
-            <p className="mt-2 text-sm leading-relaxed text-muted">
-              Enter your credentials to access your workspace.
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted">
+              Sign in to manage pharmacy operations.
             </p>
-
-            <form className="mt-7 space-y-5" onSubmit={handleSubmit}>
-              <div>
-                <label htmlFor="login-email" className={labelClass}>
-                  Email
-                </label>
-                <div className="group relative mt-1.5">
-                  <Mail
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft transition-colors duration-150 group-focus-within:text-brand"
-                  />
-                  <input
-                    id="login-email"
-                    autoComplete="email"
-                    className={cn(fieldBase, "pr-3")}
-                    name="email"
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@pharmacy.com"
-                    required
-                    type="email"
-                    value={email}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="login-password" className={labelClass}>
-                  Password
-                </label>
-                <div className="group relative mt-1.5">
-                  <Lock
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft transition-colors duration-150 group-focus-within:text-brand"
-                  />
-                  <input
-                    id="login-password"
-                    autoComplete="current-password"
-                    className={cn(fieldBase, "pr-11")}
-                    name="password"
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Your password"
-                    required
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    aria-pressed={showPassword}
-                    onClick={() => setShowPassword((value) => !value)}
-                    className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted transition-all duration-150 ease-soft hover:bg-surface-sunken hover:text-ink focus-ring active:scale-90"
-                  >
-                    {showPassword ? (
-                      <EyeOff aria-hidden="true" className="h-4 w-4" />
-                    ) : (
-                      <Eye aria-hidden="true" className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {error ? (
-                <p
-                  role="alert"
-                  className="flex animate-fade-in-up items-start gap-2 rounded-xl border border-danger-border bg-danger-soft px-3 py-2.5 text-sm text-danger-ink"
-                >
-                  <AlertCircle
-                    aria-hidden="true"
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                  />
-                  <span>{error}</span>
-                </p>
-              ) : null}
-
-              <Button
-                variant="primary"
-                size="lg"
-                fullWidth
-                disabled={submitting}
-                type="submit"
-                trailingIcon={
-                  submitting ? undefined : <ArrowRight className="h-4 w-4" />
-                }
-              >
-                {submitting ? "Signing in..." : "Sign in"}
-              </Button>
-            </form>
           </div>
 
-          <p className="mt-6 text-center text-xs leading-relaxed text-muted">
-            Trouble signing in? Contact your pharmacy administrator.
-          </p>
+          <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="login-email" className={labelClass}>
+                Email
+              </label>
+              <div className="group relative mt-1.5">
+                <Mail
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft transition-colors duration-150 group-focus-within:text-brand"
+                />
+                <input
+                  id="login-email"
+                  autoComplete="email"
+                  className={cn(fieldBase, "pr-3")}
+                  name="email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@pharmacy.com"
+                  required
+                  type="email"
+                  value={email}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="login-password" className={labelClass}>
+                Password
+              </label>
+              <div className="group relative mt-1.5">
+                <Lock
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft transition-colors duration-150 group-focus-within:text-brand"
+                />
+                <input
+                  id="login-password"
+                  autoComplete="current-password"
+                  className={cn(fieldBase, "pr-11")}
+                  name="password"
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Your password"
+                  required
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted transition-all duration-150 ease-soft hover:bg-surface-sunken hover:text-ink focus-ring active:scale-90"
+                >
+                  {showPassword ? (
+                    <EyeOff aria-hidden="true" className="h-4 w-4" />
+                  ) : (
+                    <Eye aria-hidden="true" className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {error ? (
+              <p
+                role="alert"
+                className="flex animate-fade-in-up items-start gap-2 rounded-2xl border border-danger-border bg-danger-soft px-3.5 py-3 text-sm text-danger-ink"
+              >
+                <AlertCircle
+                  aria-hidden="true"
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                />
+                <span>{error}</span>
+              </p>
+            ) : null}
+
+            <button
+              className="mt-1 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-brand bg-brand px-6 text-sm font-semibold text-white shadow-elev-1 transition-[background-color,border-color,box-shadow,transform] duration-200 ease-soft hover:-translate-y-px hover:border-brand-hover hover:bg-brand-hover hover:shadow-elev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              disabled={submitting}
+              type="submit"
+            >
+              <span>{submitting ? "Logging in..." : "Log in"}</span>
+              {submitting ? null : (
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              )}
+            </button>
+          </form>
+        </section>
+
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-center text-xs font-semibold text-muted">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 shadow-elev-1">
+            <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5 text-brand" />
+            Human review required
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>Role-based access</span>
+          <span aria-hidden="true">·</span>
+          <span>Audit trail</span>
         </div>
+
+        <p className="mt-4 text-center text-xs leading-relaxed text-muted">
+          Trouble logging in? Contact your pharmacy administrator.
+        </p>
       </div>
     </main>
   );
