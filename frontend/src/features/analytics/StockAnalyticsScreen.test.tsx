@@ -283,6 +283,94 @@ function makeTransferSuggestion(
   };
 }
 
+function mockGroupSignals() {
+  getStockReviewQueueMock.mockResolvedValue(
+    makeReviewQueue({
+      summary: {
+        total_items: 2,
+        high_risk: 1,
+        medium_risk: 1,
+        low_risk: 0,
+        mds_shortfall: 1,
+        expiry_risk: 1,
+        low_confidence: 1,
+      },
+      items: [
+        {
+          ...makeReviewQueue().items[0],
+          pharmacy_id: 1,
+          pharmacy_name: "JMW Sutton",
+        },
+        {
+          ...makeReviewQueue().items[0],
+          medication_id: 12,
+          medication_name: "Cetirizine",
+          pharmacy_id: 2,
+          pharmacy_name: "JMW Wimbledon",
+          risk_level: "medium",
+          score: 60,
+          reason_chips: ["Low stock"],
+          signals: ["Stock risk"],
+          required_units: 40,
+          available_units: 24,
+          shortfall_units: 0,
+          forecast_confidence: "0.70",
+          forecast_confidence_label: "Medium confidence",
+          review_message: "Stock risk. Review before action.",
+          stock_item_id: 2,
+        },
+      ],
+    }),
+  );
+  getMdsDemandSignalMock.mockResolvedValue(
+    makeMdsDemand({
+      items: [
+        {
+          ...makeMdsDemand().items[0],
+          pharmacy_id: 1,
+          pharmacy_name: "JMW Sutton",
+        },
+        {
+          ...makeMdsDemand().items[0],
+          medication_id: 12,
+          medication_name: "Cetirizine",
+          pharmacy_id: 2,
+          pharmacy_name: "JMW Wimbledon",
+          required_units: 40,
+          available_units: 24,
+          shortfall_units: 0,
+          cycles_affected: 1,
+          patients_affected: 1,
+          stock_item_id: 2,
+        },
+      ],
+    }),
+  );
+  getExpiryRiskMock.mockResolvedValue(
+    makeExpiryRisk({
+      items: [
+        {
+          ...makeExpiryRisk().items[0],
+          pharmacy_id: 1,
+          pharmacy_name: "JMW Sutton",
+        },
+        {
+          ...makeExpiryRisk().items[0],
+          batch_number: "CET-001",
+          medication_id: 12,
+          medication_name: "Cetirizine",
+          pharmacy_id: 2,
+          pharmacy_name: "JMW Wimbledon",
+          quantity: 8,
+          estimated_value: "18.00",
+          stock_item_id: 2,
+        },
+      ],
+    }),
+  );
+  listTransferSuggestionsMock.mockResolvedValue([makeTransferSuggestion()]);
+}
+
 function analyticsAuth() {
   return makeAuthContext({
     user: makeAuthUser({
@@ -292,6 +380,31 @@ function analyticsAuth() {
         "stock.view": true,
       },
       pharmacies: [{ id: 1, name: "JMW Sutton" }],
+    }),
+  });
+}
+
+function nonSuperTransferAuth() {
+  return makeAuthContext({
+    user: makeAuthUser({
+      permissions: {
+        "forecast.run": true,
+        "forecast.view": true,
+        "stock.view": true,
+        "transfer_suggestion.dismiss": true,
+        "transfer_suggestion.generate": true,
+        "transfer_suggestion.view": true,
+      },
+      role: "ADMIN",
+      scope: {
+        is_global: false,
+        group_ids: [1],
+        pharmacy_ids: [1, 2],
+      },
+      pharmacies: [
+        { id: 1, name: "JMW Sutton" },
+        { id: 2, name: "JMW Wimbledon" },
+      ],
     }),
   });
 }
@@ -363,6 +476,128 @@ describe("StockAnalyticsScreen", () => {
     expect(
       within(kpiStrip).getByText("Low-confidence items"),
     ).toBeInTheDocument();
+  });
+
+  it("shows superintendent users a branch grid before branch intelligence", async () => {
+    mockGroupSignals();
+
+    renderAnalytics(transferAuth());
+
+    expect(
+      await screen.findByText(
+        "Simple group-level stock review for pharmacy operations.",
+      ),
+    ).toBeInTheDocument();
+    const groupHeading = screen.getByRole("heading", { name: "Group overview" });
+    const selectedRegion = await screen.findByRole("region", {
+      name: "Selected branch intelligence",
+    });
+    expect(
+      groupHeading.compareDocumentPosition(selectedRegion) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const groupPanel = groupHeading.closest("section");
+    expect(groupPanel).not.toBeNull();
+    expect(
+      within(groupPanel as HTMLElement).getByRole("heading", {
+        name: "JMW Sutton",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(groupPanel as HTMLElement).getByRole("heading", {
+        name: "JMW Wimbledon",
+      }),
+    ).toBeInTheDocument();
+    expect(within(groupPanel as HTMLElement).getByText("Branch #1")).toBeInTheDocument();
+    expect(within(groupPanel as HTMLElement).getByText("Branch #2")).toBeInTheDocument();
+
+    const suttonCard = within(groupPanel as HTMLElement)
+      .getByRole("heading", { name: "JMW Sutton" })
+      .closest("article");
+    expect(suttonCard).not.toBeNull();
+    expect(within(suttonCard as HTMLElement).getByText("Items to review")).toBeInTheDocument();
+    expect(within(suttonCard as HTMLElement).getByText("MDS shortfalls")).toBeInTheDocument();
+    expect(within(suttonCard as HTMLElement).getByText("Expiry risk")).toBeInTheDocument();
+    expect(within(suttonCard as HTMLElement).getByText("Value at risk")).toBeInTheDocument();
+    expect(within(suttonCard as HTMLElement).getByText("Low stock")).toBeInTheDocument();
+    expect(
+      within(suttonCard as HTMLElement).getByText("Transfer opportunities"),
+    ).toBeInTheDocument();
+  });
+
+  it("selects a superintendent branch and keeps forecast controls branch-aware", async () => {
+    const user = userEvent.setup();
+    mockGroupSignals();
+
+    renderAnalytics(transferAuth());
+
+    const groupPanel = (await screen.findByRole("heading", {
+      name: "Group overview",
+    })).closest("section");
+    expect(groupPanel).not.toBeNull();
+    const wimbledonCard = within(groupPanel as HTMLElement)
+      .getByRole("heading", { name: "JMW Wimbledon" })
+      .closest("article");
+    expect(wimbledonCard).not.toBeNull();
+
+    await user.click(
+      within(wimbledonCard as HTMLElement).getByRole("button", {
+        name: "View branch",
+      }),
+    );
+
+    expect(
+      screen.getByRole("region", { name: "Selected branch intelligence" }),
+    ).toHaveTextContent("JMW Wimbledon");
+    expect((await screen.findAllByText("Cetirizine")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Amlodipine")).toBeNull();
+    expect(screen.getAllByText("Selected branch forecast").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Forecast controls use JMW Wimbledon. Review before action."),
+    ).toBeInTheDocument();
+  });
+
+  it("opens a prefilled transfer review without moving stock", async () => {
+    const user = userEvent.setup();
+    mockGroupSignals();
+
+    renderAnalytics(transferAuth());
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Transfer suggestions for JMW Sutton",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Ibuprofen 400mg tablets — pack of 48 tablets"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review transfer" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Review transfer" });
+    expect(within(dialog).getByText("Ibuprofen 400mg tablets — pack of 48 tablets")).toBeInTheDocument();
+    expect(within(dialog).getByText("JMW Sutton")).toBeInTheDocument();
+    expect(within(dialog).getByText("JMW Wimbledon")).toBeInTheDocument();
+    expect(within(dialog).getByText("4 packs / 160 units")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Transfer must be completed through stock transfer workflow.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("link", { name: "Open stock transfer workflow" }),
+    ).toHaveAttribute("href", "/inventory/11");
+    expect(dismissTransferSuggestionMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the branch grid hidden for a pharmacy-scoped user", async () => {
+    renderAnalytics();
+
+    expect(await screen.findByText("Stock review queue")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Group overview" })).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: /Transfer suggestions for/ }),
+    ).toBeNull();
   });
 
   it("renders stock review queue mds demand and expiry risk panels", async () => {
@@ -550,10 +785,10 @@ describe("StockAnalyticsScreen", () => {
     expect(await screen.findByText("No forecast generated yet.")).toBeInTheDocument();
   });
 
-  it("shows transfer suggestions panel for group-level users", async () => {
+  it("shows the existing transfer suggestions panel for non-super group users", async () => {
     listTransferSuggestionsMock.mockResolvedValue([makeTransferSuggestion()]);
 
-    renderAnalytics(transferAuth());
+    renderAnalytics(nonSuperTransferAuth());
 
     expect(
       await screen.findByRole("heading", {
@@ -581,23 +816,26 @@ describe("StockAnalyticsScreen", () => {
       }),
     );
 
-    expect(await screen.findByText("Reorder forecasting")).toBeInTheDocument();
+    expect(await screen.findByText("Group overview")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Cross-branch stock suggestions" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: /Transfer suggestions for/ }),
     ).toBeNull();
     expect(listTransferSuggestionsMock).not.toHaveBeenCalled();
   });
 
-  it("generates transfer suggestions for the selected group and dead window", async () => {
+  it("generates superintendent transfer suggestions for the selected group and review window", async () => {
     const user = userEvent.setup();
     renderAnalytics(transferAuth());
 
     await screen.findByRole("heading", {
-      name: "Cross-branch stock suggestions",
+      name: "Transfer suggestions for JMW Sutton",
     });
-    await user.selectOptions(screen.getByLabelText("Dead stock window"), "60");
+    await user.selectOptions(screen.getByLabelText("Review window"), "60");
     await user.click(
-      screen.getByRole("button", { name: "Generate transfer suggestions" }),
+      screen.getByRole("button", { name: "Generate suggestions" }),
     );
 
     await waitFor(() => {
@@ -614,7 +852,7 @@ describe("StockAnalyticsScreen", () => {
       .mockResolvedValueOnce([makeTransferSuggestion()])
       .mockResolvedValueOnce([]);
 
-    renderAnalytics(transferAuth());
+    renderAnalytics(nonSuperTransferAuth());
 
     await screen.findByText("Ibuprofen 400mg tablets — pack of 48 tablets");
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
@@ -629,13 +867,13 @@ describe("StockAnalyticsScreen", () => {
 
   it("renders transfer suggestion loading error and empty states", async () => {
     listTransferSuggestionsMock.mockReturnValueOnce(new Promise(() => undefined));
-    const loadingRender = renderAnalytics(transferAuth());
+    const loadingRender = renderAnalytics(nonSuperTransferAuth());
 
     expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
     loadingRender.unmount();
 
     listTransferSuggestionsMock.mockRejectedValueOnce(new Error("No suggestions"));
-    const errorRender = renderAnalytics(transferAuth());
+    const errorRender = renderAnalytics(nonSuperTransferAuth());
 
     expect(
       await screen.findByText("Could not load transfer suggestions."),
@@ -643,7 +881,7 @@ describe("StockAnalyticsScreen", () => {
     errorRender.unmount();
 
     listTransferSuggestionsMock.mockResolvedValueOnce([]);
-    renderAnalytics(transferAuth());
+    renderAnalytics(nonSuperTransferAuth());
 
     expect(
       await screen.findByText("No transfer suggestions to review."),

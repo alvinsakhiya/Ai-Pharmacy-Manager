@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type SelectHTMLAttributes,
 } from "react";
+import { Link } from "react-router-dom";
 import {
   ArrowRightLeft,
   Boxes,
@@ -42,6 +43,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { Modal } from "../../components/ui/Modal";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import {
   Table,
@@ -110,6 +112,15 @@ function formatCurrencyValue(value: string): string {
     minimumFractionDigits: 2,
     style: "currency",
   }).format(parsed);
+}
+
+function currencyString(value: number): string {
+  return value.toFixed(2);
+}
+
+function parseCurrency(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatPackValue(value: string | number | null): string | null {
@@ -248,6 +259,617 @@ function RiskLevelBadge({ level }: { level: "high" | "medium" | "low" }) {
         : "Low risk";
 
   return <Badge variant={variant}>{label}</Badge>;
+}
+
+interface BranchSummary {
+  expiryRiskCount: number;
+  highRisk: number;
+  itemsToReview: number;
+  lowStockCount: number;
+  mdsShortfallUnits: number;
+  pharmacy: { id: number; name: string };
+  riskLevel: "high" | "medium" | "low";
+  transferOpportunities: number;
+  valueAtRisk: string;
+}
+
+function isLowStockQueueItem(item: StockReviewQueueItem): boolean {
+  return [...item.reason_chips, ...item.signals].some((label) =>
+    label.toLowerCase().includes("low stock"),
+  );
+}
+
+function queueSummaryForItems(
+  items: StockReviewQueueItem[],
+): StockReviewQueue["summary"] {
+  return {
+    total_items: items.length,
+    high_risk: items.filter((item) => item.risk_level === "high").length,
+    medium_risk: items.filter((item) => item.risk_level === "medium").length,
+    low_risk: items.filter((item) => item.risk_level === "low").length,
+    mds_shortfall: items.filter((item) => item.shortfall_units > 0).length,
+    expiry_risk: items.filter((item) =>
+      item.reason_chips.some((reason) =>
+        reason.toLowerCase().includes("expiry"),
+      ),
+    ).length,
+    low_confidence: items.filter(
+      (item) =>
+        item.forecast_confidence !== null && Number(item.forecast_confidence) < 0.5,
+    ).length,
+  };
+}
+
+function filterStockReviewQueue(
+  data: StockReviewQueue | undefined,
+  pharmacyId: number | undefined,
+): StockReviewQueue | undefined {
+  if (!data || pharmacyId === undefined) {
+    return data;
+  }
+  const items = data.items.filter((item) => item.pharmacy_id === pharmacyId);
+  return {
+    ...data,
+    summary: queueSummaryForItems(items),
+    items,
+  };
+}
+
+function mdsSummaryForItems(items: MdsDemandSignal["items"]): MdsDemandSignal["summary"] {
+  return {
+    total_required_units: items.reduce(
+      (total, item) => total + item.required_units,
+      0,
+    ),
+    total_available_units: items.reduce(
+      (total, item) => total + item.available_units,
+      0,
+    ),
+    total_shortfall_units: items.reduce(
+      (total, item) => total + item.shortfall_units,
+      0,
+    ),
+    items_with_shortfall: items.filter((item) => item.shortfall_units > 0).length,
+    mapping_needed: items.filter((item) => item.mapping_status === "mapping_needed")
+      .length,
+    cycles_affected: items.reduce((total, item) => total + item.cycles_affected, 0),
+    patients_affected: items.reduce(
+      (total, item) => total + item.patients_affected,
+      0,
+    ),
+  };
+}
+
+function filterMdsDemandSignal(
+  data: MdsDemandSignal | undefined,
+  pharmacyId: number | undefined,
+): MdsDemandSignal | undefined {
+  if (!data || pharmacyId === undefined) {
+    return data;
+  }
+  const items = data.items.filter((item) => item.pharmacy_id === pharmacyId);
+  return {
+    ...data,
+    summary: mdsSummaryForItems(items),
+    items,
+  };
+}
+
+function filterExpiryRisk(
+  data: ExpiryRisk | undefined,
+  pharmacyId: number | undefined,
+): ExpiryRisk | undefined {
+  if (!data || pharmacyId === undefined) {
+    return data;
+  }
+  const items = data.items.filter((item) => item.pharmacy_id === pharmacyId);
+  const buckets = data.buckets.map((bucket) => {
+    const bucketItems = items.filter((item) => item.bucket === bucket.key);
+    return {
+      ...bucket,
+      units: bucketItems.reduce((total, item) => total + item.quantity, 0),
+      estimated_value: currencyString(
+        bucketItems.reduce(
+          (total, item) => total + parseCurrency(item.estimated_value),
+          0,
+        ),
+      ),
+      unpriced_units: bucketItems.reduce(
+        (total, item) => total + item.unpriced_units,
+        0,
+      ),
+      batch_count: bucketItems.length,
+      product_count: new Set(bucketItems.map((item) => item.medication_id)).size,
+    };
+  });
+
+  return {
+    ...data,
+    summary: {
+      expiring_within_30_days_units: items
+        .filter((item) => item.days_to_expiry <= 30)
+        .reduce((total, item) => total + item.quantity, 0),
+      value_at_risk: currencyString(
+        items.reduce((total, item) => total + parseCurrency(item.estimated_value), 0),
+      ),
+      unpriced_risk_units: items.reduce(
+        (total, item) => total + item.unpriced_units,
+        0,
+      ),
+      products_affected: new Set(items.map((item) => item.medication_id)).size,
+    },
+    buckets,
+    items,
+  };
+}
+
+function buildBranchSummaries({
+  expiryRisk,
+  mdsDemand,
+  pharmacies,
+  queue,
+  transferSuggestions,
+}: {
+  expiryRisk: ExpiryRisk | undefined;
+  mdsDemand: MdsDemandSignal | undefined;
+  pharmacies: { id: number; name: string }[];
+  queue: StockReviewQueue | undefined;
+  transferSuggestions: TransferSuggestion[] | undefined;
+}): BranchSummary[] {
+  return pharmacies.map((pharmacy) => {
+    const queueItems =
+      queue?.items.filter((item) => item.pharmacy_id === pharmacy.id) ?? [];
+    const mdsItems =
+      mdsDemand?.items.filter((item) => item.pharmacy_id === pharmacy.id) ?? [];
+    const expiryItems =
+      expiryRisk?.items.filter((item) => item.pharmacy_id === pharmacy.id) ?? [];
+    const transferOpportunities =
+      transferSuggestions?.filter(
+        (suggestion) =>
+          suggestion.status === "OPEN" &&
+          (suggestion.source_pharmacy === pharmacy.id ||
+            suggestion.destination_pharmacy === pharmacy.id),
+      ).length ?? 0;
+    const highRisk = queueItems.filter((item) => item.risk_level === "high").length;
+    const mdsShortfallUnits = mdsItems.reduce(
+      (total, item) => total + item.shortfall_units,
+      0,
+    );
+    const lowStockCount = queueItems.filter(isLowStockQueueItem).length;
+    const expiryRiskCount = expiryItems.length;
+    const valueAtRisk = currencyString(
+      expiryItems.reduce(
+        (total, item) => total + parseCurrency(item.estimated_value),
+        0,
+      ),
+    );
+    const riskLevel =
+      highRisk > 0 || mdsShortfallUnits > 0
+        ? "high"
+        : expiryRiskCount > 0 || lowStockCount > 0 || transferOpportunities > 0
+          ? "medium"
+          : "low";
+
+    return {
+      expiryRiskCount,
+      highRisk,
+      itemsToReview: queueItems.length,
+      lowStockCount,
+      mdsShortfallUnits,
+      pharmacy,
+      riskLevel,
+      transferOpportunities,
+      valueAtRisk,
+    };
+  });
+}
+
+function transferSuggestionsForBranch(
+  suggestions: TransferSuggestion[] | undefined,
+  pharmacyId: number | undefined,
+): TransferSuggestion[] {
+  if (!suggestions || pharmacyId === undefined) {
+    return [];
+  }
+  return suggestions.filter(
+    (suggestion) =>
+      suggestion.source_pharmacy === pharmacyId ||
+      suggestion.destination_pharmacy === pharmacyId,
+  );
+}
+
+function BranchMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
+      <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <p className="tnum mt-1 text-sm font-extrabold text-ink">{value}</p>
+    </div>
+  );
+}
+
+function BranchOverviewGrid({
+  isError,
+  isLoading,
+  onSelect,
+  selectedPharmacyId,
+  summaries,
+}: {
+  isError: boolean;
+  isLoading: boolean;
+  onSelect: (pharmacyId: number) => void;
+  selectedPharmacyId: number | undefined;
+  summaries: BranchSummary[];
+}) {
+  return (
+    <Panel>
+      <PanelHeader
+        title="Group overview"
+        subtitle="Select a branch to review stock signals."
+        icon={<Boxes className="h-4 w-4" />}
+        actions={<Badge variant="info">{formatNumber(summaries.length)} branches</Badge>}
+      />
+      <PanelBody className="space-y-4">
+        {isLoading ? <SkeletonRows rows={3} /> : null}
+        {isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<Boxes className="h-5 w-5" />}
+            title="Could not load group stock signals."
+            className="py-8"
+          />
+        ) : null}
+        {!isLoading && !isError && summaries.length === 0 ? (
+          <EmptyState
+            icon={<Boxes className="h-5 w-5" />}
+            title="No branches available in this scope."
+            className="py-8"
+          />
+        ) : null}
+        {summaries.length > 0 ? (
+          <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {summaries.map((summary) => {
+              const isSelected = selectedPharmacyId === summary.pharmacy.id;
+              return (
+                <article
+                  className={cn(
+                    "rounded-2xl border bg-surface p-4 shadow-soft transition-colors",
+                    isSelected
+                      ? "border-brand-ring ring-2 ring-brand-ring/30"
+                      : "border-line",
+                  )}
+                  key={summary.pharmacy.id}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-extrabold tracking-[-0.01em] text-ink">
+                        {summary.pharmacy.name}
+                      </h2>
+                      <p className="mt-1 text-xs font-semibold text-muted">
+                        Branch #{summary.pharmacy.id}
+                      </p>
+                    </div>
+                    <RiskLevelBadge level={summary.riskLevel} />
+                  </div>
+
+                  <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <BranchMetric
+                      label="Items to review"
+                      value={formatNumber(summary.itemsToReview)}
+                    />
+                    <BranchMetric
+                      label="MDS shortfalls"
+                      value={formatNumber(summary.mdsShortfallUnits)}
+                    />
+                    <BranchMetric
+                      label="Expiry risk"
+                      value={formatNumber(summary.expiryRiskCount)}
+                    />
+                    <BranchMetric
+                      label="Value at risk"
+                      value={formatCurrencyValue(summary.valueAtRisk)}
+                    />
+                    <BranchMetric
+                      label="Low stock"
+                      value={formatNumber(summary.lowStockCount)}
+                    />
+                    <BranchMetric
+                      label="Transfer opportunities"
+                      value={formatNumber(summary.transferOpportunities)}
+                    />
+                  </dl>
+
+                  <div className="mt-4 flex justify-end">
+                    <Button
+                      aria-pressed={isSelected}
+                      onClick={() => onSelect(summary.pharmacy.id)}
+                      size="sm"
+                      variant={isSelected ? "primary" : "secondary"}
+                    >
+                      View branch
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : null}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function ReviewTransferModal({
+  onClose,
+  suggestion,
+}: {
+  onClose: () => void;
+  suggestion: TransferSuggestion | null;
+}) {
+  const inventoryHref = suggestion?.source_stock_item
+    ? `/inventory/${suggestion.source_stock_item}`
+    : "/inventory";
+
+  return (
+    <Modal
+      description="Suggested review only. Human review required."
+      isOpen={suggestion !== null}
+      onClose={onClose}
+      title="Review transfer"
+      size="sm"
+    >
+      {suggestion ? (
+        <div className="space-y-5">
+          <dl className="grid gap-3">
+            <InlineStat label="Product" value={suggestion.medication_label} />
+            <InlineStat label="From" value={suggestion.source_pharmacy_name} />
+            <InlineStat label="To" value={suggestion.destination_pharmacy_name} />
+            <InlineStat
+              label="Suggested quantity"
+              value={formatForecastQuantity(
+                suggestion.suggested_quantity_units,
+                suggestion.suggested_quantity_packs,
+              )}
+            />
+            <InlineStat
+              label="Stock available at source"
+              value={`${formatNumber(suggestion.current_source_stock_units)} units`}
+            />
+            <InlineStat
+              label="Stock level at destination"
+              value="Review in stock transfer workflow"
+            />
+            <InlineStat
+              label="Expiry note"
+              value="Review batch expiry before transfer."
+            />
+          </dl>
+
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
+              Reason
+            </p>
+            <p className="mt-1 rounded-xl border border-line bg-surface-subtle p-3 text-sm leading-relaxed text-ink-soft">
+              {suggestion.reason}
+            </p>
+          </div>
+
+          <p className="rounded-xl border border-info-border bg-info-soft p-3 text-sm font-semibold leading-relaxed text-info-ink">
+            Transfer must be completed through stock transfer workflow.
+          </p>
+
+          <div className="flex flex-col-reverse gap-3 border-t border-line pt-5 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Link
+              className="inline-flex h-10 items-center justify-center rounded-full border border-lilac bg-lilac px-4 text-sm font-semibold text-lilac-ink shadow-elev-1 transition-colors hover:border-lilac-hover hover:bg-lilac-hover"
+              to={inventoryHref}
+            >
+              Open stock transfer workflow
+            </Link>
+          </div>
+        </div>
+      ) : null}
+    </Modal>
+  );
+}
+
+function BranchTransferSuggestionsPanel({
+  canGenerateTransferSuggestions,
+  deadDays,
+  generateError,
+  groupIds,
+  isGenerating,
+  onGenerate,
+  onReview,
+  selectedGroupId,
+  selectedPharmacyName,
+  setDeadDays,
+  setSelectedGroupId,
+  suggestions,
+}: {
+  canGenerateTransferSuggestions: boolean;
+  deadDays: number;
+  generateError: boolean;
+  groupIds: number[];
+  isGenerating: boolean;
+  onGenerate: () => void;
+  onReview: (suggestion: TransferSuggestion) => void;
+  selectedGroupId: number | undefined;
+  selectedPharmacyName: string;
+  setDeadDays: (value: number) => void;
+  setSelectedGroupId: (value: number | undefined) => void;
+  suggestions: {
+    data: TransferSuggestion[];
+    isError: boolean;
+    isLoading: boolean;
+    isSuccess: boolean;
+  };
+}) {
+  return (
+    <Panel>
+      <PanelHeader>
+        <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+            >
+              <ArrowRightLeft className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+                Transfer suggestion
+              </p>
+              <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
+                Transfer suggestions for {selectedPharmacyName}
+              </h2>
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
+                Operational suggestions involving the selected branch. Human
+                review required before transfer.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            {groupIds.length > 1 ? (
+              <label className="min-w-44">
+                <span className={labelClass}>Group</span>
+                <FieldSelect
+                  onChange={(event) =>
+                    setSelectedGroupId(
+                      event.target.value ? Number(event.target.value) : undefined,
+                    )
+                  }
+                  value={selectedGroupId ?? ""}
+                >
+                  {groupIds.map((groupId) => (
+                    <option key={groupId} value={groupId}>
+                      Group {groupId}
+                    </option>
+                  ))}
+                </FieldSelect>
+              </label>
+            ) : null}
+
+            <label className="min-w-40">
+              <span className={labelClass}>Review window</span>
+              <FieldSelect
+                onChange={(event) => setDeadDays(Number(event.target.value))}
+                value={deadDays}
+              >
+                <option value={30}>30 days</option>
+                <option value={60}>60 days</option>
+                <option value={90}>90 days</option>
+              </FieldSelect>
+            </label>
+
+            {canGenerateTransferSuggestions ? (
+              <Button
+                variant="primary"
+                leadingIcon={<Sparkles className="h-4 w-4" />}
+                disabled={selectedGroupId === undefined || isGenerating}
+                onClick={() => onGenerate()}
+              >
+                {isGenerating ? "Generating..." : "Generate suggestions"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </PanelHeader>
+      <PanelBody className="space-y-4">
+        {generateError ? (
+          <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
+            Could not generate transfer suggestions. Check your group scope and
+            try again.
+          </p>
+        ) : null}
+        {selectedGroupId === undefined ? (
+          <EmptyState
+            icon={<ArrowRightLeft className="h-5 w-5" />}
+            title="Select a group to view transfer suggestions."
+            className="py-8"
+          />
+        ) : null}
+        {suggestions.isLoading ? <SkeletonRows rows={4} /> : null}
+        {suggestions.isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<ArrowRightLeft className="h-5 w-5" />}
+            title="Could not load transfer suggestions."
+            className="py-8"
+          />
+        ) : null}
+        {suggestions.isSuccess && suggestions.data.length === 0 ? (
+          <EmptyState
+            icon={<ArrowRightLeft className="h-5 w-5" />}
+            title="No transfer suggestions to review for this branch."
+            description="Transfer suggestions appear here only after human review signals are generated."
+            className="py-8"
+          />
+        ) : null}
+        {suggestions.data.length > 0 ? (
+          <div className="grid gap-3 xl:grid-cols-2">
+            {suggestions.data.map((suggestion) => (
+              <article
+                className="rounded-2xl border border-line bg-surface-subtle p-4"
+                key={suggestion.id}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-ink">
+                      {suggestion.medication_label}
+                    </h3>
+                    <p className="mt-1 text-xs font-semibold text-muted">
+                      {suggestion.source_pharmacy_name} to{" "}
+                      {suggestion.destination_pharmacy_name}
+                    </p>
+                  </div>
+                  <ConfidenceChip confidence={suggestion.confidence} />
+                </div>
+                <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <InlineStat label="From" value={suggestion.source_pharmacy_name} />
+                  <InlineStat label="To" value={suggestion.destination_pharmacy_name} />
+                  <InlineStat
+                    label="Suggested quantity"
+                    value={formatForecastQuantity(
+                      suggestion.suggested_quantity_units,
+                      suggestion.suggested_quantity_packs,
+                    )}
+                  />
+                  <InlineStat
+                    label="Source stock"
+                    value={`${formatNumber(
+                      suggestion.current_source_stock_units,
+                    )} units`}
+                  />
+                </dl>
+                <p className="mt-3 text-xs leading-relaxed text-ink-soft">
+                  {suggestion.reason}
+                </p>
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    onClick={() => onReview(suggestion)}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    Review transfer
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </PanelBody>
+    </Panel>
+  );
 }
 
 function ForecastRow({ item }: { item: ForecastItem }) {
@@ -711,15 +1333,19 @@ function ForecastConfidencePanel({
 
 function ForecastPanel({
   canRunForecast,
+  description = "Estimated demand from stock movement history. Review before action.",
   generateError,
   isGenerating,
   horizonDays,
   latestForecast,
   onGenerate,
+  title = "Reorder forecasting",
+  eyebrow = "Forecast suggestion",
   selectedPharmacyId,
   setHorizonDays,
 }: {
   canRunForecast: boolean;
+  description?: string;
   generateError: boolean;
   isGenerating: boolean;
   horizonDays: number;
@@ -730,6 +1356,8 @@ function ForecastPanel({
     isSuccess: boolean;
   };
   onGenerate: () => void;
+  title?: string;
+  eyebrow?: string;
   selectedPharmacyId: number | undefined;
   setHorizonDays: (value: number) => void;
 }) {
@@ -748,14 +1376,13 @@ function ForecastPanel({
             </span>
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-                Forecast suggestion
+                {eyebrow}
               </p>
               <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
-                Reorder forecasting
+                {title}
               </h2>
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
-                Estimated demand from stock movement history. Review before
-                action.
+                {description}
               </p>
             </div>
           </div>
@@ -1114,6 +1741,8 @@ export function StockAnalyticsScreen() {
   const { user } = useAuth();
   const { can } = usePermissions();
   const pharmacies = useMemo(() => user?.pharmacies ?? [], [user?.pharmacies]);
+  const isSuperintendentGroupView =
+    user?.role === "SUPERINTENDENT" && pharmacies.length > 1;
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<
     number | undefined
   >(undefined);
@@ -1127,15 +1756,20 @@ export function StockAnalyticsScreen() {
   const [signalHorizonDays, setSignalHorizonDays] = useState(28);
   const [horizonDays, setHorizonDays] = useState(30);
   const [deadDays, setDeadDays] = useState(30);
+  const [reviewTransferSuggestion, setReviewTransferSuggestion] =
+    useState<TransferSuggestion | null>(null);
+  const analyticsPharmacyId = isSuperintendentGroupView
+    ? undefined
+    : selectedPharmacyId;
   const stockReviewQueueQuery = useStockReviewQueueQuery(
-    selectedPharmacyId,
+    analyticsPharmacyId,
     signalHorizonDays,
   );
   const mdsDemandQuery = useMdsDemandSignalQuery(
-    selectedPharmacyId,
+    analyticsPharmacyId,
     signalHorizonDays,
   );
-  const expiryRiskQuery = useExpiryRiskQuery(selectedPharmacyId);
+  const expiryRiskQuery = useExpiryRiskQuery(analyticsPharmacyId);
   const latestForecastQuery = useLatestForecastQuery(selectedPharmacyId);
   const generateForecast = useGenerateForecast();
   const canViewTransferSuggestions = can("transfer_suggestion.view");
@@ -1187,9 +1821,58 @@ export function StockAnalyticsScreen() {
     void dismissTransferSuggestion.mutateAsync(suggestionId);
   }
 
-  const queueSummary = stockReviewQueueQuery.data?.summary;
-  const mdsSummary = mdsDemandQuery.data?.summary;
-  const expirySummary = expiryRiskQuery.data?.summary;
+  const selectedPharmacy = pharmacies.find(
+    (pharmacy) => pharmacy.id === selectedPharmacyId,
+  );
+  const visibleStockReviewQueue = useMemo(
+    () =>
+      isSuperintendentGroupView
+        ? filterStockReviewQueue(stockReviewQueueQuery.data, selectedPharmacyId)
+        : stockReviewQueueQuery.data,
+    [isSuperintendentGroupView, selectedPharmacyId, stockReviewQueueQuery.data],
+  );
+  const visibleMdsDemand = useMemo(
+    () =>
+      isSuperintendentGroupView
+        ? filterMdsDemandSignal(mdsDemandQuery.data, selectedPharmacyId)
+        : mdsDemandQuery.data,
+    [isSuperintendentGroupView, mdsDemandQuery.data, selectedPharmacyId],
+  );
+  const visibleExpiryRisk = useMemo(
+    () =>
+      isSuperintendentGroupView
+        ? filterExpiryRisk(expiryRiskQuery.data, selectedPharmacyId)
+        : expiryRiskQuery.data,
+    [expiryRiskQuery.data, isSuperintendentGroupView, selectedPharmacyId],
+  );
+  const branchSummaries = useMemo(
+    () =>
+      buildBranchSummaries({
+        expiryRisk: expiryRiskQuery.data,
+        mdsDemand: mdsDemandQuery.data,
+        pharmacies,
+        queue: stockReviewQueueQuery.data,
+        transferSuggestions: transferSuggestionsQuery.data,
+      }),
+    [
+      expiryRiskQuery.data,
+      mdsDemandQuery.data,
+      pharmacies,
+      stockReviewQueueQuery.data,
+      transferSuggestionsQuery.data,
+    ],
+  );
+  const branchTransferSuggestions = useMemo(
+    () =>
+      transferSuggestionsForBranch(
+        transferSuggestionsQuery.data,
+        selectedPharmacyId,
+      ),
+    [selectedPharmacyId, transferSuggestionsQuery.data],
+  );
+  const queueSummary = visibleStockReviewQueue?.summary;
+  const mdsSummary = visibleMdsDemand?.summary;
+  const expirySummary = visibleExpiryRisk?.summary;
 
   return (
     <div className="stagger space-y-4">
@@ -1206,12 +1889,14 @@ export function StockAnalyticsScreen() {
               <Badge variant="info">Human review required</Badge>
             </div>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted">
-              Operational signals for review before action.
+              {isSuperintendentGroupView
+                ? "Simple group-level stock review for pharmacy operations."
+                : "Operational signals for review before action."}
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            {pharmacies.length > 0 ? (
+            {!isSuperintendentGroupView && pharmacies.length > 0 ? (
               <label className="min-w-56">
                 <span className={labelClass}>Pharmacy</span>
                 <FieldSelect
@@ -1248,6 +1933,43 @@ export function StockAnalyticsScreen() {
           </div>
         </div>
       </header>
+
+      {isSuperintendentGroupView ? (
+        <BranchOverviewGrid
+          isError={
+            stockReviewQueueQuery.isError ||
+            mdsDemandQuery.isError ||
+            expiryRiskQuery.isError
+          }
+          isLoading={
+            stockReviewQueueQuery.isLoading ||
+            mdsDemandQuery.isLoading ||
+            expiryRiskQuery.isLoading
+          }
+          onSelect={setSelectedPharmacyId}
+          selectedPharmacyId={selectedPharmacyId}
+          summaries={branchSummaries}
+        />
+      ) : null}
+
+      {isSuperintendentGroupView && selectedPharmacy ? (
+        <section
+          aria-label="Selected branch intelligence"
+          className="rounded-2xl border border-line bg-surface p-4 shadow-soft sm:p-5"
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+                Selected branch
+              </p>
+              <h2 className="mt-1 text-xl font-extrabold tracking-[-0.02em] text-ink">
+                {selectedPharmacy.name}
+              </h2>
+            </div>
+            <Badge variant="info">Branch intelligence</Badge>
+          </div>
+        </section>
+      ) : null}
 
       <section
         aria-label="Stock intelligence KPI strip"
@@ -1299,20 +2021,20 @@ export function StockAnalyticsScreen() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
         <StockReviewQueuePanel
-          data={stockReviewQueueQuery.data}
+          data={visibleStockReviewQueue}
           isError={stockReviewQueueQuery.isError}
           isLoading={stockReviewQueueQuery.isLoading}
         />
 
         <aside className="space-y-4">
           <MdsDemandPanel
-            data={mdsDemandQuery.data}
+            data={visibleMdsDemand}
             isError={mdsDemandQuery.isError}
             isLoading={mdsDemandQuery.isLoading}
           />
 
           <ExpiryRiskPanel
-            data={expiryRiskQuery.data}
+            data={visibleExpiryRisk}
             isError={expiryRiskQuery.isError}
             isLoading={expiryRiskQuery.isLoading}
           />
@@ -1326,6 +2048,14 @@ export function StockAnalyticsScreen() {
 
       <ForecastPanel
         canRunForecast={canRunForecast}
+        description={
+          isSuperintendentGroupView && selectedPharmacy
+            ? `Forecast controls use ${selectedPharmacy.name}. Review before action.`
+            : undefined
+        }
+        eyebrow={
+          isSuperintendentGroupView ? "Selected branch forecast" : undefined
+        }
         generateError={generateForecast.isError}
         horizonDays={horizonDays}
         isGenerating={generateForecast.isPending}
@@ -1338,9 +2068,34 @@ export function StockAnalyticsScreen() {
         onGenerate={() => void handleGenerateForecast()}
         selectedPharmacyId={selectedPharmacyId}
         setHorizonDays={setHorizonDays}
+        title={
+          isSuperintendentGroupView ? "Selected branch forecast" : undefined
+        }
       />
 
-      {canViewTransferSuggestions ? (
+      {isSuperintendentGroupView && canViewTransferSuggestions && selectedPharmacy ? (
+        <BranchTransferSuggestionsPanel
+          canGenerateTransferSuggestions={canGenerateTransferSuggestions}
+          deadDays={deadDays}
+          generateError={generateTransferSuggestions.isError}
+          groupIds={groupIds}
+          isGenerating={generateTransferSuggestions.isPending}
+          onGenerate={() => void handleGenerateTransferSuggestions()}
+          onReview={setReviewTransferSuggestion}
+          selectedGroupId={selectedGroupId}
+          selectedPharmacyName={selectedPharmacy.name}
+          setDeadDays={setDeadDays}
+          setSelectedGroupId={setSelectedGroupId}
+          suggestions={{
+            data: branchTransferSuggestions,
+            isError: transferSuggestionsQuery.isError,
+            isLoading: transferSuggestionsQuery.isLoading,
+            isSuccess: transferSuggestionsQuery.isSuccess,
+          }}
+        />
+      ) : null}
+
+      {!isSuperintendentGroupView && canViewTransferSuggestions ? (
         <TransferSuggestionsPanel
           canDismissTransferSuggestions={canDismissTransferSuggestions}
           canGenerateTransferSuggestions={canGenerateTransferSuggestions}
@@ -1364,6 +2119,11 @@ export function StockAnalyticsScreen() {
       ) : null}
 
       <OpportunityRoadmap />
+
+      <ReviewTransferModal
+        onClose={() => setReviewTransferSuggestion(null)}
+        suggestion={reviewTransferSuggestion}
+      />
     </div>
   );
 }
