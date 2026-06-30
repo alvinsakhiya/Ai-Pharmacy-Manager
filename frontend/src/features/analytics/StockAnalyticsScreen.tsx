@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type SelectHTMLAttributes } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from "react";
 import {
   ArrowRightLeft,
   Boxes,
@@ -6,7 +12,6 @@ import {
   ChevronDown,
   LineChart,
   PackageSearch,
-  RefreshCw,
   ShieldCheck,
   Sparkles,
   TrendingUp,
@@ -17,10 +22,10 @@ import { usePermissions } from "../../auth/usePermissions";
 import type {
   ExpiryRisk,
   ForecastItem,
+  ForecastRun,
   MdsDemandSignal,
-  StockAnalyticsFlags,
-  StockAnalyticsItem,
   StockReviewQueue,
+  StockReviewQueueItem,
   TransferSuggestion,
 } from "./analyticsApi";
 import {
@@ -30,15 +35,12 @@ import {
   useGenerateTransferSuggestions,
   useLatestForecastQuery,
   useMdsDemandSignalQuery,
-  useStockAnalyticsOverviewQuery,
   useStockReviewQueueQuery,
   useTransferSuggestionsQuery,
 } from "./useAnalytics";
-import { PageHeader } from "../../components/ui/PageHeader";
-import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
-import { KpiCard } from "../../components/ui/KpiCard";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
+import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { SkeletonRows } from "../../components/ui/Skeleton";
 import {
@@ -53,47 +55,27 @@ import {
 import { labelClass, selectClass } from "../../components/ui/forms";
 import { cn } from "../../lib/cn";
 
-const SUMMARY_LABELS: Array<{
-  key:
-    | "total_items"
-    | "needs_attention"
-    | "stockout"
-    | "low_stock"
-    | "near_expiry"
-    | "dead_stock"
-    | "slow_moving";
-  label: string;
-}> = [
-  { key: "total_items", label: "Total items" },
-  { key: "needs_attention", label: "Needs attention" },
-  { key: "stockout", label: "Stockout" },
-  { key: "low_stock", label: "Low stock" },
-  { key: "near_expiry", label: "Near expiry" },
-  { key: "dead_stock", label: "Dead stock" },
-  { key: "slow_moving", label: "Slow moving" },
-];
-
-const FLAG_LABELS: Array<{ key: keyof StockAnalyticsFlags; label: string }> = [
-  { key: "stockout", label: "Stockout" },
-  { key: "low_stock", label: "Low stock" },
-  { key: "near_expiry", label: "Near expiry" },
-  { key: "dead_stock", label: "Dead stock" },
-  { key: "slow_moving", label: "Slow moving" },
-];
-
 const ROADMAP_IDEAS = [
-  "Expiry risk heatmap",
-  "FEFO adherence monitor",
-  "Stockout risk score",
-  "Slow-moving stock detector",
-  "MDS demand forecast",
-  "Suggested order review list",
-  "Transfer opportunity between branches",
-  "Overstock warning",
-  "Supplier lead-time sensitivity",
-  "Seasonal demand notes",
-  "Stock value at risk",
-  "What changed this week insight summary",
+  {
+    title: "FEFO adherence monitor",
+    description: "Expiry order signal for review before action.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Slow-moving stock detector",
+    description: "Operational signal for stock that may need review.",
+    icon: Boxes,
+  },
+  {
+    title: "Weekly change summary",
+    description: "Plain-language movement changes for team review.",
+    icon: TrendingUp,
+  },
+  {
+    title: "Transfer opportunity review",
+    description: "Cross-branch stock signal with human review required.",
+    icon: ArrowRightLeft,
+  },
 ];
 
 function formatDate(value: string | null): string {
@@ -155,7 +137,7 @@ function formatForecastQuantity(
   return `${formattedPacks} packs / ${formatNumber(units)} units`;
 }
 
-/** A select that adopts house styling but keeps the label↔control wiring intact. */
+/** A select that adopts house styling but keeps the label-control wiring intact. */
 function FieldSelect({
   className,
   children,
@@ -163,13 +145,68 @@ function FieldSelect({
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <div className="relative">
-      <select className={cn(selectClass, "appearance-none pr-9", className)} {...rest}>
+      <select
+        className={cn(selectClass, "appearance-none pr-9", className)}
+        {...rest}
+      >
         {children}
       </select>
       <ChevronDown
         aria-hidden="true"
         className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
       />
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  helper,
+  tone = "neutral",
+}: {
+  label: string;
+  value: ReactNode;
+  helper?: ReactNode;
+  tone?: "neutral" | "warning" | "danger" | "info";
+}) {
+  const toneClass = {
+    danger: "border-danger-border bg-danger-soft text-danger-ink",
+    info: "border-info-border bg-info-soft text-info-ink",
+    neutral: "border-line bg-surface text-ink",
+    warning: "border-warning-border bg-warning-soft text-warning-ink",
+  }[tone];
+
+  return (
+    <article className={cn("rounded-2xl border p-3 shadow-soft", toneClass)}>
+      <p className="text-xs font-bold uppercase tracking-[0.06em] text-current/70">
+        {label}
+      </p>
+      <p className="tnum mt-1 text-xl font-extrabold tracking-[-0.01em]">
+        {value}
+      </p>
+      {helper ? (
+        <p className="mt-1 text-xs font-semibold leading-relaxed text-current/70">
+          {helper}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+function InlineStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-line bg-surface-subtle px-3 py-2">
+      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </dt>
+      <dd className="tnum mt-0.5 text-sm font-extrabold text-ink">{value}</dd>
     </div>
   );
 }
@@ -200,10 +237,23 @@ function ConfidenceChip({ confidence }: { confidence: string }) {
   return <ForecastConfidence confidence={confidence} />;
 }
 
+function RiskLevelBadge({ level }: { level: "high" | "medium" | "low" }) {
+  const variant =
+    level === "high" ? "danger" : level === "medium" ? "warning" : "info";
+  const label =
+    level === "high"
+      ? "High risk"
+      : level === "medium"
+        ? "Medium risk"
+        : "Low risk";
+
+  return <Badge variant={variant}>{label}</Badge>;
+}
+
 function ForecastRow({ item }: { item: ForecastItem }) {
   return (
     <TR>
-      <TD className="min-w-64">
+      <TD className="min-w-60">
         <span className="font-semibold text-ink">{item.medication_label}</span>
         <span className="mt-1 block text-xs text-muted">
           {item.history_points_count} history points over {item.window_days} days
@@ -227,7 +277,7 @@ function ForecastRow({ item }: { item: ForecastItem }) {
       <TD className="whitespace-nowrap">
         <ForecastConfidence confidence={item.confidence} />
       </TD>
-      <TD className="min-w-96">
+      <TD className="min-w-72">
         <details className="group">
           <summary className="inline-flex cursor-pointer select-none items-center gap-1.5 font-semibold text-brand transition-colors hover:text-brand-hover">
             <ChevronDown
@@ -236,7 +286,9 @@ function ForecastRow({ item }: { item: ForecastItem }) {
             />
             Explanation
           </summary>
-          <p className="mt-2 leading-relaxed text-ink-soft">{item.explanation}</p>
+          <p className="mt-2 text-xs leading-relaxed text-ink-soft">
+            {item.explanation}
+          </p>
         </details>
       </TD>
     </TR>
@@ -254,7 +306,7 @@ function TransferSuggestionRow({
 }) {
   return (
     <TR>
-      <TD className="min-w-64">
+      <TD className="min-w-60">
         <span className="font-semibold text-ink">
           {suggestion.medication_label}
         </span>
@@ -278,7 +330,7 @@ function TransferSuggestionRow({
       <TD className="whitespace-nowrap">
         <ConfidenceChip confidence={suggestion.confidence} />
       </TD>
-      <TD className="min-w-96 leading-relaxed">{suggestion.reason}</TD>
+      <TD className="min-w-72 text-xs leading-relaxed">{suggestion.reason}</TD>
       <TD className="whitespace-nowrap text-right">
         {canDismiss ? (
           <Button
@@ -294,298 +346,519 @@ function TransferSuggestionRow({
   );
 }
 
-function FlagBadges({ flags }: { flags: StockAnalyticsFlags }) {
-  const activeFlags = FLAG_LABELS.filter((flag) => flags[flag.key]);
-
-  if (activeFlags.length === 0) {
-    return <span className="text-muted">-</span>;
-  }
+function StockReviewRow({ item }: { item: StockReviewQueueItem }) {
+  const demandText =
+    item.shortfall_units > 0
+      ? `${formatNumber(item.shortfall_units)} shortfall`
+      : `${formatNumber(item.available_units)} available`;
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {activeFlags.map((flag) => (
-        <Badge key={flag.key} variant="warning">
-          {flag.label}
-        </Badge>
-      ))}
-    </div>
+    <article className="rounded-2xl border border-line bg-surface-subtle p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-extrabold text-ink">
+            {item.medication_name}
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            {item.pharmacy_name}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <RiskLevelBadge level={item.risk_level} />
+          <span className="tnum text-xs font-bold text-muted">
+            Score {item.score}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {item.reason_chips.map((reason) => (
+          <Badge key={reason} variant="warning">
+            {reason}
+          </Badge>
+        ))}
+      </div>
+
+      <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+        <InlineStat label="Demand" value={demandText} />
+        <InlineStat
+          label="Available"
+          value={`${formatNumber(item.available_units)} units`}
+        />
+        <InlineStat
+          label="Confidence"
+          value={item.forecast_confidence_label ?? "Not generated"}
+        />
+      </dl>
+
+      <p className="mt-3 rounded-xl border border-info-border bg-info-soft px-3 py-2 text-xs font-semibold leading-relaxed text-info-ink">
+        {item.review_message}
+      </p>
+    </article>
   );
 }
 
-function ExpiryCell({ item }: { item: StockAnalyticsItem }) {
-  if (!item.earliest_expiry) {
-    return <span className="text-muted">-</span>;
-  }
-
-  const days = item.days_to_expiry;
-  const heat =
-    days === null
-      ? "text-ink-soft"
-      : days <= 0
-        ? "text-fefo-expired"
-        : days <= 30
-          ? "text-fefo-d30"
-          : days <= 90
-            ? "text-fefo-d90"
-            : days <= 180
-              ? "text-fefo-d180"
-              : "text-fefo-fresh";
-
-  return (
-    <span>
-      <span className="tnum">{formatDate(item.earliest_expiry)}</span>
-      {days !== null ? (
-        <span className={cn("tnum block text-xs font-semibold", heat)}>
-          {days} days
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function AnalyticsRow({ item }: { item: StockAnalyticsItem }) {
-  return (
-    <TR>
-      <TD className="whitespace-nowrap font-semibold text-ink">
-        {item.medication_name}
-      </TD>
-      <TD className="tnum whitespace-nowrap">{item.pharmacy_id}</TD>
-      <TD className="tnum whitespace-nowrap">{item.quantity_on_hand}</TD>
-      <TD className="tnum whitespace-nowrap">{item.reorder_level}</TD>
-      <TD className="whitespace-nowrap">
-        <ExpiryCell item={item} />
-      </TD>
-      <TD>
-        <FlagBadges flags={item.flags} />
-      </TD>
-      <TD className="tnum whitespace-nowrap font-semibold text-ink">
-        {item.attention_score}
-      </TD>
-      <TD className="tnum whitespace-nowrap">
-        {item.suggested_reorder_quantity}
-      </TD>
-      <TD>
-        {item.reasons.length > 0 ? (
-          <ul className="space-y-1 leading-relaxed">
-            {item.reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-        ) : (
-          <span className="text-muted">-</span>
-        )}
-      </TD>
-    </TR>
-  );
-}
-
-function RiskLevelBadge({ level }: { level: "high" | "medium" | "low" }) {
-  const variant = level === "high" ? "danger" : level === "medium" ? "warning" : "info";
-  const label = level === "high" ? "High risk" : level === "medium" ? "Medium risk" : "Low risk";
-  return <Badge variant={variant}>{label}</Badge>;
-}
-
-function StockReviewQueuePanel({ data, isError, isLoading }: {
+function StockReviewQueuePanel({
+  data,
+  isError,
+  isLoading,
+}: {
   data?: StockReviewQueue;
   isError: boolean;
   isLoading: boolean;
 }) {
-  const topItems = data?.items.slice(0, 10) ?? [];
+  const topItems = data?.items.slice(0, 8) ?? [];
 
   return (
-    <Panel>
+    <Panel className="h-full">
       <PanelHeader
         title="Stock review queue"
-        subtitle="Prioritised operational signals for review before action."
+        subtitle="Primary suggested review list."
         icon={<PackageSearch className="h-4 w-4" />}
         actions={
           data ? (
-            <Badge variant="info">{formatNumber(data.summary.total_items)} items</Badge>
+            <Badge variant="info">
+              {formatNumber(data.summary.total_items)} items
+            </Badge>
           ) : null
         }
       />
-      <PanelBody className="space-y-4">
+      <PanelBody className="space-y-3">
         {isLoading ? <SkeletonRows rows={4} /> : null}
         {isError ? (
           <EmptyState
             tone="danger"
             icon={<PackageSearch className="h-5 w-5" />}
             title="Could not load stock review queue."
+            className="py-8"
           />
         ) : null}
         {data && data.items.length === 0 ? (
           <EmptyState
             icon={<PackageSearch className="h-5 w-5" />}
-            title="No stock items need suggested review."
-            description="Operational signals will appear here when current stock, demand, expiry, or forecast confidence needs review."
+            title="No suggested stock reviews."
+            description="Operational signals will appear when stock, demand, expiry, or confidence needs review."
+            className="py-8"
           />
         ) : null}
         {topItems.length > 0 ? (
-          <TableScroll>
-            <Table>
-              <THead>
-                <TR className="hover:bg-transparent">
-                  <TH>Product</TH>
-                  <TH>Risk</TH>
-                  <TH>Signals</TH>
-                  <TH>Demand</TH>
-                  <TH>Confidence</TH>
-                  <TH>Review</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {topItems.map((item) => (
-                  <TR key={`${item.stock_item_id ?? item.medication_id}-${item.pharmacy_id}`}>
-                    <TD className="min-w-64 font-semibold text-ink">
-                      {item.medication_name}
-                    </TD>
-                    <TD className="whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <RiskLevelBadge level={item.risk_level} />
-                        <span className="tnum text-xs font-semibold text-muted">
-                          {item.score}
-                        </span>
-                      </div>
-                    </TD>
-                    <TD className="min-w-64">
-                      <div className="flex flex-wrap gap-1.5">
-                        {item.reason_chips.map((reason) => (
-                          <Badge key={reason} variant="warning">
-                            {reason}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TD>
-                    <TD className="tnum whitespace-nowrap">
-                      {item.shortfall_units > 0
-                        ? `${formatNumber(item.shortfall_units)} shortfall`
-                        : `${formatNumber(item.available_units)} available`}
-                    </TD>
-                    <TD className="whitespace-nowrap">
-                      {item.forecast_confidence_label ?? "Not generated"}
-                    </TD>
-                    <TD className="min-w-52 text-sm text-ink-soft">
-                      {item.review_message}
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </TableScroll>
+          <div className="space-y-3">
+            {topItems.map((item) => (
+              <StockReviewRow
+                item={item}
+                key={`${item.stock_item_id ?? item.medication_id}-${item.pharmacy_id}`}
+              />
+            ))}
+            {data && data.items.length > topItems.length ? (
+              <p className="text-xs font-semibold text-muted">
+                Showing {topItems.length} of {formatNumber(data.items.length)} review
+                items.
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </PanelBody>
     </Panel>
   );
 }
 
-function MdsDemandPanel({ data, isError, isLoading }: {
+function MdsDemandPanel({
+  data,
+  isError,
+  isLoading,
+}: {
   data?: MdsDemandSignal;
   isError: boolean;
   isLoading: boolean;
 }) {
+  const visibleItems = data?.items.slice(0, 3) ?? [];
+
   return (
     <Panel>
       <PanelHeader
         title="MDS demand signal"
-        subtitle="Upcoming cycle demand compared with available stock. Patient counts only."
+        subtitle="Patient counts only."
         icon={<CalendarClock className="h-4 w-4" />}
         actions={
-          data ? (
-            <Badge variant="info">{data.horizon_days} day horizon</Badge>
-          ) : null
+          data ? <Badge variant="info">{data.horizon_days} days</Badge> : null
         }
       />
-      <PanelBody className="space-y-4">
+      <PanelBody className="space-y-3">
         {data ? (
-          <section
-            aria-label="MDS demand summary"
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-          >
-            <KpiCard
-              label="Required units"
+          <dl className="grid gap-2 sm:grid-cols-2">
+            <InlineStat
+              label="Required"
               value={formatNumber(data.summary.total_required_units)}
             />
-            <KpiCard
-              label="Shortfall units"
+            <InlineStat
+              label="Shortfall"
               value={formatNumber(data.summary.total_shortfall_units)}
             />
-            <KpiCard
-              label="Cycles affected"
+            <InlineStat
+              label="Cycles"
               value={formatNumber(data.summary.cycles_affected)}
             />
-            <KpiCard
-              label="Patients affected"
+            <InlineStat
+              label="Patients"
               value={formatNumber(data.summary.patients_affected)}
             />
-          </section>
+          </dl>
         ) : null}
-        {isLoading ? <SkeletonRows rows={4} /> : null}
+        {isLoading ? <SkeletonRows rows={3} /> : null}
         {isError ? (
           <EmptyState
             tone="danger"
             icon={<CalendarClock className="h-5 w-5" />}
             title="Could not load MDS demand signal."
+            className="py-8"
           />
         ) : null}
         {data && data.items.length === 0 ? (
           <EmptyState
             icon={<CalendarClock className="h-5 w-5" />}
-            title="No upcoming MDS demand signal."
-            description="Prepared and upcoming cycles without stock deduction will appear here."
+            title="No MDS demand signal."
+            description="Upcoming cycles without stock deduction will appear here."
+            className="py-8"
           />
         ) : null}
-        {data && data.items.length > 0 ? (
-          <TableScroll>
-            <Table>
-              <THead>
-                <TR className="hover:bg-transparent">
-                  <TH>Product</TH>
-                  <TH>Required</TH>
-                  <TH>Available</TH>
-                  <TH>Shortfall</TH>
-                  <TH>Cycles</TH>
-                  <TH>Patients</TH>
-                  <TH>Status</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {data.items.map((item) => (
-                  <TR key={`${item.stock_item_id ?? item.medication_id}-${item.pharmacy_id}`}>
-                    <TD className="min-w-64 font-semibold text-ink">
+        {visibleItems.length > 0 ? (
+          <div className="space-y-2">
+            {visibleItems.map((item) => (
+              <article
+                className="rounded-xl border border-line bg-surface-subtle p-3"
+                key={`${item.stock_item_id ?? item.medication_id}-${item.pharmacy_id}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-ink">
                       {item.medication_name}
-                    </TD>
-                    <TD className="tnum whitespace-nowrap">
-                      {formatNumber(item.required_units)}
-                    </TD>
-                    <TD className="tnum whitespace-nowrap">
-                      {formatNumber(item.available_units)}
-                    </TD>
-                    <TD className="tnum whitespace-nowrap font-semibold text-ink">
-                      {formatNumber(item.shortfall_units)}
-                    </TD>
-                    <TD className="tnum whitespace-nowrap">
-                      {formatNumber(item.cycles_affected)}
-                    </TD>
-                    <TD className="tnum whitespace-nowrap">
-                      {formatNumber(item.patients_affected)}
-                    </TD>
-                    <TD className="whitespace-nowrap">
-                      <Badge
-                        variant={
-                          item.mapping_status === "mapping_needed"
-                            ? "warning"
-                            : "info"
-                        }
-                      >
-                        {item.mapping_status === "mapping_needed"
-                          ? "Mapping needed"
-                          : "Mapped"}
-                      </Badge>
-                    </TD>
+                    </h3>
+                    <p className="mt-1 text-xs text-muted">
+                      {formatNumber(item.required_units)} required ·{" "}
+                      {formatNumber(item.available_units)} available
+                    </p>
+                  </div>
+                  <Badge
+                    variant={
+                      item.mapping_status === "mapping_needed"
+                        ? "warning"
+                        : "info"
+                    }
+                  >
+                    {item.mapping_status === "mapping_needed"
+                      ? "Mapping needed"
+                      : "Mapped"}
+                  </Badge>
+                </div>
+                <p className="tnum mt-2 text-sm font-bold text-ink">
+                  {formatNumber(item.shortfall_units)} shortfall
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function ExpiryRiskPanel({
+  data,
+  isError,
+  isLoading,
+}: {
+  data?: ExpiryRisk;
+  isError: boolean;
+  isLoading: boolean;
+}) {
+  const riskItems =
+    data?.items.filter((item) => item.days_to_expiry <= 90).slice(0, 3) ?? [];
+
+  return (
+    <Panel>
+      <PanelHeader
+        title="Expiry risk / value at risk"
+        subtitle="Active positive batches."
+        icon={<ShieldCheck className="h-4 w-4" />}
+        actions={<Badge variant="info">Expiry risk</Badge>}
+      />
+      <PanelBody className="space-y-3">
+        {data ? (
+          <dl className="grid gap-2 sm:grid-cols-2">
+            <InlineStat
+              label="30-day units"
+              value={formatNumber(data.summary.expiring_within_30_days_units)}
+            />
+            <InlineStat
+              label="Value at risk"
+              value={formatCurrencyValue(data.summary.value_at_risk)}
+            />
+            <InlineStat
+              label="Unpriced units"
+              value={formatNumber(data.summary.unpriced_risk_units)}
+            />
+            <InlineStat
+              label="Products"
+              value={formatNumber(data.summary.products_affected)}
+            />
+          </dl>
+        ) : null}
+        {data ? (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {data.buckets.slice(0, 3).map((bucket) => (
+              <article
+                className="rounded-xl border border-line bg-surface-subtle px-3 py-2"
+                key={bucket.key}
+              >
+                <p className="text-xs font-bold text-muted">{bucket.label}</p>
+                <p className="tnum mt-1 text-sm font-extrabold text-ink">
+                  {formatNumber(bucket.units)}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+        {isLoading ? <SkeletonRows rows={3} /> : null}
+        {isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="Could not load expiry risk."
+            className="py-8"
+          />
+        ) : null}
+        {data && data.items.length === 0 ? (
+          <EmptyState
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="No expiry risk."
+            className="py-8"
+          />
+        ) : null}
+        {riskItems.length > 0 ? (
+          <div className="space-y-2">
+            {riskItems.map((item) => (
+              <article
+                className="rounded-xl border border-line bg-surface-subtle p-3"
+                key={`${item.stock_item_id}-${item.batch_number}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-ink">
+                      {item.medication_name}
+                    </h3>
+                    <p className="mt-1 text-xs text-muted">
+                      Batch {item.batch_number} · {formatDate(item.expiry_date)}
+                    </p>
+                  </div>
+                  <Badge variant="warning">{item.bucket_label}</Badge>
+                </div>
+                <p className="tnum mt-2 text-sm font-bold text-ink">
+                  {formatNumber(item.quantity)} units ·{" "}
+                  {formatCurrencyValue(item.estimated_value)}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function ForecastConfidencePanel({
+  forecast,
+  lowConfidenceItems,
+}: {
+  forecast: ForecastRun | null | undefined;
+  lowConfidenceItems: number | undefined;
+}) {
+  const averageConfidence = useMemo(() => {
+    if (!forecast || forecast.items.length === 0) {
+      return null;
+    }
+    const total = forecast.items.reduce(
+      (sum, item) => sum + Number(item.confidence),
+      0,
+    );
+    return Math.round((total / forecast.items.length) * 100);
+  }, [forecast]);
+
+  return (
+    <Panel>
+      <PanelHeader
+        title="Forecast confidence"
+        subtitle="Movement history quality."
+        icon={<TrendingUp className="h-4 w-4" />}
+      />
+      <PanelBody className="space-y-3">
+        <dl className="grid gap-2 sm:grid-cols-2">
+          <InlineStat
+            label="Average"
+            value={averageConfidence === null ? "-" : `${averageConfidence}%`}
+          />
+          <InlineStat
+            label="Low confidence"
+            value={formatNumber(lowConfidenceItems ?? 0)}
+          />
+        </dl>
+        <p className="rounded-xl border border-info-border bg-info-soft px-3 py-2 text-xs font-semibold leading-relaxed text-info-ink">
+          Forecast confidence is an operational signal. Human review required.
+        </p>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function ForecastPanel({
+  canRunForecast,
+  generateError,
+  isGenerating,
+  horizonDays,
+  latestForecast,
+  onGenerate,
+  selectedPharmacyId,
+  setHorizonDays,
+}: {
+  canRunForecast: boolean;
+  generateError: boolean;
+  isGenerating: boolean;
+  horizonDays: number;
+  latestForecast: {
+    data: ForecastRun | null | undefined;
+    isError: boolean;
+    isLoading: boolean;
+    isSuccess: boolean;
+  };
+  onGenerate: () => void;
+  selectedPharmacyId: number | undefined;
+  setHorizonDays: (value: number) => void;
+}) {
+  const forecastData = latestForecast.data;
+
+  return (
+    <Panel>
+      <PanelHeader>
+        <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+            >
+              <LineChart className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+                Forecast suggestion
+              </p>
+              <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
+                Reorder forecasting
+              </h2>
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
+                Estimated demand from stock movement history. Review before
+                action.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="min-w-36">
+              <span className={labelClass}>Horizon</span>
+              <FieldSelect
+                onChange={(event) => setHorizonDays(Number(event.target.value))}
+                value={horizonDays}
+              >
+                <option value={30}>30 days</option>
+                <option value={60}>60 days</option>
+                <option value={90}>90 days</option>
+              </FieldSelect>
+            </label>
+
+            {canRunForecast ? (
+              <Button
+                variant="primary"
+                leadingIcon={<Sparkles className="h-4 w-4" />}
+                disabled={selectedPharmacyId === undefined || isGenerating}
+                onClick={() => onGenerate()}
+              >
+                {isGenerating ? "Generating..." : "Generate forecast"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </PanelHeader>
+
+      <PanelBody className="space-y-4">
+        {generateError ? (
+          <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
+            Could not generate forecast. Check your pharmacy scope and try again.
+          </p>
+        ) : null}
+
+        {selectedPharmacyId === undefined ? (
+          <EmptyState
+            icon={<LineChart className="h-5 w-5" />}
+            title="Select a pharmacy to view forecasting suggestions."
+            className="py-8"
+          />
+        ) : null}
+
+        {latestForecast.isLoading ? <SkeletonRows rows={4} /> : null}
+
+        {latestForecast.isError ? (
+          <EmptyState
+            tone="danger"
+            icon={<LineChart className="h-5 w-5" />}
+            title="Could not load latest forecast."
+            className="py-8"
+          />
+        ) : null}
+
+        {latestForecast.isSuccess && forecastData === null ? (
+          <EmptyState
+            icon={<LineChart className="h-5 w-5" />}
+            title="No forecast generated yet."
+            className="py-8"
+          />
+        ) : null}
+
+        {latestForecast.isSuccess && forecastData ? (
+          <TableScroll>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-subtle px-4 py-3">
+              <div>
+                <p className="text-[13px] font-bold text-ink">
+                  Latest forecast: {forecastData.horizon_days} days, model{" "}
+                  {forecastData.model_version}
+                </p>
+                <p className="mt-0.5 text-xs text-muted">
+                  Generated {formatDate(forecastData.created_at)}
+                </p>
+              </div>
+              <Badge variant="info">Forecast confidence</Badge>
+            </div>
+            {forecastData.items.length === 0 ? (
+              <EmptyState
+                icon={<LineChart className="h-5 w-5" />}
+                title="No active stock items found for this pharmacy."
+                className="py-8"
+              />
+            ) : (
+              <Table>
+                <THead>
+                  <TR className="hover:bg-transparent">
+                    <TH>Product</TH>
+                    <TH>Predicted usage</TH>
+                    <TH>Current stock</TH>
+                    <TH>Suggested review</TH>
+                    <TH>Confidence</TH>
+                    <TH>Rationale</TH>
                   </TR>
-                ))}
-              </TBody>
-            </Table>
+                </THead>
+                <TBody>
+                  {forecastData.items.map((item) => (
+                    <ForecastRow item={item} key={item.id} />
+                  ))}
+                </TBody>
+              </Table>
+            )}
           </TableScroll>
         ) : null}
       </PanelBody>
@@ -593,113 +866,186 @@ function MdsDemandPanel({ data, isError, isLoading }: {
   );
 }
 
-function ExpiryRiskPanel({ data, isError, isLoading }: {
-  data?: ExpiryRisk;
-  isError: boolean;
-  isLoading: boolean;
+function TransferSuggestionsPanel({
+  canDismissTransferSuggestions,
+  canGenerateTransferSuggestions,
+  deadDays,
+  dismissError,
+  generateError,
+  groupIds,
+  isGenerating,
+  onDismiss,
+  onGenerate,
+  selectedGroupId,
+  setDeadDays,
+  setSelectedGroupId,
+  suggestions,
+}: {
+  canDismissTransferSuggestions: boolean;
+  canGenerateTransferSuggestions: boolean;
+  deadDays: number;
+  dismissError: boolean;
+  generateError: boolean;
+  groupIds: number[];
+  isGenerating: boolean;
+  onDismiss: (suggestionId: number) => void;
+  onGenerate: () => void;
+  selectedGroupId: number | undefined;
+  setDeadDays: (value: number) => void;
+  setSelectedGroupId: (value: number | undefined) => void;
+  suggestions: {
+    data: TransferSuggestion[] | undefined;
+    isError: boolean;
+    isLoading: boolean;
+    isSuccess: boolean;
+  };
 }) {
-  const riskItems = data?.items.filter((item) => item.days_to_expiry <= 90).slice(0, 8) ?? [];
-
   return (
     <Panel>
-      <PanelHeader
-        title="Expiry risk and value at risk"
-        subtitle="Active positive batches grouped by expiry window."
-        icon={<ShieldCheck className="h-4 w-4" />}
-        actions={<Badge variant="info">Expiry risk</Badge>}
-      />
+      <PanelHeader>
+        <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+            >
+              <ArrowRightLeft className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+                Transfer suggestion
+              </p>
+              <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
+                Cross-branch stock suggestions
+              </h2>
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
+                Operational suggestions based on stock movement history. Human
+                review required before transfer.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="min-w-44">
+              <span className={labelClass}>Group</span>
+              {groupIds.length > 0 ? (
+                <FieldSelect
+                  onChange={(event) =>
+                    setSelectedGroupId(
+                      event.target.value ? Number(event.target.value) : undefined,
+                    )
+                  }
+                  value={selectedGroupId ?? ""}
+                >
+                  {groupIds.map((groupId) => (
+                    <option key={groupId} value={groupId}>
+                      Group {groupId}
+                    </option>
+                  ))}
+                </FieldSelect>
+              ) : (
+                <input
+                  className={selectClass}
+                  min="1"
+                  onChange={(event) =>
+                    setSelectedGroupId(
+                      event.target.value ? Number(event.target.value) : undefined,
+                    )
+                  }
+                  placeholder="Group ID"
+                  type="number"
+                  value={selectedGroupId ?? ""}
+                />
+              )}
+            </label>
+
+            <label className="min-w-40">
+              <span className={labelClass}>Dead stock window</span>
+              <FieldSelect
+                onChange={(event) => setDeadDays(Number(event.target.value))}
+                value={deadDays}
+              >
+                <option value={30}>30 days</option>
+                <option value={60}>60 days</option>
+                <option value={90}>90 days</option>
+              </FieldSelect>
+            </label>
+
+            {canGenerateTransferSuggestions ? (
+              <Button
+                variant="primary"
+                leadingIcon={<Sparkles className="h-4 w-4" />}
+                disabled={selectedGroupId === undefined || isGenerating}
+                onClick={() => onGenerate()}
+              >
+                {isGenerating ? "Generating..." : "Generate transfer suggestions"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </PanelHeader>
+
       <PanelBody className="space-y-4">
-        {data ? (
-          <section
-            aria-label="Expiry risk summary"
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-          >
-            <KpiCard
-              label="Units within 30 days"
-              value={formatNumber(data.summary.expiring_within_30_days_units)}
-            />
-            <KpiCard
-              label="Stock value at risk"
-              value={formatCurrencyValue(data.summary.value_at_risk)}
-            />
-            <KpiCard
-              label="Unpriced risk units"
-              value={formatNumber(data.summary.unpriced_risk_units)}
-            />
-            <KpiCard
-              label="Products affected"
-              value={formatNumber(data.summary.products_affected)}
-            />
-          </section>
+        {generateError ? (
+          <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
+            Could not generate transfer suggestions. Check your group scope and
+            try again.
+          </p>
         ) : null}
-        {isLoading ? <SkeletonRows rows={4} /> : null}
-        {isError ? (
+
+        {dismissError ? (
+          <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
+            Could not dismiss transfer suggestion.
+          </p>
+        ) : null}
+
+        {selectedGroupId === undefined ? (
+          <EmptyState
+            icon={<ArrowRightLeft className="h-5 w-5" />}
+            title="Select a group to view transfer suggestions."
+            className="py-8"
+          />
+        ) : null}
+
+        {suggestions.isLoading ? <SkeletonRows rows={4} /> : null}
+
+        {suggestions.isError ? (
           <EmptyState
             tone="danger"
-            icon={<ShieldCheck className="h-5 w-5" />}
-            title="Could not load expiry risk."
+            icon={<ArrowRightLeft className="h-5 w-5" />}
+            title="Could not load transfer suggestions."
+            className="py-8"
           />
         ) : null}
-        {data && data.items.length === 0 ? (
+
+        {suggestions.isSuccess && suggestions.data?.length === 0 ? (
           <EmptyState
-            icon={<ShieldCheck className="h-5 w-5" />}
-            title="No active batch expiry risk to show."
+            icon={<ArrowRightLeft className="h-5 w-5" />}
+            title="No transfer suggestions to review."
+            className="py-8"
           />
         ) : null}
-        {data ? (
-          <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-            {data.buckets.map((bucket) => (
-              <article
-                className="rounded-xl border border-line bg-surface-subtle p-3"
-                key={bucket.key}
-              >
-                <p className="text-xs font-bold text-muted">{bucket.label}</p>
-                <p className="tnum mt-1 text-lg font-extrabold text-ink">
-                  {formatNumber(bucket.units)}
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  {formatCurrencyValue(bucket.estimated_value)} value
-                </p>
-              </article>
-            ))}
-          </div>
-        ) : null}
-        {riskItems.length > 0 ? (
+
+        {suggestions.isSuccess && suggestions.data && suggestions.data.length > 0 ? (
           <TableScroll>
             <Table>
               <THead>
                 <TR className="hover:bg-transparent">
                   <TH>Product</TH>
-                  <TH>Batch</TH>
-                  <TH>Expiry</TH>
-                  <TH>Units</TH>
-                  <TH>Value</TH>
-                  <TH>Review</TH>
+                  <TH>Route</TH>
+                  <TH>Suggested quantity</TH>
+                  <TH>Confidence</TH>
+                  <TH>Reason</TH>
+                  <TH className="text-right">Action</TH>
                 </TR>
               </THead>
               <TBody>
-                {riskItems.map((item) => (
-                  <TR key={`${item.stock_item_id}-${item.batch_number}`}>
-                    <TD className="min-w-64 font-semibold text-ink">
-                      {item.medication_name}
-                    </TD>
-                    <TD className="whitespace-nowrap">{item.batch_number}</TD>
-                    <TD className="whitespace-nowrap">
-                      {formatDate(item.expiry_date)}
-                      <span className="tnum block text-xs font-semibold text-muted">
-                        {item.days_to_expiry} days
-                      </span>
-                    </TD>
-                    <TD className="tnum whitespace-nowrap">
-                      {formatNumber(item.quantity)}
-                    </TD>
-                    <TD className="tnum whitespace-nowrap">
-                      {formatCurrencyValue(item.estimated_value)}
-                    </TD>
-                    <TD className="min-w-52 text-sm text-ink-soft">
-                      {item.review_message}
-                    </TD>
-                  </TR>
+                {suggestions.data.map((suggestion) => (
+                  <TransferSuggestionRow
+                    canDismiss={canDismissTransferSuggestions}
+                    key={suggestion.id}
+                    onDismiss={onDismiss}
+                    suggestion={suggestion}
+                  />
                 ))}
               </TBody>
             </Table>
@@ -712,53 +1058,55 @@ function ExpiryRiskPanel({ data, isError, isLoading }: {
 
 function OpportunityRoadmap() {
   return (
-    <Panel>
-      <PanelHeader
-        title="Opportunity roadmap"
-        subtitle="Frontend-only AI enhancement ideas for demo discussion."
-        icon={<Sparkles className="h-4 w-4" />}
-        actions={<Badge variant="info">Suggested enhancement</Badge>}
-      />
-      <PanelBody>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {ROADMAP_IDEAS.map((idea, index) => {
-            const Icon =
-              index % 4 === 0
-                ? CalendarClock
-                : index % 4 === 1
-                  ? ShieldCheck
-                  : index % 4 === 2
-                    ? TrendingUp
-                    : Boxes;
-            return (
-              <article
-                className="rounded-xl border border-line bg-surface-subtle p-3"
-                key={idea}
-              >
-                <div className="flex items-start gap-2.5">
-                  <span
-                    aria-hidden="true"
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-lilac-soft text-brand"
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-extrabold text-ink">{idea}</h3>
-                    <p className="mt-1 text-xs leading-relaxed text-muted">
-                      Operational signal for review before action.
-                    </p>
-                  </div>
+    <details className="rounded-2xl border border-line bg-surface shadow-soft">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
+        <span className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
+          >
+            <Sparkles className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[15px] font-bold tracking-[-0.01em] text-ink">
+              Future intelligence ideas
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-muted">
+              Compact roadmap signals for later review.
+            </span>
+          </span>
+        </span>
+        <Badge variant="info">Roadmap</Badge>
+      </summary>
+      <div className="grid gap-3 border-t border-line p-4 sm:grid-cols-2 xl:grid-cols-4">
+        {ROADMAP_IDEAS.map((idea) => {
+          const Icon = idea.icon;
+          return (
+            <article
+              className="rounded-xl border border-line bg-surface-subtle p-3"
+              key={idea.title}
+            >
+              <div className="flex items-start gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-lilac-soft text-brand"
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-extrabold text-ink">
+                    {idea.title}
+                  </h3>
+                  <p className="mt-1 text-xs leading-relaxed text-muted">
+                    {idea.description}
+                  </p>
                 </div>
-              </article>
-            );
-          })}
-        </div>
-        <p className="mt-3 rounded-xl border border-info-border bg-info-soft px-3 py-2 text-xs font-semibold text-info-ink">
-          These roadmap cards describe future operational signals for human
-          review before action.
-        </p>
-      </PanelBody>
-    </Panel>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
@@ -766,17 +1114,19 @@ export function StockAnalyticsScreen() {
   const { user } = useAuth();
   const { can } = usePermissions();
   const pharmacies = useMemo(() => user?.pharmacies ?? [], [user?.pharmacies]);
-  const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | undefined>(
-    undefined,
+  const [selectedPharmacyId, setSelectedPharmacyId] = useState<
+    number | undefined
+  >(undefined);
+  const groupIds = useMemo(
+    () => user?.scope.group_ids ?? [],
+    [user?.scope.group_ids],
   );
-  const groupIds = useMemo(() => user?.scope.group_ids ?? [], [user?.scope.group_ids]);
   const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>(
     undefined,
   );
   const [signalHorizonDays, setSignalHorizonDays] = useState(28);
   const [horizonDays, setHorizonDays] = useState(30);
   const [deadDays, setDeadDays] = useState(30);
-  const stockOverviewQuery = useStockAnalyticsOverviewQuery(selectedPharmacyId);
   const stockReviewQueueQuery = useStockReviewQueueQuery(
     selectedPharmacyId,
     signalHorizonDays,
@@ -837,493 +1187,180 @@ export function StockAnalyticsScreen() {
     void dismissTransferSuggestion.mutateAsync(suggestionId);
   }
 
-  return (
-    <div className="stagger space-y-5">
-      <PageHeader
-        className="animate-fade-in-up"
-        eyebrow="Inventory analytics"
-        title="Stock Intelligence"
-        subtitle="Explainable stock analytics based on inventory levels, expiry dates, and movement history."
-      />
+  const queueSummary = stockReviewQueueQuery.data?.summary;
+  const mdsSummary = mdsDemandQuery.data?.summary;
+  const expirySummary = expiryRiskQuery.data?.summary;
 
-      <Panel>
-        <PanelHeader>
-          <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-[15px] font-bold tracking-[-0.01em] text-ink">
-                Operational signal filters
-              </h2>
-              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
-                Stock risk, MDS demand signal, and expiry risk are read-only
-                signals. Human review required before action.
-              </p>
+  return (
+    <div className="stagger space-y-4">
+      <header className="rounded-2xl border border-line bg-surface p-4 shadow-soft sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
+              Inventory analytics
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-ink">
+                Stock Intelligence
+              </h1>
+              <Badge variant="info">Human review required</Badge>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              {pharmacies.length > 0 ? (
-                <label className="min-w-56">
-                  <span className={labelClass}>Pharmacy</span>
-                  <FieldSelect
-                    onChange={(event) =>
-                      setSelectedPharmacyId(
-                        event.target.value
-                          ? Number(event.target.value)
-                          : undefined,
-                      )
-                    }
-                    value={selectedPharmacyId ?? ""}
-                  >
-                    {pharmacies.map((pharmacy) => (
-                      <option key={pharmacy.id} value={pharmacy.id}>
-                        {pharmacy.name}
-                      </option>
-                    ))}
-                  </FieldSelect>
-                </label>
-              ) : null}
-              <label className="min-w-40">
-                <span className={labelClass}>Signal horizon</span>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted">
+              Operational signals for review before action.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            {pharmacies.length > 0 ? (
+              <label className="min-w-56">
+                <span className={labelClass}>Pharmacy</span>
                 <FieldSelect
                   onChange={(event) =>
-                    setSignalHorizonDays(Number(event.target.value))
+                    setSelectedPharmacyId(
+                      event.target.value ? Number(event.target.value) : undefined,
+                    )
                   }
-                  value={signalHorizonDays}
+                  value={selectedPharmacyId ?? ""}
                 >
-                  <option value={7}>7 days</option>
-                  <option value={14}>14 days</option>
-                  <option value={28}>28 days</option>
-                  <option value={60}>60 days</option>
-                  <option value={90}>90 days</option>
+                  {pharmacies.map((pharmacy) => (
+                    <option key={pharmacy.id} value={pharmacy.id}>
+                      {pharmacy.name}
+                    </option>
+                  ))}
                 </FieldSelect>
               </label>
-            </div>
+            ) : null}
+            <label className="min-w-40">
+              <span className={labelClass}>Signal horizon</span>
+              <FieldSelect
+                onChange={(event) =>
+                  setSignalHorizonDays(Number(event.target.value))
+                }
+                value={signalHorizonDays}
+              >
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+                <option value={28}>28 days</option>
+                <option value={60}>60 days</option>
+                <option value={90}>90 days</option>
+              </FieldSelect>
+            </label>
           </div>
-        </PanelHeader>
-      </Panel>
+        </div>
+      </header>
 
-      <StockReviewQueuePanel
-        data={stockReviewQueueQuery.data}
-        isError={stockReviewQueueQuery.isError}
-        isLoading={stockReviewQueueQuery.isLoading}
-      />
+      <section
+        aria-label="Stock intelligence KPI strip"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+      >
+        <MetricCard
+          label="Items to review"
+          value={queueSummary ? formatNumber(queueSummary.total_items) : "-"}
+          helper="Stock Review Queue"
+          tone={(queueSummary?.high_risk ?? 0) > 0 ? "danger" : "neutral"}
+        />
+        <MetricCard
+          label="MDS shortfalls"
+          value={mdsSummary ? formatNumber(mdsSummary.total_shortfall_units) : "-"}
+          helper={`${formatNumber(mdsSummary?.cycles_affected ?? 0)} cycles`}
+          tone={(mdsSummary?.total_shortfall_units ?? 0) > 0 ? "warning" : "neutral"}
+        />
+        <MetricCard
+          label="Expiry risk"
+          value={
+            expirySummary
+              ? formatNumber(expirySummary.expiring_within_30_days_units)
+              : "-"
+          }
+          helper="Units within 30 days"
+          tone={
+            (expirySummary?.expiring_within_30_days_units ?? 0) > 0
+              ? "warning"
+              : "neutral"
+          }
+        />
+        <MetricCard
+          label="Value at risk"
+          value={
+            expirySummary
+              ? formatCurrencyValue(expirySummary.value_at_risk)
+              : "-"
+          }
+          helper={`${formatNumber(expirySummary?.products_affected ?? 0)} products`}
+          tone={(expirySummary?.products_affected ?? 0) > 0 ? "info" : "neutral"}
+        />
+        <MetricCard
+          label="Low-confidence items"
+          value={queueSummary ? formatNumber(queueSummary.low_confidence) : "-"}
+          helper="Forecast confidence"
+          tone={(queueSummary?.low_confidence ?? 0) > 0 ? "warning" : "neutral"}
+        />
+      </section>
 
-      <MdsDemandPanel
-        data={mdsDemandQuery.data}
-        isError={mdsDemandQuery.isError}
-        isLoading={mdsDemandQuery.isLoading}
-      />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
+        <StockReviewQueuePanel
+          data={stockReviewQueueQuery.data}
+          isError={stockReviewQueueQuery.isError}
+          isLoading={stockReviewQueueQuery.isLoading}
+        />
 
-      <ExpiryRiskPanel
-        data={expiryRiskQuery.data}
-        isError={expiryRiskQuery.isError}
-        isLoading={expiryRiskQuery.isLoading}
+        <aside className="space-y-4">
+          <MdsDemandPanel
+            data={mdsDemandQuery.data}
+            isError={mdsDemandQuery.isError}
+            isLoading={mdsDemandQuery.isLoading}
+          />
+
+          <ExpiryRiskPanel
+            data={expiryRiskQuery.data}
+            isError={expiryRiskQuery.isError}
+            isLoading={expiryRiskQuery.isLoading}
+          />
+
+          <ForecastConfidencePanel
+            forecast={latestForecastQuery.data}
+            lowConfidenceItems={queueSummary?.low_confidence}
+          />
+        </aside>
+      </div>
+
+      <ForecastPanel
+        canRunForecast={canRunForecast}
+        generateError={generateForecast.isError}
+        horizonDays={horizonDays}
+        isGenerating={generateForecast.isPending}
+        latestForecast={{
+          data: latestForecastQuery.data,
+          isError: latestForecastQuery.isError,
+          isLoading: latestForecastQuery.isLoading,
+          isSuccess: latestForecastQuery.isSuccess,
+        }}
+        onGenerate={() => void handleGenerateForecast()}
+        selectedPharmacyId={selectedPharmacyId}
+        setHorizonDays={setHorizonDays}
       />
 
       {canViewTransferSuggestions ? (
-        <Panel>
-          <PanelHeader>
-            <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex min-w-0 items-start gap-3">
-                <span
-                  aria-hidden="true"
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
-                >
-                  <ArrowRightLeft className="h-[18px] w-[18px]" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-                    Transfer suggestion
-                  </p>
-                  <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
-                    Cross-branch stock suggestions
-                  </h2>
-                  <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
-                    Operational suggestions based on stock movement history. Human
-                    review required before transfer.
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <label className="min-w-44">
-                  <span className={labelClass}>Group</span>
-                  {groupIds.length > 0 ? (
-                    <FieldSelect
-                      onChange={(event) =>
-                        setSelectedGroupId(
-                          event.target.value
-                            ? Number(event.target.value)
-                            : undefined,
-                        )
-                      }
-                      value={selectedGroupId ?? ""}
-                    >
-                      {groupIds.map((groupId) => (
-                        <option key={groupId} value={groupId}>
-                          Group {groupId}
-                        </option>
-                      ))}
-                    </FieldSelect>
-                  ) : (
-                    <input
-                      className={cn(selectClass)}
-                      min="1"
-                      onChange={(event) =>
-                        setSelectedGroupId(
-                          event.target.value
-                            ? Number(event.target.value)
-                            : undefined,
-                        )
-                      }
-                      placeholder="Group ID"
-                      type="number"
-                      value={selectedGroupId ?? ""}
-                    />
-                  )}
-                </label>
-
-                <label className="min-w-40">
-                  <span className={labelClass}>Dead stock window</span>
-                  <FieldSelect
-                    onChange={(event) => setDeadDays(Number(event.target.value))}
-                    value={deadDays}
-                  >
-                    <option value={30}>30 days</option>
-                    <option value={60}>60 days</option>
-                    <option value={90}>90 days</option>
-                  </FieldSelect>
-                </label>
-
-                {canGenerateTransferSuggestions ? (
-                  <Button
-                    variant="primary"
-                    leadingIcon={<Sparkles className="h-4 w-4" />}
-                    disabled={
-                      selectedGroupId === undefined ||
-                      generateTransferSuggestions.isPending
-                    }
-                    onClick={() => void handleGenerateTransferSuggestions()}
-                  >
-                    {generateTransferSuggestions.isPending
-                      ? "Generating..."
-                      : "Generate transfer suggestions"}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </PanelHeader>
-
-          <PanelBody className="space-y-4">
-            {generateTransferSuggestions.isError ? (
-              <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
-                Could not generate transfer suggestions. Check your group scope and
-                try again.
-              </p>
-            ) : null}
-
-            {dismissTransferSuggestion.isError ? (
-              <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
-                Could not dismiss transfer suggestion.
-              </p>
-            ) : null}
-
-            {selectedGroupId === undefined ? (
-              <EmptyState
-                icon={<ArrowRightLeft className="h-5 w-5" />}
-                title="Select a group to view transfer suggestions."
-              />
-            ) : null}
-
-            {transferSuggestionsQuery.isLoading ? (
-              <SkeletonRows rows={4} />
-            ) : null}
-
-            {transferSuggestionsQuery.isError ? (
-              <EmptyState
-                tone="danger"
-                icon={<ArrowRightLeft className="h-5 w-5" />}
-                title="Could not load transfer suggestions."
-              />
-            ) : null}
-
-            {transferSuggestionsQuery.isSuccess &&
-            transferSuggestionsQuery.data.length === 0 ? (
-              <EmptyState
-                icon={<ArrowRightLeft className="h-5 w-5" />}
-                title="No transfer suggestions to review."
-              />
-            ) : null}
-
-            {transferSuggestionsQuery.isSuccess &&
-            transferSuggestionsQuery.data.length > 0 ? (
-              <TableScroll>
-                <Table>
-                  <THead>
-                    <TR className="hover:bg-transparent">
-                      <TH>Product</TH>
-                      <TH>Route</TH>
-                      <TH>Suggested quantity</TH>
-                      <TH>Confidence</TH>
-                      <TH>Reason</TH>
-                      <TH className="text-right">Action</TH>
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {transferSuggestionsQuery.data.map((suggestion) => (
-                      <TransferSuggestionRow
-                        canDismiss={canDismissTransferSuggestions}
-                        key={suggestion.id}
-                        onDismiss={handleDismissTransferSuggestion}
-                        suggestion={suggestion}
-                      />
-                    ))}
-                  </TBody>
-                </Table>
-              </TableScroll>
-            ) : null}
-          </PanelBody>
-        </Panel>
-      ) : null}
-
-      <Panel>
-        <PanelHeader>
-          <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <span
-                aria-hidden="true"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-lilac-soft bg-lilac-soft text-brand"
-              >
-                <LineChart className="h-[18px] w-[18px]" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-                  Forecast suggestion
-                </p>
-                <h2 className="mt-0.5 text-[15px] font-bold tracking-[-0.01em] text-ink">
-                  Reorder forecasting
-                </h2>
-                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
-                  Estimated demand based on stock movement history. Forecast
-                  confidence reflects available movement history. Review before
-                  action.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              {pharmacies.length > 0 ? (
-                <label className="min-w-56">
-                  <span className={labelClass}>Pharmacy</span>
-                  <FieldSelect
-                    onChange={(event) =>
-                      setSelectedPharmacyId(
-                        event.target.value
-                          ? Number(event.target.value)
-                          : undefined,
-                      )
-                    }
-                    value={selectedPharmacyId ?? ""}
-                  >
-                    {pharmacies.map((pharmacy) => (
-                      <option key={pharmacy.id} value={pharmacy.id}>
-                        {pharmacy.name}
-                      </option>
-                    ))}
-                  </FieldSelect>
-                </label>
-              ) : null}
-
-              <label className="min-w-40">
-                <span className={labelClass}>Horizon</span>
-                <FieldSelect
-                  onChange={(event) => setHorizonDays(Number(event.target.value))}
-                  value={horizonDays}
-                >
-                  <option value={30}>30 days</option>
-                  <option value={60}>60 days</option>
-                  <option value={90}>90 days</option>
-                </FieldSelect>
-              </label>
-
-              {canRunForecast ? (
-                <Button
-                  variant="primary"
-                  leadingIcon={<Sparkles className="h-4 w-4" />}
-                  disabled={
-                    selectedPharmacyId === undefined || generateForecast.isPending
-                  }
-                  onClick={() => void handleGenerateForecast()}
-                >
-                  {generateForecast.isPending
-                    ? "Generating..."
-                    : "Generate forecast"}
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </PanelHeader>
-
-        <PanelBody className="space-y-4">
-          {generateForecast.isError ? (
-            <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-ink">
-              Could not generate forecast. Check your pharmacy scope and try again.
-            </p>
-          ) : null}
-
-          {selectedPharmacyId === undefined ? (
-            <EmptyState
-              icon={<LineChart className="h-5 w-5" />}
-              title="Select a pharmacy to view forecasting suggestions."
-            />
-          ) : null}
-
-          {latestForecastQuery.isLoading ? (
-            <SkeletonRows rows={4} />
-          ) : null}
-
-          {latestForecastQuery.isError ? (
-            <EmptyState
-              tone="danger"
-              icon={<LineChart className="h-5 w-5" />}
-              title="Could not load latest forecast."
-            />
-          ) : null}
-
-          {latestForecastQuery.isSuccess && latestForecastQuery.data === null ? (
-            <EmptyState
-              icon={<LineChart className="h-5 w-5" />}
-              title="No forecast generated yet."
-            />
-          ) : null}
-
-          {latestForecastQuery.isSuccess && latestForecastQuery.data !== null ? (
-            <TableScroll>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-subtle px-4 py-3">
-                <div>
-                  <p className="text-[13px] font-bold text-ink">
-                    Latest forecast: {latestForecastQuery.data.horizon_days} days,
-                    model {latestForecastQuery.data.model_version}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted">
-                    Generated {formatDate(latestForecastQuery.data.created_at)}
-                  </p>
-                </div>
-              </div>
-              {latestForecastQuery.data.items.length === 0 ? (
-                <EmptyState
-                  icon={<LineChart className="h-5 w-5" />}
-                  title="No active stock items found for this pharmacy."
-                />
-              ) : (
-                <Table>
-                  <THead>
-                    <TR className="hover:bg-transparent">
-                      <TH>Product</TH>
-                      <TH>Predicted usage</TH>
-                      <TH>Current stock</TH>
-                      <TH>Suggested reorder</TH>
-                      <TH>Confidence</TH>
-                      <TH>Rationale</TH>
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {latestForecastQuery.data.items.map((item) => (
-                      <ForecastRow item={item} key={item.id} />
-                    ))}
-                  </TBody>
-                </Table>
-              )}
-            </TableScroll>
-          ) : null}
-        </PanelBody>
-      </Panel>
-
-      {stockOverviewQuery.isLoading ? (
-        <Panel>
-          <PanelBody>
-            <SkeletonRows rows={6} />
-          </PanelBody>
-        </Panel>
-      ) : null}
-
-      {stockOverviewQuery.isError ? (
-        <EmptyState
-          tone="danger"
-          icon={<PackageSearch className="h-6 w-6" />}
-          title="Could not load stock intelligence."
-          description="Please retry. Your session or permissions may need refreshing."
-          action={
-            <Button
-              variant="danger"
-              leadingIcon={<RefreshCw className="h-4 w-4" />}
-              onClick={() => void stockOverviewQuery.refetch()}
-            >
-              Retry
-            </Button>
-          }
+        <TransferSuggestionsPanel
+          canDismissTransferSuggestions={canDismissTransferSuggestions}
+          canGenerateTransferSuggestions={canGenerateTransferSuggestions}
+          deadDays={deadDays}
+          dismissError={dismissTransferSuggestion.isError}
+          generateError={generateTransferSuggestions.isError}
+          groupIds={groupIds}
+          isGenerating={generateTransferSuggestions.isPending}
+          onDismiss={handleDismissTransferSuggestion}
+          onGenerate={() => void handleGenerateTransferSuggestions()}
+          selectedGroupId={selectedGroupId}
+          setDeadDays={setDeadDays}
+          setSelectedGroupId={setSelectedGroupId}
+          suggestions={{
+            data: transferSuggestionsQuery.data,
+            isError: transferSuggestionsQuery.isError,
+            isLoading: transferSuggestionsQuery.isLoading,
+            isSuccess: transferSuggestionsQuery.isSuccess,
+          }}
         />
-      ) : null}
-
-      {stockOverviewQuery.isSuccess ? (
-        <>
-          <section
-            aria-label="Stock attention summary"
-            className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-          >
-            {SUMMARY_LABELS.map((summary) => (
-              <KpiCard
-                key={summary.key}
-                label={summary.label}
-                value={stockOverviewQuery.data.summary[summary.key]}
-              />
-            ))}
-          </section>
-
-          {stockOverviewQuery.data.items.length === 0 ? (
-            <EmptyState
-              icon={<PackageSearch className="h-6 w-6" />}
-              title="No stock analytics to display."
-              description="Stock items in scope will appear here once movement and inventory data is available."
-            />
-          ) : (
-            <Panel>
-              <PanelHeader>
-                <div className="min-w-0">
-                  <h2 className="text-[15px] font-bold tracking-[-0.01em] text-ink">
-                    Attention table
-                  </h2>
-                  <p className="mt-0.5 max-w-3xl text-xs leading-relaxed text-muted">
-                    Thresholds: near expiry{" "}
-                    {stockOverviewQuery.data.thresholds.near_expiry_days} days, dead
-                    stock {stockOverviewQuery.data.thresholds.dead_stock_days} days,
-                    slow moving below{" "}
-                    {stockOverviewQuery.data.thresholds.slow_moving_threshold} units
-                    consumed.
-                  </p>
-                </div>
-              </PanelHeader>
-              <div className="overflow-x-auto">
-                <Table>
-                  <THead>
-                    <TR className="hover:bg-transparent">
-                      <TH>Medication</TH>
-                      <TH>Pharmacy</TH>
-                      <TH>On hand</TH>
-                      <TH>Reorder level</TH>
-                      <TH>Expiry</TH>
-                      <TH>Flags</TH>
-                      <TH>Attention</TH>
-                      <TH>Reorder</TH>
-                      <TH>Reasons</TH>
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {stockOverviewQuery.data.items.map((item) => (
-                      <AnalyticsRow item={item} key={item.stock_item_id} />
-                    ))}
-                  </TBody>
-                </Table>
-              </div>
-            </Panel>
-          )}
-        </>
       ) : null}
 
       <OpportunityRoadmap />

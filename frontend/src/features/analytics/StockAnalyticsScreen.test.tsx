@@ -12,7 +12,6 @@ import type {
   ExpiryRisk,
   ForecastRun,
   MdsDemandSignal,
-  StockOverview,
   StockReviewQueue,
   TransferSuggestion,
 } from "./analyticsApi";
@@ -45,86 +44,10 @@ const generateTransferSuggestionsMock = vi.mocked(
 const getExpiryRiskMock = vi.mocked(analyticsApi.getExpiryRisk);
 const getLatestForecastMock = vi.mocked(analyticsApi.getLatestForecast);
 const getMdsDemandSignalMock = vi.mocked(analyticsApi.getMdsDemandSignal);
-const getStockAnalyticsOverviewMock = vi.mocked(
-  analyticsApi.getStockAnalyticsOverview,
-);
 const getStockReviewQueueMock = vi.mocked(analyticsApi.getStockReviewQueue);
 const listTransferSuggestionsMock = vi.mocked(
   analyticsApi.listTransferSuggestions,
 );
-
-function makeOverview(overrides: Partial<StockOverview> = {}): StockOverview {
-  return {
-    generated_at: "2026-06-20T10:00:00Z",
-    thresholds: {
-      near_expiry_days: 90,
-      dead_stock_days: 90,
-      slow_moving_threshold: 5,
-    },
-    summary: {
-      total_items: 2,
-      stockout: 1,
-      low_stock: 1,
-      near_expiry: 1,
-      dead_stock: 1,
-      slow_moving: 1,
-      needs_attention: 2,
-    },
-    items: [
-      {
-        stock_item_id: 1,
-        medication_id: 10,
-        medication_name: "Amlodipine",
-        pharmacy_id: 7,
-        quantity_on_hand: 0,
-        reorder_level: 20,
-        earliest_expiry: null,
-        days_to_expiry: null,
-        consumption_window: 0,
-        flags: {
-          stockout: true,
-          low_stock: false,
-          near_expiry: false,
-          dead_stock: false,
-          slow_moving: false,
-        },
-        attention_score: 50,
-        suggested_reorder_quantity: 20,
-        reasons: [
-          "Stockout: 0 units on hand",
-          "Reorder suggested: 20 units to reach reorder level",
-        ],
-      },
-      {
-        stock_item_id: 2,
-        medication_id: 11,
-        medication_name: "Bisoprolol",
-        pharmacy_id: 8,
-        quantity_on_hand: 3,
-        reorder_level: 20,
-        earliest_expiry: "2026-07-01",
-        days_to_expiry: 11,
-        consumption_window: 2,
-        flags: {
-          stockout: false,
-          low_stock: true,
-          near_expiry: true,
-          dead_stock: true,
-          slow_moving: true,
-        },
-        attention_score: 70,
-        suggested_reorder_quantity: 17,
-        reasons: [
-          "Low stock: 3 on hand at or below reorder level 20",
-          "Near expiry: earliest batch expires in 11 days",
-          "Dead stock: no outbound movement in 90 days",
-          "Slow moving: only 2 units consumed in 90 days",
-        ],
-      },
-    ],
-    ...overrides,
-  };
-}
 
 function makeMdsDemand(
   overrides: Partial<MdsDemandSignal> = {},
@@ -417,26 +340,29 @@ describe("StockAnalyticsScreen", () => {
     getExpiryRiskMock.mockResolvedValue(makeExpiryRisk());
     getLatestForecastMock.mockResolvedValue(makeForecast());
     getMdsDemandSignalMock.mockResolvedValue(makeMdsDemand());
-    getStockAnalyticsOverviewMock.mockResolvedValue(makeOverview());
     getStockReviewQueueMock.mockResolvedValue(makeReviewQueue());
     listTransferSuggestionsMock.mockResolvedValue([]);
   });
 
-  it("renders summary counters", async () => {
+  it("renders the compact header and KPI strip", async () => {
     renderAnalytics();
 
     expect(
       await screen.findByRole("heading", { name: "Stock Intelligence" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Total items")).toBeInTheDocument();
-    expect(screen.getByText("Needs attention")).toBeInTheDocument();
-    expect(screen.getAllByText("Stockout").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Low stock").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Near expiry").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Dead stock").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Slow moving").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("2").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Operational signals for review before action."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Human review required")).toBeInTheDocument();
+
+    const kpiStrip = screen.getByLabelText("Stock intelligence KPI strip");
+    expect(within(kpiStrip).getByText("Items to review")).toBeInTheDocument();
+    expect(within(kpiStrip).getByText("MDS shortfalls")).toBeInTheDocument();
+    expect(within(kpiStrip).getByText("Expiry risk")).toBeInTheDocument();
+    expect(within(kpiStrip).getByText("Value at risk")).toBeInTheDocument();
+    expect(
+      within(kpiStrip).getByText("Low-confidence items"),
+    ).toBeInTheDocument();
   });
 
   it("renders stock review queue mds demand and expiry risk panels", async () => {
@@ -446,20 +372,23 @@ describe("StockAnalyticsScreen", () => {
     expect(await screen.findByText("MDS shortfall")).toBeInTheDocument();
     expect(screen.getByText("High risk")).toBeInTheDocument();
     expect(screen.getByText("Order review")).toBeInTheDocument();
-    expect(screen.getByText("40 shortfall")).toBeInTheDocument();
-    expect(screen.getAllByText("Review before action. Human review required.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("40 shortfall").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Review before action. Human review required.").length,
+    ).toBeGreaterThan(0);
 
     expect(screen.getByText("MDS demand signal")).toBeInTheDocument();
-    expect(screen.getByText("Required units")).toBeInTheDocument();
-    expect(screen.getByText("Patients affected")).toBeInTheDocument();
+    expect(screen.getByText("Required")).toBeInTheDocument();
+    expect(screen.getByText("Patients")).toBeInTheDocument();
     expect(screen.getAllByText("112").length).toBeGreaterThan(0);
     expect(screen.getByText("Mapped")).toBeInTheDocument();
 
-    expect(screen.getByText("Expiry risk and value at risk")).toBeInTheDocument();
-    expect(screen.getAllByText("Stock value at risk").length).toBeGreaterThan(0);
-    expect(screen.getByText("£28.00")).toBeInTheDocument();
+    expect(screen.getByText("Expiry risk / value at risk")).toBeInTheDocument();
+    expect(screen.getAllByText("Value at risk").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("£28.00").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Bisoprolol").length).toBeGreaterThan(0);
-    expect(screen.getByText("Expiry risk. Review before action.")).toBeInTheDocument();
+    expect(screen.getAllByText("8-30 days").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Forecast confidence").length).toBeGreaterThan(0);
   });
 
   it("refetches read-only intelligence signals when signal horizon changes", async () => {
@@ -475,84 +404,97 @@ describe("StockAnalyticsScreen", () => {
     });
   });
 
-  it("renders attention rows in returned order", async () => {
+  it("renders compact stock review queue rows without the old attention table", async () => {
     renderAnalytics();
 
-    expect((await screen.findAllByText("Amlodipine")).length).toBeGreaterThan(0);
-    const attentionSection = screen
-      .getByRole("heading", { name: "Attention table" })
+    await screen.findAllByText("Amlodipine");
+    const reviewSection = (await screen.findByRole("heading", {
+      name: "Stock review queue",
+    }))
       .closest("section");
-    expect(attentionSection).not.toBeNull();
-    const rows = within(attentionSection as HTMLElement).getAllByRole("row");
-    const medicationRows = rows.slice(1);
-    expect(within(medicationRows[0]).getByText("Amlodipine")).toBeInTheDocument();
-    expect(within(medicationRows[1]).getByText("Bisoprolol")).toBeInTheDocument();
-  });
-
-  it("renders flags reasons attention and reorder values", async () => {
-    renderAnalytics();
-
-    expect((await screen.findAllByText("Bisoprolol")).length).toBeGreaterThan(0);
-    const attentionSection = screen
-      .getByRole("heading", { name: "Attention table" })
-      .closest("section");
-    expect(attentionSection).not.toBeNull();
-    const bisoprololRow = within(attentionSection as HTMLElement)
-      .getByText("Bisoprolol")
-      .closest("tr");
-    expect(bisoprololRow).not.toBeNull();
-    expect(within(bisoprololRow as HTMLElement).getByText("Low stock")).toBeInTheDocument();
-    expect(within(bisoprololRow as HTMLElement).getByText("Near expiry")).toBeInTheDocument();
-    expect(within(bisoprololRow as HTMLElement).getByText("Dead stock")).toBeInTheDocument();
-    expect(within(bisoprololRow as HTMLElement).getByText("Slow moving")).toBeInTheDocument();
-    expect(within(bisoprololRow as HTMLElement).getByText("70")).toBeInTheDocument();
-    expect(within(bisoprololRow as HTMLElement).getByText("17")).toBeInTheDocument();
+    expect(reviewSection).not.toBeNull();
     expect(
-      within(bisoprololRow as HTMLElement).getByText(
-        "Near expiry: earliest batch expires in 11 days",
-      ),
+      within(reviewSection as HTMLElement).getByText("Amlodipine"),
     ).toBeInTheDocument();
     expect(
-      within(bisoprololRow as HTMLElement).getByText(
-        "Slow moving: only 2 units consumed in 90 days",
-      ),
+      within(reviewSection as HTMLElement).getByText("JMW Sutton"),
     ).toBeInTheDocument();
+    expect(
+      within(reviewSection as HTMLElement).getByText("MDS shortfall"),
+    ).toBeInTheDocument();
+    expect(
+      within(reviewSection as HTMLElement).getAllByText("Low confidence").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(reviewSection as HTMLElement).getByText("Score 100"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Attention table" }),
+    ).toBeNull();
   });
 
-  it("renders loading error and empty states", async () => {
-    getStockAnalyticsOverviewMock.mockReturnValueOnce(new Promise(() => undefined));
+  it("renders compact empty loading and error states", async () => {
+    getStockReviewQueueMock.mockReturnValueOnce(new Promise(() => undefined));
     const loadingRender = renderAnalytics();
 
     expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
     loadingRender.unmount();
 
-    getStockAnalyticsOverviewMock.mockRejectedValue(new Error("No analytics"));
+    getStockReviewQueueMock.mockRejectedValue(new Error("No queue"));
     const errorRender = renderAnalytics();
 
     expect(
-      await screen.findByText("Could not load stock intelligence."),
+      await screen.findByText("Could not load stock review queue."),
     ).toBeInTheDocument();
     errorRender.unmount();
 
-    getStockAnalyticsOverviewMock.mockResolvedValue(
-      makeOverview({
+    getStockReviewQueueMock.mockResolvedValue(
+      makeReviewQueue({
         summary: {
           total_items: 0,
-          stockout: 0,
-          low_stock: 0,
-          near_expiry: 0,
-          dead_stock: 0,
-          slow_moving: 0,
-          needs_attention: 0,
+          high_risk: 0,
+          medium_risk: 0,
+          low_risk: 0,
+          mds_shortfall: 0,
+          expiry_risk: 0,
+          low_confidence: 0,
         },
+        items: [],
+      }),
+    );
+    getMdsDemandSignalMock.mockResolvedValue(
+      makeMdsDemand({
+        summary: {
+          total_required_units: 0,
+          total_available_units: 0,
+          total_shortfall_units: 0,
+          items_with_shortfall: 0,
+          mapping_needed: 0,
+          cycles_affected: 0,
+          patients_affected: 0,
+        },
+        items: [],
+      }),
+    );
+    getExpiryRiskMock.mockResolvedValue(
+      makeExpiryRisk({
+        summary: {
+          expiring_within_30_days_units: 0,
+          value_at_risk: "0.00",
+          unpriced_risk_units: 0,
+          products_affected: 0,
+        },
+        buckets: [],
         items: [],
       }),
     );
     renderAnalytics();
 
     expect(
-      await screen.findByText("No stock analytics to display."),
+      await screen.findByText("No suggested stock reviews."),
     ).toBeInTheDocument();
+    expect(screen.getByText("No MDS demand signal.")).toBeInTheDocument();
+    expect(screen.getByText("No expiry risk.")).toBeInTheDocument();
   });
 
   it("renders latest forecast suggestions with confidence packs and explanation", async () => {
@@ -561,7 +503,7 @@ describe("StockAnalyticsScreen", () => {
     expect(await screen.findByText("Reorder forecasting")).toBeInTheDocument();
     expect(screen.getByText("Forecast suggestion")).toBeInTheDocument();
     expect(
-      screen.getByText(/Forecast confidence reflects available movement history/),
+      screen.getByText(/Estimated demand from stock movement history/),
     ).toBeInTheDocument();
     expect(
       await screen.findByText("Paracetamol 500mg tablets — pack of 100 tablets"),
@@ -726,6 +668,14 @@ describe("StockAnalyticsScreen", () => {
       "AI decided",
       "must order",
       "must transfer",
+      "clinical recommendation",
+      "diagnosis",
+      "NHS integration",
+      "NCRS",
+      "automatic dispensing",
+      "automatic ordering",
+      "automatic transfer",
+      "compliance proof",
     ]) {
       expect(screen.queryByText(forbidden)).toBeNull();
     }
