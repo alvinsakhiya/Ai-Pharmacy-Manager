@@ -1,4 +1,5 @@
 import io
+from datetime import date
 
 import pytest
 from django.core.management import call_command
@@ -7,7 +8,12 @@ from django.test import override_settings
 
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
-from apps.blister.models import DosetteCycle, DosettePeriod, PatientMedication
+from apps.blister.models import (
+    DosetteCycle,
+    DosettePeriod,
+    DosettePeriodStatus,
+    PatientMedication,
+)
 from apps.catalogue.models import Medication, MedicationForm
 from apps.inventory.models import StockBatch, StockItem
 from apps.patients.models import Patient
@@ -175,11 +181,12 @@ def test_seed_demo_sets_correct_memberships_and_scopes():
 @override_settings(DEBUG=True)
 def test_seed_demo_is_idempotent_and_restores_known_credentials():
     run_seed_demo()
-    admin = get_demo_user("admin@demo.local")
-    admin.set_password("ChangedPass!2026")
-    admin.must_change_password = True
-    admin.is_active = False
-    admin.save()
+    for email in DEMO_EMAILS:
+        user = get_demo_user(email)
+        user.set_password("ChangedPass!2026")
+        user.must_change_password = True
+        user.is_active = False
+        user.save()
 
     first_counts = {
         "groups": Group.objects.filter(slug="jmw-pharmacy-group").count(),
@@ -255,10 +262,12 @@ def test_seed_demo_is_idempotent_and_restores_known_credentials():
         Membership.objects.filter(user__email__in=DEMO_EMAILS, is_active=True).count()
         == first_counts["memberships"]
     )
-    admin.refresh_from_db()
-    assert admin.check_password(DEMO_PASSWORD) is True
-    assert admin.must_change_password is False
-    assert admin.is_active is True
+    for email in DEMO_EMAILS:
+        user = get_demo_user(email)
+        user.refresh_from_db()
+        assert user.check_password(DEMO_PASSWORD) is True
+        assert user.must_change_password is False
+        assert user.is_active is True
     assert AuditEvent.objects.count() == 0
 
 
@@ -313,6 +322,41 @@ def test_seed_demo_dosette_data_is_idempotent():
     assert PatientMedication.objects.count() == patient_medication_count
     assert DosettePeriod.objects.count() == dosette_period_count
     assert DosetteCycle.objects.count() == dosette_cycle_count
+    assert AuditEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_seed_demo_reuses_existing_submitted_period_when_dates_drift():
+    run_seed_demo()
+    patient = Patient.objects.get(patient_reference="SUT-P1")
+    period = patient.dosette_periods.get(status=DosettePeriodStatus.SUBMITTED)
+    cycle = period.cycles.get(week_number=1)
+    period.start_date = date(2026, 6, 28)
+    period.end_date = date(2026, 7, 25)
+    period.save(update_fields=["start_date", "end_date", "updated_at"])
+    cycle.reference = "MDS-PERIOD-1-W1"
+    cycle.start_date = date(2026, 6, 28)
+    cycle.end_date = date(2026, 7, 4)
+    cycle.save(update_fields=["reference", "start_date", "end_date", "updated_at"])
+    period_count = DosettePeriod.objects.count()
+    cycle_count = DosetteCycle.objects.count()
+
+    run_seed_demo()
+
+    period.refresh_from_db()
+    cycle.refresh_from_db()
+    assert DosettePeriod.objects.count() == period_count
+    assert DosetteCycle.objects.count() == cycle_count
+    assert (
+        patient.dosette_periods.filter(status=DosettePeriodStatus.SUBMITTED).count()
+        == 1
+    )
+    assert period.start_date == date(2026, 6, 1)
+    assert period.end_date == date(2026, 6, 28)
+    assert cycle.reference == "SUT-P1-MDS-2026-W01"
+    assert cycle.start_date == date(2026, 6, 1)
+    assert cycle.end_date == date(2026, 6, 7)
     assert AuditEvent.objects.count() == 0
 
 

@@ -617,10 +617,10 @@ class Command(BaseCommand):
             for patient_reference, patient in patients_by_reference.items():
                 period, created = DosettePeriod.objects.update_or_create(
                     patient=patient,
-                    start_date=PERIOD_START,
+                    status=DosettePeriodStatus.SUBMITTED,
                     defaults={
+                        "start_date": PERIOD_START,
                         "end_date": PERIOD_END,
-                        "status": DosettePeriodStatus.SUBMITTED,
                         "submitted_at": datetime.combine(
                             PERIOD_START,
                             time(hour=9),
@@ -637,13 +637,11 @@ class Command(BaseCommand):
             dosette_cycle_statuses = []
             for cycle_data in DOSETTE_CYCLES:
                 cycle, created = DosetteCycle.objects.update_or_create(
-                    patient=patients_by_reference[cycle_data.patient_reference],
-                    reference=cycle_data.reference,
+                    period=periods_by_patient_reference[cycle_data.patient_reference],
+                    week_number=cycle_data.week_number,
                     defaults={
-                        "period": periods_by_patient_reference[
-                            cycle_data.patient_reference
-                        ],
-                        "week_number": cycle_data.week_number,
+                        "patient": patients_by_reference[cycle_data.patient_reference],
+                        "reference": cycle_data.reference,
                         "frequency": cycle_data.frequency,
                         "start_date": cycle_data.start_date,
                         "end_date": cycle_data.end_date,
