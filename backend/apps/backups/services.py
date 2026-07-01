@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
+import logging
 import re
 import zipfile
 from datetime import time
@@ -23,7 +25,10 @@ from apps.patients.models import Patient, PatientGp, PatientNote
 from apps.reviews.models import ReviewRecord
 from apps.tenancy.models import Group, Pharmacy
 
+from . import encryption
 from .models import BackupRun, BackupRunStatus, BackupRunTrigger, BackupSchedule
+
+logger = logging.getLogger(__name__)
 
 BACKUP_ARCHIVE_VERSION = 1
 DEFAULT_DAILY_TIME = time(hour=2)
@@ -99,7 +104,9 @@ def create_backup(
     run.save(update_fields=["status", "started_at", "updated_at"])
 
     try:
-        archive_path, archive_size, checksum = _write_backup_archive(group, run)
+        archive_path, archive_size, checksum, encrypted = _write_backup_archive(
+            group, run
+        )
     except Exception as exc:
         run.status = BackupRunStatus.FAILED
         run.completed_at = timezone.now()
@@ -119,6 +126,7 @@ def create_backup(
     run.file_size = archive_size
     run.completed_at = timezone.now()
     run.checksum = checksum
+    run.encrypted = encrypted
     run.error_message = ""
     run.save(
         update_fields=[
@@ -127,6 +135,7 @@ def create_backup(
             "file_size",
             "completed_at",
             "checksum",
+            "encrypted",
             "error_message",
             "updated_at",
         ]
@@ -147,7 +156,12 @@ def restore_backup(*, run: BackupRun, actor=None, confirm: str) -> BackupRun:
     if not archive_path.exists():
         raise BackupError("Selected backup file is not available.")
 
-    _read_manifest(archive_path, expected_group=run.group)
+    # Reading the manifest decrypts the archive, so a wrong/missing key or a
+    # tampered file fails here, before the pre-restore backup or any deletion.
+    try:
+        _read_manifest(archive_path, expected_group=run.group)
+    except encryption.BackupEncryptionError as exc:
+        raise BackupError(str(exc)) from exc
     create_backup(
         group=run.group,
         actor=actor,
@@ -221,42 +235,86 @@ def run_scheduled_backups(*, now=None) -> list[BackupRun]:
     return created_runs
 
 
-def _write_backup_archive(group: Group, run: BackupRun) -> tuple[Path, int, str]:
-    manifest = _build_manifest(group, run)
+def _write_backup_archive(group: Group, run: BackupRun) -> tuple[Path, int, str, bool]:
+    serialized = _serialized_group_objects(group)
     data = {
         "version": BACKUP_ARCHIVE_VERSION,
         "group": {"id": group.id, "slug": group.slug, "name": group.name},
-        "objects": _serialized_group_objects(group),
+        "objects": serialized,
     }
+    data_bytes = json.dumps(data, separators=(",", ":")).encode("utf-8")
+    content_checksum = hashlib.sha256(data_bytes).hexdigest()
+    included_models = sorted({obj["model"] for obj in serialized})
+
+    encrypt_archive = encryption.encryption_available()
+    if encryption.encryption_required() and not encrypt_archive:
+        raise BackupError(
+            "Encrypted backups are required but BACKUP_ENCRYPTION_KEY is not "
+            "configured. Set the key (see docs/BACKUP_AND_RESTORE.md) and retry."
+        )
+    if not encrypt_archive:
+        logger.warning(
+            "Writing an UNENCRYPTED backup for group %s: BACKUP_ENCRYPTION_KEY "
+            "is not set. Use only with fictional demo data.",
+            group.slug,
+        )
+
+    manifest = _build_manifest(
+        group,
+        run,
+        encrypted=encrypt_archive,
+        content_checksum=content_checksum,
+        included_models=included_models,
+    )
     _assert_no_secret_markers(manifest)
     _assert_no_secret_markers(data)
 
-    group_dir = backup_root() / _safe_slug(group.slug)
-    group_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
-    archive_path = group_dir / f"group-{group.id}-{timestamp}-{run.id}.zip"
-
+    buffer = io.BytesIO()
     with zipfile.ZipFile(
-        archive_path,
+        buffer,
         mode="w",
         compression=zipfile.ZIP_DEFLATED,
     ) as archive:
         archive.writestr(
             "manifest.json", json.dumps(manifest, indent=2, sort_keys=True)
         )
-        archive.writestr("data.json", json.dumps(data, separators=(",", ":")))
+        archive.writestr("data.json", data_bytes)
+    zip_bytes = buffer.getvalue()
+
+    group_dir = backup_root() / _safe_slug(group.slug)
+    group_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+    suffix = ".zip.enc" if encrypt_archive else ".zip"
+    archive_path = group_dir / f"group-{group.id}-{timestamp}-{run.id}{suffix}"
+
+    payload = encryption.encrypt(zip_bytes) if encrypt_archive else zip_bytes
+    archive_path.write_bytes(payload)
 
     checksum = _sha256_file(archive_path)
-    return archive_path, archive_path.stat().st_size, checksum
+    return archive_path, archive_path.stat().st_size, checksum, encrypt_archive
 
 
-def _build_manifest(group: Group, run: BackupRun) -> dict[str, Any]:
+def _build_manifest(
+    group: Group,
+    run: BackupRun,
+    *,
+    encrypted: bool,
+    content_checksum: str,
+    included_models: list[str],
+) -> dict[str, Any]:
     return {
-        "version": BACKUP_ARCHIVE_VERSION,
+        "format_version": BACKUP_ARCHIVE_VERSION,
+        "app_version": getattr(settings, "APP_VERSION", "unknown"),
         "created_at": timezone.now().isoformat(),
         "run_id": run.id,
         "trigger": run.trigger,
         "group": {"id": group.id, "slug": group.slug, "name": group.name},
+        "encryption": {
+            "enabled": encrypted,
+            "algorithm": encryption.ALGORITHM if encrypted else None,
+        },
+        "content_checksum": {"algorithm": "sha256", "value": content_checksum},
+        "included_models": included_models,
         "excludes": [
             "environment variables",
             "API keys",
@@ -269,8 +327,19 @@ def _build_manifest(group: Group, run: BackupRun) -> dict[str, Any]:
     }
 
 
+def _read_archive_bytes(archive_path: Path) -> bytes:
+    blob = archive_path.read_bytes()
+    if encryption.is_encrypted_payload(blob):
+        return encryption.decrypt(blob)
+    return blob
+
+
+def _open_zip(archive_path: Path) -> zipfile.ZipFile:
+    return zipfile.ZipFile(io.BytesIO(_read_archive_bytes(archive_path)))
+
+
 def _read_manifest(archive_path: Path, *, expected_group: Group) -> dict[str, Any]:
-    with zipfile.ZipFile(archive_path) as archive:
+    with _open_zip(archive_path) as archive:
         manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
     group = manifest.get("group", {})
     if group.get("id") != expected_group.id or group.get("slug") != expected_group.slug:
@@ -279,7 +348,7 @@ def _read_manifest(archive_path: Path, *, expected_group: Group) -> dict[str, An
 
 
 def _read_backup_data(archive_path: Path) -> dict[str, Any]:
-    with zipfile.ZipFile(archive_path) as archive:
+    with _open_zip(archive_path) as archive:
         return json.loads(archive.read("data.json").decode("utf-8"))
 
 

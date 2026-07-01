@@ -80,6 +80,7 @@ class BackupRun(TimeStampedModel):
     )
     error_message = models.TextField(blank=True)
     checksum = models.CharField(max_length=64, blank=True)
+    encrypted = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-completed_at", "-started_at", "-id"]

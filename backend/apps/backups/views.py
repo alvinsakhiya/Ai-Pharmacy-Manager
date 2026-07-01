@@ -89,7 +89,10 @@ class BackupRunListView(APIView):
 class BackupRunNowView(APIView):
     def post(self, request):
         group = _group_from_request(request)
-        run = create_backup(group=group, actor=request.user)
+        try:
+            run = create_backup(group=group, actor=request.user)
+        except BackupError as exc:
+            raise ValidationError({"backup": str(exc)}) from exc
         return Response(BackupRunSerializer(run).data, status=status.HTTP_201_CREATED)
 
 

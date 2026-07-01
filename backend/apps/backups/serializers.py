@@ -51,6 +51,7 @@ class BackupRunSerializer(serializers.ModelSerializer):
             "completed_at",
             "error_message",
             "checksum",
+            "encrypted",
             "created_at",
             "updated_at",
         ]

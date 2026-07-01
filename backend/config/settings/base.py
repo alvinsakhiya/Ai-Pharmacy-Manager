@@ -11,7 +11,13 @@ load_dotenv(ROOT_DIR / ".env")
 
 
 def env_bool(name: str, default: bool = False) -> bool:
-    return os.getenv(name, str(default)).lower() in {"1", "true", "yes", "on"}
+    # A present-but-empty value (e.g. `FLAG=`) falls back to the default rather
+    # than reading as False, so a blank env var cannot silently flip a safe
+    # default (e.g. BACKUP_ENCRYPTION_REQUIRED) off.
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def env_list(name: str, default: str = "") -> list[str]:
@@ -114,7 +120,17 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_ROOT = BASE_DIR / "media"
-BACKUP_ROOT = Path(os.getenv("BACKUP_ROOT", str(MEDIA_ROOT / "backups")))
+# `or` (not a getenv default) so a present-but-empty BACKUP_ROOT= does not
+# resolve to Path(".") / the process working directory.
+BACKUP_ROOT = Path(os.getenv("BACKUP_ROOT") or str(MEDIA_ROOT / "backups"))
+# Base64 32-byte key for AES-256-GCM backup archive encryption. Blank in local
+# development allows unencrypted dev backups; generate one with
+# `python manage.py generate_backup_key`. Never commit a real key.
+BACKUP_ENCRYPTION_KEY = os.getenv("BACKUP_ENCRYPTION_KEY", "")
+# When True, backup creation is refused unless BACKUP_ENCRYPTION_KEY is set.
+BACKUP_ENCRYPTION_REQUIRED = env_bool("BACKUP_ENCRYPTION_REQUIRED")
+# Reported in backup manifests and available to documentation views.
+APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
