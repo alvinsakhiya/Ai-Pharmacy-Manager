@@ -1,65 +1,85 @@
 # GitHub Repository Setup
 
-Suggestions for presenting the repository on GitHub. Nothing here is applied
-automatically — apply the parts you want manually in the GitHub UI or with the
-`gh` CLI once you are authenticated.
+Reference for the GitHub presentation of this repository. The **About
+description** and **topics** below have been applied to the repository. The
+remaining items (homepage, licence, release) are intentionally left as noted.
 
-## About description
+## Current GitHub state
+
+- **Repository:** `alvinsakhiya/Ai-Pharmacy-Manager`
+- **Visibility:** private
+- **Default branch:** `main`
+- **About description:** applied (see below)
+- **Topics:** applied (see below)
+- **Homepage:** blank — no deployed URL (do not use `localhost`)
+- **Licence:** none specified. The README states no public licence is specified,
+  so GitHub shows no licence. Add one only if you choose to.
+- **Releases:** none published
+
+## About description (applied)
 
 > Secure pharmacy operations system for stock control, MDS/dosette workflows,
-> expiry review, audit logging, and explainable stock intelligence.
+> expiry review, audit logging, backup/restore, and explainable stock
+> intelligence.
 
-## Topics
+## Topics (applied)
 
 ```
 django
 react
 typescript
 postgresql
-pharmacy-management
-inventory-management
-healthcare-operations
 docker
 vite
 tailwindcss
-rest-api
+django-rest-framework
+pharmacy-management
+inventory-management
+healthcare-operations
+stock-control
+audit-log
+backup-restore
 ```
 
-## Website
+## Applying or editing metadata
 
-Leave blank unless a deployed URL exists.
+Applied with the GitHub CLI:
 
-## Release notes template
-
-Use for a tagged release (e.g. `v1.0.0`). Tagging is a manual step — this is a
-template only.
-
-```markdown
-# v1.0.0 — Final COM668 demo build
-
-## Highlights
-- Role-based pharmacy operations: dashboard, inventory (batches/FEFO),
-  patients, dosette/MDS workflow, reports, and explainable stock intelligence.
-- Security: session auth, RBAC with tenant scoping, audit logging,
-  application-level patient field encryption at rest, and AES-256-GCM
-  encrypted group backups.
-- PostgreSQL runtime; Docker Compose for local development.
-
-## Setup
-- `cp .env.example .env`, then `docker compose up --build`.
-- `docker compose exec backend python manage.py migrate`
-- `docker compose exec backend python manage.py seed_demo` (fictional data).
-- Frontend: http://localhost:5173 · Backend: http://localhost:8000
-
-## Known limitations
-- Development-oriented Docker setup (Django runserver, Vite dev server); a
-  production profile needs a WSGI/ASGI server and a built static frontend.
-- Intelligence is explainable, deterministic arithmetic (moving-average
-  forecasting, FEFO expiry, deterministic MDS demand, additive review scoring,
-  transfer-opportunity review) — advisory only; human review is required and
-  nothing is ordered, transferred, or dispensed automatically.
-- Fictional/synthetic data only; no regulatory or compliance claims.
+```bash
+gh repo edit alvinsakhiya/Ai-Pharmacy-Manager \
+  --description "Secure pharmacy operations system for stock control, MDS/dosette workflows, expiry review, audit logging, backup/restore, and explainable stock intelligence." \
+  --add-topic django --add-topic react --add-topic typescript --add-topic postgresql \
+  --add-topic docker --add-topic vite --add-topic tailwindcss --add-topic django-rest-framework \
+  --add-topic pharmacy-management --add-topic inventory-management --add-topic healthcare-operations \
+  --add-topic stock-control --add-topic audit-log --add-topic backup-restore
 ```
+
+To edit manually in the GitHub UI: open the repository home page → click the
+**gear icon** next to **About** (top-right) → set the **Description**, add the
+**Topics**, and leave **Website** blank → **Save changes**.
+
+## Website / homepage
+
+Leave blank unless a real deployed URL exists. Do not use `localhost`.
+
+## Licence
+
+No public licence is specified for this repository, so GitHub shows no licence.
+Do not invent one. To publish under a licence later, add a `LICENSE` file (e.g.
+via GitHub's **Add file → Create new file → LICENSE** template) and GitHub will
+detect it automatically.
+
+## Release
+
+No release is published, and none should be published without explicit
+confirmation. A ready-to-paste **draft** is in
+[RELEASE_NOTES_DRAFT.md](RELEASE_NOTES_DRAFT.md). Publishing a release (and any
+new tag such as `v1.0.0`) is a manual, confirmed step:
+
+- **GitHub UI:** **Releases → Draft a new release**, choose or create a tag,
+  paste the draft notes, and publish.
+- **CLI (only when confirmed):**
+  `gh release create v1.0.0 --title "v1.0.0 Final COM668 Demo Build" --notes-file docs/RELEASE_NOTES_DRAFT.md`
 
 ## Packages
 
@@ -70,21 +90,23 @@ and release pipeline.
 
 ## Tags and history
 
-Inspect existing tags and history before creating a release (read-only):
+Existing `module-*` and `phase-*` tags are present in the repository. Inspect
+them (read-only) before any release:
 
 ```bash
 git tag --list --sort=-creatordate
 git log --oneline --decorate --graph --all --max-count=40
-# If gh is authenticated:
-gh release list
+gh release list --repo alvinsakhiya/Ai-Pharmacy-Manager
 ```
 
 Do **not** delete or rewrite existing tags without explicit approval.
 
-## Suggested repository files (already present)
+## Repository files (already present)
 
 - `README.md` — project overview and setup
-- `docs/` — the documentation set (project map, API, schema, deployment,
-  security, backups, forecasting, diagrams)
+- `docs/` — the documentation set (project map, file manifest, API endpoints,
+  database schema, deployment, security & data protection, backup/restore, demo
+  database restore, forecasting/intelligence, diagrams, this GitHub setup guide,
+  and the release notes draft)
 - `.env.example` — environment template
 - `.github/workflows/` — CI (lint, type-check, tests) and E2E workflows
