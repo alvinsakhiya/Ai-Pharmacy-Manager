@@ -240,12 +240,6 @@ Documentation:
   hardening (database-level immutability, monitoring, key management, and a
   production deployment profile) is future work.
 
-## Academic note
-
-This repository supports a COM668 Computing Project. Any academic report should
-acknowledge external sources and permitted tool assistance in accordance with the
-university's policy.
-
 ## License
 
 No public licence is specified for this repository.
