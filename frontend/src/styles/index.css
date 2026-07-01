@@ -431,21 +431,72 @@ html.colour-tritanopia .bg-danger {
 
 @page {
   size: A4 landscape;
-  margin: 12mm;
+  margin: 8mm;
 }
 
 @media print {
+  html,
   body {
     background: #ffffff !important;
+    margin: 0 !important;
+    min-height: auto !important;
   }
 
-  body * {
-    visibility: hidden !important;
+  body.dosette-print-mode {
+    overflow: visible !important;
   }
 
-  .dosette-print-sheet,
-  .dosette-print-sheet * {
-    visibility: visible !important;
+  body.dosette-print-mode #root {
+    display: none !important;
+  }
+
+  body.dosette-print-mode > div:not(#root):not(:has(.dosette-print-sheet)) {
+    display: none !important;
+  }
+
+  body.dosette-print-mode > div:not(#root):has(.dosette-print-sheet) {
+    align-items: stretch !important;
+    animation: none !important;
+    background: #ffffff !important;
+    display: block !important;
+    inset: auto !important;
+    justify-content: stretch !important;
+    margin: 0 !important;
+    min-height: auto !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    position: static !important;
+    transform: none !important;
+    width: auto !important;
+  }
+
+  body.dosette-print-mode [aria-modal="true"] {
+    animation: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    max-height: none !important;
+    max-width: none !important;
+    opacity: 1 !important;
+    outline: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    width: 100% !important;
+  }
+
+  body.dosette-print-mode [aria-modal="true"] > div:first-child {
+    display: none !important;
+  }
+
+  body.dosette-print-mode [aria-modal="true"] > div:last-child {
+    padding: 0 !important;
+  }
+
+  .dosette-print-shell {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   .dosette-print-actions {
@@ -453,30 +504,59 @@ html.colour-tritanopia .bg-danger {
   }
 
   .dosette-print-sheet {
-    position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
     border: 0 !important;
     border-radius: 0 !important;
+    box-sizing: border-box !important;
     box-shadow: none !important;
     color: #111827 !important;
+    display: block !important;
+    font-size: 9.5pt !important;
+    margin: 0 !important;
+    min-height: calc(210mm - 16mm) !important;
+    overflow: visible !important;
     padding: 0 !important;
+    position: static !important;
+    print-color-adjust: exact !important;
+    width: 100% !important;
+    -webkit-print-color-adjust: exact !important;
   }
 
   .dosette-print-header,
   .dosette-print-footer {
     border-color: #111827 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .dosette-print-header {
+    align-items: flex-end !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 6mm !important;
+    justify-content: space-between !important;
+    padding-bottom: 3mm !important;
+  }
+
+  .dosette-print-identifiers {
+    display: grid !important;
+    gap: 4mm !important;
+    grid-template-columns: repeat(3, max-content) !important;
+    text-align: right !important;
   }
 
   .dosette-print-tray {
+    background: #ffffff !important;
     border: 1px solid #111827 !important;
     border-radius: 0 !important;
+    margin-top: 4mm !important;
     overflow: hidden !important;
+    width: 100% !important;
   }
 
   .dosette-print-grid {
     display: grid !important;
-    grid-template-columns: 30mm repeat(7, minmax(0, 1fr)) !important;
+    grid-template-columns: 25mm repeat(7, minmax(0, 1fr)) !important;
+    width: 100% !important;
   }
 
   .dosette-print-grid > *,
@@ -485,24 +565,71 @@ html.colour-tritanopia .bg-danger {
     color: #111827 !important;
   }
 
+  .dosette-print-corner,
+  .dosette-print-day,
+  .dosette-print-row-heading {
+    background: #f3f4f6 !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .dosette-print-corner,
+  .dosette-print-day {
+    padding: 2mm !important;
+  }
+
+  .dosette-print-row-heading {
+    padding: 2.5mm !important;
+  }
+
   .dosette-print-cell {
-    min-height: 28mm !important;
-    padding: 4px !important;
+    min-height: 27mm !important;
+    overflow: visible !important;
+    overflow-wrap: anywhere !important;
+    padding: 2mm !important;
+  }
+
+  .dosette-print-medicine-list {
+    display: grid !important;
+    gap: 1.5mm !important;
   }
 
   .dosette-print-item {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
     border: 1px solid #4b5563 !important;
-    background: #ffffff !important;
+    background: #f9fafb !important;
     color: #111827 !important;
-    padding: 3px 4px !important;
+    overflow-wrap: anywhere !important;
+    padding: 1.2mm 1.5mm !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .dosette-print-medicine-name,
+  .dosette-print-dose {
+    font-size: 8pt !important;
+    line-height: 1.18 !important;
+  }
+
+  .dosette-print-appearance,
+  .dosette-print-empty,
+  .dosette-print-footer {
+    font-size: 7.5pt !important;
+    line-height: 1.2 !important;
   }
 
   .dosette-print-item p,
   .dosette-print-empty,
   .dosette-print-footer {
     color: #111827 !important;
+  }
+
+  .dosette-print-footer {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-top: 3mm !important;
+    padding-top: 2mm !important;
   }
 
   .dosette-print-sheet,

@@ -1335,8 +1335,12 @@ describe("DosetteScreen", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Print Dosette sheet",
     });
-    expect(within(dialog).getByLabelText("Dosette tray sheet")).toBeInTheDocument();
-    expect(within(dialog).getByText("Dosette tray sheet")).toBeInTheDocument();
+    const printSheet = within(dialog).getByLabelText("Dosette tray sheet");
+    expect(printSheet).toBeInTheDocument();
+    expect(printSheet).toHaveClass("dosette-print-sheet");
+    expect(printSheet).toHaveClass("dosette-print-a4");
+    expect(document.body).toHaveClass("dosette-print-mode");
+    expect(within(dialog).getByText("DOSSETTE TRAY SHEET")).toBeInTheDocument();
     expect(within(dialog).getByText("JMW Sutton")).toBeInTheDocument();
     expect(within(dialog).getByText("SUT-P1")).toBeInTheDocument();
     expect(within(dialog).getByText("MDS-2026-W26")).toBeInTheDocument();
@@ -1396,7 +1400,11 @@ describe("DosetteScreen", () => {
     expect(within(dialog).queryByText("SM1 1AA")).toBeNull();
     expect(within(dialog).queryByText("020 0000 0001")).toBeNull();
     expect(within(dialog).queryByText("1 Demo Street, Sutton")).toBeNull();
+    expect(within(dialog).queryByText("NHS number")).toBeNull();
     expect(within(dialog).queryByText("Printed date")).toBeNull();
+    expect(within(printSheet).queryByRole("button")).toBeNull();
+    expect(within(printSheet).queryByText("Add medicine")).toBeNull();
+    expect(within(printSheet).queryByText("Edit medicine")).toBeNull();
     expect(
       within(dialog).getByText(
         "Pharmacy Dosette preparation support. Human review required.",

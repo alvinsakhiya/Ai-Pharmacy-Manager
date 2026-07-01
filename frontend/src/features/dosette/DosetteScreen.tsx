@@ -2698,10 +2698,10 @@ const PRINT_DAY_LABELS = [
 ] as const;
 
 const PRINT_SLOT_ROWS = [
-  { key: "quantity_morning", label: "Morning" },
-  { key: "quantity_lunchtime", label: "Lunchtime" },
-  { key: "quantity_evening", label: "Evening" },
-  { key: "quantity_bedtime", label: "Bedtime" },
+  { key: "quantity_morning", label: "Morning", short: "AM" },
+  { key: "quantity_lunchtime", label: "Lunchtime", short: "Lunch" },
+  { key: "quantity_evening", label: "Evening", short: "PM" },
+  { key: "quantity_bedtime", label: "Bedtime", short: "Night" },
 ] as const;
 
 function printDoseLabel(line: PatientMedicationLine, quantity: number): string {
@@ -2742,14 +2742,14 @@ function PrintTrayCell({
   return (
     <div
       aria-label={`${day} ${slot.label}`}
-      className="dosette-print-cell min-h-[7.25rem] border-l border-t border-line bg-white p-2"
+      className="dosette-print-cell min-h-[7.25rem] border-l border-t border-line bg-white p-2 align-top"
     >
       {medicines.length === 0 ? (
         <span className="dosette-print-empty tnum text-sm font-semibold text-muted">
           -
         </span>
       ) : (
-        <ul className="space-y-1.5">
+        <ul className="dosette-print-medicine-list space-y-1.5">
           {medicines.map((line) => {
             const appearance = printAppearanceLabel(line);
             const quantity = line[slot.key];
@@ -2759,14 +2759,14 @@ function PrintTrayCell({
                 className="dosette-print-item rounded-lg border border-line bg-surface-subtle px-2 py-1.5"
                 key={`${day}-${slot.key}-${line.id}`}
               >
-                <p className="text-[11px] font-extrabold leading-snug text-ink">
+                <p className="dosette-print-medicine-name break-words text-[11px] font-extrabold leading-snug text-ink">
                   {printMedicineLabel(line)}
                 </p>
-                <p className="tnum mt-0.5 text-[11px] font-bold leading-snug text-ink-soft">
+                <p className="dosette-print-dose tnum mt-0.5 text-[11px] font-bold leading-snug text-ink-soft">
                   {printDoseLabel(line, quantity)}
                 </p>
                 {appearance ? (
-                  <p className="mt-0.5 text-[10px] font-semibold leading-snug text-muted">
+                  <p className="dosette-print-appearance mt-0.5 text-[10px] font-semibold leading-snug text-muted">
                     {appearance}
                   </p>
                 ) : null}
@@ -2795,12 +2795,12 @@ function DosettePrintSheet({
   return (
     <section
       aria-label="Dosette tray sheet"
-      className="dosette-print-sheet rounded-2xl border border-line bg-white p-5 text-ink shadow-soft"
+      className="dosette-print-sheet dosette-print-a4 rounded-2xl border border-line bg-white p-5 text-ink shadow-soft"
     >
       <header className="dosette-print-header flex flex-col gap-3 border-b border-line pb-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted">
-            Dosette tray sheet
+            DOSSETTE TRAY SHEET
           </p>
           <h2 className="mt-1 text-xl font-extrabold text-ink">
             {cycleDateRange(cycle)}
@@ -2843,12 +2843,12 @@ function DosettePrintSheet({
         role="table"
       >
         <div className="dosette-print-grid grid grid-cols-[7.5rem_repeat(7,minmax(0,1fr))]">
-          <div className="border-b border-line bg-surface-subtle p-2 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
+          <div className="dosette-print-corner border-b border-line bg-surface-subtle p-2 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted">
             Dose time
           </div>
           {PRINT_DAY_LABELS.map((day) => (
             <div
-              className="border-b border-l border-line bg-surface-subtle p-2 text-center text-[11px] font-extrabold text-ink"
+              className="dosette-print-day border-b border-l border-line bg-surface-subtle p-2 text-center text-[11px] font-extrabold text-ink"
               key={day}
             >
               {day}
@@ -2856,8 +2856,11 @@ function DosettePrintSheet({
           ))}
           {PRINT_SLOT_ROWS.map((slot) => (
             <div className="contents" key={slot.key}>
-              <div className="border-t border-line bg-surface-subtle p-2 text-sm font-extrabold text-ink">
-                {slot.label}
+              <div className="dosette-print-row-heading border-t border-line bg-surface-subtle p-2 text-sm font-extrabold text-ink">
+                <span>{slot.label}</span>
+                <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                  {slot.short}
+                </span>
               </div>
               {PRINT_DAY_LABELS.map((day) => (
                 <PrintTrayCell
@@ -2958,6 +2961,13 @@ export function DosetteScreen() {
     setPeriodActionError(null);
     setPeriodActionContext(null);
   }, [openPeriodId]);
+
+  useEffect(() => {
+    document.body.classList.toggle("dosette-print-mode", isPrintModalOpen);
+    return () => {
+      document.body.classList.remove("dosette-print-mode");
+    };
+  }, [isPrintModalOpen]);
 
   function openAppearanceModal(line: PatientMedicationLine) {
     setAppearanceLine(line);
