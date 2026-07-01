@@ -1,188 +1,251 @@
-# AI-Enhanced Pharmacy Stock Optimisation and Patient Dosette Management System
+# AI Pharmacy Manager
 
-An academic final-year prototype for pharmacy stock optimisation and patient
-Dosette/MDS workflow support. The system combines stock, batch, movement,
-patient, Dosette/MDS, analytics, reporting, alerts, and pharmacist review
-workflows in a single role-based web application.
+A secure web application for pharmacy stock control, expiry review, patient
+dosette/MDS workflow support, operational reports, and explainable stock
+intelligence — brought together in one role-based system for a pharmacy group
+and its branches.
 
-This project uses fictional demo data only. It does not integrate with NHS
-systems, does not use real patient data, does not perform clinical
-decision-making, and does not provide diagnosis, automated recommendations, or
-compliance guarantees.
+> **Fictional data only.** This is an academic prototype that uses fictional
+> demo data. It does **not** integrate with NHS systems, does **not** use real
+> patient data, and does **not** perform clinical decision-making, diagnosis,
+> automated recommendations, or compliance certification.
 
-## Implemented Phase 2 Modules
+## What problem it solves
 
-| Module | Name | Implemented capability | Evidence areas |
-| --- | --- | --- | --- |
-| 5 | Medication catalogue | Tenant-scoped medication master records with backend API and frontend management UI. | `apps/catalogue`, `/catalogue`, frontend medication tests |
-| 6 | Inventory, stock, batches, movements, transfers | Stock items, batches, receiving, adjustment, count reconciliation, transfer, and append-only movement history. | `apps/inventory`, `/inventory`, inventory tests and E2E |
-| 7 | Patient records, notes, encryption | Patient records, encrypted PII fields, blind-index search, patient notes, scoped frontend views. | `apps/patients`, `/patients`, patient tests and E2E |
-| 8 | Dosette/MDS | Patient medication lines, Dosette/MDS cycles, preparation workflow, picking list. | `apps/blister`, `/patients/:id/dosette`, Dosette tests and E2E |
-| 9 | Stock-aware Dosette/MDS preview | Stock preview with availability, shortages, and FEFO batch suggestions. | Stock preview endpoints and Dosette UI |
-| 10 | Dosette/MDS stock deduction | Safe stock deduction for prepared cycles with append-only `BLISTER_DEDUCTION` movements and cancellation guard after deduction. | Deduct-stock endpoint, StockMovement history, E2E smoke |
-| 11 | Stock Intelligence analytics | Read-only stock attention analytics for stockout, low stock, expiry, dead-stock, and slow-moving indicators. | `apps/analytics`, `/analytics`, analytics tests and E2E |
-| 12 | Reports and CSV exports | Stock attention and stock movement reports with authenticated JSON and CSV export paths. | `apps/reports`, `/reports`, report tests and E2E |
-| 13 | Notifications and alerts | Live-computed operational stock and Dosette/MDS alerts with severity/category summaries. | `apps/notifications`, `/alerts`, alert tests and E2E |
-| 14 | Pharmacist review workflow | Operational review queue, patient review section, create/complete/cancel workflow, encrypted notes, audit-backed mutations. | `apps/reviews`, `/reviews`, review tests and E2E |
+Community pharmacies juggle stock, expiry dates, monthly dosette (MDS) packs, and
+records across systems and spreadsheets. AI Pharmacy Manager brings the day-to-day
+operational picture into one place to help reduce:
 
-## Tech Stack
+- **Stock waste** from over-ordering and dead/slow-moving stock.
+- **Expiry risk**, by surfacing batches nearing their expiry date (FEFO).
+- **Fragmented records** across stock, patients, and dosette packs.
+- **Manual MDS workload**, by showing what upcoming cycles will need.
+- **Lack of review visibility**, with a clear "what needs attention" queue.
 
-- Django 5 and Django REST Framework
-- PostgreSQL
-- React, TypeScript, and Vite
-- Tailwind CSS
-- TanStack Query
-- Playwright
-- GitHub Actions
-- Docker Compose for local development
-- Ruff, mypy, pytest, ESLint, Vitest, and pre-commit for quality checks
+Everything the system suggests is **advisory and requires human review** — nothing
+is ordered, transferred, or dispensed automatically.
 
-## Local Setup
+## Main features
 
-Prerequisites: Python 3.12+, Node.js 22+, npm, and PostgreSQL.
+- **Role-based login** with per-role screens and permissions.
+- **Dashboard** — a daily summary of what needs attention.
+- **Inventory** — stock items, batches, receiving, adjustments, transfers, and an
+  append-only movement history (FEFO expiry tracking).
+- **Patient records** — with application-level field encryption and searchable,
+  privacy-preserving lookups.
+- **Dosette / MDS** — medication lines, cycles, a preparation workflow, and a
+  printable picking/tray sheet.
+- **Stock Intelligence** — explainable forecasts, expiry risk, MDS demand, and
+  transfer suggestions to review.
+- **Reports** — stock, expiry, MDS workload, and movement reports with CSV export.
+- **Alerts** and a **work queue** highlighting operational items.
+- **Pharmacist review workflow** — an operational (non-clinical) review queue.
+- **Audit log** — an append-only record of who did what.
+- **Backups** — encrypted, group-scoped backups with a guarded restore.
+- **Settings** — including backup configuration.
 
-Create local environment settings:
+## User roles
+
+| Role | Scope | What they can do (in brief) |
+| --- | --- | --- |
+| **Admin** | Global | Full access across every group and pharmacy. |
+| **Superintendent** | One pharmacy group | Stock, forecasts, transfer suggestions, medications, audit view across the group's branches. |
+| **Pharmacist** | One pharmacy | Full stock, patients, dosette, reviews, and user management for their pharmacy. |
+| **Dispenser** | One pharmacy | View patients/stock, receive stock, dosette status changes, review view. |
+| **Stock employee** | A group + a chosen set of pharmacies | Stock management, receiving, transfers, and forecasts. |
+
+See [docs/SECURITY_AND_DATA_PROTECTION.md](docs/SECURITY_AND_DATA_PROTECTION.md)
+for how access is enforced.
+
+## Explainable intelligence (the "AI")
+
+The "intelligence" is **explainable, deterministic arithmetic** — not a black-box
+model. Given the same data and date, it always produces the same result, and every
+output is a signal to review, never an action. It includes:
+
+- **Moving-average forecasting** — estimated demand from recent stock movements.
+- **FEFO expiry logic** — surfacing and bucketing batches by soonest expiry.
+- **Deterministic MDS demand signal** — what upcoming dosette cycles will need
+  versus available stock.
+- **Stock review scoring** — a transparent, additive 0–100 priority score.
+- **Transfer opportunity review** — where dead stock at one branch could cover
+  demand at another (a suggestion only; no stock is moved).
+- **Forecast confidence labels** — a simple indication of how much history a
+  forecast is based on (not a guarantee of accuracy).
+- **Human review required** — nothing is ordered, transferred, or dispensed
+  automatically.
+
+No clinical AI, diagnosis, NHS/NCRS integration, guaranteed forecast, or automatic
+actions are claimed. Full detail and honest limitations are in
+[docs/FORECASTING_AND_INTELLIGENCE.md](docs/FORECASTING_AND_INTELLIGENCE.md).
+
+## Technology stack
+
+- **Frontend:** React, Vite, TypeScript, Tailwind CSS, TanStack Query.
+- **Backend:** Django and Django REST Framework.
+- **Database:** PostgreSQL (the runtime and deployment database).
+- **Local orchestration:** Docker Compose.
+- **Quality & tests:** pytest (backend), Vitest and Playwright (frontend),
+  Ruff (lint/format), mypy (types), ESLint, and pre-commit.
+
+## Local setup
+
+The simplest way to run the whole stack is with Docker Compose.
 
 ```bash
+# 1. Create your environment file from the template
 cp .env.example .env
-```
 
-Backend setup:
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-python manage.py migrate
-python manage.py seed_demo
-python manage.py runserver
-```
-
-Frontend setup in another terminal:
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-The development frontend runs at `http://localhost:5173`. The API runs at
-`http://localhost:8000`, with a health endpoint at
-`http://localhost:8000/api/health/`.
-
-For local development outside Docker, update `DATABASE_URL` in `.env` so its
-hostname points to your PostgreSQL server, usually `localhost`.
-
-## Docker Compose
-
-```bash
-cp .env.example .env
+# 2. Build and start PostgreSQL, the backend, and the frontend
 docker compose up --build
+
+# 3. In another terminal: apply migrations and seed fictional demo data
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py seed_demo
 ```
 
-The Compose stack starts PostgreSQL, Django, and Vite with source directories
-mounted for development. Stop it with:
+Then open the app:
+
+- **Frontend:** <http://localhost:5173>
+- **Backend API:** <http://localhost:8000> (health check at `/api/health/`)
+- **PostgreSQL:** runs as the `db` service inside Docker (not published to your
+  host by default).
+
+`seed_demo` is safe to re-run and only touches the fictional `@demo.local`
+workspace. Full instructions, environment variables, and a production checklist
+are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## Demo accounts
+
+The seeded demo users share a single **demo-only** password.
+
+> **Demo-only credentials — do not use in production.**
+
+Shared password: `DemoPass!2026`
+
+| Email | Role | Scope |
+| --- | --- | --- |
+| `admin@demo.local` | Admin | Global |
+| `superintendent@demo.local` | Superintendent | JMW Pharmacy Group |
+| `pharmacist@demo.local` | Pharmacist | JMW Sutton |
+| `dispenser@demo.local` | Dispenser | JMW Croydon |
+| `stock@demo.local` | Stock employee | JMW Sutton and JMW Croydon |
+
+## Backup and restore
+
+Group backups capture the operational records for one pharmacy group (stock,
+patients, dosette, reviews, analytics, and audit) — never user accounts or
+password hashes.
+
+- **Encrypted backups:** archives are encrypted at rest with **AES-256-GCM**.
+  Provide a base64 32-byte key via the `BACKUP_ENCRYPTION_KEY` environment
+  variable; generate one with
+  `docker compose exec backend python manage.py generate_backup_key`. In
+  production, encrypted backups are required by default.
+- **Restore is guarded:** restore is admin-only, requires typing `RESTORE` to
+  confirm, validates the archive (a wrong or missing key is rejected before
+  anything changes), and takes a **pre-restore safety backup** first.
+- **Production storage:** keep archives in private, access-controlled storage
+  (not a public web directory), store the key separately in a secrets manager,
+  and add regular database-level backups (`pg_dump`/managed snapshots) off-site.
+
+Full details: [docs/BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md).
+
+## Deployment
+
+- The included Docker Compose file is **development-oriented** (Django's dev
+  server and the Vite dev server).
+- For production, use the production settings
+  (`DJANGO_SETTINGS_MODULE=config.settings.prod`), which enforce `DEBUG=False`,
+  HSTS, HTTPS redirect, secure cookies, required secret/encryption keys, and
+  encrypted backups; serve the backend behind a production WSGI/ASGI server and a
+  TLS-terminating reverse proxy, and build the frontend to static assets.
+- Set real values for `DJANGO_SECRET_KEY`, `PATIENT_FIELD_KEY`,
+  `PATIENT_INDEX_KEY`, `BACKUP_ENCRYPTION_KEY`, `DJANGO_ALLOWED_HOSTS`,
+  `CSRF_TRUSTED_ORIGINS`, and `CORS_ALLOWED_ORIGINS`.
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full checklist.
+
+## Testing
+
+Frontend (via Docker Compose, or `cd frontend` and drop the prefix):
 
 ```bash
-docker compose down
+docker compose exec frontend npm run lint
+docker compose exec frontend npm run build
+docker compose exec frontend npm run test
 ```
 
-Database data is kept in the named `postgres_data` volume.
-
-## Running Tests
-
-Backend checks:
+Backend migration check (via Docker Compose):
 
 ```bash
-cd backend
+docker compose exec backend python manage.py makemigrations --check --dry-run
+```
+
+Backend tests, linting, and type checks run against PostgreSQL. From `backend/`
+in a virtual environment with the dev extras installed
+(`pip install -e ".[dev]"`):
+
+```bash
 ruff check .
 ruff format --check .
-mypy .
+mypy apps
 pytest
 ```
 
-Additional backend project checks used during module verification:
+Continuous integration (`.github/workflows/`) runs the backend checks against a
+PostgreSQL service and the frontend lint/build/test, plus Playwright end-to-end
+tests.
 
-```bash
-python manage.py makemigrations --check --dry-run
-python manage.py check
+## Project structure
+
+```
+backend/    Django REST API — apps/ (business logic), config/ (settings, urls)
+frontend/   React SPA — src/features/ (screens), src/components/, src/lib/
+docs/       Project documentation (see below)
+.github/    Continuous integration workflows
+docker-compose.yml   Local dev stack: PostgreSQL + backend + frontend
+.env.example         Environment variable template
 ```
 
-Frontend checks:
+Documentation:
 
-```bash
-cd frontend
-npm run lint
-npm run build
-npm run test
-npm run e2e
-```
+- [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md) — guided tour of the source code
+- [docs/FILE_MANIFEST.md](docs/FILE_MANIFEST.md) — file-by-file map
+- [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md) — all REST endpoints
+- [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) — models and relationships
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — running and deploying the stack
+- [docs/FORECASTING_AND_INTELLIGENCE.md](docs/FORECASTING_AND_INTELLIGENCE.md) —
+  how the intelligence works, honestly
+- [docs/SECURITY_AND_DATA_PROTECTION.md](docs/SECURITY_AND_DATA_PROTECTION.md) —
+  authentication, roles, encryption, audit
+- [docs/BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md) — backup format and
+  restore
+- [docs/DIAGRAMS.md](docs/DIAGRAMS.md) — architecture and workflow diagrams
+- [docs/GITHUB_REPO_SETUP.md](docs/GITHUB_REPO_SETUP.md) — repository presentation
 
-Playwright E2E uses the built Vite preview app. The configured preview URL is
-`http://localhost:4173`, started by:
+## Data protection and honest limitations
 
-```bash
-npm run preview -- --port 4173 --strictPort
-```
+- Patient identifier fields and note bodies are stored with **application-level
+  field encryption at rest** (with a blind index for search). This is encryption
+  at rest, **not** end-to-end database encryption — the server holds the key and
+  decrypts values to display, search, report, and back up.
+- Audit events and stock movements are append-only at the application level.
+- The system uses **fictional demo data**; never store real patient data.
+- There is **no** NHS/NCRS integration, clinical diagnosis, drug-interaction
+  checking, automatic ordering/transfer/dispensing, guaranteed forecasting, or
+  compliance certification.
+- Pharmacist reviews are operational workflow records, not clinical decisions.
+- This is a prototype, not a production-hardened system; deeper production
+  hardening (database-level immutability, monitoring, key management, and a
+  production deployment profile) is future work.
 
-Latest verified suite results at Module 14:
+## Academic note
 
-- Backend PostgreSQL: 589 passing cases
-- Frontend: 237 tests across 36 files
-- Playwright E2E: 23/23 passing
-- Latest tag: `module-14-pharmacist-review-workflow-complete`
+This repository supports a COM668 Computing Project. Any academic report should
+acknowledge external sources and permitted tool assistance in accordance with the
+university's policy.
 
-## Documentation
+## License
 
-- [Demo Evidence Pack](docs/demo-evidence.md)
-- [TRUD dm+d Reference Data Import](docs/trud-dmd-import.md)
-
-## Demo Users
-
-Seed demo data with:
-
-```bash
-cd backend
-python manage.py seed_demo
-```
-
-Shared demo-only password: `DemoPass!2026`
-
-| Email | Role | Scope | Password |
-| --- | --- | --- | --- |
-| `admin@demo.local` | ADMIN | Global/admin | `DemoPass!2026` |
-| `superintendent@demo.local` | SUPERINTENDENT | JMW Pharmacy Group | `DemoPass!2026` |
-| `pharmacist@demo.local` | PHARMACIST | JMW Sutton (`SUT`) | `DemoPass!2026` |
-| `dispenser@demo.local` | DISPENSER | JMW Croydon (`CRO`) | `DemoPass!2026` |
-| `stock@demo.local` | STOCK_EMPLOYEE | JMW Sutton and JMW Croydon stock scope | `DemoPass!2026` |
-
-## Safety and Privacy Limitations
-
-- Patient PII is encrypted using `EncryptedTextField`.
-- Pseudonymous `patient_reference` values are used in UI and audit contexts
-  where possible.
-- Audit metadata is designed to remain PII-free.
-- Audit events are append-only at application level.
-- Stock movements are append-only at application level.
-- Demo data is fictional and must not be replaced with real patient data.
-- There is no NHS integration.
-- The system does not perform clinical diagnosis, automated clinical
-  recommendations, or drug-interaction checking.
-- Pharmacist reviews are operational workflow records, not clinical decision
-  automation.
-- External messaging, email, SMS, push notifications, and persisted
-  notification read-state are not implemented.
-- This is not a production-ready system and does not claim regulatory,
-  clinical, GDPR, or compliance certification.
-
-## Known Limitations and Future Work
-
-- Real ML demand forecasting and model evaluation remain future work.
-- Persisted notifications, unread state, mark-read, and scheduled alert jobs are
-  not implemented.
-- Email, SMS, and push notification delivery are not implemented.
-- PDF report generation is not implemented.
-- Medication-line-to-review shortcuts could be added in a later slice.
-- Deeper production hardening, database-level immutability, monitoring, backup
-  strategy, and deployment security are outside the prototype scope.
+No public licence is specified for this repository.
