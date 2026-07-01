@@ -320,7 +320,7 @@ describe("DashboardScreen work queue widget", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Monitor operational signals across stock, dosette preparation, and workload.",
+        "A daily summary of what needs your attention across stock, dosette packs, and workload.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Pharmacy One")).toBeInTheDocument();

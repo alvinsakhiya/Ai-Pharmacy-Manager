@@ -54,7 +54,7 @@ const REPORTS: Array<{
   {
     id: "stock_attention",
     title: "Stock attention",
-    description: "Items flagged for stockout, low stock, expiry, or movement risk.",
+    description: "Items to check for low stock, stockouts, or expiry.",
     category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
@@ -64,7 +64,7 @@ const REPORTS: Array<{
   {
     id: "stock_movements",
     title: "Stock movements",
-    description: "Recent receipts, adjustments, transfers, and deductions.",
+    description: "Recent stock coming in, going out, and adjustments.",
     category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
@@ -74,7 +74,7 @@ const REPORTS: Array<{
   {
     id: "expiry",
     title: "Expiry review",
-    description: "Batches expiring inside the selected operational window.",
+    description: "Batches expiring within the time window you choose.",
     category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
@@ -84,7 +84,7 @@ const REPORTS: Array<{
   {
     id: "dead_stock",
     title: "Dead/slow stock",
-    description: "Stock movement signals for dead, slow, and active items.",
+    description: "Stock that is not moving, moving slowly, or active.",
     category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
@@ -94,7 +94,7 @@ const REPORTS: Array<{
   {
     id: "stock_valuation",
     title: "Stock valuation",
-    description: "Stock value (quantity x unit price) by item, with totals.",
+    description: "The value of your stock by item, with totals.",
     category: "stock_expiry",
     permission: "stock.view",
     exportTypes: ["CSV"],
@@ -104,7 +104,7 @@ const REPORTS: Array<{
   {
     id: "forecast_reorder",
     title: "Forecast & reorder",
-    description: "Latest forecast suggestions from stock movement history.",
+    description: "Estimated reorder amounts based on past stock movement.",
     category: "operational_performance",
     permission: "forecast.view",
     exportTypes: ["CSV"],
@@ -114,7 +114,7 @@ const REPORTS: Array<{
   {
     id: "transfer_suggestions",
     title: "Transfer suggestions",
-    description: "Cross-branch suggestions for superintendent/admin review.",
+    description: "Possible stock transfers between branches to review.",
     category: "operational_performance",
     permission: "transfer_suggestion.view",
     exportTypes: ["CSV"],
@@ -124,7 +124,7 @@ const REPORTS: Array<{
   {
     id: "mds_workload",
     title: "MDS workload",
-    description: "Cycle workload counts by pharmacy and status without patient names.",
+    description: "Dosette workload by pharmacy and status (no patient names).",
     category: "dosette_workload",
     permission: "blister.view",
     exportTypes: ["CSV"],
@@ -149,7 +149,7 @@ const REPORT_CATEGORIES: Array<{
   {
     id: "stock_expiry",
     title: "Stock and expiry",
-    description: "Stock risk, expiry review, value, and movement signals.",
+    description: "Stock risk, expiry, value, and movement reports.",
     icon: ShieldAlert,
     reportIds: [
       "stock_attention",
@@ -162,7 +162,7 @@ const REPORT_CATEGORIES: Array<{
   {
     id: "dosette_workload",
     title: "MDS / Dosette workload",
-    description: "MDS workload and prepare reminder activity summaries.",
+    description: "Dosette workload and prepare-reminder summaries.",
     icon: Layers,
     reportIds: ["mds_workload"],
   },
@@ -191,7 +191,7 @@ const SUMMARY_CARDS: Array<{
   {
     report: "stock_attention",
     label: "Stock risk",
-    helper: "Operational report rows needing stock review.",
+    helper: "Items that need a stock review.",
     icon: ShieldAlert,
   },
   {
@@ -203,18 +203,18 @@ const SUMMARY_CARDS: Array<{
   {
     report: "mds_workload",
     label: "MDS workload",
-    helper: "Cycle status workload rows.",
+    helper: "Dosette cycles by status.",
     icon: Layers,
   },
   {
     label: "Patient review activity",
-    helper: "No dedicated patient review report is available in this dashboard.",
+    helper: "No patient review report is available here.",
     icon: FileText,
   },
   {
     report: "stock_movements",
     label: "Operational actions",
-    helper: "Recent stock movement activity rows.",
+    helper: "Recent stock activity.",
     icon: ClipboardList,
   },
 ];
@@ -1315,7 +1315,7 @@ export function ReportsScreen() {
       <Panel>
         <PanelHeader
           title="Report controls"
-          subtitle="Scope the operational report preview and CSV export."
+          subtitle="Choose a report to preview it or export a CSV."
         />
         <PanelBody>
           <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-4">

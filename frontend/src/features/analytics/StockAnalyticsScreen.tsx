@@ -512,7 +512,7 @@ function BranchOverviewGrid({
     <Panel>
       <PanelHeader
         title="Group overview"
-        subtitle="Select a branch to review stock signals."
+        subtitle="Select a branch to review its stock."
         icon={<Boxes className="h-4 w-4" />}
         actions={<Badge variant="info">{formatNumber(summaries.length)} branches</Badge>}
       />

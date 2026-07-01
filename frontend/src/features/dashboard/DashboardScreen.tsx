@@ -261,14 +261,14 @@ export function DashboardScreen() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand">
-              Pharmacy command centre
+              Today at a glance
             </p>
             <h1 className="mt-1.5 text-[30px] font-extrabold tracking-[-0.025em] text-ink sm:text-[34px]">
               Dashboard
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">
-              Monitor operational signals across stock, dosette preparation,
-              and workload.
+              A daily summary of what needs your attention across stock,
+              dosette packs, and workload.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2.5">
@@ -319,7 +319,7 @@ export function DashboardScreen() {
         {canAlerts ? (
           <Kpi
             label="Open alerts"
-            helper="Operational alerts requiring review"
+            helper="Alerts to check"
             icon={<Bell className="h-4 w-4" />}
             tint="bg-lilac-soft text-brand-ink border-lilac"
             loading={alertsQuery.isLoading}
@@ -368,7 +368,7 @@ export function DashboardScreen() {
         {canStock ? (
           <Kpi
             label={`Expiring ≤ ${expiryWindow}d`}
-            helper="Batches in the expiry review window"
+            helper="Stock nearing its expiry date"
             icon={<Clock className="h-4 w-4" />}
             tint="bg-info-soft text-info-ink border-info-border"
             loading={expiryQuery.isLoading}
@@ -387,7 +387,7 @@ export function DashboardScreen() {
         {canBlister ? (
           <Kpi
             label="Packs due"
-            helper="Dosette preparation workload"
+            helper="Dosette packs to prepare"
             icon={<CalendarClock className="h-4 w-4" />}
             tint="bg-peach-soft text-peach-ink border-peach"
             loading={mdsQuery.isLoading}
@@ -732,7 +732,7 @@ function WorkloadCard({
             Dosette workload
           </h2>
           <p className="mt-0.5 text-[13px] font-medium text-muted">
-            Preparation workload across your scope
+            Dosette packs to prepare in your pharmacies
           </p>
         </div>
         {showManage ? (
@@ -853,7 +853,7 @@ function ExpiringCard({
             Expiring soon
           </h2>
           <p className="mt-0.5 text-[13px] font-medium text-muted">
-            Stock risk signals from the expiry report
+            Stock nearing its expiry date
           </p>
         </div>
         <Link
@@ -877,7 +877,7 @@ function ExpiringCard({
         </div>
       ) : top.length === 0 ? (
         <p className="mt-5 rounded-xl bg-surface-subtle px-4 py-6 text-center text-sm font-semibold text-ink-soft">
-          No expiry signals in the next {window} days.
+          Nothing is expiring in the next {window} days.
         </p>
       ) : (
         <div className="mt-5 overflow-hidden rounded-xl border border-line">

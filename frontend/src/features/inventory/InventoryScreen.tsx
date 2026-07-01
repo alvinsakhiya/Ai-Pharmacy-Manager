@@ -255,7 +255,6 @@ function StockRow({
       </TD>
       <TD>
         <p className="font-medium text-ink-soft">{pharmacyName(item.pharmacy)}</p>
-        <p className="mt-1 text-xs text-muted">Medication #{item.medication}</p>
       </TD>
       <TD>
         <p className="tnum text-base font-extrabold text-ink">
@@ -445,7 +444,7 @@ export function InventoryScreen() {
       <Panel>
         <PanelHeader
           title="Stock controls"
-          subtitle={`${formatNumber(stockItems.length)} records shown from existing inventory data`}
+          subtitle={`${formatNumber(stockItems.length)} stock records in the current view`}
         />
         <PanelBody>
           <div className="flex flex-wrap items-end gap-3">
@@ -561,7 +560,7 @@ export function InventoryScreen() {
                 Stock records
               </h2>
               <p className="mt-0.5 text-xs text-muted">
-                Existing records only. Open a record for batch-level actions.
+                Open a record to see its batches and take action.
               </p>
             </div>
             <Badge variant="neutral">{formatNumber(stockItems.length)} shown</Badge>
