@@ -113,4 +113,6 @@ is controlled.
 - [SECURITY_AND_DATA_PROTECTION.md](SECURITY_AND_DATA_PROTECTION.md) — auth, RBAC,
   encryption, audit
 - [BACKUP_AND_RESTORE.md](BACKUP_AND_RESTORE.md) — backup format and restore
+- [DEMO_DATABASE_RESTORE.md](DEMO_DATABASE_RESTORE.md) — restore the demo
+  PostgreSQL database on another system
 - [DIAGRAMS.md](DIAGRAMS.md) — architecture and workflow diagrams

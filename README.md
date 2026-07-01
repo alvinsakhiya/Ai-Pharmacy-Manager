@@ -115,6 +115,21 @@ Then open the app:
 workspace. Full instructions, environment variables, and a production checklist
 are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
+## Demo database restore
+
+The source-code zip (built with `git archive`) contains the code only — it does
+**not** include the database. To reproduce the exact demo data on another
+machine, use the separate PostgreSQL dump
+(`ai-pharmacy-manager-demo-database.sql`, fictional data only) and load it into
+the running `db` service with Docker Compose:
+
+```bash
+cat ../ai-pharmacy-manager-demo-database.sql | docker compose exec -T db psql -U pharmacy -d pharmacy
+```
+
+Step-by-step instructions, verification, and troubleshooting are in
+[docs/DEMO_DATABASE_RESTORE.md](docs/DEMO_DATABASE_RESTORE.md).
+
 ## Demo accounts
 
 The seeded demo users share a single **demo-only** password.
@@ -221,6 +236,8 @@ Documentation:
   authentication, roles, encryption, audit
 - [docs/BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md) — backup format and
   restore
+- [docs/DEMO_DATABASE_RESTORE.md](docs/DEMO_DATABASE_RESTORE.md) — restore the
+  demo PostgreSQL database on another system
 - [docs/DIAGRAMS.md](docs/DIAGRAMS.md) — architecture and workflow diagrams
 - [docs/GITHUB_REPO_SETUP.md](docs/GITHUB_REPO_SETUP.md) — repository presentation
 
