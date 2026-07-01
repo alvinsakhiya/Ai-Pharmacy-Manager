@@ -107,6 +107,7 @@ is controlled.
 - [FILE_MANIFEST.md](FILE_MANIFEST.md) — file-by-file table
 - [API_ENDPOINTS.md](API_ENDPOINTS.md) — every REST endpoint
 - [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) — models and relationships
+- [INSTALLATION.md](INSTALLATION.md) — install dependencies and run the project
 - [DEPLOYMENT.md](DEPLOYMENT.md) — running and deploying the stack
 - [FORECASTING_AND_INTELLIGENCE.md](FORECASTING_AND_INTELLIGENCE.md) — how the
   "intelligence" actually works

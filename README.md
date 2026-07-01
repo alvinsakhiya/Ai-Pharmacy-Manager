@@ -88,6 +88,18 @@ actions are claimed. Full detail and honest limitations are in
 - **Quality & tests:** pytest (backend), Vitest and Playwright (frontend),
   Ruff (lint/format), mypy (types), ESLint, and pre-commit.
 
+## Installation and dependencies
+
+The source zip contains the code and dependency manifests, but not installed
+dependencies — `node_modules/` and the Python virtual environment (`.venv/`) are
+intentionally excluded and are recreated from `frontend/package.json` +
+`frontend/package-lock.json` and `backend/pyproject.toml`. The easiest way to set
+everything up is Docker Compose (see below), which installs all dependencies
+inside the containers.
+
+Full step-by-step installation (with and without Docker), environment variables,
+and troubleshooting are in [docs/INSTALLATION.md](docs/INSTALLATION.md).
+
 ## Local setup
 
 The simplest way to run the whole stack is with Docker Compose.
@@ -229,6 +241,8 @@ Documentation:
 - [docs/FILE_MANIFEST.md](docs/FILE_MANIFEST.md) — file-by-file map
 - [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md) — all REST endpoints
 - [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) — models and relationships
+- [docs/INSTALLATION.md](docs/INSTALLATION.md) — install dependencies and run the
+  project
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — running and deploying the stack
 - [docs/FORECASTING_AND_INTELLIGENCE.md](docs/FORECASTING_AND_INTELLIGENCE.md) —
   how the intelligence works, honestly

@@ -33,6 +33,9 @@ frontend/test-results/
 frontend/blob-report/
 npm-debug.log*
 
+# Local Docker override (developer-specific; not part of the source)
+docker-compose.override.yml
+
 # Editors and local scratch files
 .idea/
 .vscode/
