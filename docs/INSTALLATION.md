@@ -87,7 +87,14 @@ exact reproducible install you can use `npm install` instead. Either way,
 git-ignored).
 
 The dev server serves the app at <http://localhost:5173> and proxies `/api` to
-the backend.
+the backend using `API_PROXY_TARGET`.
+
+> **API proxy target.** Docker Compose sets `API_PROXY_TARGET=http://backend:8000`
+> (the backend *service* name) — inside the containers, `localhost` refers to the
+> frontend container, not the backend. The default in `.env.example` is already
+> `http://backend:8000`, so the Docker path needs no manual edit. Only when you
+> run the frontend **manually on your host** (outside Docker) should you set
+> `API_PROXY_TARGET=http://localhost:8000`.
 
 ## 6. Backend dependencies without Docker
 
@@ -172,6 +179,16 @@ in the virtual environment created in section 6:
 - **Demo data missing / need the exact demo database** — run `seed_demo`, or
   restore the supplied SQL dump using
   [DEMO_DATABASE_RESTORE.md](DEMO_DATABASE_RESTORE.md).
+- **Frontend loads but API calls fail under Docker** — ensure
+  `API_PROXY_TARGET=http://backend:8000` in `.env` (this is the default in
+  `.env.example`). `http://localhost:8000` does not work from inside the frontend
+  container, because `localhost` there is the frontend container itself.
+- **Frontend build fails with a Rolldown / native binding error** — rebuild the
+  frontend image cleanly:
+  ```bash
+  docker compose build --no-cache frontend
+  docker compose up -d
+  ```
 
 ## 10. Final submission note
 

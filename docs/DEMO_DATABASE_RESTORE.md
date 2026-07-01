@@ -68,6 +68,9 @@ On the new computer:
    ```bash
    cp .env.example .env
    ```
+   No manual edits are needed — the template already points the frontend proxy at
+   the `backend` service (`API_PROXY_TARGET=http://backend:8000`), which is what
+   Docker Compose requires.
 3. **Start the stack** (this also creates an empty `pharmacy` database):
    ```bash
    docker compose up --build -d
@@ -173,6 +176,12 @@ The command-line method above is the simplest and is recommended.
 - **After restoring, the app reports pending migrations** — this only happens if
   the source code is newer than the dump. Apply migrations with
   `docker compose exec backend python manage.py migrate`.
+- **Frontend build fails with a Rolldown / native binding error** — rebuild the
+  frontend image cleanly, then start again:
+  ```bash
+  docker compose build --no-cache frontend
+  docker compose up -d
+  ```
 
 ## Suggested AT3 submission bundle
 
