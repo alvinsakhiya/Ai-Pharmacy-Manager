@@ -58,6 +58,8 @@ Internet ──80/443──▶ Caddy (reverse proxy, auto-HTTPS)
 - [`Caddyfile.example`](../Caddyfile.example) — reverse proxy + automatic HTTPS.
 - [`scripts/deploy/check-production-env.sh`](../scripts/deploy/check-production-env.sh)
   — pre-deploy check that required secrets are set and not left at dev defaults.
+- [`docs/OPERATIONS_RUNBOOK.md`](OPERATIONS_RUNBOOK.md) — day-to-day operations
+  (logs, health, restarts, backups, updates) after the initial deployment.
 
 ## 2. Firewall and ports
 
@@ -153,20 +155,31 @@ set -a && . ./.env && set +a
 Generate each secret **on the VM** (or your machine) and paste into `.env`. Never
 commit them; store copies in a password manager.
 
+The first three commands are self-contained (they need no `.env` and no
+application image, so they work before the stack exists):
+
 ```bash
-# DJANGO_SECRET_KEY
-docker compose run --rm backend python -c \
-  "from django.core.management.utils import get_random_secret_key as k; print(k())"
+# DJANGO_SECRET_KEY (a long random string)
+docker run --rm python:3.13-slim python -c \
+  "import secrets; print(secrets.token_urlsafe(64))"
 
 # PATIENT_FIELD_KEY (Fernet)
-docker compose run --rm backend python -c \
-  "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+docker run --rm python:3.13-slim sh -c \
+  "pip install -q cryptography && python -c \
+   'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
 
 # PATIENT_INDEX_KEY (random)
 openssl rand -base64 48
+```
 
+Paste those (and the database values from §4/§6) into `.env` **first**, then
+generate the backup key through the production stack — it loads the production
+settings, which require the values above to be present:
+
+```bash
 # BACKUP_ENCRYPTION_KEY (AES-256-GCM)
-docker compose run --rm backend python manage.py generate_backup_key
+docker compose -f docker-compose.prod.yml run --rm --no-deps backend \
+  python manage.py generate_backup_key
 ```
 
 The production settings **refuse to start** if `DJANGO_SECRET_KEY`,
@@ -239,8 +252,13 @@ Backups are encrypted at rest (AES-256-GCM) and, in production, required.
 docker compose -f docker-compose.prod.yml exec backend \
   python manage.py run_scheduled_backups   # or via the UI
 
-# Copy the encrypted archive OFF the VM to durable storage
-scp opc@<VM-IP>:/path/to/backend/media/backups/<group>/<archive>.zip.enc ./
+# Archives live in the backend_media volume, not on the VM filesystem.
+# Copy one out of the volume onto the VM…
+docker compose -f docker-compose.prod.yml cp \
+  backend:/app/media/backups/<group-slug>/<archive>.zip.enc ~/
+
+# …then pull it OFF the VM to durable storage (run from your machine)
+scp opc@<VM-IP>:~/<archive>.zip.enc ./
 ```
 
 - Keep `BACKUP_ENCRYPTION_KEY` **separate** from the archives — without it,
@@ -273,10 +291,17 @@ scp opc@<VM-IP>:/path/to/backend/media/backups/<group>/<archive>.zip.enc ./
 - [ ] An unauthenticated request to a protected endpoint returns 401/403.
 - [ ] Inventory, patients, dosette, stock intelligence, and reports load with the
       demo data.
+- [ ] The patients page respects roles: a role without patient access sees the
+      access-denied state, not data.
+- [ ] Settings → Backup & restore: restore controls appear only for an admin.
+- [ ] Logout returns to login and shows no cached data from the session.
 - [ ] Creating an encrypted backup succeeds and the archive is `*.zip.enc`.
 - [ ] `docker compose -f docker-compose.prod.yml logs` shows no tracebacks;
       container logs capture requests.
 - [ ] PostgreSQL is not reachable from the internet (`nc -vz <VM-IP> 5432` fails).
+
+Day-to-day commands (logs, restarts, backups, updates) are collected in the
+[operations runbook](OPERATIONS_RUNBOOK.md).
 
 ## 12. Limitations
 
