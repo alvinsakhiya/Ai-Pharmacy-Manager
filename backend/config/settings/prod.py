@@ -36,3 +36,10 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)  # noqa: F405
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
+# The container healthcheck probes the API over the loopback interface, and the
+# operator-supplied DJANGO_ALLOWED_HOSTS replaces the dev default that included
+# it. Loopback is unreachable from outside the container, so this widens
+# nothing.
+if "127.0.0.1" not in ALLOWED_HOSTS:  # noqa: F405
+    ALLOWED_HOSTS.append("127.0.0.1")  # noqa: F405

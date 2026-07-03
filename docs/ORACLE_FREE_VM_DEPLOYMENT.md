@@ -21,7 +21,7 @@ internal-only and optional free HTTPS via DuckDNS + Caddy.
 5. [Generating the secret keys](#5-generating-the-secret-keys)
 6. [DATABASE_URL for internal PostgreSQL](#6-database_url-for-internal-postgresql)
 7. [HTTPS with DuckDNS + Caddy (optional)](#7-https-with-duckdns--caddy-optional)
-8. [Restore the demo database](#8-restore-the-demo-database)
+8. [Start the stack and restore the demo database](#8-start-the-stack-and-restore-the-demo-database)
 9. [Backup and restore](#9-backup-and-restore)
 10. [Security checklist](#10-security-checklist)
 11. [Post-deployment test checklist](#11-post-deployment-test-checklist)
@@ -53,7 +53,8 @@ Internet ──80/443──▶ Caddy (reverse proxy, auto-HTTPS)
 **Files in this repo that support this deployment (all templates):**
 
 - [`docker-compose.prod.yml`](../docker-compose.prod.yml) — production Compose
-  override (internal-only DB, prod settings, restart policies).
+  file (internal-only DB, gunicorn backend, frontend built into the Caddy
+  image, restart policies, healthchecks).
 - [`Caddyfile.example`](../Caddyfile.example) — reverse proxy + automatic HTTPS.
 - [`scripts/deploy/check-production-env.sh`](../scripts/deploy/check-production-env.sh)
   — pre-deploy check that required secrets are set and not left at dev defaults.
@@ -202,14 +203,25 @@ but this is **less secure** — cookies are not `Secure` over plain HTTP and
 production forces secure cookies, so login will not work over HTTP. For any real
 demo, use HTTPS (DuckDNS + Caddy is free).
 
-## 8. Restore the demo database
+## 8. Start the stack and restore the demo database
+
+Start (or rebuild) the production stack. The build compiles the frontend SPA
+(`npm ci && npm run build`) into the Caddy image, so **no Node.js is needed on
+the VM**, and the backend applies migrations before gunicorn starts:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+> Local development uses `docker-compose.yml` (Vite dev server + `runserver`);
+> the production demo uses **only** `docker-compose.prod.yml`. Always pass
+> `-f docker-compose.prod.yml` on the VM so commands target the right stack.
 
 The demo data is fictional. Load it either by seeding or by restoring a dump:
 
 ```bash
-# Option A: seed fictional demo data
-docker compose exec backend python manage.py migrate
-docker compose exec backend python manage.py seed_demo
+# Option A: seed fictional demo data (migrations already ran on start-up)
+docker compose -f docker-compose.prod.yml exec backend python manage.py seed_demo
 
 # Option B: restore a supplied SQL dump (see the dedicated guide)
 ```
@@ -224,7 +236,8 @@ Backups are encrypted at rest (AES-256-GCM) and, in production, required.
 
 ```bash
 # Create an encrypted backup (admin/pharmacist)
-docker compose exec backend python manage.py run_scheduled_backups   # or via the UI
+docker compose -f docker-compose.prod.yml exec backend \
+  python manage.py run_scheduled_backups   # or via the UI
 
 # Copy the encrypted archive OFF the VM to durable storage
 scp opc@<VM-IP>:/path/to/backend/media/backups/<group>/<archive>.zip.enc ./
@@ -261,7 +274,8 @@ scp opc@<VM-IP>:/path/to/backend/media/backups/<group>/<archive>.zip.enc ./
 - [ ] Inventory, patients, dosette, stock intelligence, and reports load with the
       demo data.
 - [ ] Creating an encrypted backup succeeds and the archive is `*.zip.enc`.
-- [ ] `docker compose logs` shows no tracebacks; container logs capture requests.
+- [ ] `docker compose -f docker-compose.prod.yml logs` shows no tracebacks;
+      container logs capture requests.
 - [ ] PostgreSQL is not reachable from the internet (`nc -vz <VM-IP> 5432` fails).
 
 ## 12. Limitations

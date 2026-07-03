@@ -66,7 +66,7 @@ def test_logging_captures_security_events():
     assert logging_config["handlers"]["console"]["class"] == "logging.StreamHandler"
 
 
-def _prod_setup(extra_env):
+def _prod_setup(extra_env, code="import django; django.setup()"):
     env = {
         "DJANGO_SETTINGS_MODULE": "config.settings.prod",
         "DJANGO_SECRET_KEY": "real-prod-secret-key-not-the-dev-default",
@@ -76,7 +76,7 @@ def _prod_setup(extra_env):
     }
     env.update(extra_env)
     return subprocess.run(
-        [sys.executable, "-c", "import django; django.setup()"],
+        [sys.executable, "-c", code],
         cwd=str(BACKEND_DIR),
         env=env,
         capture_output=True,
@@ -101,3 +101,19 @@ def test_prod_refuses_dev_secret_key():
     result = _prod_setup({"DJANGO_SECRET_KEY": "unsafe-development-key"})
     assert result.returncode != 0
     assert "DJANGO_SECRET_KEY must be set in production" in result.stderr
+
+
+def test_prod_allows_loopback_for_container_healthcheck():
+    # The Docker healthcheck probes http://127.0.0.1:8000/api/health/ from
+    # inside the container; loopback must stay allowed even when the operator
+    # sets DJANGO_ALLOWED_HOSTS to the public domain only.
+    result = _prod_setup(
+        {"DJANGO_ALLOWED_HOSTS": "demo.example.org"},
+        code=(
+            "import django; django.setup(); "
+            "from django.conf import settings; print(settings.ALLOWED_HOSTS)"
+        ),
+    )
+    assert result.returncode == 0, result.stderr
+    assert "demo.example.org" in result.stdout
+    assert "127.0.0.1" in result.stdout

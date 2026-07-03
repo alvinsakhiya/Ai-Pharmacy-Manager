@@ -1,0 +1,20 @@
+# Dependencies are installed inside the image with `npm ci`; never copy the
+# host's node_modules over them.
+node_modules/
+
+# Build and test artifacts.
+dist/
+coverage/
+test-results/
+playwright-report/
+.vite/
+
+# Secrets and local state.
+.env
+.env.*
+!.env.example
+
+# Editor/OS noise.
+.DS_Store
+.idea/
+.vscode/

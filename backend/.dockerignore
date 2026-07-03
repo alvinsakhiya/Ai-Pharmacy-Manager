@@ -1,0 +1,31 @@
+# Keep local state, secrets, and tooling caches out of the image build context.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Runtime data — never bake user media or backup archives into an image.
+media/
+staticfiles/
+tmp/
+
+# Databases and dumps.
+*.sqlite3
+*.sql
+*.dump
+
+# Caches and test/coverage artifacts.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editor/OS noise.
+.DS_Store
+.idea/
+.vscode/

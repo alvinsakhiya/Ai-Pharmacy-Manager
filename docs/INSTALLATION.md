@@ -59,6 +59,11 @@ Open the app:
 the manifests (the backend image runs `pip install .`; the frontend image runs
 `npm ci`), so you do not need Python or Node installed on the host for this path.
 
+> `docker-compose.yml` is the **local development** stack (Vite dev server +
+> Django `runserver`). The **production synthetic-demo** stack is
+> `docker-compose.prod.yml` (gunicorn + Caddy serving the built frontend) — see
+> [ORACLE_FREE_VM_DEPLOYMENT.md](ORACLE_FREE_VM_DEPLOYMENT.md).
+
 ## 4. PostgreSQL database
 
 - **PostgreSQL is the runtime database.** It runs as the `db` service in

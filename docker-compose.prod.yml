@@ -1,9 +1,11 @@
 # Production Docker Compose TEMPLATE for a synthetic-data Oracle/free-VM demo.
 # See docs/ORACLE_FREE_VM_DEPLOYMENT.md. Review and COMPLETE before use:
 #   * Secrets come ONLY from .env (no defaults here). Never commit .env.
-#   * The backend runs a production WSGI server (gunicorn). Add gunicorn to the
-#     backend dependencies (a later hardening step) before running this file.
-#   * Build the frontend static assets (`npm run build`) so Caddy can serve them.
+#   * The backend image runs gunicorn (a real backend dependency) and applies
+#     migrations on start.
+#   * The frontend is built inside the image (`npm ci && npm run build`) and
+#     baked into the Caddy image — no Node.js needed on the VM and no Vite dev
+#     server in production. `up -d --build` builds everything.
 # PostgreSQL and the backend are internal-only: no host ports are published.
 #
 # Run with:  docker compose -f docker-compose.prod.yml up -d --build
@@ -32,12 +34,30 @@ services:
       # Fail-safe: production settings enforce DEBUG=False, secure cookies, HSTS,
       # and refuse to start without the required secrets.
       DJANGO_SETTINGS_MODULE: config.settings.prod
-    # Production WSGI server. Requires `gunicorn` in the backend dependencies.
+    # Apply migrations, then serve with gunicorn (also the image's default CMD).
     command: >
       sh -c "python manage.py migrate --noinput &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    volumes:
+      # Encrypted backup archives must survive container rebuilds.
+      - backend_media:/app/media
     expose:
       - "8000"
+    healthcheck:
+      # In-container probe: loopback is in prod ALLOWED_HOSTS, and the
+      # forwarded-proto header satisfies the HTTPS redirect (TLS terminates at
+      # Caddy).
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/api/health/', headers={'X-Forwarded-Proto': 'https'}), timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
@@ -45,20 +65,25 @@ services:
     # No `ports:` — the backend is reached only via the Caddy reverse proxy.
 
   caddy:
-    image: caddy:2-alpine
+    # Caddy with the production SPA bundle baked in (frontend/Dockerfile,
+    # `serve` stage: npm ci → npm run build → COPY dist /srv).
+    build:
+      context: ./frontend
+      target: serve
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./frontend/dist:/srv:ro      # built frontend static assets (npm run build)
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  backend_media:
   caddy_data:
   caddy_config:

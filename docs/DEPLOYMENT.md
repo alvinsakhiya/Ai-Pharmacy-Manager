@@ -20,10 +20,11 @@ runtime and deployment database is **PostgreSQL** — see
   the host by default).
 
 > **This Compose file is development-oriented.** The backend runs Django's
-> `runserver` and the frontend runs the Vite dev server. For a real deployment
-> you would serve the backend behind a production WSGI/ASGI server (e.g.
-> gunicorn/uvicorn) and a TLS-terminating reverse proxy, and build the frontend
-> to static assets. See [Production checklist](#production-checklist).
+> `runserver` and the frontend runs the Vite dev server. The production demo
+> path is `docker-compose.prod.yml`: gunicorn behind a TLS-terminating Caddy
+> reverse proxy, with the frontend built (`npm ci && npm run build`) into the
+> Caddy image. See [Production checklist](#production-checklist) and
+> [ORACLE_FREE_VM_DEPLOYMENT.md](ORACLE_FREE_VM_DEPLOYMENT.md).
 
 ## Local setup
 
@@ -94,9 +95,10 @@ authenticated requests; see `.env.example` and
 
 ## Static and media handling
 
-- **Frontend:** the Compose setup serves the Vite dev server. For production,
-  build static assets with `npm run build` (output in `frontend/dist/`) and serve
-  them from a static host/CDN or the reverse proxy.
+- **Frontend:** the development Compose setup serves the Vite dev server. In
+  production (`docker-compose.prod.yml`) the SPA is built inside the image
+  (`npm ci && npm run build`) and baked into the Caddy image, which serves it
+  and reverse-proxies `/api` to the backend on the same origin.
 - **Backend static:** `STATIC_ROOT` is `backend/staticfiles/`; run
   `manage.py collectstatic` when serving Django-rendered static in production.
 - **Media / backups:** `MEDIA_ROOT` is `backend/media/` and backups default to
@@ -118,9 +120,13 @@ Before deploying to the internet:
       `X-Forwarded-Proto` for TLS termination.
 - [ ] Set `DJANGO_ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, and
       `CORS_ALLOWED_ORIGINS` to your real origins.
-- [ ] Run the backend under a production WSGI/ASGI server (not `runserver`).
-- [ ] Build and serve the frontend as static assets (not the Vite dev server).
-- [ ] Run `manage.py migrate` and `collectstatic` on deploy.
+- [ ] Run the backend under a production WSGI/ASGI server (not `runserver`) —
+      `docker-compose.prod.yml` runs gunicorn (a declared backend dependency).
+- [ ] Build and serve the frontend as static assets (not the Vite dev server) —
+      the production Compose file builds the SPA into the Caddy image.
+- [ ] Run `manage.py migrate` on deploy (the production Compose command applies
+      migrations before starting gunicorn). `collectstatic` is only needed if
+      Django-rendered static pages are ever served (the API does not need it).
 - [ ] Configure database backups (`pg_dump`/managed snapshots) in addition to the
       in-app group backups, and store backups off-site.
 - [ ] **Rotate or disable the demo accounts** before exposing the app: change
