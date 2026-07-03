@@ -285,3 +285,56 @@ def test_env_bool_treats_empty_value_as_default(monkeypatch):
     assert env_bool("AIPM_TEST_FLAG", False) is True
     monkeypatch.delenv("AIPM_TEST_FLAG")
     assert env_bool("AIPM_TEST_FLAG", True) is True
+
+
+@pytest.mark.django_db
+def test_malformed_key_refuses_backup_and_writes_no_plaintext(enc_data, settings):
+    # A present-but-invalid key (valid base64, wrong length) must fail the backup,
+    # never silently downgrade to an unencrypted archive.
+    settings.BACKUP_ENCRYPTION_KEY = "YWJj"  # decodes to b"abc" (3 bytes, not 32)
+    settings.BACKUP_ENCRYPTION_REQUIRED = False
+
+    with pytest.raises(services.BackupError):
+        services.create_backup(group=enc_data["group"], actor=enc_data["admin"])
+
+    group_dir = services.backup_root() / "enc-group"
+    if group_dir.exists():
+        assert list(group_dir.glob("*.zip")) == []
+        assert list(group_dir.glob("*.zip.enc")) == []
+    assert not BackupRun.objects.filter(
+        group=enc_data["group"], status=BackupRunStatus.SUCCESS
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_restore_rejects_checksum_mismatch(client, enc_data, settings):
+    settings.BACKUP_ENCRYPTION_KEY = ""  # unencrypted dev archive
+    settings.BACKUP_ENCRYPTION_REQUIRED = False
+    client.force_login(enc_data["admin"])
+    created = client.post(
+        "/api/backups/runs/now/",
+        {"group": enc_data["group"].id},
+        format="json",
+    )
+    assert created.status_code == 201
+    run = BackupRun.objects.get(pk=created.json()["id"])
+    # Tamper the archive so its on-disk checksum no longer matches run.checksum.
+    with (services.backup_root() / run.file).open("ab") as handle:
+        handle.write(b"tampered")
+
+    enc_data["patient"].first_name = "Changed"
+    enc_data["patient"].save(update_fields=["first_name", "last_name_index"])
+
+    response = client.post(
+        f"/api/backups/runs/{run.id}/restore/",
+        {"confirm": "RESTORE"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "backup" in response.json()
+    enc_data["patient"].refresh_from_db()
+    assert enc_data["patient"].first_name == "Changed"
+    assert not BackupRun.objects.filter(
+        group=enc_data["group"], trigger="PRE_RESTORE"
+    ).exists()

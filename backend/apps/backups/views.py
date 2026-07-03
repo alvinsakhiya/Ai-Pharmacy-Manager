@@ -42,7 +42,11 @@ def _require_backup_admin(request):
 
 def _group_from_request(request):
     membership = _require_backup_operator(request)
-    if membership.role == Role.PHARMACIST and membership.pharmacy_id is not None:
+    if membership.role == Role.PHARMACIST:
+        # A pharmacist is always scoped to their own pharmacy's group and may not
+        # target another group via the request; deny if they have no pharmacy.
+        if membership.pharmacy_id is None:
+            raise PermissionDenied("Backup settings require a pharmacy assignment.")
         return membership.pharmacy.group
 
     group_id = request.query_params.get("group") or request.data.get("group")

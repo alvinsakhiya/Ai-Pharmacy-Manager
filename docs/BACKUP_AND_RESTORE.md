@@ -83,6 +83,11 @@ disk. A random 12-byte nonce is generated per archive and a short magic header
 Because GCM is authenticated, a wrong key or a tampered/corrupt file fails to
 decrypt rather than returning bad data.
 
+A **present-but-invalid** `BACKUP_ENCRYPTION_KEY` (wrong length or not base64) is
+rejected: backup creation fails with a clear error rather than silently
+downgrading to an unencrypted archive. A **blank** key is treated as "no key"
+(unencrypted dev backups, subject to `BACKUP_ENCRYPTION_REQUIRED`).
+
 ## Manifest metadata
 
 Every archive contains a `manifest.json` with:
@@ -109,10 +114,13 @@ Restore is deliberately conservative:
 1. **Admin only.** Only the `ADMIN` role can restore.
 2. **Explicit confirmation.** The caller must send `confirm = "RESTORE"`; any
    other value is rejected.
-3. **Manifest and key validation first.** The archive is decrypted and its
-   manifest is read *before* anything is changed. A wrong/missing key, a
-   corrupt file, or a group mismatch aborts the restore **before** any deletion
-   or pre-restore backup — nothing is lost.
+3. **Integrity and key validation first.** Before anything is changed, the
+   archive's on-disk **checksum is verified** against the recorded value, then
+   the manifest and data payload are read in full (decrypting the archive). A
+   checksum mismatch, a wrong/missing key, a group mismatch, or an unreadable
+   payload aborts the restore with a `400` **before** any deletion or pre-restore
+   backup — nothing is lost. This protects unencrypted archives too, where the
+   GCM authentication tag does not apply.
 4. **Pre-restore safety backup.** A `PRE_RESTORE` backup of the current state is
    taken so a restore can itself be undone.
 5. **Group-scoped, atomic replace.** Inside a database transaction, the group's

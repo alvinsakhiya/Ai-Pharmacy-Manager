@@ -156,12 +156,23 @@ def restore_backup(*, run: BackupRun, actor=None, confirm: str) -> BackupRun:
     if not archive_path.exists():
         raise BackupError("Selected backup file is not available.")
 
-    # Reading the manifest decrypts the archive, so a wrong/missing key or a
-    # tampered file fails here, before the pre-restore backup or any deletion.
+    # Validate the archive fully BEFORE the pre-restore backup or any deletion.
+    # 1) checksum (catches disk corruption/tampering of encrypted or plain files);
+    # 2) manifest read (decrypts, so a wrong/missing key or group mismatch fails);
+    # 3) data read (so a corrupt payload fails cleanly, not mid-restore).
+    if run.checksum and _sha256_file(archive_path) != run.checksum:
+        raise BackupError(
+            "Backup archive checksum does not match; the file may be corrupt or "
+            "altered."
+        )
     try:
         _read_manifest(archive_path, expected_group=run.group)
+        data = _read_backup_data(archive_path)
     except encryption.BackupEncryptionError as exc:
         raise BackupError(str(exc)) from exc
+    except (zipfile.BadZipFile, json.JSONDecodeError, KeyError) as exc:
+        raise BackupError("Backup archive is unreadable or corrupt.") from exc
+
     create_backup(
         group=run.group,
         actor=actor,
@@ -169,7 +180,6 @@ def restore_backup(*, run: BackupRun, actor=None, confirm: str) -> BackupRun:
         enforce_retention=False,
     )
 
-    data = _read_backup_data(archive_path)
     with transaction.atomic():
         _delete_group_scoped_data(run.group)
         for obj in serializers.deserialize("json", json.dumps(data["objects"])):
@@ -246,7 +256,12 @@ def _write_backup_archive(group: Group, run: BackupRun) -> tuple[Path, int, str,
     content_checksum = hashlib.sha256(data_bytes).hexdigest()
     included_models = sorted({obj["model"] for obj in serialized})
 
-    encrypt_archive = encryption.encryption_available()
+    # A present-but-invalid key must never silently downgrade to a plaintext
+    # backup: fail loudly instead. A blank key means "no key" (unencrypted dev).
+    try:
+        encrypt_archive = encryption.encryption_available_or_raise()
+    except encryption.BackupKeyError as exc:
+        raise BackupError(f"BACKUP_ENCRYPTION_KEY is invalid: {exc}") from exc
     if encryption.encryption_required() and not encrypt_archive:
         raise BackupError(
             "Encrypted backups are required but BACKUP_ENCRYPTION_KEY is not "

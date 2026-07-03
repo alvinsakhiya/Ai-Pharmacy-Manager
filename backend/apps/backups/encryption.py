@@ -87,6 +87,15 @@ def encryption_available() -> bool:
         return False
 
 
+def encryption_available_or_raise() -> bool:
+    """True when a usable key is configured, False when no key is set.
+
+    Raises :class:`BackupKeyError` when a key is present but malformed, so a bad
+    key can never silently downgrade a backup to plaintext.
+    """
+    return _load_key() is not None
+
+
 def is_encrypted_payload(blob: bytes) -> bool:
     return blob[: len(MAGIC)] == MAGIC
 

@@ -327,3 +327,58 @@ def test_dispenser_cannot_access_backup_schedule(client, backup_api_data):
     response = client.get("/api/backups/schedule/")
 
     assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_admin_can_delete_backup(client, backup_api_data):
+    authenticate(client, backup_api_data["admin"])
+    created = client.post(
+        "/api/backups/runs/now/",
+        {"group": backup_api_data["group_one"].id},
+        format="json",
+    )
+    run_id = created.json()["id"]
+    archive_path = backup_root() / BackupRun.objects.get(pk=run_id).file
+    assert archive_path.exists()
+
+    response = client.delete(f"/api/backups/runs/{run_id}/")
+
+    assert response.status_code == 204
+    assert not BackupRun.objects.filter(pk=run_id).exists()
+    assert not archive_path.exists()
+
+
+@pytest.mark.django_db
+def test_non_admin_cannot_delete_backup(client, backup_api_data):
+    authenticate(client, backup_api_data["admin"])
+    created = client.post(
+        "/api/backups/runs/now/",
+        {"group": backup_api_data["group_one"].id},
+        format="json",
+    )
+    run_id = created.json()["id"]
+
+    authenticate(client, backup_api_data["pharmacist"])
+    response = client.delete(f"/api/backups/runs/{run_id}/")
+
+    assert response.status_code == 403
+    assert BackupRun.objects.filter(pk=run_id).exists()
+
+
+@pytest.mark.django_db
+def test_pharmacist_cannot_target_other_group_backup(client, backup_api_data):
+    # A pharmacist is scoped to their own group; passing another group's id must
+    # not surface that group's backups.
+    BackupRun.objects.create(
+        group=backup_api_data["group_two"],
+        status=BackupRunStatus.SUCCESS,
+        file="other.zip",
+    )
+    authenticate(client, backup_api_data["pharmacist"])
+
+    response = client.get(f"/api/backups/runs/?group={backup_api_data['group_two'].id}")
+
+    assert response.status_code == 200
+    assert all(
+        item["group"] == backup_api_data["group_one"].id for item in response.json()
+    )
