@@ -146,7 +146,10 @@ Step-by-step instructions, verification, and troubleshooting are in
 
 The seeded demo users share a single **demo-only** password.
 
-> **Demo-only credentials — do not use in production.**
+> **Demo-only credentials.** These accounts and the shared password exist only
+> for local demonstration with fictional data. Before any public or internet
+> deployment, **rotate the password and disable or remove the demo accounts** —
+> `admin@demo.local` has global administrator access.
 
 Shared password: `DemoPass!2026`
 

@@ -138,7 +138,9 @@ Development settings do not enable these, so **serve production only over HTTPS*
   Analytics, reports, and the work queue expose counts, quantities, and IDs — not
   patient identities.
 - The app ships with **fictional demo data** via `seed_demo`; `reset_demo_data`
-  is dev-gated and only affects the `@demo.local` workspace.
+  is dev-gated and only affects the `@demo.local` workspace. The demo accounts
+  share a documented demo-only password and must be rotated or disabled before
+  any public deployment (see the [deployment checklist](DEPLOYMENT.md)).
 - Audit metadata stores staff email, IP, and user agent (plaintext); audit reads
   are tenant-scoped.
 

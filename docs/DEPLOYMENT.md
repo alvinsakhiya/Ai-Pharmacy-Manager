@@ -120,7 +120,14 @@ Before deploying to the internet:
 - [ ] Run `manage.py migrate` and `collectstatic` on deploy.
 - [ ] Configure database backups (`pg_dump`/managed snapshots) in addition to the
       in-app group backups, and store backups off-site.
-- [ ] Never commit real secrets; `.env` is git-ignored.
+- [ ] **Rotate or disable the demo accounts** before exposing the app: change
+      the shared `DemoPass!2026` password and disable/remove the `@demo.local`
+      users (especially the global-admin `admin@demo.local`). Do not run
+      `seed_demo` against a public database with the shipped password.
+- [ ] Set `SESSION_COOKIE_AGE` (default 12h) and `LOG_LEVEL` as required.
+- [ ] Never commit real secrets; `.env` is git-ignored. Serve backend entrypoints
+      (gunicorn/uvicorn) with `config.settings.prod` — the WSGI/ASGI modules now
+      default to prod and will fail fast if the required secrets are unset.
 
 See [SECURITY_AND_DATA_PROTECTION.md](SECURITY_AND_DATA_PROTECTION.md) for the
 full security posture.

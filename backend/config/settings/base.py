@@ -26,6 +26,16 @@ def env_list(name: str, default: str = "") -> list[str]:
     ]
 
 
+def env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return default
+
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-development-key")
 # Dev/test-only fallback Fernet key for prototype patient field encryption.
 # Set PATIENT_FIELD_KEY outside local development; this fallback is not secret.
@@ -155,3 +165,48 @@ SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE")
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE")
+
+# Authenticated session lifetime in seconds. Default 12 hours — shorter than
+# Django's 2-week default, which is more appropriate for a demo of a
+# clinical-style system. Override with SESSION_COOKIE_AGE.
+SESSION_COOKIE_AGE = env_int("SESSION_COOKIE_AGE", 12 * 60 * 60)
+
+# Security headers set explicitly (these also match Django's secure defaults on
+# the 5.2 line, but are pinned here so they cannot drift). HTTPS-only settings
+# (HSTS, SSL redirect, secure cookies) live in prod.py.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "same-origin"
+
+# Logging: send application and security records to stdout (container logs)
+# unconditionally, so errors and django.security warnings remain visible when
+# DEBUG=False. Level configurable via LOG_LEVEL.
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}
