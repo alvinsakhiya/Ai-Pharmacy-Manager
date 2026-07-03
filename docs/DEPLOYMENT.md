@@ -130,4 +130,7 @@ Before deploying to the internet:
       default to prod and will fail fast if the required secrets are unset.
 
 See [SECURITY_AND_DATA_PROTECTION.md](SECURITY_AND_DATA_PROTECTION.md) for the
-full security posture.
+full security posture, and
+[ORACLE_FREE_VM_DEPLOYMENT.md](ORACLE_FREE_VM_DEPLOYMENT.md) for a step-by-step
+secure free-VM deployment (Docker Compose, internal-only PostgreSQL, optional
+DuckDNS + Caddy HTTPS) for a synthetic-data public demo.

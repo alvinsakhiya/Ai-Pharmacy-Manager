@@ -1,0 +1,27 @@
+# Caddy reverse proxy for AI Pharmacy Manager (synthetic-data demo).
+# Copy to `Caddyfile`, replace the placeholder domain and email, then run via
+# docker-compose.prod.yml. Caddy obtains and renews HTTPS automatically.
+#
+# It serves the built frontend single-page app and proxies the API to the
+# backend service on the internal Docker network.
+
+{
+	# ACME/Let's Encrypt contact address (optional but recommended).
+	email you@example.com
+}
+
+your-app.duckdns.org {
+	encode gzip
+
+	# API and authentication → Django backend (internal only).
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else → the built frontend SPA (client-side routing fallback).
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

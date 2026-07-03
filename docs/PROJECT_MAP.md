@@ -109,6 +109,8 @@ is controlled.
 - [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) — models and relationships
 - [INSTALLATION.md](INSTALLATION.md) — install dependencies and run the project
 - [DEPLOYMENT.md](DEPLOYMENT.md) — running and deploying the stack
+- [ORACLE_FREE_VM_DEPLOYMENT.md](ORACLE_FREE_VM_DEPLOYMENT.md) — secure free-VM
+  deployment guide (synthetic demo)
 - [FORECASTING_AND_INTELLIGENCE.md](FORECASTING_AND_INTELLIGENCE.md) — how the
   "intelligence" actually works
 - [SECURITY_AND_DATA_PROTECTION.md](SECURITY_AND_DATA_PROTECTION.md) — auth, RBAC,
