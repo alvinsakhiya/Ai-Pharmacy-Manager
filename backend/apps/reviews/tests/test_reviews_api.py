@@ -136,6 +136,7 @@ def review_data():
         pharmacies=(pharmacy_one,),
     )
     add_membership(admin, Role.ADMIN)
+    add_membership(assignee, Role.DISPENSER, pharmacy=pharmacy_one)
 
     medication = Medication.objects.create(
         group=group_one,
@@ -550,3 +551,30 @@ def test_serialized_payload_minimises_patient_data_and_no_clinical_fields(
         "Sensitive dose details",
     ]:
         assert forbidden not in payload_text
+
+
+@pytest.mark.django_db
+def test_cannot_assign_review_to_out_of_scope_user(client, review_data):
+    # pharmacist_two belongs to pharmacy_two; the pharmacist (pharmacy_one) must
+    # not be able to assign a review to them or read their email back.
+    authenticate(client, review_data["pharmacist"])
+    other_tenant_user = review_data["pharmacist_two"]
+
+    created = client.post(
+        "/api/reviews/",
+        create_payload(review_data, assigned_to=other_tenant_user.id),
+        format="json",
+    )
+    assert created.status_code == 400
+    assert "assigned_to" in created.json()
+
+    review = review_data["review_one"]
+    updated = client.patch(
+        detail_url(review),
+        {"assigned_to": other_tenant_user.id},
+        format="json",
+    )
+    assert updated.status_code == 400
+    assert "assigned_to" in updated.json()
+    review.refresh_from_db()
+    assert review.assigned_to_id != other_tenant_user.id

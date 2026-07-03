@@ -1,6 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
+from apps.accounts.selectors import users_visible_to
 from apps.blister.models import DosetteCycle
 from apps.patients.selectors import patients_for
 
@@ -88,5 +89,17 @@ class ReviewRecordSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"dosette_cycle": ["Cycle must belong to the selected patient."]}
                 )
+
+        # A review may only be assigned to a user within the caller's scope; the
+        # default writable FK queryset would otherwise accept any user id and echo
+        # their email back via assigned_to_email (cross-tenant enumeration).
+        assigned_to = attrs.get("assigned_to")
+        if (
+            assigned_to is not None
+            and not users_visible_to(request.user).filter(pk=assigned_to.pk).exists()
+        ):
+            raise serializers.ValidationError(
+                {"assigned_to": ["This user is outside your assignment scope."]}
+            )
 
         return attrs

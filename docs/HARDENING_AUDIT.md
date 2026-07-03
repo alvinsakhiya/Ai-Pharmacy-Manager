@@ -594,3 +594,32 @@ This audit is Phase 0. Fixes are sequenced through subsequent phases, each a sma
 - **Phase 6 — Docker & deps:** `.dockerignore`, gunicorn + WhiteNoise, non-root, healthchecks, production run command.
 - **Phase 7 — Observability:** logging/health guidance, deployment checklist.
 - **Phase 8 — Docs:** correct stale claims/counts, demo-account rotation guidance, industry hardening report.
+
+## Phase 4 — RBAC & scope verification (update)
+
+**Fixed:** the `[api]` finding *"ReviewRecord `assigned_to` accepts any user id
+and echoes their email"* — `ReviewRecordSerializer.validate` now rejects an
+`assigned_to` outside `users_visible_to(request.user)` (the caller's pharmacy
+scope; global for admin), preventing cross-tenant staff-email enumeration.
+Regression tests cover create and update.
+
+**Verified safe on review (no change needed):**
+
+- **Analytics** read endpoints scope their base querysets to the caller
+  (`stock_items_for(user)` / `*.scoped.for_user(user)`), so a query-param
+  `?pharmacy=`/`?group=` outside scope narrows to empty rather than leaking
+  another tenant's data; the forecast/transfer **generate** endpoints enforce
+  `can(user, action, target=pharmacy|group)`.
+- **Inventory** receive/intake/adjust/count/transfer enforce
+  `can(user, action, target=pharmacy)` (and same-group medication/destination
+  checks) in serializer `validate`, so the permissive `Pharmacy.objects.all()`
+  field querysets cannot mutate stock cross-tenant.
+- **Patients/dosette** views use `patients_for(user)` and `*.scoped.for_user`;
+  **users** use `users_visible_to`; **backups** group scoping was hardened in
+  Phase 3.
+
+**Known residuals (low, unchanged, deliberate):** the analytics
+`_pharmacy_from_id`/`_group_from_id` helpers return a differentiated error for an
+existing-but-out-of-scope id versus a missing one (minor id-existence
+enumeration; data stays scoped); superintendent/dispenser capability nuances are
+by design (see the role matrix).
