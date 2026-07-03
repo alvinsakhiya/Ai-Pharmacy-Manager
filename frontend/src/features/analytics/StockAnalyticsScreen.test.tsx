@@ -526,6 +526,33 @@ describe("StockAnalyticsScreen", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not fabricate branch figures when group signals fail", async () => {
+    getStockReviewQueueMock.mockRejectedValue(new Error("unavailable"));
+    getMdsDemandSignalMock.mockRejectedValue(new Error("unavailable"));
+    getExpiryRiskMock.mockRejectedValue(new Error("unavailable"));
+
+    renderAnalytics(transferAuth());
+
+    const groupHeading = await screen.findByRole("heading", {
+      name: "Group overview",
+    });
+    const groupPanel = groupHeading.closest("section");
+    expect(groupPanel).not.toBeNull();
+    expect(
+      await within(groupPanel as HTMLElement).findByText(
+        "Could not load group stock signals.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(groupPanel as HTMLElement).queryByRole("heading", {
+        name: "JMW Sutton",
+      }),
+    ).toBeNull();
+    expect(
+      within(groupPanel as HTMLElement).queryByText("Value at risk"),
+    ).toBeNull();
+  });
+
   it("selects a superintendent branch and keeps forecast controls branch-aware", async () => {
     const user = userEvent.setup();
     mockGroupSignals();
@@ -536,9 +563,11 @@ describe("StockAnalyticsScreen", () => {
       name: "Group overview",
     })).closest("section");
     expect(groupPanel).not.toBeNull();
-    const wimbledonCard = within(groupPanel as HTMLElement)
-      .getByRole("heading", { name: "JMW Wimbledon" })
-      .closest("article");
+    const wimbledonCard = (
+      await within(groupPanel as HTMLElement).findByRole("heading", {
+        name: "JMW Wimbledon",
+      })
+    ).closest("article");
     expect(wimbledonCard).not.toBeNull();
 
     await user.click(

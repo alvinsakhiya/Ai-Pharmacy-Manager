@@ -2,6 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../../lib/apiClient";
 import { renderWithProviders } from "../../test/providers";
 import * as settingsApi from "./settingsApi";
 import { SettingsScreen } from "./SettingsScreen";
@@ -172,6 +173,76 @@ describe("SettingsScreen", () => {
     );
 
     expect(restoreBackupMock.mock.calls[0]?.[0]).toBe(11);
+  });
+
+  it("shows an error state when backup history cannot be loaded", async () => {
+    listBackupRunsMock.mockRejectedValue(new Error("unavailable"));
+
+    renderWithProviders(<SettingsScreen />);
+
+    expect(
+      await screen.findByText(
+        "Could not load the backup history. Reload the page or try again later.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No backups have been created for this group yet."),
+    ).toBeNull();
+  });
+
+  it("shows a message when a manual backup fails to run", async () => {
+    const user = userEvent.setup();
+    runBackupNowMock.mockRejectedValue(new Error("unavailable"));
+
+    renderWithProviders(<SettingsScreen />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Run backup now" }),
+    );
+
+    expect(
+      await screen.findByText("The backup did not run. Please try again."),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces a failed restore with the backend reason", async () => {
+    const user = userEvent.setup();
+    restoreBackupMock.mockRejectedValue(
+      new ApiError(400, { detail: "Selected backup has no archive file." }),
+    );
+
+    renderWithProviders(<SettingsScreen />);
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "Restore" }))[0],
+    );
+    await user.type(screen.getByLabelText("Type RESTORE to confirm"), "RESTORE");
+    await user.click(
+      screen.getByRole("button", { name: "Restore selected backup" }),
+    );
+
+    expect(
+      await screen.findByText("Selected backup has no archive file."),
+    ).toBeInTheDocument();
+  });
+
+  it("does not offer restore for runs without a usable archive", async () => {
+    listBackupRunsMock.mockResolvedValue([
+      {
+        ...backupRuns[0],
+        id: 12,
+        status: "FAILED",
+        file: "",
+        file_size: 0,
+      },
+      backupRuns[1],
+    ]);
+
+    renderWithProviders(<SettingsScreen />);
+
+    expect(await screen.findAllByRole("button", { name: "Restore" })).toHaveLength(
+      1,
+    );
   });
 
   it("enables high contrast and persists it", async () => {

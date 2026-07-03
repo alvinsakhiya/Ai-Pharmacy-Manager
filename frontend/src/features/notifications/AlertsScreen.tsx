@@ -511,9 +511,11 @@ export function AlertsScreen() {
           <Badge variant="neutral">{filterLabel}</Badge>
           <Badge variant="neutral">{dateLabel}</Badge>
           <Badge variant="brand">
-            {alertsQuery.isSuccess
-              ? `${summary.total} alerts shown`
-              : "Alerts loading"}
+            {alertsQuery.isError
+              ? "Alerts unavailable"
+              : alertsQuery.isSuccess
+                ? `${summary.total} alerts shown`
+                : "Alerts loading"}
           </Badge>
         </div>
       </header>

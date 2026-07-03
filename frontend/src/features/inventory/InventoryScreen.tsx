@@ -389,9 +389,11 @@ export function InventoryScreen() {
           ) : null}
           <Badge variant="neutral">{dateLabel}</Badge>
           <Badge variant="brand">
-            {stockItemsQuery.isSuccess
-              ? `${formatNumber(stockItems.length)} records shown`
-              : "Inventory loading"}
+            {stockItemsQuery.isError
+              ? "Inventory unavailable"
+              : stockItemsQuery.isSuccess
+                ? `${formatNumber(stockItems.length)} records shown`
+                : "Inventory loading"}
           </Badge>
         </div>
       </header>

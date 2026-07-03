@@ -1,8 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SESSION_EXPIRED_EVENT } from "../lib/apiClient";
 import type { MePayload } from "../types/auth";
 import { AuthProvider, useAuth } from "./AuthContext";
 import * as authApi from "./authApi";
@@ -18,6 +20,7 @@ vi.mock("./authApi", () => ({
 const getCsrfMock = vi.mocked(authApi.getCsrf);
 const getMeMock = vi.mocked(authApi.getMe);
 const loginMock = vi.mocked(authApi.login);
+const logoutMock = vi.mocked(authApi.logout);
 
 function makeUser(overrides: Partial<MePayload> = {}): MePayload {
   return {
@@ -37,8 +40,26 @@ function makeUser(overrides: Partial<MePayload> = {}): MePayload {
   };
 }
 
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+function renderAuth(ui: React.ReactElement, queryClient = createQueryClient()) {
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>{ui}</AuthProvider>
+    </QueryClientProvider>,
+  );
+  return queryClient;
+}
+
 function LoginHarness() {
-  const { login, user } = useAuth();
+  const { login, logout, user } = useAuth();
 
   return (
     <div>
@@ -48,6 +69,9 @@ function LoginHarness() {
         onClick={() => void login("pharmacist@demo.local", "DemoPass!2026")}
       >
         Sign in
+      </button>
+      <button type="button" onClick={() => void logout()}>
+        Sign out
       </button>
     </div>
   );
@@ -68,11 +92,7 @@ describe("AuthProvider", () => {
       status: 200,
     });
 
-    render(
-      <AuthProvider>
-        <LoginHarness />
-      </AuthProvider>,
-    );
+    renderAuth(<LoginHarness />);
 
     await waitFor(() => {
       expect(getMeMock).toHaveBeenCalledTimes(1);
@@ -122,11 +142,7 @@ describe("AuthProvider", () => {
       );
     }
 
-    render(
-      <AuthProvider>
-        <ErrorHarness />
-      </AuthProvider>,
-    );
+    renderAuth(<ErrorHarness />);
 
     await waitFor(() => {
       expect(getMeMock).toHaveBeenCalledTimes(1);
@@ -136,5 +152,105 @@ describe("AuthProvider", () => {
 
     expect(await screen.findByText("Invalid credentials.")).toBeInTheDocument();
     expect(getMeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears cached query data from before login so a new account starts clean", async () => {
+    const user = userEvent.setup();
+    getMeMock.mockResolvedValueOnce(null).mockResolvedValueOnce(makeUser());
+    loginMock.mockResolvedValue({
+      data: makeUser(),
+      ok: true,
+      status: 200,
+    });
+
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(["patients"], [{ id: 9, name: "Stale Patient" }]);
+    renderAuth(<LoginHarness />, queryClient);
+
+    await waitFor(() => {
+      expect(getMeMock).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("current-user")).toHaveTextContent(
+        "pharmacist@demo.local",
+      );
+    });
+    expect(queryClient.getQueryData(["patients"])).toBeUndefined();
+  });
+
+  it("logout clears the user and all cached query data", async () => {
+    const user = userEvent.setup();
+    getMeMock.mockResolvedValue(makeUser());
+    logoutMock.mockResolvedValue(undefined);
+
+    const queryClient = createQueryClient();
+    renderAuth(<LoginHarness />, queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("current-user")).toHaveTextContent(
+        "pharmacist@demo.local",
+      );
+    });
+
+    queryClient.setQueryData(["patients"], [{ id: 9, name: "Stale Patient" }]);
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("current-user")).toHaveTextContent("No user");
+    });
+    expect(logoutMock).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(["patients"])).toBeUndefined();
+  });
+
+  it("logout still ends the local session when the server call fails", async () => {
+    const user = userEvent.setup();
+    getMeMock.mockResolvedValue(makeUser());
+    logoutMock.mockRejectedValue(new Error("network down"));
+
+    const queryClient = createQueryClient();
+    renderAuth(<LoginHarness />, queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("current-user")).toHaveTextContent(
+        "pharmacist@demo.local",
+      );
+    });
+
+    queryClient.setQueryData(["patients"], [{ id: 9, name: "Stale Patient" }]);
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("current-user")).toHaveTextContent("No user");
+    });
+    expect(queryClient.getQueryData(["patients"])).toBeUndefined();
+  });
+
+  it("session-expired event signs the user out and purges cached data", async () => {
+    getMeMock.mockResolvedValue(makeUser());
+
+    const queryClient = createQueryClient();
+    renderAuth(<LoginHarness />, queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("current-user")).toHaveTextContent(
+        "pharmacist@demo.local",
+      );
+    });
+
+    queryClient.setQueryData(["patients"], [{ id: 9, name: "Stale Patient" }]);
+
+    act(() => {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("current-user")).toHaveTextContent("No user");
+    });
+    expect(queryClient.getQueryData(["patients"])).toBeUndefined();
   });
 });

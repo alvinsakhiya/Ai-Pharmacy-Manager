@@ -1176,7 +1176,7 @@ function FourWeekPeriodSummary({
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {period.cycles.map((cycle, index) => {
+              {(period.cycles ?? []).map((cycle, index) => {
                 const label = periodWeekLabel(cycle, index);
                 return (
                   <article

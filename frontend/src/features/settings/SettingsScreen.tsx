@@ -40,6 +40,8 @@ import { Button } from "../../components/ui/Button";
 import { Panel, PanelBody, PanelHeader } from "../../components/ui/Card";
 import { inputClass, labelClass, selectClass } from "../../components/ui/forms";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { ApiError } from "../../lib/apiClient";
+import { errorMessages, normalizeErrors } from "../../lib/apiErrors";
 import { cn } from "../../lib/cn";
 import {
   getBackupSchedule,
@@ -257,6 +259,21 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const backupErrorClass =
+  "rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-medium text-danger-ink";
+
+// Backup 4xx responses carry operator-safe detail messages (e.g. "Selected
+// backup has no archive file."); anything else gets the generic fallback.
+function backupActionError(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.status < 500) {
+    const detail = errorMessages(normalizeErrors(error), "detail");
+    if (detail.length > 0) {
+      return detail.join(" ");
+    }
+  }
+  return fallback;
+}
+
 function BackupRunRow({
   canRestore,
   onSelectRestore,
@@ -266,12 +283,12 @@ function BackupRunRow({
   onSelectRestore: (run: BackupRun) => void;
   run: BackupRun;
 }) {
-  const variant =
-    run.status === "SUCCESS" || run.status === "RESTORED"
-      ? "brand"
-      : run.status === "FAILED"
-        ? "danger"
-        : "neutral";
+  const restorable = run.status === "SUCCESS" || run.status === "RESTORED";
+  const variant = restorable
+    ? "brand"
+    : run.status === "FAILED"
+      ? "danger"
+      : "neutral";
 
   return (
     <li className="rounded-xl border border-line bg-surface px-3 py-3">
@@ -288,7 +305,7 @@ function BackupRunRow({
             {formatFileSize(run.file_size)}
           </p>
         </div>
-        {canRestore ? (
+        {canRestore && restorable ? (
           <Button
             type="button"
             size="sm"
@@ -297,9 +314,9 @@ function BackupRunRow({
           >
             Restore
           </Button>
-        ) : (
+        ) : !canRestore ? (
           <Badge variant="neutral">Admin only</Badge>
-        )}
+        ) : null}
       </div>
       {run.error_message ? (
         <p className="mt-2 text-xs font-medium text-danger">{run.error_message}</p>
@@ -432,6 +449,14 @@ function BackupRestorePanel({
                 {schedule?.scheduler_note ??
                   "Scheduled backups run when the scheduler command is active."}
               </p>
+              {scheduleMutation.isError ? (
+                <p className={cn(backupErrorClass, "mt-3")}>
+                  {backupActionError(
+                    scheduleMutation.error,
+                    "The schedule change was not saved. Please try again.",
+                  )}
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -451,8 +476,22 @@ function BackupRestorePanel({
               </Button>
             </div>
 
+            {runNowMutation.isError ? (
+              <p className={backupErrorClass}>
+                {backupActionError(
+                  runNowMutation.error,
+                  "The backup did not run. Please try again.",
+                )}
+              </p>
+            ) : null}
+
             {runsQuery.isLoading ? (
               <p className="text-sm font-medium text-muted">Loading backups…</p>
+            ) : runsQuery.isError ? (
+              <p className={backupErrorClass}>
+                Could not load the backup history. Reload the page or try again
+                later.
+              </p>
             ) : runs.length ? (
               <ul className="space-y-2">
                 {runs.map((run) => (
@@ -476,8 +515,19 @@ function BackupRestorePanel({
             {restoreRun ? (
               <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
                 <p className="text-sm font-extrabold text-warning-ink">
-                  Restore backup from {formatBackupTime(restoreRun.completed_at)}
+                  Restore backup from{" "}
+                  {formatBackupTime(
+                    restoreRun.completed_at ?? restoreRun.started_at,
+                  )}
                 </p>
+                {restoreMutation.isError ? (
+                  <p className={cn(backupErrorClass, "mt-3")}>
+                    {backupActionError(
+                      restoreMutation.error,
+                      "The restore was not applied. Please try again.",
+                    )}
+                  </p>
+                ) : null}
                 <label className={cn(labelClass, "mt-3")} htmlFor="restore-confirm">
                   Type RESTORE to confirm
                   <input

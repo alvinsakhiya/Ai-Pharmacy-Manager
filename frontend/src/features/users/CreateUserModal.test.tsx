@@ -130,7 +130,7 @@ describe("CreateUserModal", () => {
 
   it("renders backend duplicate email and weak password errors inline", async () => {
     createUserMock.mockRejectedValue(
-      new ApiError("Bad request", 400, {
+      new ApiError(400, {
         email: ["A user with this email already exists."],
         password: ["This password is too common."],
       }),

@@ -62,6 +62,14 @@ function renderProtectedRoute(authOverrides: Partial<AuthContextValue>) {
 }
 
 describe("ProtectedRoute", () => {
+  it("shows a loading state while the session is being restored", () => {
+    renderProtectedRoute({ loading: true, user: null });
+
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.queryByText("Protected content")).toBeNull();
+    expect(screen.queryByText("Login page")).toBeNull();
+  });
+
   it("unauthenticated user redirects to /login", async () => {
     renderProtectedRoute({ user: null });
 

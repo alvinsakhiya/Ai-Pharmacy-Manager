@@ -319,7 +319,7 @@ describe("UsersScreen", () => {
 
   it("renders reset password backend errors inline", async () => {
     resetPasswordMock.mockRejectedValue(
-      new ApiError("Bad request", 400, {
+      new ApiError(400, {
         new_password: ["This password is too weak."],
       }),
     );

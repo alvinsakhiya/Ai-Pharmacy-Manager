@@ -40,6 +40,13 @@ const PRIORITY_META: Record<
   URGENT: { variant: "danger", icon: <Flame className="h-3.5 w-3.5" /> },
 };
 
+// API-supplied enum values fall back to a neutral badge rather than crashing
+// the whole route on an unrecognised value.
+const FALLBACK_META: { variant: BadgeVariant; icon: ReactNode } = {
+  variant: "neutral",
+  icon: <MinusCircle className="h-3.5 w-3.5" />,
+};
+
 function label(value: string): string {
   return value
     .split("_")
@@ -48,7 +55,7 @@ function label(value: string): string {
 }
 
 export function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
-  const meta = STATUS_META[status];
+  const meta = STATUS_META[status] ?? FALLBACK_META;
   return (
     <Badge variant={meta.variant} icon={meta.icon}>
       {label(status)}
@@ -61,7 +68,7 @@ export function ReviewPriorityBadge({
 }: {
   priority: ReviewPriority;
 }) {
-  const meta = PRIORITY_META[priority];
+  const meta = PRIORITY_META[priority] ?? FALLBACK_META;
   return (
     <Badge variant={meta.variant} icon={meta.icon}>
       {label(priority)}

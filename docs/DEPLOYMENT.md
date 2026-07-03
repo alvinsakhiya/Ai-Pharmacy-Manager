@@ -71,9 +71,12 @@ override the secrets.
 | `DJANGO_SETTINGS_MODULE` | Which settings module to load | `config.settings.dev` |
 
 `.env.example` also lists `TRUD_API_KEY` / `TRUD_DMD_ITEM_ID` /
-`TRUD_DMD_RELEASE_FILE` (used only by the optional dm+d reference-data import),
-`VITE_API_BASE_URL` (frontend build-time), and `FIELD_ENCRYPTION_KEY` (reserved,
-not used).
+`TRUD_DMD_RELEASE_FILE` (used only by the optional dm+d reference-data import)
+and `VITE_API_BASE_URL` (frontend build-time; leave blank so the SPA calls the
+API through relative `/api` paths behind one reverse proxy — session and CSRF
+cookies are origin-scoped, so a cross-origin value silently breaks all
+authenticated requests; see `.env.example` and
+`docs/ORACLE_FREE_VM_DEPLOYMENT.md`).
 
 ## Database (PostgreSQL)
 

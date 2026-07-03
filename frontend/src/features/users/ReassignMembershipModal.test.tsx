@@ -285,7 +285,7 @@ describe("ReassignMembershipModal", () => {
 
   it("renders backend field, non-field, and detail errors inline", async () => {
     assignMembershipMock.mockRejectedValue(
-      new ApiError("Bad request", 400, {
+      new ApiError(400, {
         group_id: ["Invalid group."],
         non_field_errors: ["Membership is invalid."],
         detail: "You do not have permission.",
@@ -305,7 +305,7 @@ describe("ReassignMembershipModal", () => {
 
   it("renders backend 403 detail errors inline", async () => {
     assignMembershipMock.mockRejectedValue(
-      new ApiError("Forbidden", 403, {
+      new ApiError(403, {
         detail: "You can only assign users in your pharmacy.",
       }),
     );

@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
+import { SESSION_EXPIRED_EVENT } from "../lib/apiClient";
 import type { MePayload } from "../types/auth";
 import * as authApi from "./authApi";
 
@@ -48,8 +50,24 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 );
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<MePayload | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // The API layer announces an expired session (401, or 403 confirmed against
+  // /api/auth/me/). Drop the user so protected routes redirect to login, and
+  // purge cached query data so nothing from the old session stays visible.
+  useEffect(() => {
+    function handleSessionExpired() {
+      setUser(null);
+      queryClient.clear();
+    }
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    };
+  }, [queryClient]);
 
   const refreshMe = useCallback(async () => {
     const currentUser = await authApi.getMe();
@@ -103,6 +121,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
 
+        // Purge any query data cached before this login so the new account
+        // never sees another session's data.
+        queryClient.clear();
         setUser(nextUser);
         return { ok: true, user: nextUser };
       } catch {
@@ -112,13 +133,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
     },
-    [],
+    [queryClient],
   );
 
   const logout = useCallback(async () => {
-    await authApi.logout();
-    setUser(null);
-  }, []);
+    try {
+      await authApi.logout();
+    } catch {
+      // Server-side logout can fail (network, already-expired session); the
+      // local session still ends either way.
+    } finally {
+      setUser(null);
+      queryClient.clear();
+    }
+  }, [queryClient]);
 
   const changePassword = useCallback(
     async (oldPassword: string, newPassword: string) => {

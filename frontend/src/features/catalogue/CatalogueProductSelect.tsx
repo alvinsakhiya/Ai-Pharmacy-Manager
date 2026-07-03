@@ -116,7 +116,12 @@ export function CatalogueProductSelect({
         return;
       }
       event.preventDefault();
-      chooseProduct(products[activeIndex]);
+      // The list can shrink under a stale activeIndex when a refetch returns
+      // fewer rows; never dereference past the end.
+      const product = products[activeIndex];
+      if (product) {
+        chooseProduct(product);
+      }
     }
   }
 

@@ -533,7 +533,7 @@ function BranchOverviewGrid({
             className="py-8"
           />
         ) : null}
-        {summaries.length > 0 ? (
+        {!isLoading && !isError && summaries.length > 0 ? (
           <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
             {summaries.map((summary) => {
               const isSelected = selectedPharmacyId === summary.pharmacy.id;
@@ -1320,7 +1320,11 @@ function ForecastConfidencePanel({
           />
           <InlineStat
             label="Low confidence"
-            value={formatNumber(lowConfidenceItems ?? 0)}
+            value={
+              lowConfidenceItems === undefined
+                ? "-"
+                : formatNumber(lowConfidenceItems)
+            }
           />
         </dl>
         <p className="rounded-xl border border-info-border bg-info-soft px-3 py-2 text-xs font-semibold leading-relaxed text-info-ink">
