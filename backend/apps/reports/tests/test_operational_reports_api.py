@@ -106,7 +106,7 @@ def make_outbound(stock_item: StockItem, *, quantity: int, days_ago: int):
         batch=stock_item.batches.first(),
         movement_type=MovementType.ADJUSTMENT,
         quantity_delta=-quantity,
-        balance_after=stock_item.batches.first().quantity,
+        balance_after=stock_item.batches.first().quantity,  # type: ignore[union-attr]  # batch created above
         reference="operational-report-test",
     )
     StockMovement.objects.filter(pk=movement.pk).update(

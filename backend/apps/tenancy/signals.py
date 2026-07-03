@@ -23,7 +23,7 @@ def validate_membership_pharmacies(
 
     mismatched_pharmacy_exists = (
         Pharmacy.objects.filter(pk__in=pk_set)
-        .exclude(group_id=instance.group_id)
+        .exclude(group_id=instance.group_id)  # type: ignore[misc]  # stock-employee membership has a group (validated above)
         .exists()
     )
     if mismatched_pharmacy_exists:

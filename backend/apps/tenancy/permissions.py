@@ -61,7 +61,7 @@ PATIENT_CLASS_ACTIONS = frozenset(
     }
 )
 
-ROLE_CAPABILITIES = {
+ROLE_CAPABILITIES: dict[str, frozenset[Action]] = {
     Role.SUPERINTENDENT: frozenset(
         {
             Action.STOCK_VIEW,

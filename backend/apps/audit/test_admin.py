@@ -1,3 +1,5 @@
+from typing import cast
+
 import pytest
 from django.contrib import admin
 
@@ -7,7 +9,7 @@ from .models import AuditEvent
 
 @pytest.fixture
 def audit_admin() -> AuditEventAdmin:
-    return admin.site._registry[AuditEvent]
+    return cast(AuditEventAdmin, admin.site._registry[AuditEvent])
 
 
 def test_audit_admin_disallows_add(audit_admin):

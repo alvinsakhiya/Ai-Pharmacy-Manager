@@ -468,7 +468,11 @@ class Command(BaseCommand):
                     membership=membership,
                     role=user_data.role,
                     group=group,
-                    pharmacy=pharmacies_by_code.get(user_data.pharmacy_code),
+                    pharmacy=(
+                        pharmacies_by_code.get(user_data.pharmacy_code)
+                        if user_data.pharmacy_code
+                        else None
+                    ),
                     pharmacies_by_code=pharmacies_by_code,
                 )
                 user_statuses.append((user, created))

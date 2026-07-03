@@ -224,7 +224,7 @@ class ExpiryRiskSummarySerializer(serializers.Serializer):
 
 class ExpiryRiskBucketSerializer(serializers.Serializer):
     key = serializers.CharField(read_only=True)
-    label = serializers.CharField(read_only=True)
+    label = serializers.CharField(read_only=True)  # type: ignore[assignment]  # field name shadows DRF Field.label
     units = serializers.IntegerField(read_only=True)
     estimated_value = serializers.CharField(read_only=True)
     unpriced_units = serializers.IntegerField(read_only=True)

@@ -115,7 +115,7 @@ def make_movement(
         batch=stock_item.batches.first(),
         movement_type=MovementType.ADJUSTMENT,
         quantity_delta=quantity_delta,
-        balance_after=stock_item.batches.first().quantity,
+        balance_after=stock_item.batches.first().quantity,  # type: ignore[union-attr]  # batch created above
         reference="forecast-test",
     )
     StockMovement.objects.filter(pk=movement.pk).update(

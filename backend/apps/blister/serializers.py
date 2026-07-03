@@ -15,7 +15,7 @@ from .models import (
 )
 
 PREPARE_SOON_DAYS = 3
-SUPPLY_PERIOD_LABELS = {
+SUPPLY_PERIOD_LABELS: dict[str, str] = {
     CycleFrequency.WEEKLY: "1-week supply",
     CycleFrequency.FORTNIGHTLY: "2-week supply",
     CycleFrequency.FOUR_WEEKLY: "4-week supply",
@@ -291,10 +291,12 @@ class DosetteCycleSerializer(serializers.ModelSerializer):
         return self.get_due_status(obj) == "due_soon"
 
     def get_prepared_by_email(self, obj: DosetteCycle) -> str | None:
-        return obj.prepared_by.email if obj.prepared_by_id else None
+        user = obj.prepared_by
+        return user.email if user is not None else None
 
     def get_checked_by_email(self, obj: DosetteCycle) -> str | None:
-        return obj.checked_by.email if obj.checked_by_id else None
+        user = obj.checked_by
+        return user.email if user is not None else None
 
     def validate(self, attrs):
         patient = self.context["patient"]
@@ -361,10 +363,12 @@ class DosettePeriodCycleSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_prepared_by_email(self, obj: DosetteCycle) -> str | None:
-        return obj.prepared_by.email if obj.prepared_by_id else None
+        user = obj.prepared_by
+        return user.email if user is not None else None
 
     def get_checked_by_email(self, obj: DosetteCycle) -> str | None:
-        return obj.checked_by.email if obj.checked_by_id else None
+        user = obj.checked_by
+        return user.email if user is not None else None
 
 
 class DosettePeriodSerializer(serializers.ModelSerializer):
@@ -401,7 +405,8 @@ class DosettePeriodSerializer(serializers.ModelSerializer):
         return DosettePeriodCycleSerializer(cycles, many=True).data
 
     def get_collected_by_email(self, obj: DosettePeriod) -> str | None:
-        return obj.collected_by.email if obj.collected_by_id else None
+        user = obj.collected_by
+        return user.email if user is not None else None
 
 
 class PickingListRowSerializer(serializers.Serializer):
@@ -464,7 +469,7 @@ class StockPreviewRowSerializer(serializers.Serializer):
 
 
 class _StockPreviewTotalsSerializer(serializers.Serializer):
-    required = serializers.IntegerField(read_only=True)
+    required = serializers.IntegerField(read_only=True)  # type: ignore[assignment]  # field name shadows DRF Field.required
     available = serializers.IntegerField(read_only=True)
     shortage = serializers.IntegerField(read_only=True)
 
@@ -502,7 +507,7 @@ class DosetteDeductionCycleSerializer(serializers.Serializer):
 
 
 class _DosetteDeductionTotalsSerializer(serializers.Serializer):
-    required = serializers.IntegerField(read_only=True)
+    required = serializers.IntegerField(read_only=True)  # type: ignore[assignment]  # field name shadows DRF Field.required
     deducted = serializers.IntegerField(read_only=True)
 
 

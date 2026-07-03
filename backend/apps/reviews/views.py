@@ -14,6 +14,7 @@ from rest_framework import status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 from rest_framework.views import APIView
 
 from apps.audit.models import AuditAction
@@ -70,7 +71,9 @@ def _filtered_reviews(queryset, request):
 
 
 class ReviewMixin:
-    serializer_class = ReviewRecordSerializer
+    # Annotated to match GenericAPIView's declaration so the mixin is
+    # type-compatible in multiple inheritance; value is unchanged.
+    serializer_class: type[BaseSerializer[Any]] | None = ReviewRecordSerializer
     request: Any
 
     def get_permissions(self):

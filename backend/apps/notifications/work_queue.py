@@ -25,7 +25,7 @@ from .services import alerts_for
 
 PREPARE_SOON_DAYS = 3
 
-SUPPLY_PERIOD_LABELS = {
+SUPPLY_PERIOD_LABELS: dict[str, str] = {
     CycleFrequency.WEEKLY: "1-week supply",
     CycleFrequency.FORTNIGHTLY: "2-week supply",
     CycleFrequency.FOUR_WEEKLY: "4-week supply",

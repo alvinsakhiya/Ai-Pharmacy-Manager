@@ -4,7 +4,7 @@ from django.db import models
 from django.utils import timezone
 
 
-class UserManager(BaseUserManager):
+class UserManager(BaseUserManager["User"]):
     use_in_migrations = True
 
     def _create_user(self, email, password, **extra_fields):

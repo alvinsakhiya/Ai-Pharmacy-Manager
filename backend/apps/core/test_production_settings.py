@@ -9,6 +9,7 @@ without the required secrets.
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from django.conf import settings
 
@@ -60,9 +61,9 @@ def test_security_headers_and_session_lifetime():
 
 
 def test_logging_captures_security_events():
-    loggers = settings.LOGGING["loggers"]
-    assert "django.security" in loggers
-    assert settings.LOGGING["handlers"]["console"]["class"] == ("logging.StreamHandler")
+    logging_config = cast("dict[str, Any]", settings.LOGGING)
+    assert "django.security" in logging_config["loggers"]
+    assert logging_config["handlers"]["console"]["class"] == "logging.StreamHandler"
 
 
 def _prod_setup(extra_env):

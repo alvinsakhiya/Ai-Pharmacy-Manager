@@ -7,6 +7,7 @@ from rest_framework import serializers, status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 from rest_framework.views import APIView
 
 from apps.audit.models import AuditAction
@@ -62,7 +63,9 @@ def _cycle_audit_metadata(cycle: DosetteCycle) -> dict[str, object]:
 
 
 class PatientMedicationMixin:
-    serializer_class = PatientMedicationSerializer
+    # Annotated to match GenericAPIView's declaration so the mixin is
+    # type-compatible in multiple inheritance; value is unchanged.
+    serializer_class: type[BaseSerializer[Any]] | None = PatientMedicationSerializer
     request: Any
     kwargs: dict[str, Any]
     format_kwarg: Any
@@ -102,7 +105,9 @@ class PatientMedicationMixin:
 
 
 class DosetteCycleMixin:
-    serializer_class = DosetteCycleSerializer
+    # Annotated to match GenericAPIView's declaration so the mixin is
+    # type-compatible in multiple inheritance; value is unchanged.
+    serializer_class: type[BaseSerializer[Any]] | None = DosetteCycleSerializer
     request: Any
     kwargs: dict[str, Any]
     format_kwarg: Any
@@ -142,7 +147,9 @@ class DosetteCycleMixin:
 
 
 class DosettePeriodMixin:
-    serializer_class = DosettePeriodSerializer
+    # Annotated to match GenericAPIView's declaration so the mixin is
+    # type-compatible in multiple inheritance; value is unchanged.
+    serializer_class: type[BaseSerializer[Any]] | None = DosettePeriodSerializer
     request: Any
     kwargs: dict[str, Any]
     format_kwarg: Any
