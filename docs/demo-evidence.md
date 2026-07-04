@@ -115,14 +115,19 @@ password `DemoPass!2026`.
 
 ## Test Evidence
 
-Backend checks:
+Backend checks. The migrations check runs in the container; the quality tools
+are dev extras (not installed in the backend image), so run them from
+`backend/` in a virtual environment with the dev extras installed
+(`pip install -e ".[dev]"`):
 
 ```bash
-docker compose exec backend ruff check .
-docker compose exec backend ruff format --check .
-docker compose exec backend mypy .
 docker compose exec backend python manage.py makemigrations --check --dry-run
-docker compose exec backend pytest
+
+cd backend
+ruff check .
+ruff format --check .
+mypy .
+pytest
 ```
 
 Frontend checks:

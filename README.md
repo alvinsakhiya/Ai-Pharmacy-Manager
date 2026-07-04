@@ -219,7 +219,7 @@ in a virtual environment with the dev extras installed
 ```bash
 ruff check .
 ruff format --check .
-mypy apps
+mypy .
 pytest
 ```
 
@@ -247,6 +247,12 @@ Documentation:
 - [docs/INSTALLATION.md](docs/INSTALLATION.md) — install dependencies and run the
   project
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — running and deploying the stack
+- [docs/ORACLE_FREE_VM_DEPLOYMENT.md](docs/ORACLE_FREE_VM_DEPLOYMENT.md) —
+  secure free-VM deployment for a synthetic-data public demo
+- [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) — day-to-day
+  operations for the deployed demo
+- [docs/INDUSTRY_HARDENING_REPORT.md](docs/INDUSTRY_HARDENING_REPORT.md) —
+  final hardening evidence and limitations
 - [docs/FORECASTING_AND_INTELLIGENCE.md](docs/FORECASTING_AND_INTELLIGENCE.md) —
   how the intelligence works, honestly
 - [docs/SECURITY_AND_DATA_PROTECTION.md](docs/SECURITY_AND_DATA_PROTECTION.md) —

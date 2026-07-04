@@ -144,4 +144,5 @@ full security posture,
 secure free-VM deployment (Docker Compose, internal-only PostgreSQL, optional
 DuckDNS + Caddy HTTPS) for a synthetic-data public demo, and
 [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) for day-to-day operations after
-deployment.
+deployment. The full hardening evidence for the production-aware posture is in
+[INDUSTRY_HARDENING_REPORT.md](INDUSTRY_HARDENING_REPORT.md).

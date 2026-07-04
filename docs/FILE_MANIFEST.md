@@ -1,6 +1,6 @@
 # File Manifest
 
-A map of the meaningful tracked files and folders in the repository, with what each is for and whether it is needed at runtime, for tests, or for deployment. Generated/vendored paths are deliberately excluded: `node_modules/`, `.git/`, `.venv/`, `__pycache__/`, caches, build output, and `media/backups/`. The four expected local-only untracked items (`backend/Ai Pharmacy Manager/`, `backend/tmp/`, `design-assets/`, `docker-compose.override.yml`) are also excluded.
+A map of the meaningful tracked files and folders in the repository, with what each is for and whether it is needed at runtime, for tests, or for deployment. Generated/vendored paths are deliberately excluded: `node_modules/`, `.git/`, `.venv/`, `__pycache__/`, caches, build output, and `media/backups/`. Local-only untracked files (personal notes and scratch material) are also excluded.
 
 **Runtime** = needed for the running app · **Test** = needed for the test suite / CI · **Deploy** = needed to build or deploy · **Safe to delete**: *Keep* (load-bearing) / *Review* (unused or stub, confirm before removing).
 
@@ -53,8 +53,8 @@ A map of the meaningful tracked files and folders in the repository, with what e
 | `frontend/eslint.config.js` | config | ESLint flat config (typescript-eslint, react-hooks, react-refresh). | npm run lint, CI frontend job | — | Yes | — | Keep | — |
 | `frontend/playwright.config.ts` | config | Playwright E2E config: testDir ./e2e, chromium project, baseURL, reporters. | npm run e2e, E2E CI workflow | — | Yes | — | Keep | — |
 | `docker-compose.yml` | docker | Local/dev orchestration: postgres 17, backend (Django runserver), frontend (Vite) with volumes, ports and healthchecks. | Developers running the stack; base for env-specific overrides | — | — | Yes | Keep | — |
-| `backend/Dockerfile` | docker | Backend image: python:3.13-slim, installs project via pip, runs Django runserver on 8000. | docker-compose backend build; deployment | — | — | Yes | Keep | — |
-| `frontend/Dockerfile` | docker | Frontend image: node:22-alpine, npm ci, runs Vite dev server on 5173. | docker-compose frontend build; deployment | — | — | Yes | Keep | Dev-server based; a prod build stage would be needed for a production static deploy. |
+| `backend/Dockerfile` | docker | Backend image: python:3.13-slim, installs project via pip, runs as non-root `appuser`; default command is gunicorn (production). | docker-compose backend build; deployment | — | — | Yes | Keep | Local development overrides the command with `runserver` in docker-compose.yml. |
+| `frontend/Dockerfile` | docker | Frontend multi-stage image: `dev` (Vite dev server, default target), `build` (npm ci + npm run build), `serve` (Caddy with the built SPA baked in). | docker-compose frontend build; docker-compose.prod.yml caddy build; deployment | — | — | Yes | Keep | Production uses the `serve` stage via docker-compose.prod.yml. |
 | `.env.example` | config | Template of required env vars: Django secret/hosts, Postgres/DATABASE_URL, CSRF/CORS, encryption & backup keys, Vite/API proxy, TRUD keys. | Developers to create .env; documents deployment config | — | — | Yes | Keep | Sample only; real .env is gitignored. |
 | `.pre-commit-config.yaml` | config | Pre-commit hooks: ruff-check --fix, ruff-format, check-yaml, end-of-file-fixer, trailing-whitespace. | Developers via pre-commit; local quality gate | — | — | — | Keep | — |
 | `.github/workflows/ci.yml` | config | CI pipeline: backend (ruff, ruff format check, mypy, pytest against Postgres) and frontend (lint, build, vitest). | GitHub Actions on push/PR | — | Yes | Yes | Keep | — |
@@ -71,7 +71,7 @@ A map of the meaningful tracked files and folders in the repository, with what e
 | `frontend/src/app/` | folder | App shell and routing infrastructure: AppRouter, AppShell, ProtectedRoute, RequirePermission, PreferencesContext, navConfig. | All routed features; enforces auth and permission gating | Yes | Yes | Yes | Keep | — |
 | `frontend/src/auth/` | folder | Auth context, permissions hook and auth API client. | Login flow and every permission-gated screen | Yes | Yes | Yes | Keep | — |
 | `frontend/src/components/` | folder | Shared UI: ui/ primitives (Button, Modal, Table, KpiCard, etc.), nav/ (Sidebar, TopBar, CommandPalette), brand/ (AppLogo). | All feature screens | Yes | Yes | Yes | Keep | — |
-| `frontend/src/lib/` | folder | Cross-cutting utilities: API client/errors, query client, tenant scope, smart search, className helper. | All features and API hooks | Yes | Yes | Yes | Keep | smartSearch getLabel must be field-derived per known recurring bug note. |
+| `frontend/src/lib/` | folder | Cross-cutting utilities: API client/errors, query client, tenant scope, smart search, navigation, className helper. | All features and API hooks | Yes | Yes | Yes | Keep | smartSearch suggestion labels must be derived from fields listed in `getFields` — a synthetic label empties the suggestion list on selection. |
 | `frontend/src/styles/` | folder | Global stylesheet (index.css, Tailwind layers). | Whole app | Yes | — | Yes | Keep | — |
 | `frontend/src/types/` | folder | Shared TypeScript types (auth). | Auth and typed API layers | — | — | Yes | Keep | Compile-time types; erased at runtime but needed for build. |
 | `frontend/src/test/` | folder | Vitest test setup and shared providers wrapper. | Vitest unit/component tests | — | Yes | — | Keep | — |

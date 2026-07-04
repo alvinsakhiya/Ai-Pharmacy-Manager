@@ -149,6 +149,9 @@ Development settings do not enable these, so **serve production only over HTTPS*
 - Database-level audit immutability (triggers/permissions).
 - Superintendent audit visibility via a patient-safe action allowlist.
 - Production-grade key management and rotation for field and backup keys.
-- A production deployment profile (WSGI/ASGI server, built static frontend) — the
-  current Compose file is development-oriented.
 - Broader field-level encryption / masking for additional sensitive columns.
+
+(The production deployment profile — gunicorn as non-root, built static
+frontend served by Caddy, internal-only database — was delivered by the
+hardening series; see `docker-compose.prod.yml` and the
+[industry hardening report](INDUSTRY_HARDENING_REPORT.md).)

@@ -160,7 +160,7 @@ in the virtual environment created in section 6:
 ```bash
 .venv/bin/ruff check .
 .venv/bin/ruff format --check .
-.venv/bin/mypy apps
+.venv/bin/mypy .
 .venv/bin/python -m pytest
 ```
 

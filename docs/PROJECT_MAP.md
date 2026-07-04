@@ -111,6 +111,10 @@ is controlled.
 - [DEPLOYMENT.md](DEPLOYMENT.md) — running and deploying the stack
 - [ORACLE_FREE_VM_DEPLOYMENT.md](ORACLE_FREE_VM_DEPLOYMENT.md) — secure free-VM
   deployment guide (synthetic demo)
+- [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) — day-to-day operations for
+  the deployed demo
+- [INDUSTRY_HARDENING_REPORT.md](INDUSTRY_HARDENING_REPORT.md) — final
+  hardening evidence and limitations
 - [FORECASTING_AND_INTELLIGENCE.md](FORECASTING_AND_INTELLIGENCE.md) — how the
   "intelligence" actually works
 - [SECURITY_AND_DATA_PROTECTION.md](SECURITY_AND_DATA_PROTECTION.md) — auth, RBAC,

@@ -42,12 +42,12 @@ Additional actual repository tags relevant to Phase 2 include
 `module-6-inventory-backend-complete`, `module-7-patient-backend-complete`, and
 `module-7b-patient-encryption-search-complete`.
 
-## Current Verification Summary
+## Verification Summary (as of tag `module-14-pharmacist-review-workflow-complete`, 2026-06-20)
 
 - Backend PostgreSQL: 589 passing cases
 - Frontend: 237 tests across 36 files
 - Playwright E2E: 23/23 passing
-- Latest tag: `module-14-pharmacist-review-workflow-complete`
+- Tag at the time of this verification: `module-14-pharmacist-review-workflow-complete`
 
 Final submission evidence placeholders:
 

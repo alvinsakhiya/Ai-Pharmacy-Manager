@@ -59,6 +59,12 @@ The `.zip.enc` extension indicates an encrypted archive; `.zip` indicates an
 unencrypted development archive (see below). `media/` is git-ignored and is not
 served publicly.
 
+In the production Compose deployment (`docker-compose.prod.yml`), `media/` lives
+in the `backend_media` named volume (path `/app/media/backups/` inside the
+backend container), not on the VM filesystem, so archives survive container
+rebuilds. Copy archives out with `docker compose -f docker-compose.prod.yml cp`
+— see the [operations runbook](OPERATIONS_RUNBOOK.md) for the exact commands.
+
 ## Encryption at rest
 
 Encrypted backups use **AES-256-GCM** (authenticated encryption). The archive is
